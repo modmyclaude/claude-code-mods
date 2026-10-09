@@ -45,7 +45,8 @@ const DRAWS_ALT = /\balt\b|placeholder|cannot read|can't read/i
  * another plugin running /porthole gets localhost only.
  */
 const PERSON_ORIGINS: ReadonlySet<string> = new Set(['composer', 'bridge'])
-const NOT_TYPED = 'Porthole opens a site other than localhost only when you type /porthole <url> yourself.'
+const NOT_TYPED =
+  'Porthole opens a site other than localhost only when you type /porthole <url> yourself at the terminal or through Remote Control.'
 
 const NO_IMAGES =
   "This terminal cannot draw images here. The desktop app's built-in browser pane can preview the page."
@@ -321,7 +322,11 @@ async function runCommand($: Engine, args: string, isPerson: boolean): Promise<S
   } else {
     url = (await read($, lastSeen)) ?? current.url // bare /porthole: the last dev server seen
   }
-  if (url !== null && !isPerson && !isLocalHost(url)) return refuse(NOT_TYPED)
+  if (url !== null && !isPerson && !isLocalHost(url)) {
+    // Typed in the desktop app it arrives as an SDK turn: say porthole is terminal-only
+    // there rather than "type it yourself". Nothing opens either way.
+    return refuse((await hasTerminal($)) ? NOT_TYPED : elsewhereLine(url))
+  }
   const mode = parsed.mode ?? current.mode
   const width = VIEWPORT_WIDTH[mode]
   if (url === null) {
@@ -373,7 +378,8 @@ export const register: Register = (on, options) => {
       $.ui.toast(clean(said.text))
       return {} // nothing the model needs to read
     } catch (error) {
-      return { text: clean(`porthole: ${message(error)}`) }
+      const text = message(error)
+      return { text: clean(text.startsWith('porthole:') ? text : `porthole: ${text}`) }
     }
   })
 
