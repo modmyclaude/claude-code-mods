@@ -138,15 +138,44 @@ describe('following only the main conversation', () => {
     expect(await cue(ui)).toBe('Breathe in 4')
   })
 
-  test('another main turn starting mid-breath carries on, it does not restart', async ($, on) => {
+  test('a run whose turn.complete never came stops ticking, and the next turn starts fresh and counts only itself', { plugins: [timerSpy], options: { motion: 'still' } }, async ($, on) => {
     const w = world(on)
     await w.start($)
     await w.clock.advance(3000 + 5000)
-    const ui = await w.band($, 'terminal')
-    expect(await cue(ui)).toBe('Sip in 1')
+    // The turn ended, but its turn.complete never reached the mod.
+    const idle = await w.band($, 'terminal', { isWorking: false })
+    expect(await isShown(idle)).toBe(false)
+    const ticks = w.timers().every
+    await w.clock.advance(1_800_000) // half an hour idle
+    expect(w.timers().every).toBe(ticks)
+    await idle.unmount()
     await w.start($)
+    const ui = await w.band($, 'terminal')
     await w.clock.advance(1500)
-    expect(await cue(ui)).toBe('Out 9') // 6.5 s into the sigh, on the same clock
+    expect(await isShown(ui)).toBe(false) // a fresh run waits its own delay
+    await w.clock.advance(1500)
+    expect(await cue(ui)).toBe('Breathe in 4')
+    await w.clock.advance(2000)
+    await w.complete($)
+    await w.clock.advance(15_000)
+    const stats = w.store.get('stats') as { today: { breaths: number; eyeRests: number; stretches: number }; longTurns: number }
+    expect(stats.today).toEqual({ breaths: 1, eyeRests: 0, stretches: 0, moves: 0 })
+    expect(stats.longTurns).toBe(0)
+  })
+
+  test('a turn.complete for another turn drops the run uncounted', { plugins: [timerSpy] }, async ($, on) => {
+    const w = world(on)
+    await w.start($)
+    await w.clock.advance(3000 + 20_000)
+    const ui = await w.band($, 'terminal')
+    expect(await isShown(ui)).toBe(true)
+    await w.complete($, { turnId: 'turn-0' })
+    await w.clock.settle()
+    expect(await isShown(ui)).toBe(false)
+    const ticks = w.timers().all
+    await w.clock.advance(60_000)
+    expect(w.timers().all).toBe(ticks)
+    expect(w.store.has('stats')).toBe(false)
   })
 })
 
@@ -262,24 +291,42 @@ describe('counts and streak', () => {
 })
 
 describe('typing', () => {
-  test('while the next prompt is typed the band is one quiet line; edits pass through untouched', async ($, on) => {
+  test('a draft in the prompt line makes the band one quiet line on both surfaces, with no prompt.edit at all', async ($, on) => {
     const w = world(on)
     await w.start($)
     await w.clock.advance(3000 + 2000)
     for (const surface of SURFACES) {
       const ui = await w.band($, surface)
       expect(await ui.find({ key: 'sw-breath' })).toBeDefined()
-      const box = await w.edit($, '', 0, 0, 'f')
-      expect(box).toEqual({ text: 'f', cursor: 1 })
-      expect(w.rec.edits.at(-1)).toEqual({ origin: { kind: 'composer' }, text: '', cursor: 0, start: 0, end: 0, inputText: 'f' })
+      const draft = await w.hint($, surface, true)
+      // The engine's own line is drawn as it was.
+      expect((await draft.find({ key: 'engine-hint' }))?.text).toBe('esc to interrupt')
+      await w.clock.settle()
       expect(await ui.find({ key: 'sw-breath' })).toBeUndefined()
-      const line = await ui.find({ key: 'sw-compact' })
-      expect(line?.text).toContain('Breathe in 2')
+      expect((await ui.find({ key: 'sw-compact' }))?.text).toContain('Breathe in 2')
       expect((await ui.findAll({ type: 'Text' })).filter(t => t.text.includes('Breathe in')).every(t => t.props.dimColor === true)).toBe(true)
-      await w.edit($, 'fix', 0, 3, '') // cleared
+      await draft.unmount()
+      const empty = await w.hint($, surface, false) // however the box was emptied
+      await w.clock.settle()
       expect(await ui.find({ key: 'sw-breath' })).toBeDefined()
+      await empty.unmount()
       await ui.unmount()
     }
+    expect(w.rec.edits).toEqual([])
+  })
+
+  test('in the terminal each edit also shrinks it at once and passes through untouched', async ($, on) => {
+    const w = world(on)
+    await w.start($)
+    await w.clock.advance(3000 + 2000)
+    const term = await w.band($, 'terminal')
+    const box = await w.edit($, '', 0, 0, 'f')
+    expect(box).toEqual({ text: 'f', cursor: 1 })
+    expect(w.rec.edits.at(-1)).toEqual({ origin: { kind: 'composer' }, text: '', cursor: 0, start: 0, end: 0, inputText: 'f' })
+    expect((await term.find({ key: 'sw-compact' }))?.text).toContain('Breathe in 2')
+    await w.edit($, 'fix', 0, 3, '') // cleared
+    expect(await term.find({ key: 'sw-breath' })).toBeDefined()
+    await term.unmount()
     // Submitting ends typing too.
     const ui = await w.band($, 'terminal')
     await w.edit($, '', 0, 0, 'next')
@@ -440,6 +487,9 @@ describe('the movement card', () => {
       expect((await card.find({ key: 'sw-card' }))?.text).toContain('Stand up and stretch')
       expect((await card.find({ key: 'sw-did' }))?.props.label).toBe('Did it')
       expect((await card.find({ key: 'sw-skip' }))?.props.label).toBe('Skip')
+      // Click only: d and s belong to other band mods' Dismiss, Deny, Done and Skip.
+      expect((await card.find({ key: 'sw-did' }))?.props.hotkey).toBeUndefined()
+      expect((await card.find({ key: 'sw-skip' }))?.props.hotkey).toBeUndefined()
       await card.unmount()
     }
     // It never blocks the prompt: typing goes through while it shows.

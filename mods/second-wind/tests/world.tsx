@@ -1,7 +1,7 @@
 // The engine beneath Second Wind, for the tests: a mocked clock, an in-memory
 // store the test can read back, answers for every call the mod makes on `$`
-// (status, copy, surfaces, command registration), the engine's own spinner
-// and band, and raisers for the events a session makes.
+// (status, log, copy, surfaces, command registration), the engine's own
+// spinner, band and prompt line, and raisers for the events a session makes.
 
 import { mock } from 'claude-code/testing'
 import type { On, PromptEditInput, PromptEditResult, RenderPropsOf, RenderSurface, RenderViewport } from 'claude-code'
@@ -88,6 +88,7 @@ export function world(on: On, setup: WorldSetup = {}) {
   const store = new Map<string, unknown>(Object.entries(setup.store ?? {}))
   const rec = {
     toasts: [] as string[],
+    logs: [] as string[],
     statuses: [] as (string | undefined)[],
     copies: [] as string[],
     registered: [] as { name: string; immediate?: true }[],
@@ -111,6 +112,7 @@ export function world(on: On, setup: WorldSetup = {}) {
   on('store.delete', ($, e) => (store.delete(e.key), { value: undefined }))
 
   on('ui.toast', ($, e) => (rec.toasts.push(e.text), { value: undefined }))
+  on('ui.log', ($, e) => (rec.logs.push(e.text), { value: undefined }))
   on('ui.status', ($, e) => (rec.statuses.push(e.text), { value: undefined }))
   on('ui.copy', ($, e) => {
     rec.copies.push(e.text)
@@ -122,6 +124,8 @@ export function world(on: On, setup: WorldSetup = {}) {
     return { value: { command: e.name } }
   })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('session.attach', ($, e) => ({ clientId: e.clientId }))
+  on('session.detach', ($, e) => ({ clientId: e.clientId }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
   // The editor applies the splice, as core does.
@@ -156,6 +160,14 @@ export function world(on: On, setup: WorldSetup = {}) {
       </Box>
     )
   })
+  on('ui.render', { component: 'PromptHint' }, ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box key="engine-hint">
+        <Text>{e.props.hint}</Text>
+      </Box>
+    )
+  })
 
   let turns = 0
   return {
@@ -170,11 +182,11 @@ export function world(on: On, setup: WorldSetup = {}) {
       turns += 1
       return $.turn.start({ text: 'go', turnId: `turn-${turns}` })
     },
-    /** A turn ends: the main loop's unless `agentId` names a subagent's. */
-    async complete($: Engine, opts: { agentId?: string; reason?: 'answer' | 'aborted' | 'error'; answer?: string } = {}) {
+    /** A turn ends: the main loop's unless `agentId` names a subagent's; the latest turn's unless `turnId` says. */
+    async complete($: Engine, opts: { agentId?: string; reason?: 'answer' | 'aborted' | 'error'; answer?: string; turnId?: string } = {}) {
       const reason = opts.reason ?? 'answer'
       return $.turn.complete({
-        answer: opts.answer ?? 'Done.', durationMs: 1, isAborted: reason === 'aborted', turnId: `turn-${turns}`,
+        answer: opts.answer ?? 'Done.', durationMs: 1, isAborted: reason === 'aborted', turnId: opts.turnId ?? `turn-${turns}`,
         reason, ...(opts.agentId !== undefined ? { agentId: opts.agentId } : {}),
       })
     },
@@ -189,11 +201,32 @@ export function world(on: On, setup: WorldSetup = {}) {
     async breathe($: Engine, args = '') {
       return $.command.run({ command: 'breathe', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
     },
+    /** /breathe: what it hands the model (`result`), and the line it logs for the person (`text`). */
+    async say($: Engine, args = '') {
+      const logged = rec.logs.length
+      const result = await this.breathe($, args)
+      return { result, text: rec.logs.length > logged ? rec.logs.at(-1) : undefined }
+    },
     band($: Engine, surface: Surface, over: Partial<RenderPropsOf['AbovePrompt']> = {}) {
       return $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(over), viewport: VIEWPORT })
     },
     spinner($: Engine, surface: Surface, over: Partial<RenderPropsOf['Spinner']> = {}) {
       return $.ui.mount({ plugin: PLUGIN, surface, component: 'Spinner', props: spinnerProps(over), viewport: VIEWPORT })
+    },
+    /** The engine's prompt line, drawn on either surface, saying whether the box holds a draft. */
+    hint($: Engine, surface: Surface, isDraft: boolean) {
+      const props = { isDraft, isWorking: true, hint: 'esc to interrupt' }
+      return $.ui.mount({ plugin: PLUGIN, surface, component: 'PromptHint', props, viewport: VIEWPORT })
+    },
+    /** A client joins the session's roster, as the desktop app or a phone does. */
+    async attach($: Engine, surface: RenderSurface) {
+      rec.surfaces = [...rec.surfaces, surface]
+      return $.session.attach({ surface, clientId: `${surface}:default` })
+    },
+    /** A client leaves the roster. */
+    async detach($: Engine, surface: RenderSurface) {
+      rec.surfaces = rec.surfaces.filter(s => s !== surface)
+      return $.session.detach({ surface, clientId: `${surface}:default`, reason: 'detach' })
     },
     /** How many timer periods of each kind the spy saw. */
     timers() {
