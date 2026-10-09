@@ -1,0 +1,9 @@
+{
+  "name": "footprints",
+  "version": "0.1.0",
+  "description": "A live file tree beside the chat that shows where Claude has been.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["file-tree", "pane", "visibility", "git", "activity"],
+  "types": "./types/index.d.ts"
+}
