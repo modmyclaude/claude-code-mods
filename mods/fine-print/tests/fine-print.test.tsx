@@ -3,7 +3,7 @@
 // surfaces, and /fineprint runs as a command.
 
 import { expect, mock, test } from 'claude-code/testing'
-import type { MockClock } from 'claude-code/testing'
+import type { MockClock, Plugin } from 'claude-code/testing'
 import type {
   CommandRunInput,
   ModelCompleteInput,
@@ -161,7 +161,8 @@ test('an important finding shows the note above the prompt, on both surfaces', a
     expect((await ui.find({ key: 'explain' }))?.props.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'got-it' }))?.props.hotkey).toBe('g')
     expect((await ui.find({ key: 'dismiss' }))?.props.hotkey).toBe('d')
-    expect(await ui.find({ text: 'engine band' })).toBeUndefined()
+    // What is beneath still draws, under the note.
+    expect(await ui.find({ text: 'engine band' })).toBeDefined()
     await ui.unmount()
   }
 })
@@ -488,6 +489,42 @@ test('only open notes count as more open notes', async ($, on) => {
   ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: 'Second note' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /more open note/ })).toBeUndefined()
+})
+
+// Another mod's band, loaded beneath this one (the append tier sits under user).
+const OTHER_BAND = {
+  name: 'other-band',
+  tier: 'append',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box, Text } = $.ui.resolve(e)
+
+      return (
+        <Box key="other-band">
+          <Text>another mod's band</Text>
+        </Box>
+      )
+    })
+  },
+} satisfies Plugin
+
+test('a note keeps other mods\' bands beneath it, on both surfaces', { plugins: [OTHER_BAND] }, async ($, on) => {
+  const seen = world(on, [JSON.stringify(FLAG)])
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    // No note yet: the other band alone.
+    expect(await ui.find({ type: 'Text', text: "another mod's band" })).toBeDefined()
+    expect(await ui.find({ key: 'got-it' })).toBeUndefined()
+    await ui.unmount()
+  }
+  await endTurn($, seen, turn(LONG_REPLY))
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    expect(await ui.find({ type: 'Text', text: FLAG.headline })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: "another mod's band" })).toBeDefined()
+    await ui.unmount()
+  }
 })
 
 test('the note yields the band to a survey', async ($, on) => {
