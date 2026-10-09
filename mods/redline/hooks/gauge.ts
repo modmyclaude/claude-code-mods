@@ -196,8 +196,10 @@ function withTurn(turns: readonly RedlineTurn[], id: string, make: () => Redline
   const found = turns.some(t => t.id === id)
   const next = found ? turns.map(t => (t.id === id ? change(t) : t)) : [...turns, change(make())]
   if (next.length <= TURNS_KEPT) return next
-  // Over the cap: drop the least busy, which the busiest list never shows.
-  const quietest = next.reduce((a, b) => (sumTokens(b.tokens) < sumTokens(a.tokens) ? b : a))
+  // Over the cap: drop the least busy, which the busiest list never shows;
+  // never the turn being written (a new turn has no tokens yet).
+  const others = next.filter(t => t.id !== id)
+  const quietest = others.reduce((a, b) => (sumTokens(b.tokens) < sumTokens(a.tokens) ? b : a))
   return next.filter(t => t !== quietest)
 }
 
@@ -267,6 +269,19 @@ export const busiest = (g: RedlineGauge, n = 5): RedlineTurn[] =>
 
 // --------------------------------------------------------------- formatting
 
+// ANSI sequences: CSI (7-bit ESC [ or 8-bit U+009B) and OSC (ESC ] ... BEL or ST).
+const ANSI = /(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?/g
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g
+
+/**
+ * Text safe to draw: the engine refuses a whole tree (and the status line's
+ * text) that holds a C0 or C1 control character, hiding every band beneath.
+ * Model ids, plan window kinds and prompt text come from outside, so every
+ * string redline draws passes through here: ANSI sequences go, a tab becomes
+ * a space, and any other control character becomes U+FFFD.
+ */
+export const clean = (s: string): string => s.replace(ANSI, '').replace(/\t/g, ' ').replace(CONTROL, '\ufffd')
+
 export function fmtTokens(n: number): string {
   if (n < 1000) return String(Math.round(n))
   if (n < 10_000) return `${(n / 1000).toFixed(1)}k`
@@ -335,10 +350,16 @@ export function fmtRunOut(r: RunOut | undefined): string | undefined {
 
 /** One plan window for the one-line gauge: `5h 46%`, its run-out when due first. */
 export function limitText(l: RedlineLimit, now: number): string {
+  const short = limitShort(l.kind)
+  const reset = Date.parse(l.resetsAt ?? '')
+  // Past its reset the reading is stale until the next response says more.
+  if (!Number.isNaN(reset) && reset <= now) return `${short} reset`
   const r = runOut(l, now)
-  const head = `${limitShort(l.kind)} ${Math.round(l.percentUsed)}%`
+  // A spent window: when it comes back is the one figure that matters.
+  if (r?.kind === 'out') return Number.isNaN(reset) ? `${short} OUT` : `${short} OUT, resets in ~${fmtDuration(reset - now)}`
+  const head = `${short} ${Math.round(l.percentUsed)}%`
   // On the one line only a window that runs dry before it resets earns words.
-  return r && r.kind !== 'resets-first' ? `${head} ${fmtRunOut(r)}` : head
+  return r && r.kind === 'at' ? `${head} ${fmtRunOut(r)}` : head
 }
 
 /** The pieces every view of the gauge draws, computed once. */
@@ -351,17 +372,22 @@ export function gaugeParts(g: RedlineGauge, now: number) {
     cost: costText(g),
     rate: `${fmtTokens(tokensPerMinute(g.flow, now, g.trackingSince))} tok/min`,
     pace: fmtPace(paceEta(g.samples, g.window, now)),
+    // Carries the engine's window kinds: each view cleans what it draws.
     limits: g.limits.map(l => limitText(l, now)),
   }
 }
 
-/** The status line: plain text, the level spelled out since it has no colour. */
+/**
+ * The status line: plain text, the level spelled out since it has no colour,
+ * cleaned since a plan window's kind is the engine's string.
+ */
 export function gaugeLine(g: RedlineGauge, now: number): string {
   const p = gaugeParts(g, now)
   const word = levelWord(p.level)
   const head = p.percent === undefined ? p.context : `${p.context} ${bar(p.percent, 10)}${word ? ` ${word}` : ''}`
-  return [head, p.cost, p.rate, p.pace, ...p.limits].filter(Boolean).join(' · ')
+  return clean([head, p.cost, p.rate, p.pace, ...p.limits].filter(Boolean).join(' · '))
 }
 
+/** The 80% toast: redline's own words and a number, no outside text. */
 export const TOAST_TEXT = (percent: number): string =>
   `Context is ${percent}% full. Run /compact to summarize it, or /clear to start a fresh session.`

@@ -13,6 +13,7 @@ import {
   fmtPace,
   fmtTokens,
   fmtUsd,
+  clean,
   gaugeLine,
   levelOf,
   limitText,
@@ -155,7 +156,12 @@ describe('plan run-out', () => {
   })
   test('a spent window is out', () => {
     expect(runOut({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toEqual({ kind: 'out' })
-    expect(limitText({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toBe('5h 100% OUT')
+    // Spent: the one-line gauge says when it comes back.
+    expect(limitText({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toBe('5h OUT, resets in ~1h')
+    expect(limitText({ kind: 'five_hour', percentUsed: 100 }, NOW)).toBe('5h OUT')
+  })
+  test('a window past its reset time reads reset, not a stale figure', () => {
+    expect(limitText({ kind: 'five_hour', percentUsed: 100, resetsAt: at(-0.1) }, NOW)).toBe('5h reset')
   })
   const none: [string, { kind: string; percentUsed: number; resetsAt?: string }][] = [
     ['a window of unknown length', { kind: 'spend_limit', percentUsed: 50, resetsAt: at(1) }],
@@ -252,6 +258,19 @@ describe('reduce', () => {
     expect(percentOf(reduce(own, { now: NOW, contextTokens: 40_000 }).gauge)).toBe(20)
   })
 
+  test('past the 100-turn cap a new turn keeps its prompt and the quietest old one goes', () => {
+    let g: RedlineGauge = { ...EMPTY_GAUGE, window: 1_000_000 }
+    for (let i = 0; i < 100; i++) {
+      g = reduce(g, { now: NOW, turnStart: { turnId: `small-${i}`, text: `small ${i}` } }).gauge
+      g = reduce(g, { now: NOW, request: { turnId: `small-${i}`, usage: usage('claude-opus-5-5', 10_000 + i) } }).gauge
+    }
+    g = reduce(g, { now: NOW, turnStart: { turnId: 'big', text: 'the big one' } }).gauge
+    g = reduce(g, { now: NOW, request: { turnId: 'big', usage: usage('claude-opus-5-5', 400_000) } }).gauge
+    expect(g.turns).toHaveLength(100)
+    expect(busiest(g)[0]?.label).toBe('the big one')
+    expect(g.turns.some(t => t.id === 'small-0')).toBe(false)
+  })
+
   test('the busiest turns come first', () => {
     let g: RedlineGauge = { ...EMPTY_GAUGE, window: 1_000_000 }
     for (const [id, ctx] of [['a', 10_000], ['b', 300_000], ['c', 50_000], ['b', 310_000]] as const) {
@@ -260,6 +279,21 @@ describe('reduce', () => {
     expect(busiest(g).map(t => t.id)).toEqual(['b', 'c', 'a'])
     expect(busiest(g)[0]?.requests).toBe(2)
   })
+})
+
+describe('clean: nothing the engine would refuse is ever drawn', () => {
+  const cases: [string, string, string][] = [
+    ['plain text', 'claude-opus-5-5', 'claude-opus-5-5'],
+    ['a 7-bit colour sequence', '\u001b[31mred\u001b[0m', 'red'],
+    ['an 8-bit CSI (U+009B)', 'a\u009b31mb', 'ab'],
+    ['a window-title OSC', '\u001b]0;title\u0007after', 'after'],
+    ['a bell', 'a\u0007b', 'a\ufffdb'],
+    ['a C1 control (U+0085)', 'a\u0085b', 'a\ufffdb'],
+    ['NUL and DEL', '\u0000\u007f', '\ufffd\ufffd'],
+    ['a lone ESC', 'x\u001b', 'x\ufffd'],
+    ['a tab', 'tab\there', 'tab here'],
+  ]
+  for (const [name, input, output] of cases) test(name, () => expect(clean(input)).toBe(output))
 })
 
 describe('formatting', () => {
