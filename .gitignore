@@ -7,3 +7,4 @@ node_modules/
 mods/*/.claude-plugin/types/
 # Local Claude Code settings and previews
 .claude/
+__pycache__/
