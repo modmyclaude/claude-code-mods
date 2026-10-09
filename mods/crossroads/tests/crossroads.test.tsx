@@ -235,7 +235,8 @@ test("the engine's guess becomes option 1, passed through untouched, and only tw
     expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
     expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBe('3')
     expect((await ui.find({ key: 'dismiss' }))?.props.hotkey).toBe('0')
-    expect(await ui.find({ text: 'engine band' })).toBeUndefined()
+    // The suggestions stack on top of what other mods draw; they never replace it.
+    expect(await ui.find({ text: 'engine band' })).toBeDefined()
     await ui.unmount()
   }
 

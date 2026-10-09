@@ -514,13 +514,21 @@ export const register: Register = on => {
     if (current.phase === 'idle' || e.props.isWorking) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     const width = Math.max(24, e.props.bodyColumns)
+    // Stack on top of what other mods draw here instead of replacing it (API-GOTCHAS #25).
+    const below = await next(e)
+    const stack = (mine: JSX.Element) => (
+      <Box flexDirection="column">
+        {mine}
+        {below}
+      </Box>
+    )
 
-    if (current.phase === 'loading') return <Text dimColor>crossroads: finding three ways forward...</Text>
+    if (current.phase === 'loading') return stack(<Text dimColor>crossroads: finding three ways forward...</Text>)
 
     if (current.phase === 'copied') {
       const { item, isCopied } = current
 
-      return (
+      return stack(
         <Box flexDirection="column">
           <Box>
             <Text dimColor>{isCopied ? 'Copied to your clipboard: ' : 'Could not copy it. The suggestion: '}</Text>
@@ -531,7 +539,7 @@ export const register: Register = on => {
             <Button key="send" label="Send this prompt now" variant="secondary" onPress={() => void send($)} />
             <Button key="dismiss" label="Close" plain dimColor role="dismiss" onPress={() => void dismiss($)} />
           </Box>
-        </Box>
+        </Box>,
       )
     }
 
@@ -560,7 +568,7 @@ export const register: Register = on => {
       )
     })
 
-    return (
+    return stack(
       <Box flexDirection={isOneLine ? 'row' : 'column'}>
         {rows}
         <Box>
@@ -575,7 +583,7 @@ export const register: Register = on => {
           />
           {!digits && <Text dimColor>{'  (number keys answer Claude this turn)'}</Text>}
         </Box>
-      </Box>
+      </Box>,
     )
   })
 }
