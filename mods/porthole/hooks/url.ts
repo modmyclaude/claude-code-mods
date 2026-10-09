@@ -25,6 +25,21 @@ export function isLocalAddress(href: string): boolean {
   )
 }
 
+/** True for an http(s) URL on localhost or 127.0.0.1 (any port, no credentials). */
+export function isLocalHost(href: string): boolean {
+  try {
+    const url = new URL(href)
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      LOCAL_HOSTS.has(url.hostname) &&
+      url.username === '' &&
+      url.password === ''
+    )
+  } catch {
+    return false
+  }
+}
+
 /**
  * Judges what the person typed after /porthole. A full http(s) URL to any host is
  * theirs to open; shorthands (`3000`, `localhost:5173/app`) only ever mean a local
@@ -62,6 +77,19 @@ export function checkTypedUrl(input: string): UrlVerdict {
 // their URLs in these (Vite bolds the port), so they are removed before scanning.
 const ANSI = /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b[@-Z\\-_]/g
 const ADDRESS = /https?:\/\/(?:localhost|127\.0\.0\.1):\d{1,5}(?:[/?#][^\s'"`<>()[\]{}]*)?/gi
+
+/**
+ * Text safe to draw: the engine refuses a whole tree that holds a control character,
+ * and URLs, Chrome's stderr and shell output are not ours. ANSI and OSC sequences
+ * are removed, tabs and line breaks become spaces, and every other C0, DEL or C1
+ * character becomes U+FFFD.
+ */
+export function clean(text: string): string {
+  return text
+    .replace(ANSI, '')
+    .replace(/[\t\n\r]/g, ' ')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '\uFFFD')
+}
 
 /**
  * The local dev-server addresses in a piece of shell output, as origin roots
