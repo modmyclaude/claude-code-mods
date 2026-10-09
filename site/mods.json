@@ -108,7 +108,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 206,
+        "count": 252,
         "surfaces": [
           "terminal",
           "mobile"
@@ -117,7 +117,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "c053998",
+      "commit": "2f89d7b",
       "reach": [
         "writes files",
         "reads files",
@@ -182,7 +182,7 @@
       "commands": [],
       "settings": [],
       "tests": {
-        "count": 271,
+        "count": null,
         "surfaces": [
           "terminal",
           "desktop",
@@ -612,7 +612,7 @@
         }
       ],
       "tests": {
-        "count": 78,
+        "count": 116,
         "surfaces": [
           "terminal",
           "desktop",
@@ -966,7 +966,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 128,
+        "count": 135,
         "surfaces": [
           "terminal",
           "desktop"
