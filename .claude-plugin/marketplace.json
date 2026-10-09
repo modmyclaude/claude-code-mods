@@ -24,6 +24,21 @@
       ]
     },
     {
+      "name": "cloakroom",
+      "source": "./mods/cloakroom",
+      "description": "Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it.",
+      "version": "0.1.0",
+      "category": "safety",
+      "keywords": [
+        "security",
+        "secrets",
+        "redaction",
+        "privacy",
+        "api-keys",
+        "env"
+      ]
+    },
+    {
       "name": "crossroads",
       "source": "./mods/crossroads",
       "description": "Three ways forward after every turn, risky ones marked. About $0.0002 a turn.",
