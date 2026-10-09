@@ -5,40 +5,56 @@
   <img alt="modmyclaude" src="brand/logo-on-light.svg" width="440">
 </picture>
 
-**Curated, tested Claude Code mods. Every mod ships with the prompt that built it.**
+### Level up Claude Code with tested mods for safer runs, smarter spending and more fun.
 
-<!-- hero: a 6-10 second clip of Last Look holding an rm -rf goes here -->
+Every mod ships with the prompt that built it, so you can remix it.
 
-```
-/plugin install last-look --marketplace modmyclaude/claude-code-mods
-```
+<!-- badges:start -->
+<!-- badges:end -->
 
-<!-- count -->17<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
+<!-- hero: a 6-10 second clip goes here (MM-030) -->
 
 </div>
 
-## Why this collection
+```
+/plugin marketplace add modmyclaude/claude-code-mods
+/plugin install thermostat@modmyclaude
+```
 
-- **Tested, not scraped.** Every mod passes `claude plugin validate`, strict TypeScript and its own behaviour tests on both the terminal and the desktop app before it is listed, and again on every commit.
-- **You can see what each mod can reach.** The badges in the catalogue are generated from Claude Code's own validator report of what the mod hooks and calls. Not from our description.
-- **Every mod ships its prompt.** Install a mod as it is, or paste its prompt into Claude Code and build your own version in a minute.
+Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab.
+
+[**Browse the mods**](#the-mods) · [Website](https://modmyclaude.com) · [Build your own](#build-your-own) · [Safety](#safety) · [FAQ](#faq)
+
+## What is a mod?
+
+Mods are Claude Code plugins written in TypeScript, new in Claude Code 2.1.287. A mod can draw inside Claude Code (a band above the prompt, a pane beside the chat, the status line), react to your prompts and Claude's tool calls, and add slash commands. You install one with a single command, and it runs in the terminal and in the desktop app's Code tab.
+
+This repo is a small, curated collection of <!-- count -->17<!-- /count --> of them, plus the prompts that built each one.
+
+## Why these mods
+
+- **Original mods, built here.** Not a list of other people's repos.
+- **Every mod ships its prompt.** Read how it was made, change a line, and Claude builds your version.
+- **Tested where you use it.** <!-- tests -->3,100+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not just a static validate.
+- **Reviewed by a second builder.** No mod is listed on its builder's word alone.
+- **Honest badges.** What each mod can touch comes from Claude Code's own validator, not from our description.
 
 ## Install
 
-Mods need **Claude Code 2.1.287 or newer** (`claude update`). Type the install line in Claude Code running in a terminal:
-
-```
-/plugin install <mod> --marketplace modmyclaude/claude-code-mods
-```
-
-Answer `y` to add the marketplace and pick a scope. After the first install, others are just `/plugin install <mod>@modmyclaude`. Mods installed at user scope also load in the desktop app's Code tab. The VS Code extension does not draw mods yet.
-
-On older versions, add the marketplace first:
+Update first if you need to (`claude update`), then in a Claude Code session:
 
 ```
 /plugin marketplace add modmyclaude/claude-code-mods
 /plugin install <mod>@modmyclaude
 ```
+
+Or in one line, which adds the marketplace on first use:
+
+```
+/plugin install <mod> --marketplace modmyclaude/claude-code-mods
+```
+
+A mod is active as soon as it installs, with no restart. Installs at user scope (the default) also load in the desktop app's Code tab. The VS Code extension does not draw mods yet.
 
 ## The mods
 
@@ -118,26 +134,82 @@ On older versions, add the marketplace first:
 
 ## Build your own
 
-- **[Mod Maker](prompts/starters/mod-maker.md)**: describe the feature you wish Claude Code had, get a tested, installable mod.
+- **[Mod Maker](prompts/starters/mod-maker.md)**: describe the feature you wish Claude Code had, and get a tested, installable mod.
 - **[Mod Matchmaker](prompts/starters/mod-matchmaker.md)**: Claude checks your setup and picks the mods worth installing, in order.
 
-Every mod here started as a prompt in [prompts/](prompts). Fork one, change a line, paste it into Claude Code.
+Every mod here started as a prompt in [prompts/](prompts). Open one, change a line, and paste it into Claude Code to build your own version.
 
 ## Safety
 
 Mods are not sandboxed: a mod runs with your permissions and can see your prompts and tool calls. That is why this collection is small and checked:
 
-- Each mod is reviewed by a second maintainer against its prompt before it is listed.
+- Each mod is reviewed by a second builder against its prompt before it is listed.
 - The "Can reach" column comes from `claude plugin validate`, so a mod that reads files, runs commands, calls a model or uses the network says so.
-- Mods that call a model say so and have a hard cap on how often.
+- Mods that call a model say so, use a small model and cap how often they call it.
 - Guards that can stop an action fail safe: if the mod itself breaks, it does not silently let the action through.
+- Safety mods are a safety net, not a permission system. Keep using Claude Code's own permission settings.
 
 Found a problem? See [SECURITY.md](SECURITY.md).
 
+## FAQ
+
+<details>
+<summary><b>Which mods should I start with?</b></summary>
+
+Paste the [Mod Matchmaker](prompts/starters/mod-matchmaker.md) prompt into Claude Code and it picks for your setup. Or start with **Redline** (a context and cost gauge) and **Headway** (progress and an ETA): neither calls a model.
+
+</details>
+
+<details>
+<summary><b>Do mods cost tokens?</b></summary>
+
+Only the ones with the `calls a model` badge, and each says how often in its README. Those calls run on your account and use a small model. Every other mod makes no model calls at all.
+
+</details>
+
+<details>
+<summary><b>How do I change a mod's settings?</b></summary>
+
+Mods with options show them in `/config` and when you enable the plugin. Each mod's README lists its settings and defaults. From a shell, `claude plugin configure <mod>@modmyclaude` shows which are set.
+
+</details>
+
+<details>
+<summary><b>How do I update, turn off or remove a mod?</b></summary>
+
+```bash
+claude plugin marketplace update modmyclaude   # fetch the latest catalogue
+claude plugin update <mod>@modmyclaude         # then /reload-plugins in a running session
+claude plugin disable <mod>@modmyclaude        # keep it installed but off
+claude plugin uninstall <mod>@modmyclaude      # remove it
+```
+
+The `/plugin` menu inside a session does the same.
+
+</details>
+
+<details>
+<summary><b>Does it work in the desktop app and VS Code?</b></summary>
+
+Every mod is tested on the terminal and the desktop app's Code tab. The VS Code extension does not draw mods yet, so mods with a band or pane show nothing there.
+
+</details>
+
+<details>
+<summary><b>Is this made by Anthropic?</b></summary>
+
+No. This is an independent community project. It uses only the public mods API.
+
+</details>
+
 ## Contributing
 
-Ideas and new mods are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the quality bar every mod meets.
+Ideas and new mods are welcome. Open a [Mod idea](https://github.com/modmyclaude/claude-code-mods/issues/new?template=mod-idea.yml) issue first, then read [CONTRIBUTING.md](CONTRIBUTING.md) for the bar every mod meets. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
+<div align="center">
+
 Not affiliated with or endorsed by Anthropic. Claude and Claude Code are trademarks of Anthropic, PBC. [MIT License](LICENSE).
+
+</div>

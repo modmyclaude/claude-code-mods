@@ -2,6 +2,9 @@ name: Mod idea
 description: Suggest a mod, or propose one you want to build
 labels: [mod-idea]
 body:
+  - type: markdown
+    attributes:
+      value: Check the [catalogue](https://github.com/modmyclaude/claude-code-mods#the-mods) first, in case a mod already covers it.
   - type: textarea
     id: what
     attributes:
@@ -13,6 +16,13 @@ body:
     id: why
     attributes:
       label: Why would people want it?
+  - type: dropdown
+    id: reach
+    attributes:
+      label: What would it need to reach?
+      description: Pick everything that applies. Less reach makes for an easier review.
+      multiple: true
+      options: [Display only, Reads files, Writes files, Runs commands, Calls a model, Network, Plays sound, Not sure]
   - type: dropdown
     id: build
     attributes:

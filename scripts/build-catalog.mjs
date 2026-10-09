@@ -237,15 +237,21 @@ function marketplace(mods) {
   }
 }
 
+// A mod's pixel icon (brand/pixel-icons), at 32 px: a whole multiple of its 16-cell grid, so it stays crisp.
+function iconOf(name) {
+  const rel = `brand/pixel-icons/svg/${name}.svg`
+  return isTracked(rel) ? `<img src="${rel}" width="32" height="32" alt="">` : ''
+}
+
 function catalogue(mods) {
   const lines = []
   for (const [cat, heading] of CATEGORIES) {
     const group = mods.filter(m => m.category === cat)
     if (!group.length) continue
-    lines.push(`### ${heading}`, '', '| Mod | What it does | Can reach | Install |', '|---|---|---|---|')
+    lines.push(`### ${heading}`, '', '| | Mod | What it does | Can reach |', '|---|---|---|---|')
     for (const m of group) {
       const reach = m.reach.badges.map(b => `\`${b}\``).join(' ')
-      lines.push(`| [**${m.title}**](mods/${m.name}) | ${m.tagline} [Prompt](prompts/${m.name}.md) | ${reach} | \`${m.name}@${ORG}\` |`)
+      lines.push(`| ${iconOf(m.name)} | [**${m.title}**](mods/${m.name})<br>\`${m.name}@${ORG}\` | ${m.tagline} [Prompt](prompts/${m.name}.md) | ${reach} |`)
     }
     lines.push('')
   }
@@ -274,11 +280,32 @@ const starters = existsSync(starterDir)
   : []
 const site = { org: ORG, repo: REPO, generated: 'by scripts/build-catalog.mjs', mods: mods.map(({ reach, ...m }) => ({ ...m, reach: reach.badges, touches: reach.touches, events: reach.events })), starters }
 outputs.set('site/mods.json', JSON.stringify(site, null, 2) + '\n')
+// The test stat counts only the mods listed here (a prompt marked `draft: true` drops its mod out),
+// rounded down to the hundred so routine new tests do not churn the README: "2,300+".
+const testTotal = mods.reduce((n, m) => n + (m.tests?.count ?? 0), 0)
+const testsStat = testTotal >= 100 ? `${(Math.floor(testTotal / 100) * 100).toLocaleString('en-US')}+` : String(testTotal)
+
+function badges() {
+  const shield = (label, value, color) =>
+    `https://img.shields.io/badge/${encodeURIComponent(label)}-${encodeURIComponent(value.replaceAll('-', '--'))}-${color}?labelColor=101114`
+  const actions = `https://github.com/${ORG}/${REPO}/actions/workflows/check.yml`
+  return [
+    `[![check](${actions}/badge.svg)](${actions})`,
+    `[![mods](${shield('mods', String(mods.length), 'C8F53C')})](#the-mods)`,
+    `[![tests](${shield('tests', testsStat, 'C8F53C')})](CONTRIBUTING.md#the-bar)`,
+    `[![Claude Code](${shield('Claude Code', '2.1.287+', '3A3F4A')})](#install)`,
+    `[![license](${shield('license', 'MIT', '3A3F4A')})](LICENSE)`,
+  ].join('\n')
+}
+
 const readmePath = join(ROOT, 'README.md')
 if (existsSync(readmePath)) {
   const readme = readFileSync(readmePath, 'utf8')
-  const next = replaceBetween(readme, '<!-- catalogue:start -->', '<!-- catalogue:end -->', catalogue(mods))
+  let next = replaceBetween(readme, '<!-- catalogue:start -->', '<!-- catalogue:end -->', catalogue(mods))
+  if (next && next.includes('<!-- badges:start -->')) next = replaceBetween(next, '<!-- badges:start -->', '<!-- badges:end -->', badges())
+  next = next
     ?.replace(/<!-- count -->\d*<!-- \/count -->/g, `<!-- count -->${mods.length}<!-- /count -->`)
+    .replace(/<!-- tests -->[\d,+]*<!-- \/tests -->/g, `<!-- tests -->${testsStat}<!-- /tests -->`)
   if (next) outputs.set('README.md', next)
 }
 
@@ -308,6 +335,5 @@ for (const [rel, content] of outputs) {
 }
 const failed = mods.filter(m => !m.reach.ok)
 for (const m of failed) console.error(`validate failed: ${m.name}: ${m.reach.notes.join(' | ')}`)
-const testTotal = mods.reduce((n, m) => n + (m.tests?.count ?? 0), 0)
 console.log(`${mods.length} mods catalogued, ${testTotal} tests${failed.length ? `, ${failed.length} failed validation` : ''}`)
 process.exit(stale || failed.length ? 1 : 0)

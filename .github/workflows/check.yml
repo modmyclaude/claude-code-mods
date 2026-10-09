@@ -6,26 +6,54 @@ on:
   pull_request:
   schedule:
     - cron: '0 9 * * *' # daily: catch mods API changes in new Claude Code releases
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   mods:
+    name: mods (Claude Code ${{ matrix.claude }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         claude: ['2.1.293', 'latest']
     continue-on-error: ${{ matrix.claude == 'latest' }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+          cache: npm
       - run: npm ci
       - run: npm install -g @anthropic-ai/claude-code@${{ matrix.claude }}
       - name: Validate (strict) and test every mod
         run: STRICT=1 CLAUDE_BIN=claude scripts/check.sh
+      - name: Every mod installs from the marketplace
+        run: CLAUDE_BIN=claude scripts/smoke-install.sh
       - name: Generated files are up to date
         run: CLAUDE_BIN=claude node scripts/build-catalog.mjs --check
-      - name: House style (no em dashes)
-        run: "! grep -rn $'\\u2014' --include='*.md' --include='*.ts' --include='*.tsx' --include='*.json' mods prompts README.md CONTRIBUTING.md"
+
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+      - name: Links and images resolve
+        run: node scripts/check-links.mjs
+      - name: House style (no em or en dashes)
+        run: "! git grep -nI -e $'\\u2014' -e $'\\u2013'"
         shell: bash
