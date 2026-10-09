@@ -1,8 +1,19 @@
 {
-  "name": "claude-mods-workspace",
+  "name": "claude-code-mods",
   "private": true,
+  "description": "Curated, tested Claude Code mods. Every mod ships with the prompt that built it.",
+  "license": "MIT",
+  "repository": "github:modmyclaude/claude-code-mods",
+  "homepage": "https://modmyclaude.com",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "check": "scripts/check.sh"
+    "check": "scripts/check.sh",
+    "smoke": "scripts/smoke-install.sh",
+    "links": "node scripts/check-links.mjs",
+    "catalog": "node scripts/build-catalog.mjs",
+    "catalog:check": "node scripts/build-catalog.mjs --check"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

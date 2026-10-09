@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/modmyclaude/claude-code-mods/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue.
+  - name: Browse the mods
+    url: https://modmyclaude.com
+    about: Search every mod, copy its install line or its prompt.
