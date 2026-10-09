@@ -49,7 +49,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "13970a1",
+      "commit": "ef85001",
       "reach": [
         "display only"
       ],
@@ -117,7 +117,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "2f89d7b",
+      "commit": "2578c63",
       "reach": [
         "writes files",
         "reads files",
@@ -176,13 +176,13 @@
         "hotkeys",
         "safety"
       ],
-      "prompt": "Build me a Claude Code mod called \"crossroads\": after Claude finishes a turn, offer me 3 specific next prompts I can take with one key, and clearly mark any that would do something risky.\n\nWhat it shows\n- When a turn ends with an answer, a small band above my prompt: \"1 run the auth tests · add the same guard to signup.ts · push to main (pushes)\". A dim loading row while they are being made.\n- Every item is a clickable button that puts it in my prompt as an editable draft (never sent automatically). The items you write are click-only: no number key. Press 0 to dismiss.\n- On the desktop app, if the prompt cannot be filled, clicking copies the suggestion instead, with a clearly labelled Send button that is never the default.\n\nCooperate with Claude Code's own suggestion\n- Claude Code may already predict my next prompt (the dim ghost text I accept with Tab). If it does, include its guess at no extra cost, and only generate the other two. Leave its ghost text untouched and make its guess option 1, the only row with a number key (it is already one Tab away), so I never see two different \"next\" ideas.\n- If the built-in suggestion is off or does not fire (it does not on desktop), generate all three yourself.\n\nMake them specific and cheap\n- Build a compact digest of the turn instead of sending the transcript: my goal, my last prompt, the files Claude touched, the commands it ran with pass or fail, Claude's closing question if any, and this session's slash commands. Replace anything that looks like a secret (API keys, tokens, passwords, private keys) with a placeholder before it leaves the machine.\n- Send the digest to the cheapest available model at low effort, asking for strict JSON. If the answer is malformed or cut off, show nothing.\n- Skip trivial turns (very short replies, turns with no tool use and no question). Back off after 3 ignored lists in a row, and recover when I accept one.\n\nYour own suggestions get no privilege\n- No list of words reliably tells a safe next step from a risky one, so do not try to privilege \"safe\" suggestions. Every row you write is click-only: no number key, never above Claude Code's guess, never the ghost text. The risky note is information only.\n- Test it with a large table of risky and safe phrasings: not one row you write may carry a number key.\n\nMark risky suggestions\n- Have the model tag each suggestion it writes as risky or not, with a short reason (\"pushes\", \"deploys\", \"deletes data\"), and back the tag up with keyword rules: risky if either says so. Show the reason in amber, like \"(deploys)\". Mark lookalike letters from another alphabet mixed into a Latin word as \"(unusual letters)\", but treat wholly Russian or Greek text as normal text.\n- Say plainly that this flags common risky actions and is not exhaustive.\n\nDo not get in the way\n- If Claude's reply ends with numbered options for me to choose from, do not use digit hotkeys that turn; typing a number must answer Claude.\n- Clear the suggestions as soon as I submit anything.\n- Wait until any background subagents finish before suggesting.\n\nLearns a little\n- Per project, count which kinds of suggestion I take, edit or ignore (counts only, never my prompts) and tell the model my top 3 kinds next time. /crossroads forget wipes it. /crossroads off and /crossroads on toggle the mod. /crossroads shows today's calls and estimated cost.\n\nGuardrails\n- The only data sent anywhere is the digest above, to the model, once per eligible turn. No files read beyond what is needed for the digest's file names, no processes, no network.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "prompt": "Build me a Claude Code mod called \"crossroads\": after Claude finishes a turn, offer me 3 specific next prompts I can take with a click, and clearly mark any that would do something risky.\n\nWhat it shows\n- When a turn ends with an answer, a small band above my prompt: \"1 run the auth tests · add the same guard to signup.ts · push to main (pushes)\". A dim loading row while they are being made.\n- Every item is a clickable button that puts it in my prompt as an editable draft (never sent automatically). The items you write are click-only: no number key. Press 0 to dismiss.\n- On the desktop app, if the prompt cannot be filled, clicking copies the suggestion instead, with a clearly labelled Send button that is never the default.\n\nCooperate with Claude Code's own suggestion\n- Claude Code may already predict my next prompt (the dim ghost text I accept with Tab). If it does, include its guess at no extra cost, and only generate the other two. Leave its ghost text untouched and make its guess option 1, the only row with a number key (it is already one Tab away), so I never see two different \"next\" ideas.\n- If the built-in suggestion is off or does not fire (it does not on desktop), generate all three yourself.\n\nMake them specific and cheap\n- Build a compact digest of the turn instead of sending the transcript: my goal, my last prompt, the files Claude touched, the commands it ran with pass or fail, Claude's closing question if any, and this session's slash commands. Replace anything that looks like a secret (API keys, tokens, passwords, private keys) with a placeholder before it leaves the machine.\n- Send the digest to the cheapest available model at low effort, asking for strict JSON. If the answer is malformed or cut off, show nothing.\n- Skip trivial turns (very short replies, turns with no tool use and no question). Back off after 3 ignored lists in a row, and recover when I accept one.\n\nYour own suggestions get no privilege\n- No list of words reliably tells a safe next step from a risky one, so do not try to privilege \"safe\" suggestions. Every row you write is click-only: no number key, never above Claude Code's guess, never the ghost text. The risky note is information only.\n- Test it with a large table of risky and safe phrasings: not one row you write may carry a number key.\n\nMark risky suggestions\n- Have the model tag each suggestion it writes as risky or not, with a short reason (\"pushes\", \"deploys\", \"deletes data\"), and back the tag up with keyword rules: risky if either says so. Show the reason in amber, like \"(deploys)\". Mark lookalike letters from another alphabet mixed into a Latin word as \"(unusual letters)\", but treat wholly Russian or Greek text as normal text.\n- Say plainly that this flags common risky actions and is not exhaustive.\n\nDo not get in the way\n- If Claude's reply ends with numbered options for me to choose from, do not use digit hotkeys that turn; typing a number must answer Claude.\n- Clear the suggestions as soon as I submit anything.\n- Wait until any background subagents finish before suggesting.\n\nLearns a little\n- Per project, count which kinds of suggestion I take, edit or ignore (counts only, never my prompts) and tell the model my top 3 kinds next time. /crossroads forget wipes it. /crossroads off and /crossroads on toggle the mod. /crossroads shows today's calls and estimated cost.\n\nGuardrails\n- The only data sent anywhere is the digest above, to the model, once per eligible turn. No files read beyond what is needed for the digest's file names, no processes, no network.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
       "media": null,
       "readme": "# Crossroads\n\nThree ways forward after every turn, risky ones marked. About $0.0002 a turn.\n\n```\n1: run the auth tests · add the same guard to signup.ts · push to main (pushes) · 0: dismiss\n```\n\n## Install\n\n```\n/plugin install crossroads --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n- When Claude finishes a turn with an answer, a small band appears above your prompt with three specific next prompts. A dim row shows while they are being made.\n- Each item is a button: click it to put that suggestion in your prompt as an editable draft. It is never sent for you. Press **0** to dismiss the list.\n- **Crossroads gives its own suggestions no keyboard shortcut.** Every row it writes is click-only: no number key, never above Claude Code's own guess, never the ghost text. A stray key can never draft one of them. Earlier versions tried to privilege \"clearly safe\" suggestions with an allowlist, but no list of words reliably tells a safe next step from a risky one, so v1 does not try.\n- Claude Code's own guess (the dim ghost text you take with Tab) is left exactly as Claude Code shows it. When there is one, it is option 1 in the list and the only row with a number key (**1**, in an empty prompt), since it is already one Tab away. So you never see two different \"next\" ideas.\n- Risky suggestions also get an amber note such as `(deploys)`. The small model tags each suggestion it writes as risky or not, with a short reason, and keyword rules back that tag up (risky if either says so). Claude Code's own guess has no tag, so the keywords mark it. Letters dressed up to slip past (lookalikes from other alphabets mixed into a Latin word, fullwidth or styled letters, invisible or control characters) are marked `(unusual letters)`. This flags common risky actions; it is not exhaustive, so the note is information only and never grants or removes a shortcut. Russian, Ukrainian and Greek text is normal text and is never marked for its alphabet.\n- If Claude's reply ends with numbered options, the number key is left alone for that turn so typing a number answers Claude. The items stay clickable.\n- The list clears the moment you submit anything. It waits for background subagents to finish before suggesting.\n- **Desktop app:** the desktop prompt box cannot be filled by a mod, so clicking an item copies it to your clipboard and shows a clearly labelled **Send this prompt now** button. **Close** comes first and is where the focus starts, so a stray Enter closes; Send is never the default and has no hotkey.\n\nCommands:\n\n| Command | What it does |\n|---|---|\n| `/crossroads` | Today's calls and estimated cost, this project's counts, back-off state (shown as a toast; Claude never reads it) |\n| `/crossroads off` / `on` | Turn the mod off or back on (off also stops judging Claude Code's own guess) |\n| `/crossroads forget` | Wipe what it counted for this project |\n\n## Settings\n\nNone. Use the commands above.\n\n## What it can touch\n\n- **Model calls:** at most one small-model call (`haiku`, low effort, capped at 1,200 output tokens and 20 seconds) per finished main-loop turn. Skipped on trivial turns (under four words, or no tool use and no question), on subagent, error and refusal turns, while backing off, and whenever neither the terminal nor the desktop app is attached to draw the band (a headless `-p` run, an SDK host, VS Code or mobile alone), so nothing is spent on a list nobody would see. Typical cost about $0.0002 at Claude Haiku 5.5 list prices; `/crossroads` shows today's estimate.\n- **What is sent:** a compact digest, never the transcript: your first prompt (the goal), your last prompt, the names of files Claude edited or read (no paths, no contents), the first line of each command it ran with passed or failed, Claude's closing question, the names of this session's slash commands, your top three suggestion kinds, and Claude Code's own guess when there is one. Anything that looks like a secret (AWS, GitHub, GitLab, Anthropic, OpenAI, Stripe, Slack, Google, Hugging Face, npm and Twilio keys, JWTs, private key blocks including PGP, Slack and Discord webhook URLs, `password=` style assignments such as `SECRET_KEY_BASE=` or `dbpass=`, secret flags such as `--password X` or `--token X`, `mysql -pX`, `curl -u user:pass`, bearer and `Authorization: token` headers, \"my password is X\", passwords in URLs) is replaced with `[REDACTED]` first.\n- **Reads:** the session's transcript in memory, the slash command list, the `/config` rows (to see whether Claude Code's own suggestion is on), the subagent list, and two environment variables (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_SMALL_FAST_MODEL`) used only if the `haiku` alias is refused. No files, no processes, no network.\n- **Writes:** your prompt box (only when you press an item), your clipboard (desktop fallback), toasts (the `/crossroads` answers, which never enter Claude's context), and the plugin's own store: an on/off flag, today's call count and token totals, and per project (keyed by a hash of the project path) counts of the kinds of suggestion you took, edited or ignored. Never your prompts or the suggestions themselves.\n- **Sends a prompt** only when you press Send in the desktop fallback. It goes in as your own words (`asUser`); the transcript still records that Crossroads submitted it.\n\n## Limits\n\n- The model's reply must be strict JSON followed by an `END` line. A reply that is cut off or malformed shows nothing rather than half a list.\n- Claude Code's own guess only exists in the terminal, and only when its prompt suggestions are on. Crossroads waits up to 4 seconds for it, then writes all three itself. A guess that arrives later becomes option 1 (the last suggestion drops off), so the ghost text and option 1 still agree.\n- Button labels keep the surface's own button style (the API gives buttons no colour), so the risk note beside a risky item is what is amber.\n- Back-off: after 3 lists in a row are ignored or dismissed, a list comes every 2nd, then 4th, then 8th eligible turn, until you take or edit one.\n- Numbered-option detection is a heuristic. A reply ending in a short numbered list of steps may also turn the number key off for that turn (the items stay clickable).\n- If the `haiku` alias is refused and no provider model id is set in the environment, Crossroads says so once and makes no calls for the rest of the session.\n- On the desktop app the copy may not reach your clipboard: this release of the mods API says remote surfaces have no clipboard path yet. The band then says it could not copy and shows the suggestion, and Send still works.\n- The VS Code and mobile surfaces do not draw the band above the prompt, so Crossroads shows nothing there and makes no model call for them.\n- Secret hiding works on shapes, not meaning: a secret with no recognisable prefix or name around it (a bare password repeated in Claude's closing question, say) can still pass through.\n- The amber note flags common risky actions; it is not exhaustive. A risky suggestion the model does not tag and no keyword knows is shown with no note. It is still click-only, like every row Crossroads writes.\n- Claude Code's own guess is not filtered: if it suggests something risky, it is still the ghost text and option 1 (with an amber note when the keywords know it). Read it before you press 1 or Tab.\n\n## Built from a prompt\n\nThis mod was built from [prompts/crossroads.md](../../prompts/crossroads.md).\n",
       "commands": [],
       "settings": [],
       "tests": {
-        "count": 309,
+        "count": 314,
         "surfaces": [
           "terminal",
           "desktop",
@@ -193,7 +193,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "c9e0f1a",
+      "commit": "34dc716",
       "reach": [
         "calls a model",
         "hooks prompts"
@@ -281,7 +281,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "a99e367",
+      "commit": "ef85001",
       "reach": [
         "calls a model"
       ],
@@ -340,7 +340,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "6221dd9",
+      "commit": "ef85001",
       "reach": [
         "reads files",
         "runs commands",
@@ -407,7 +407,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "34e3c3b",
+      "commit": "2578c63",
       "reach": [
         "hooks tool calls"
       ],
@@ -482,7 +482,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "cbeafe6",
+      "commit": "ef85001",
       "reach": [
         "hooks tool calls"
       ],
@@ -551,7 +551,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "34e3c3b",
+      "commit": "2578c63",
       "reach": [
         "hooks tool calls"
       ],
@@ -622,7 +622,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "2092ad0",
+      "commit": "ef85001",
       "reach": [
         "reads files",
         "runs commands",
@@ -686,7 +686,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "53b26ee",
+      "commit": "ef85001",
       "reach": [
         "writes files",
         "reads files",
@@ -767,7 +767,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ce36436",
+      "commit": "ef85001",
       "reach": [
         "network",
         "plays sound"
@@ -833,7 +833,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "9598794",
+      "commit": "ef85001",
       "reach": [
         "runs commands",
         "hooks tool calls"
@@ -908,7 +908,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "3e62b48",
+      "commit": "ef85001",
       "reach": [
         "reads files",
         "runs commands",
@@ -975,7 +975,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "6913da0",
+      "commit": "ef85001",
       "reach": [
         "display only"
       ],
@@ -1080,7 +1080,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "34e3c3b",
+      "commit": "2578c63",
       "reach": [
         "hooks prompts"
       ],
@@ -1165,7 +1165,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "7ff2f44",
+      "commit": "ef85001",
       "reach": [
         "calls a model",
         "hooks prompts"
@@ -1256,7 +1256,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "6c13e11",
+      "commit": "ef85001",
       "reach": [
         "hooks tool calls"
       ],
