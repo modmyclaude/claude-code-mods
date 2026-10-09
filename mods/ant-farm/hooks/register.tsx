@@ -280,7 +280,7 @@ export const register: Register = (on, options) => {
       return {}
     }
     await update($, view, v => ({ ...v, isListInBand: true }))
-    $.ui.toast(clean(`The ant farm pane cannot be placed here (${opened.reason}). The band above the prompt lists the subagents instead.`))
+    $.ui.toast(clean(`The pane cannot be placed here (${opened.reason}). The band above the prompt lists the subagents instead.`))
     return {}
   })
 

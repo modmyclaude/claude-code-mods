@@ -210,11 +210,11 @@ export const register: Register = on => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'band') {
       const isOn = await setBand($, was => !was)
-      $.ui.toast(isOn ? 'Redline band is on, above the prompt. /redline band hides it.' : 'Redline band is off. /redline band shows it.')
+      $.ui.toast(isOn ? 'Band is on, above the prompt. /redline band hides it.' : 'Band is off. /redline band shows it.')
       return {}
     }
     if (arg !== '') {
-      $.ui.toast('Redline: /redline opens the detail view; /redline band toggles the gauge above the prompt.')
+      $.ui.toast('/redline opens the detail view; /redline band toggles the gauge above the prompt.')
       return {}
     }
     const opened = await $.ui.open({ id: PANE, title: 'Redline', closeOnEscape: true })
@@ -222,7 +222,7 @@ export const register: Register = on => {
     // Nothing places the pane here: print the same view as the command's text.
     return { text: detailText(await read($, gauge), await $.clock.now()) }
   }).catch($ => {
-    $.ui.toast('Redline could not open its detail view (run with --debug for the reason).')
+    $.ui.toast('Could not open its detail view (run with --debug for the reason).')
     return {}
   })
 

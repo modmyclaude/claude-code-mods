@@ -134,7 +134,7 @@ async function go($: $, nav: Nav) {
 /** A short message for the person alone: the model never reads a toast. */
 function tell($: $, text: string) {
   try {
-    $.ui.toast(`play-by-play: ${text}`)
+    $.ui.toast(text)
   } catch {
     // best effort, as with debug()
   }

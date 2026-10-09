@@ -275,7 +275,7 @@ test('a subagent finishing mid-turn neither ends nor splits the main turn', asyn
     ].join('\n'),
   )
   expect(await replay($, '2')).toBe('')
-  expect(toasts.pop()).toBe('play-by-play: only 1 turn with changes kept; try /replay 1 to 1.')
+  expect(toasts.pop()).toBe('only 1 turn with changes kept; try /replay 1 to 1.')
 })
 
 test('shell: a staged git mv that also edits shows as one rename with its line changes', async ($, on) => {

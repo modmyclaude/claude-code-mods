@@ -569,7 +569,7 @@ describe('band above the prompt', () => {
 
       // Nothing for the model to read: {} and a toast.
       expect(await runCommand($, 'band')).toEqual({})
-      expect(w.toasts[w.toasts.length - 1]).toContain('band is on')
+      expect(w.toasts[w.toasts.length - 1]).toContain('Band is on')
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
       const gauge = await ui.find({ key: 'gauge' })
       expect(gauge?.text).toContain('ctx 85%')

@@ -47,13 +47,13 @@ function debug($: EngineInterface, text: string) {
 async function warnOnce($: EngineInterface, why: string) {
   let isFirst = false
   await update($, warned, was => ((isFirst = !was), true))
-  if (isFirst) $.ui.toast(drawable(`Fine Print could not run its check (${why}). It will try again after the next long reply.`))
+  if (isFirst) $.ui.toast(drawable(`Could not run its check (${why}). It will try again after the next long reply.`))
 }
 
 function capLine(maxChecks: number): string {
   return maxChecks === 0
-    ? 'Fine Print is off: maxChecksPerSession is 0.'
-    : `Fine Print paused: all ${maxChecks} checks for this session are used. /fineprint keeps its notes.`
+    ? 'Off: maxChecksPerSession is 0.'
+    : `Paused: all ${maxChecks} checks for this session are used. /fineprint keeps its notes.`
 }
 
 // The cap's status line follows the count: up once (when every check is
@@ -117,7 +117,7 @@ async function check($: EngineInterface, turnId: string, request: Request, topic
   // arrives as a toast so it is never flagged unseen.
   const surfaces = await $.session.surfaces().catch(() => [])
   if (surfaces.length > 0 && !surfaces.some(surface => surface === 'terminal' || surface === 'desktop')) {
-    $.ui.toast(`Fine print: ${headline} (/fineprint has the details)`)
+    $.ui.toast(`${headline} (/fineprint has the details)`)
   }
 }
 
@@ -171,7 +171,7 @@ async function explain($: EngineInterface, id: string) {
   await update($, notes, list => withStatus(list, id, 'open'))
   await update($, shown, () => id)
   // The reason is another hook's or the engine's words: make them drawable.
-  $.ui.toast(drawable(`Fine Print could not send the question (${why}). The note is still open.`))
+  $.ui.toast(drawable(`Could not send the question (${why}). The note is still open.`))
 }
 
 // Where no surface seats a pane: the list as transcript lines, which the
@@ -220,7 +220,7 @@ export const register: Register = (on, options) => {
 
     return {}
   }).catch($ => {
-    $.ui.toast('Fine Print could not open its notes.')
+    $.ui.toast('Could not open its notes.')
 
     return {}
   })

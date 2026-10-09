@@ -335,14 +335,14 @@ describe('the pane', () => {
     await start($)
     const on1 = await footprints($, 'touched')
     expect(on1).toEqual({}) // nothing for the model to read
-    expect(w.rec.toasts).toEqual(['Footprints: touched files only'])
+    expect(w.rec.toasts).toEqual(['Touched files only'])
     expect(w.rec.opens).toEqual([PANE])
     const ui = await mount($, 'terminal')
     expect(await ui.find({ key: 'f:README.md' })).toBeUndefined()
     expect((await ui.find({ key: 'empty' }))?.text).toBe('Nothing touched yet.')
     const off = await footprints($, 'touched')
     expect(off).toEqual({})
-    expect(w.rec.toasts.at(-1)).toBe('Footprints: all files')
+    expect(w.rec.toasts.at(-1)).toBe('All files')
     expect(w.rec.opens).toEqual([PANE]) // already open: not opened again
     expect(await ui.find({ key: 'f:README.md' })).toBeDefined()
   })
@@ -352,7 +352,7 @@ describe('the pane', () => {
     await start($)
     const ran = await footprints($)
     expect(ran.text).toBeUndefined()
-    expect(w.rec.toasts).toEqual(['Footprints cannot show its pane here: no surface attached that places panes'])
+    expect(w.rec.toasts).toEqual(['Cannot show its pane here: no surface attached that places panes'])
   })
 
   test('an unknown argument answers with the usage, in a toast', async ($, on) => {
@@ -360,7 +360,7 @@ describe('the pane', () => {
     await start($)
     const ran = await footprints($, 'sideways')
     expect(ran).toEqual({})
-    expect(w.rec.toasts).toEqual(['Footprints: /footprints opens the pane, /footprints touched toggles touched-only'])
+    expect(w.rec.toasts).toEqual(['/footprints opens the pane, /footprints touched toggles touched-only'])
   })
 
   test('opening the pane answers {}: the pane is the answer, the model reads nothing', async ($, on) => {
@@ -711,7 +711,7 @@ describe('polish', () => {
     const w = world(on, { tracked: ['src/a.ts'], openDenied: 'another mod holds this pane' })
     await start($)
     expect(await footprints($)).toEqual({})
-    expect(w.rec.toasts).toEqual(['Footprints could not open its pane here.'])
+    expect(w.rec.toasts).toEqual(['Could not open its pane here.'])
   })
 
   test('git runs with the exact pathspecs proven on real git', async ($, on) => {
@@ -730,7 +730,7 @@ describe('polish', () => {
     const w = world(on, { tracked: ['a.ts'], root: '/work/pro\x07j', placed: false, reason: 'no\x07room \x1b[31mhere' })
     await start($)
     await footprints($)
-    expect(w.rec.toasts).toEqual(['Footprints cannot show its pane here: no\uFFFDroom here'])
+    expect(w.rec.toasts).toEqual(['Cannot show its pane here: no\uFFFDroom here'])
     for (const surface of SURFACES) {
       const ui = await mount($, surface)
       const controls = await ui.find({ key: 'controls' })

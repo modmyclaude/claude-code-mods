@@ -108,7 +108,7 @@ function world(on: On, chromePath: string | null = CHROME): World {
   }))
   on('ui.toast', ($, e) => {
     if (w.toastThrows) throw new Error('toast broke')
-    if (/^(Porthole: |Viewport set to )/.test(e.text)) w.notes.push(e.text)
+    if (/^(https?:\/\/|Viewport set to )/.test(e.text)) w.notes.push(e.text)
     else w.toasts.push(e.text)
     return { value: undefined }
   })
@@ -202,7 +202,7 @@ test('the command is registered at session start, runnable mid-turn (immediate)'
 
 test('/porthole <url> shoots with headless Chrome, a fresh profile and the desktop viewport', async ($, on) => {
   const w = world(on)
-  expect(await shown($, w, 'http://localhost:5173')).toBe('Porthole: http://localhost:5173/ at 1280 px (desktop).')
+  expect(await shown($, w, 'http://localhost:5173')).toBe('http://localhost:5173/ at 1280 px (desktop).')
   expect(w.opened).toEqual(['porthole'])
   await settled(w)
 
@@ -225,10 +225,10 @@ test('/porthole mobile and /porthole desktop switch the viewport width', async (
   const w = world(on)
   expect(await shown($, w, 'mobile')).toBe('Viewport set to mobile (390 px wide). Open a page with /porthole <url>.')
   expect(w.spawns).toEqual([])
-  expect(await shown($, w, '127.0.0.1:8000')).toBe('Porthole: http://127.0.0.1:8000/ at 390 px (mobile).')
+  expect(await shown($, w, '127.0.0.1:8000')).toBe('http://127.0.0.1:8000/ at 390 px (mobile).')
   await settled(w)
   expect(w.spawns[0]?.find(arg => arg.startsWith('--window-size='))).toBe('--window-size=390,844')
-  expect(await shown($, w, 'desktop')).toBe('Porthole: http://127.0.0.1:8000/ at 1280 px (desktop).')
+  expect(await shown($, w, 'desktop')).toBe('http://127.0.0.1:8000/ at 1280 px (desktop).')
   await settled(w)
   expect(w.spawns[1]?.find(arg => arg.startsWith('--window-size='))).toBe('--window-size=1280,800')
 })
@@ -277,7 +277,7 @@ test('bare /porthole with nothing seen says how to start', async ($, on) => {
   expect(w.opened).toEqual([])
 })
 
-test('Bash output naming a local server toasts "Open in porthole" once per address', async ($, on) => {
+test('Bash output naming a local server toasts "Ready to preview" once per address', async ($, on) => {
   const w = world(on)
   let output = ''
   on('tool.call', { tool: 'Bash' }, () => ({
@@ -287,7 +287,7 @@ test('Bash output naming a local server toasts "Open in porthole" once per addre
   output = '  VITE v5.4.0  ready\n  \u001b[32m➜\u001b[39m  Local:   \u001b[36mhttp://localhost:\u001b[1m5173\u001b[22m/\u001b[39m\n'
   const ran = await $.tool.call({ tool: 'Bash', command: 'npm run dev' })
   expect(ran.text).toBe(output) // the call itself is untouched
-  expect(w.toasts).toEqual(['Open in porthole: http://localhost:5173/ - type /porthole'])
+  expect(w.toasts).toEqual(['Ready to preview http://localhost:5173/ - type /porthole'])
 
   await $.tool.call({ tool: 'Bash', command: 'npm run dev' })
   expect(w.toasts).toHaveLength(1)
@@ -299,12 +299,12 @@ test('Bash output naming a local server toasts "Open in porthole" once per addre
   output = '- Local: http://localhost:3000\n'
   await $.tool.call({ tool: 'Bash', command: 'npx next dev' })
   expect(w.toasts).toEqual([
-    'Open in porthole: http://localhost:5173/ - type /porthole',
-    'Open in porthole: http://localhost:3000/ - type /porthole',
+    'Ready to preview http://localhost:5173/ - type /porthole',
+    'Ready to preview http://localhost:3000/ - type /porthole',
   ])
 
   // Bare /porthole now opens the last address seen.
-  expect(await shown($, w, '')).toBe('Porthole: http://localhost:3000/ at 1280 px (desktop).')
+  expect(await shown($, w, '')).toBe('http://localhost:3000/ at 1280 px (desktop).')
   await settled(w)
   expect(w.spawns[0]?.at(-1)).toBe('http://localhost:3000/')
 })
@@ -456,7 +456,7 @@ test('a terminal that cannot draw images is told once and auto refresh pauses', 
   await w.clock.advance(300) // the probe after the first picture
   expect(w.blits).toBe(1)
   expect(w.toasts).toEqual([
-    "porthole: This terminal cannot draw images here. The desktop app's built-in browser pane can preview the page.",
+    "This terminal cannot draw images here. The desktop app's built-in browser pane can preview the page.",
   ])
 
   const ui = await $.ui.mount({ plugin: 'porthole', surface: 'terminal', component: 'Pane', requestId: 'porthole', props: PANE, viewport: VIEWPORT })
@@ -569,7 +569,7 @@ const REFUSAL =
 test('a remote URL opens for the person typing: composer and bridge', async ($, on) => {
   const w = world(on)
   for (const origin of [{ kind: 'composer' }, { kind: 'bridge' }] as const) {
-    expect(await shown($, w, `https://example.com/${origin.kind}`, origin)).toBe(`Porthole: https://example.com/${origin.kind} at 1280 px (desktop).`)
+    expect(await shown($, w, `https://example.com/${origin.kind}`, origin)).toBe(`https://example.com/${origin.kind} at 1280 px (desktop).`)
     await settled(w)
   }
   expect(w.spawns.map(argv => argv.at(-1))).toEqual(['https://example.com/composer', 'https://example.com/bridge'])
@@ -585,7 +585,7 @@ test('every other origin gets localhost only', async ($, on) => {
     expect(w.spawns.length, origin.kind).toBe(before)
 
     // The local page still opens from the same origin.
-    expect(await shown($, w, `http://localhost:${5000 + before}`, origin)).toBe(`Porthole: http://localhost:${5000 + before}/ at 1280 px (desktop).`)
+    expect(await shown($, w, `http://localhost:${5000 + before}`, origin)).toBe(`http://localhost:${5000 + before}/ at 1280 px (desktop).`)
     await settled(w)
     expect(w.spawns.length, origin.kind).toBe(before + 1)
   }
@@ -662,7 +662,7 @@ test('bare /porthole prefers the last dev server seen over the page in the pane'
   await run($, 'http://localhost:5173')
   await settled(w)
   await $.tool.call({ tool: 'Bash', command: 'npm run dev' })
-  expect(await shown($, w, '')).toBe('Porthole: http://localhost:3000/ at 1280 px (desktop).')
+  expect(await shown($, w, '')).toBe('http://localhost:3000/ at 1280 px (desktop).')
 })
 
 test('failed or staged edits do not refresh', async ($, on) => {
@@ -722,7 +722,7 @@ test('control characters never reach a command answer or toast', async ($, on) =
 
   w.openDenied = undefined
   w.notPlaced = 'too narrow\u0000'
-  expect(await shown($, w, 'http://localhost:5173')).toBe('Porthole: http://localhost:5173/ at 1280 px (desktop). The pane is waiting: too narrow�')
+  expect(await shown($, w, 'http://localhost:5173')).toBe('http://localhost:5173/ at 1280 px (desktop). The pane is waiting: too narrow�')
 })
 
 test('a remote URL typed in the desktop app (an SDK turn) is told porthole is terminal-only', async ($, on) => {

@@ -128,7 +128,7 @@ async function status($: EngineInterface, pager: Pager, now: number): Promise<st
   const phone =
     pager.topic === null ? 'off' : pager.topic === undefined ? 'off (the topic setting is not valid)' : 'on'
   return [
-    `Pager: ${await currentPack($)} pack, ${silent ? `silent (${silent})` : 'sounds on'}.`,
+    `${await currentPack($)} pack, ${silent ? `silent (${silent})` : 'sounds on'}.`,
     `Done pages after turns of ${formatDuration(pager.minMs)} or more. Quiet hours: ${pager.quiet ? pager.quietText : 'off'}. Phone push: ${phone}.`,
     `Commands: ${COMMANDS}.`,
   ].join(' ')
@@ -175,7 +175,7 @@ async function mute($: EngineInterface, arg: string, now: number): Promise<strin
 async function unmute($: EngineInterface, now: number): Promise<string> {
   const until = await $.store.get(MUTED_KEY)
   await $.store.delete(MUTED_KEY)
-  return typeof until === 'number' && now < until ? 'Unmuted. Sounds are back on.' : 'Pager was not muted.'
+  return typeof until === 'number' && now < until ? 'Unmuted. Sounds are back on.' : 'Not muted: sounds are on.'
 }
 
 async function runCommand($: EngineInterface, pager: Pager, args: string, from: { kind: string }): Promise<string> {

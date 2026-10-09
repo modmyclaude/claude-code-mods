@@ -41,7 +41,7 @@ const SLEEPERS: readonly (readonly string[])[] = [
   ['powershell', '-NoProfile', '-Command', 'Start-Sleep -Seconds 1'],
 ]
 
-const STATUS = 'Last Look is holding a command: Cancel or Proceed'
+const STATUS = 'holding a command: Cancel or Proceed'
 const LOGGED: Record<Outcome, string> = {
   proceed: 'you let this run',
   cancel: 'you cancelled',
@@ -122,7 +122,7 @@ async function guard($: EngineInterface, command: string, id: string, agentId: s
   if (findings.length === 0) return 'run'
   const ctx = await context($, home, allow)
 
-  $.ui.status(`Last Look is measuring: ${clip(command, 60)}`)
+  $.ui.status(`measuring: ${clip(command, 60)}`)
   let report: LastLookReport
   try {
     report = await measureAll(ctx, command, findings)

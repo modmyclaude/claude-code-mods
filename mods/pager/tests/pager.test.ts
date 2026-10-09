@@ -348,7 +348,7 @@ describe('mute and quiet hours', () => {
   test('unmute ends a mute early', async ($, on) => {
     const w = world(on)
     await start($, w)
-    expect(await pager($, w, 'unmute')).toBe('Pager was not muted.')
+    expect(await pager($, w, 'unmute')).toBe('Not muted: sounds are on.')
     await pager($, w, 'mute 2h')
     expect(await pager($, w, 'unmute')).toBe('Unmuted. Sounds are back on.')
     await endTurn($, w, 30_000)
@@ -453,7 +453,7 @@ describe('commands', () => {
       for (const args of ['mute 7d', 'pack zen', 'unmute', 'test']) {
         expect(await pager($, w, args, origin), `${origin.kind} ${args}`).toContain('only runs when you type it')
       }
-      expect(await pager($, w, '', origin)).toContain('Pager: classic pack, sounds on.')
+      expect(await pager($, w, '', origin)).toContain('classic pack, sounds on.')
     }
     expect(w.plays).toEqual([]) // no test clips played for a stranger
     await endTurn($, w, 30_000)
@@ -474,7 +474,7 @@ describe('commands', () => {
     const w = world(on)
     await start($, w)
     const text = await pager($, w, '')
-    expect(text).toContain('Pager: classic pack, sounds on.')
+    expect(text).toContain('classic pack, sounds on.')
     expect(text).toContain('Done pages after turns of 20s or more. Quiet hours: off. Phone push: off.')
     expect(await pager($, w, 'shout')).toContain('Unknown: "shout".')
   })

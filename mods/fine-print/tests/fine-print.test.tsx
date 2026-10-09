@@ -390,7 +390,7 @@ test('maxChecksPerSession 0 never calls the model', { options: { maxChecksPerSes
   await endTurn($, seen, turn(LONG_REPLY, 't2'))
 
   expect(seen.calls).toHaveLength(0)
-  expect(seen.statuses).toEqual(['Fine Print is off: maxChecksPerSession is 0.'])
+  expect(seen.statuses).toEqual(['Off: maxChecksPerSession is 0.'])
 })
 
 test('watchFor none turns checks off', { options: { watchFor: ['none'] } }, async ($, on) => {
@@ -466,7 +466,7 @@ test('/fineprint says so when it cannot open its notes', async ($, on) => {
   on('ui.toast', ($, e) => ((toasts.push(e.text), { value: undefined })))
   const result = await $.command.run(FINEPRINT)
   expect(result).toEqual({})
-  expect(toasts).toEqual(['Fine Print could not open its notes.'])
+  expect(toasts).toEqual(['Could not open its notes.'])
 })
 
 test('/fineprint opens a pane and answers no text, so the model never reads the list', async ($, on) => {
@@ -506,7 +506,7 @@ test('Explain more says so when the question could not be sent', async ($, on) =
 
   expect(seen.submitted).toHaveLength(1)
   expect(seen.toasts).toHaveLength(1)
-  expect(seen.toasts[0]).toContain('could not send the question')
+  expect(seen.toasts[0]).toContain('Could not send the question')
   // The note is back, still open, and can be tried again.
   expect(await ui.find({ key: 'explain' })).toBeDefined()
   expect((await fineprint($))).toContain(`1. ${FLAG.headline} (open`)
@@ -702,7 +702,7 @@ test('where no surface draws the band, the note arrives as a toast', async ($, o
   const seen = world(on, [JSON.stringify(FLAG)], { surfaces: ['vscode'] })
   await endTurn($, seen, turn(LONG_REPLY))
 
-  expect(seen.toasts).toEqual([`Fine print: ${FLAG.headline} (/fineprint has the details)`])
+  expect(seen.toasts).toEqual([`${FLAG.headline} (/fineprint has the details)`])
   expect((await fineprint($))).toContain(FLAG.headline)
 })
 

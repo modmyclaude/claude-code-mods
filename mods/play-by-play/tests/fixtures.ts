@@ -7,8 +7,8 @@ import type { Engine, MockClock } from 'claude-code/testing'
 
 export const PLUGIN = 'play-by-play'
 export const PANE = 'play-by-play'
-export const NOTHING = 'play-by-play: nothing to replay yet: no finished turn has changed files.'
-export const USAGE = 'play-by-play: usage: /replay [n], where n is 1 (the latest turn) to 10.'
+export const NOTHING = 'nothing to replay yet: no finished turn has changed files.'
+export const USAGE = 'usage: /replay [n], where n is 1 (the latest turn) to 10.'
 /** HEAD of the fake repository. */
 export const HEAD_SHA = '1234567890abcdef1234567890abcdef12345678'
 

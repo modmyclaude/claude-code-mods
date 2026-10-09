@@ -289,7 +289,7 @@ async function rescan($: Engine): Promise<void> {
 
 async function openPane($: Engine): Promise<boolean> {
   const opened = await $.ui.open({ id: PANE, title: 'Footprints' })
-  if (!opened.isPlaced) $.ui.toast(clean(`Footprints cannot show its pane here: ${opened.reason}`))
+  if (!opened.isPlaced) $.ui.toast(clean(`Cannot show its pane here: ${opened.reason}`))
   if (Object.values(await read($, marksAtom)).some(isEditing)) startShimmer($) // an edit already running shimmers
   await quietly(rescan($))
   return opened.isPlaced
@@ -411,10 +411,10 @@ export const register: Register = on => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'touched') {
       const isOn = await update($, touchedOnlyAtom, value => !value)
-      $.ui.toast(isOn ? 'Footprints: touched files only' : 'Footprints: all files')
+      $.ui.toast(isOn ? 'Touched files only' : 'All files')
       if (!(await paneIsOpen($))) await openPane($)
     } else if (arg !== '') {
-      $.ui.toast('Footprints: /footprints opens the pane, /footprints touched toggles touched-only')
+      $.ui.toast('/footprints opens the pane, /footprints touched toggles touched-only')
     } else {
       await $.state.set(SHELL_PAUSED, false) // asking again is the person's go-ahead to retry a slow git
       await openPane($)
@@ -422,7 +422,7 @@ export const register: Register = on => {
     return {}
   }).catch($ => {
     try {
-      $.ui.toast('Footprints could not open its pane here.')
+      $.ui.toast('Could not open its pane here.')
     } catch {
       // nothing more to say where even a toast is refused
     }

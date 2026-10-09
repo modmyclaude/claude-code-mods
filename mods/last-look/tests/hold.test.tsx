@@ -208,7 +208,7 @@ describe('a destructive command is held', () => {
     const { seen } = setup(on)
     const call = bash($, 'rm -rf src')
     await until(() => seen.opened.length > 0, 'the pane to open')
-    expect(seen.status).toContain('Last Look is holding a command: Cancel or Proceed')
+    expect(seen.status).toContain('holding a command: Cancel or Proceed')
     const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
     await ui.press({ key: 'proceed' })
     await call

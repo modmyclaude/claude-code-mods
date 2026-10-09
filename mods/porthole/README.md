@@ -25,7 +25,7 @@ not open, Chrome missing) stays visible as the command's output.
 
 - **Dev-server detection.** When a Bash result from Claude names a local server
   (`http://localhost:<port>` or `http://127.0.0.1:<port>`), a toast says
-  `Open in porthole: http://localhost:5173/ - type /porthole`. Each address is offered once per session.
+  `Ready to preview http://localhost:5173/ - type /porthole` (Claude Code shows it under porthole's name). Each address is offered once per session.
   Only foreground Bash results are read: a server Claude starts in the background is offered once its log
   passes through a Bash result (for example `cat` of the log).
 - **Auto refresh.** While the pane is open, a file edit by Claude (Edit, Write, MultiEdit, NotebookEdit)

@@ -148,7 +148,7 @@ export const register: Register = (on, options) => {
     }
     return {}
   }).catch($ => {
-    $.ui.toast('wardrobe: /wear could not finish. Run /wear to see what is worn.')
+    $.ui.toast('/wear could not finish. Run /wear to see what is worn.')
     return {}
   })
 

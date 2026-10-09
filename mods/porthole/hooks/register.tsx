@@ -205,7 +205,7 @@ async function probe($: Engine, shot: PortholeShot): Promise<void> {
       isFirst = was !== 'no'
       return 'no'
     })
-    if (isFirst) $.ui.toast(`porthole: ${NO_IMAGES}`, { timeoutMs: 8000 })
+    if (isFirst) $.ui.toast(NO_IMAGES, { timeoutMs: 8000 })
   }
 }
 
@@ -299,7 +299,7 @@ async function noticeAddresses($: Engine, output: string): Promise<void> {
   const current = await read($, view)
   const isShowing =
     current.phase !== 'idle' && current.url !== null && new URL(current.url).origin === new URL(address).origin
-  if (!isShowing) $.ui.toast(clean(`Open in porthole: ${address} - type /porthole`), { timeoutMs: 8000 })
+  if (!isShowing) $.ui.toast(clean(`Ready to preview ${address} - type /porthole`), { timeoutMs: 8000 })
 }
 
 /** What /porthole says: `done` lines go to a toast (the model need not read them), the rest stay as text. */
@@ -354,7 +354,7 @@ async function runCommand($: Engine, args: string, isPerson: boolean): Promise<S
   if (!isTerminal) return refuse(elsewhereLine(url))
   void refresh($).catch(() => undefined)
   const waits = opened.isPlaced ? '' : ` The pane is waiting: ${opened.reason}`
-  return { done: true, text: `Porthole: ${url} at ${width} px (${mode}).${waits}` }
+  return { done: true, text: `${url} at ${width} px (${mode}).${waits}` }
 }
 
 export const register: Register = (on, options) => {
