@@ -1,0 +1,17 @@
+{
+  "name": "porthole",
+  "version": "0.1.0",
+  "description": "A live preview of the app you are building, right beside the chat.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["preview", "browser", "screenshot", "dev-server", "localhost", "kitty-graphics", "pane"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "chromePath": {
+      "type": "string",
+      "title": "Chrome path",
+      "description": "Full path to a Chrome or Chromium executable. Leave empty to find one automatically.",
+      "default": ""
+    }
+  }
+}
