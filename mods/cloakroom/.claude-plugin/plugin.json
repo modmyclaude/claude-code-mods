@@ -1,0 +1,8 @@
+{
+  "name": "cloakroom",
+  "version": "0.1.0",
+  "description": "Check your secrets at the door: Claude gets a ticket, the real value only comes back in local tools you allow.",
+  "author": { "name": "ORG_TBD" },
+  "license": "MIT",
+  "keywords": ["security", "secrets", "redaction", "privacy", "api-keys", "env"]
+}
