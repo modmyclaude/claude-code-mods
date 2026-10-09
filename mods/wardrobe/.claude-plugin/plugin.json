@@ -1,0 +1,37 @@
+{
+  "name": "wardrobe",
+  "version": "0.1.0",
+  "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["theme", "looks", "accessibility", "colorblind", "high-contrast", "diff", "display"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "dayTheme": {
+      "type": "string",
+      "title": "Day theme (auto mode)",
+      "description": "The theme /wear auto wears by day.",
+      "default": "paper",
+      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind"]
+    },
+    "nightTheme": {
+      "type": "string",
+      "title": "Night theme (auto mode)",
+      "description": "The theme /wear auto wears by night.",
+      "default": "tokyo-night",
+      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind"]
+    },
+    "dayStarts": {
+      "type": "string",
+      "title": "Day starts at",
+      "description": "When auto mode switches to the day theme, 24-hour HH:MM local time.",
+      "default": "07:00"
+    },
+    "nightStarts": {
+      "type": "string",
+      "title": "Night starts at",
+      "description": "When auto mode switches to the night theme, 24-hour HH:MM local time.",
+      "default": "19:00"
+    }
+  }
+}
