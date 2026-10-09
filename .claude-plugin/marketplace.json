@@ -1,0 +1,146 @@
+{
+  "name": "modmyclaude",
+  "owner": {
+    "name": "modmyclaude",
+    "url": "https://github.com/modmyclaude"
+  },
+  "metadata": {
+    "description": "Curated, tested Claude Code mods. Every mod ships with the prompt that built it."
+  },
+  "plugins": [
+    {
+      "name": "ant-farm",
+      "source": "./mods/ant-farm",
+      "description": "Watch your subagents work, and what they cost, live.",
+      "version": "0.1.0",
+      "category": "visibility",
+      "keywords": [
+        "subagents",
+        "cost",
+        "tokens",
+        "budget",
+        "pane",
+        "visibility"
+      ]
+    },
+    {
+      "name": "footprints",
+      "source": "./mods/footprints",
+      "description": "A live file tree beside the chat that shows where Claude has been.",
+      "version": "0.1.0",
+      "category": "visibility",
+      "keywords": [
+        "file-tree",
+        "pane",
+        "visibility",
+        "git",
+        "activity"
+      ]
+    },
+    {
+      "name": "noted",
+      "source": "./mods/noted",
+      "description": "Turns your corrections into permanent rules, without duplicates.",
+      "version": "0.1.0",
+      "category": "memory",
+      "keywords": [
+        "memory",
+        "claude-md",
+        "rules",
+        "corrections",
+        "house-rules"
+      ]
+    },
+    {
+      "name": "pager",
+      "source": "./mods/pager",
+      "description": "Plays a sound when Claude finishes, needs you or hits an error.",
+      "version": "0.1.0",
+      "category": "alerts",
+      "keywords": [
+        "alerts",
+        "sound",
+        "notifications",
+        "ntfy",
+        "mute",
+        "quiet-hours"
+      ]
+    },
+    {
+      "name": "play-by-play",
+      "source": "./mods/play-by-play",
+      "description": "Replays every change Claude made in a turn, shell edits included.",
+      "version": "0.1.0",
+      "category": "review",
+      "keywords": [
+        "review",
+        "diff",
+        "replay",
+        "changes",
+        "git"
+      ]
+    },
+    {
+      "name": "porthole",
+      "source": "./mods/porthole",
+      "description": "A live preview of the app you are building, right beside the chat.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": [
+        "preview",
+        "browser",
+        "screenshot",
+        "dev-server",
+        "localhost",
+        "kitty-graphics",
+        "pane"
+      ]
+    },
+    {
+      "name": "redline",
+      "source": "./mods/redline",
+      "description": "Context fill, session cost and pace on one line, with a warning before the red line.",
+      "version": "0.1.0",
+      "category": "cost",
+      "keywords": [
+        "context",
+        "cost",
+        "usage",
+        "tokens",
+        "rate-limits",
+        "status-line",
+        "compact"
+      ]
+    },
+    {
+      "name": "thermostat",
+      "source": "./mods/thermostat",
+      "description": "Shows when your prompt cache goes cold, and stops the expensive send.",
+      "version": "0.1.0",
+      "category": "cost",
+      "keywords": [
+        "prompt-cache",
+        "cost",
+        "status-line",
+        "keep-warm",
+        "guard"
+      ]
+    },
+    {
+      "name": "wardrobe",
+      "source": "./mods/wardrobe",
+      "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
+      "version": "0.1.0",
+      "category": "looks",
+      "keywords": [
+        "theme",
+        "looks",
+        "accessibility",
+        "colorblind",
+        "high-contrast",
+        "diff",
+        "display"
+      ]
+    }
+  ]
+}

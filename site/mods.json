@@ -1,0 +1,361 @@
+{
+  "org": "modmyclaude",
+  "repo": "claude-code-mods",
+  "generated": "by scripts/build-catalog.mjs",
+  "mods": [
+    {
+      "name": "ant-farm",
+      "title": "Ant Farm",
+      "tagline": "Watch your subagents work, and what they cost, live.",
+      "category": "visibility",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "subagents",
+        "cost",
+        "tokens",
+        "budget",
+        "pane",
+        "visibility"
+      ],
+      "prompt": "Build me a Claude Code mod called \"ant-farm\" that makes subagent work visible.\n\nWhat it does\n- While a turn runs, a slim band above my prompt shows elapsed time, subagents running vs done, and the estimated spend so far.\n- /antfarm opens a side pane listing every subagent this session: its task, model, a progress bar, tokens used, estimated cost, elapsed time and status (running, done, failed). Running ones on top, finished ones collapsed below.\n- Each subagent gets a small pixel-art ant that walks while it works and stops when it is done. One ant colour per model.\n- Header totals: total cost, total tokens, wall time.\n\nWhat is new here\n- Budget alarm: a budgetUsd setting (default 2.00). When the session estimate crosses it, show a toast and turn the status line amber; past 2x the budget, red.\n- ETA: once a running subagent has made 3 model requests, estimate its time left from its pace so far (\"~1m left\").\n- Narrow terminals: if the pane cannot open (under 144 columns), show a compact list inside the band instead of nothing.\n\nHow it works\n- Track subagents through the agent spawn and turn step events and count tokens per model request.\n- Estimate cost from a small built-in price table per model and mark every cost as an estimate (≈).\n- Deterministic only: no model calls of its own.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Ant Farm\n\nWatch your subagents work, and what they cost, live.\n\n## Install\n\n```\n/plugin install ant-farm --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n- **The band.** While a turn runs, a slim line above the prompt shows the\n  elapsed time, how many subagents are running and done, and the session's\n  spend so far. It stays while background subagents still run.\n- **The pane.** `/antfarm` opens the Ant farm pane (it also works mid-turn).\n  At the top: the subagents' total estimated cost, total tokens and wall time,\n  then the session's spend against your budget. Below, one card per running\n  subagent: its task, model, status, elapsed time, a progress bar, requests,\n  tokens and estimated cost. Finished subagents fold into one line each under\n  **Finished**; **Expand** shows them as full cards again.\n- **The ants.** Every subagent gets a small pixel-art ant, one colour per\n  model. It walks while its subagent works, stands still when it is done, and\n  lies on its back if it failed.\n- **ETA.** Once a running subagent has made 3 model requests, its card shows\n  an estimate of the time left (\"~1m left\"). It uses the subagent's own pace\n  (time per request so far) and how many requests finished subagents of the\n  same type needed this session. With nothing finished yet, it assumes the\n  subagent is halfway.\n- **Opens itself where it fits, once.** When the first subagent starts on a\n  surface that docks panes beside the transcript (the fullscreen terminal, the\n  desktop app), the pane opens on its own, at most once a session and never\n  after you closed it by hand. Under 144 columns the engine holds such a pane\n  back, so the band lists the subagents instead (one line each, with a\n  **Hide** button). `/antfarm` opens it any time.\n- **Two kinds of money.** The session's spend (the band, the pane's budget\n  line, the status line and the alarm) is Claude Code's own total, the figure\n  `/cost` shows, labelled \"Claude Code total\" and drawn without `≈`. Where\n  Claude Code gives no total, the price-table estimate stands in, marked `≈`.\n  Each subagent's cost is always the price-table estimate (`≈`): Claude Code\n  does not total cost per subagent.\n- **Budget alarm.** The mod's status line under the prompt shows the\n  session's spend against your budget. When it reaches the budget you get a\n  toast and the budget mark beside the prompt footer turns amber; at twice the\n  budget, another toast and red. Each crossing toasts once.\n- `/clear` starts the farm over, as it does `/cost`.\n\n## Settings\n\n| Setting | Default | What it does |\n| --- | --- | --- |\n| `budgetUsd` | `2` | Session budget in US dollars for the alarm, checked against Claude Code's own total. `0` turns the alarm off. |\n\n## What it can touch\n\n- **Files:** none. **Processes:** none. **Network:** none.\n- **Model calls:** none. Everything is counted from the usage the engine\n  reports for each model request; nothing is sent anywhere.\n- **Engine calls:** reads Claude Code's cost total for the session (after each\n  model request and turn end), reads the session's agent list (to pick up a\n  subagent that started before the mod loaded, and to settle one that ended\n  without saying so), opens and lists its own pane, sets its status line,\n  shows toasts.\n- **Memory:** its counts live in session state and are gone when the session\n  ends. Nothing is written to disk.\n\n## Limits\n\n- **Per-subagent costs are estimates.** They come from a small built-in table\n  of Anthropic's published API list prices (cached 2026-10-06), marked with\n  `≈`. The table cannot see fast mode, batch pricing, partner clouds (Bedrock,\n  Vertex) or negotiated rates, and it prices every cache write at the 5-minute\n  rate. A model missing from the table shows its tokens and a cost of `?`.\n  The subagents' sum can therefore differ from Claude Code's total.\n- **Claude Code's total is read after each model request and turn end**, so\n  the alarm can trip one request after the real crossing. A resumed session's\n  total includes its earlier runs, as `/cost` does.\n- **The fallback estimate counts only model requests of a turn.** Side\n  requests outside a turn (titles, safety checks) do not pass through\n  `turn.step`, so when Claude Code gives no total the estimate misses them.\n- **The status line cannot be coloured.** Claude Code's plugin status line\n  takes text only, so the amber and red of the alarm are drawn on the budget\n  mark beside the prompt footer, the band and the pane header; the status line\n  itself says \"over budget\" or \"past 2x the budget\".\n- **The ETA is a heuristic.** Subagents do not announce how long they will\n  take. Treat \"~1m left\" as a rough guide, most useful once a few subagents\n  of the same type have finished.\n- **The pane opens unasked only where it would be a sidebar.** On the\n  terminal's main screen (no fullscreen layout) use `/antfarm`.\n- **The band and the footer mark draw on the terminal and the desktop app**,\n  the surfaces that have them. The pane draws wherever panes are placed.\n- A subagent that runs in a remote cloud session (`isolation: 'remote'`,\n  internal builds only) has no local loop: ant-farm sees it start but none of\n  its requests, and cannot tell exactly when it ends.\n- A background subagent stopped from outside may never report its end; the\n  mod checks the engine's agent list about every 10 seconds and settles it\n  from there.\n\n## Built from a prompt\n\nThis mod was built from [the ant-farm prompt](../../prompts/ant-farm.md).\n",
+      "reach": [
+        "display only"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "agent.spawn",
+          "ui.close"
+        ]
+      }
+    },
+    {
+      "name": "footprints",
+      "title": "Footprints",
+      "tagline": "A live file tree beside the chat that shows where Claude has been.",
+      "category": "visibility",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "file-tree",
+        "pane",
+        "visibility",
+        "git",
+        "activity"
+      ],
+      "prompt": "Build me a Claude Code mod called \"footprints\": a live file tree beside the chat that shows where Claude has been.\n\nWhat it does\n- /footprints opens a side pane with the project's file tree. Respect .gitignore and skip node_modules and .git.\n- As Claude works: files it reads glow blue, files it is editing shimmer amber, files with committed changes turn green, new files get a \"new\" mark and deleted files are struck through.\n- A header line: \"read 12 · edited 4 · new 1\".\n\nWhat is new here\n- A touched-only toggle (press t, or /footprints touched) that collapses every folder Claude did not touch, so a big repo shrinks to the files that matter.\n- Opens at any terminal width when I ask for it, with no fullscreen step. If it cannot fit, it says so in one line instead of failing silently.\n- A status line count of edited files, so I see activity with the pane closed.\n- Shell changes count too: after each Bash call, check git status and mark the files that changed.\n\nGuardrails\n- Reads file names and modification times only, never file contents. Deterministic, no model calls.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Footprints\n\nA live file tree beside the chat that shows where Claude has been.\n\n## Install\n\n```\n/plugin install footprints --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n- `/footprints` opens a pane with the project's file tree: docked beside the transcript in fullscreen, above the prompt otherwise. Because you asked, it opens at any terminal width.\n- As Claude works, names change color:\n  - **blue** - read (Read, an @-mention; a folder Glob or Grep searched)\n  - **amber** - edited; it shimmers while the edit is still running\n  - **green** - edited, then committed with `git commit`\n  - **new** - created this session\n  - ~~struck through~~ - deleted\n  - **(shell)** - changed by a Bash command rather than an edit tool\n- The header counts it up: `read 12 · edited 4 · new 1`, plus `deleted` and `committed` once there are any. New, deleted and committed files are counted in edited too.\n- **Touched only**: press `t` while the pane has the keys (click it, or ctrl+x tab), or type `/footprints touched`. Every folder Claude did not touch collapses, and untouched files fold into one `+ N untouched files` line.\n- **Status line**: `edited 4` under the prompt, so you see activity with the pane closed.\n- Untouched folders with more than 40 files start collapsed, showing their file count. Files Claude touched outside the project are listed under `outside <folder>`.\n- `/clear` starts a clean trail.\n\n## Settings\n\nNone.\n\n## What it can touch\n\n- **Reads**: file names and modification times only, never contents. Names come from `git ls-files` (or a folder listing outside git). Around a Bash call it also reads the modification time of each file git reports as changed, and for a Glob or Grep target, whether it is a folder.\n- **Runs** (all read-only, no index lock):\n  - `git rev-parse --show-toplevel --show-prefix` to find the repo\n  - `git ls-files -z --cached --others --exclude-standard` when you open the pane, and after a commit or checkout while it is open\n  - `git --no-optional-locks status --porcelain=v2 ...` before and after each Bash call, once the pane is open or Claude has edited something (the \"after\" is skipped when the call was read-only). If one run takes over 2 seconds or times out, shell tracking pauses for the rest of the session and the transcript says so once: `Footprints: shell tracking paused, git status is slow in this repo`. Read and edit tracking keep working.\n- **Writes**: nothing on disk; its marks live in the session's state.\n- **Network**: none. **Model calls**: none.\n\n## Limits\n\n- Shell tracking starts once the pane is open or Claude has made its first edit, so a Bash change before either is not marked. In a repo where `git status` is slow (over 2 s), it pauses for the session.\n- Shell changes need git. Outside a git repo the tree still works (a walk that skips `node_modules`, `.git` and a few cache folders, without `.gitignore`), but Bash changes are not marked.\n- Shell attribution compares `git status` before and after the call plus file times, so: a branch switch that leaves git clean on both sides is not marked; a file you save in your own editor while a Bash command runs can be counted as changed by the shell; a background Bash command is checked when it returns, not when it finishes.\n- Green needs a Bash command that runs `git commit` and moves HEAD. Commits you make in your own terminal are not seen.\n- Files read through the shell (`cat`, `rg`) do not turn blue; only Read, Glob, Grep and @-mentions count. Native macOS and Linux builds of Claude Code have no Glob or Grep tools, so folder marks mostly come from builds that do.\n- `t` works only while the pane holds the keyboard; from the prompt, use `/footprints touched`.\n- Subagents' tool calls count too.\n- Big repos: it keeps up to 20,000 file names and draws up to 400 rows (the rest is one \"more\" line).\n- An edit still running when the mod reloads is not recorded.\n- Tested with POSIX paths (macOS, Linux). Colors follow your theme's `suggestion`, `warning` and `success`.\n- The pane opens only when you ask. If a surface cannot place panes, a one-line toast says why.\n\n## Built from a prompt\n\n[prompts/footprints.md](../../prompts/footprints.md)\n",
+      "reach": [
+        "reads files",
+        "runs commands",
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "read",
+        "commands": true,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "tool.call",
+          "prompt.mention"
+        ]
+      }
+    },
+    {
+      "name": "noted",
+      "title": "Noted",
+      "tagline": "Turns your corrections into permanent rules, without duplicates.",
+      "category": "memory",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "one small-model call per detected correction",
+      "version": "0.1.0",
+      "keywords": [
+        "memory",
+        "claude-md",
+        "rules",
+        "corrections",
+        "house-rules"
+      ],
+      "prompt": "Build me a Claude Code mod called \"noted\" that turns my corrections into permanent rules.\n\nWhat it does\n- When my prompt reads like a correction (\"no, ...\", \"don't ...\", \"always ...\", \"we use X not Y\", \"stop doing ...\", \"I told you ...\"), turn it into one short, general rule with a small, cheap model, e.g. \"Use pnpm, not npm, in this repo.\"\n- Show a band above my prompt with the proposed rule and buttons: Save to project (./CLAUDE.md), Save globally (~/.claude/CLAUDE.md), Edit, Skip.\n- Saving appends the rule under a \"## House rules\" heading, created if missing.\n\nWhat is new here\n- Cheap by design: a keyword pre-filter decides whether a prompt is a correction, and only those reach the model.\n- No duplicates: read the existing house rules first. If the same rule exists, say \"already a rule\". If it conflicts with one, offer \"Replace old rule\" instead of adding a contradiction.\n- /rules lists the house rules learned so far with when each was added, and lets me remove one.\n\nGuardrails\n- Only ever writes to those two CLAUDE.md files, and only after I press a button.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Noted\n\nTurns your corrections into permanent rules, without duplicates.\n\n## Install\n\n```\n/plugin install noted --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nCorrect Claude the way you normally would: \"no, use pnpm\", \"don't add comments to every line\", \"we use vitest, not jest\", \"stop adding emojis\", \"I told you to use tabs\". Your prompt goes through untouched. A moment later a band appears above the prompt with one short, general rule:\n\n```\nNoted - save this as a house rule?\nUse pnpm, not npm, in this repo.\n[ Save to project ] [ Save globally ] [ Edit ] [ Skip ]\n```\n\n- **Save to project** appends it to `./CLAUDE.md`, **Save globally** to `~/.claude/CLAUDE.md`, as a list item under a `## House rules` heading (added if missing). Nothing else in the file changes.\n- **Edit** turns the rule into a text field. Press Enter to keep your wording, then save.\n- **Skip** drops it.\n- If the rule is already there (same words, or the same meaning), the band says **already a rule** instead of proposing it again.\n- If it contradicts a rule you already have, the band shows the old rule and offers **Replace old rule**, which rewrites that line in place, instead of adding a contradiction.\n\nThe band buttons have keys once the band has focus (click it, or ctrl+x tab): `p` project, `g` global, `e` edit, `s` skip, `r` replace, `c` cancel an edit, `o` dismiss a notice, `d` close the `/rules` list.\n\n`/rules` lists the rules noted has learned, with the file and the date each was added, in the transcript and in the band, where each one has a **Remove** button. `/rules remove <number>` removes one by its number, for surfaces without the band. Removing a rule deletes its line from the file.\n\n## Settings\n\nNone.\n\n## What it can touch\n\n- **Files read:** `./CLAUDE.md` at the project root and `~/.claude/CLAUDE.md` (or `$CLAUDE_CONFIG_DIR/CLAUDE.md` when that is set), only to find the `## House rules` list. They are read when a correction is detected, when you press a button and when you run `/rules`.\n- **Files written:** those two files and nothing else, and only after you press Save, Replace old rule or Remove, or run `/rules remove <number>`. A file that exists but cannot be read is never written.\n- **Environment:** `HOME`, `USERPROFILE` and `CLAUDE_CONFIG_DIR`, to find the global file.\n- **Transcript:** the last 600 characters of Claude's previous reply, as context for the rule.\n- **Model calls:** one per prompt that passes a keyword pre-filter, never for other prompts. It uses the `haiku` alias at low effort and sends the correction (up to 600 characters), that reply tail, and up to 60 existing rules (200 characters each). That is at most about 4,000 input tokens and usually a few hundred. The reply is capped at 600 tokens, room for the model to think first, and the call at 20 seconds. A reply cut short is ignored. The call goes through the session's own client.\n- **Store:** noted's own store keeps each saved rule's text, file and date, so `/rules` can show when it was added.\n- **Network and processes:** none of its own.\n\n## Limits\n\n- The pre-filter matches English phrasing. Corrections in other languages, and prompts over 800 characters, are not picked up.\n- Only prompts you type (terminal, Remote Control, desktop app) are read. Prompts from tools, plugins, peers and schedules are ignored.\n- The band draws in the terminal and the desktop app. In VS Code or on mobile, noted says once that corrections there are not captured. `/rules` works everywhere.\n- The model call runs after your prompt has entered, alongside Claude's reply, so it never slows the turn. If you interrupt the turn while it runs, that suggestion may be lost.\n- If the session cannot use the `haiku` model (some Bedrock, Vertex or gateway setups), noted says so once and proposes nothing.\n- \"Same meaning\" duplicates and conflicts are judged by the model, which sees the first 60 existing rules. Same-words duplicates are caught in every rule, without the model.\n- `/rules` lists only rules saved through noted. Rules you write by hand still count for duplicates and conflicts. A rule you delete by hand drops off the list.\n- Claude Code reads CLAUDE.md when a session starts, so a saved rule steers Claude from the next session on. The correction you just typed is already in the current conversation.\n- A CLAUDE.md that is not valid UTF-8 text is left alone. Line endings are kept. Removing the last rule leaves the heading in place.\n\n## Built from a prompt\n\nThis mod was built from [`prompts/noted.md`](../../prompts/noted.md).\n",
+      "reach": [
+        "writes files",
+        "reads files",
+        "calls a model",
+        "hooks prompts"
+      ],
+      "touches": {
+        "files": "read-write",
+        "commands": false,
+        "network": false,
+        "model": true,
+        "sound": false,
+        "hooks": [
+          "prompt.submit"
+        ]
+      }
+    },
+    {
+      "name": "pager",
+      "title": "Pager",
+      "tagline": "Plays a sound when Claude finishes, needs you or hits an error.",
+      "category": "alerts",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "alerts",
+        "sound",
+        "notifications",
+        "ntfy",
+        "mute",
+        "quiet-hours"
+      ],
+      "prompt": "Build me a Claude Code mod called \"pager\" that tells me with sound when Claude needs my attention, so I can look away while it works.\n\nWhat it does\n- Three events, three sounds: done (a turn finished), needs you (Claude is waiting on a permission or a question for me) and error (a turn ended on a failure).\n- A toast with the session name accompanies each sound.\n- Only page me when it matters: skip the done sound for turns shorter than a minDuration setting (default 20 seconds), so quick back-and-forth stays quiet.\n\nSounds\n- Ship three original sound packs, synthesized by you as small audio files (no samples from games, films or other products): \"classic\" (soft bell tones), \"arcade\" (8-bit blips) and \"zen\" (gentle chimes). /pager pack <name> switches; /pager test plays all three sounds of the current pack.\n- /pager mute <duration> (e.g. /pager mute 30m) and /pager unmute. Respect a quietHours setting (e.g. \"22:00-07:00\").\n\nOptional phone push\n- If and only if I set an ntfyTopic setting, also send the same alert to that ntfy.sh topic with a single HTTPS POST (title + short text, never conversation content). Off by default. Document this as the only network call.\n\nGuardrails\n- No model calls. No files outside the mod. Never more than one sound per event, and at most one sound every 5 seconds.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Pager\n\nPlays a sound when Claude finishes, needs you or hits an error.\n\nLook away while Claude works. Pager plays one short sound, with a toast naming the session, when:\n\n- **done** - a turn finished and it ran at least `minDuration` seconds (quick back-and-forth stays quiet),\n- **needs you** - Claude is waiting on a permission prompt, a question, a plan approval or an MCP input request,\n- **error** - a turn ended on an API error or a refusal.\n\n## Install\n\n```\n/plugin install pager --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n| Command | What it does |\n|---|---|\n| `/pager` | Shows the pack, whether sounds are on, and your settings. |\n| `/pager pack <classic\\|arcade\\|zen>` | Switches the sound pack. `/pager pack` alone lists them. |\n| `/pager test` | Plays all three sounds of the current pack, one after another (even while muted). |\n| `/pager mute <duration>` | Silences sounds and phone pushes for `30m`, `2h`, `1h30m`, `45s` or `1d` (up to 7 days; a bare number is minutes; no duration means 1 hour). |\n| `/pager unmute` | Ends a mute early. |\n\n`/pager` runs at once, even while a turn is running, so you can mute mid-turn.\n\nThe three packs, all synthesized for this mod:\n\n- **classic** - soft bell tones\n- **arcade** - 8-bit blips\n- **zen** - gentle chimes\n\nGuardrails: one sound per event at most, and never more than one sound every 5 seconds. Alerts inside that gap, while muted, or in quiet hours still show their toast; only the sound and the phone push are skipped.\n\n## Settings\n\nSet them in `/config` (or when you enable the plugin).\n\n| Field | Default | Meaning |\n|---|---|---|\n| `minDuration` | `20` | Seconds a turn must run before its done sound plays. Errors and needs-you always page. |\n| `quietHours` | empty (off) | A local time window with no sound or push, such as `22:00-07:00`. It may wrap midnight. |\n| `ntfyTopic` | empty (off) | An [ntfy.sh](https://ntfy.sh) topic for phone pushes. Stored as a secret. A pasted `https://ntfy.sh/<topic>` works too. |\n\nThe pack and a mute are kept in the plugin's store, so they last across sessions and apply to every session at once.\n\n## What it can touch\n\n- **Sound:** plays its own nine WAV files from `sounds/` through Claude Code's audio player.\n- **Files:** reads nothing and writes nothing outside the plugin. The pack and mute end time live in the plugin's own store.\n- **Processes:** none of its own (Claude Code runs `afplay` to play a clip on macOS).\n- **Network:** only when you set `ntfyTopic`. Each alert that makes a sound also sends one HTTPS POST to `https://ntfy.sh/<topic>` with a fixed title (`Pager: done`, `Pager: needs you`, `Pager: error`) and a short fixed text (for done, the turn's length, such as \"A turn finished after 2m 5s.\"). It never sends your prompts, Claude's answers, the session title or the project name. This is the only network call Pager makes. Anyone who knows an ntfy.sh topic can read it, so pick a long, unguessable one.\n- **Model calls:** none.\n\n## How \"needs you\" is detected\n\nPager listens for Claude Code's own Notification event and pages on the types that mean a dialog is waiting on you: `permission_prompt`, `worker_permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog` and `agent_needs_input`. Claude Code raises these once a dialog has waited about 6 seconds without a keypress, so a prompt you answer right away makes no sound. `idle_prompt` is left out because it follows a finished turn, which already paged.\n\n## Limits\n\n- **Sound plays on macOS only.** Claude Code plays clips with `afplay`; on Linux and Windows it has no player, so `$.audio.play` is silent there. Toasts and phone pushes still work. `/pager test` says so.\n- An interrupted turn (Esc, or a plugin cutting the turn for you) makes no sound: you were there.\n- Subagent turns never page on their own; the main turn that ran them does.\n- `minDuration` counts the whole turn, including time a permission prompt waited on you.\n- Quiet hours use the clock of the machine running Claude Code.\n- A hot reload of the plugin forgets the 5 second gap and the session title until the next prompt (at most one early sound, or a toast showing the folder name).\n- If ntfy.sh is down or offline, the push is dropped (noted in the debug log); the sound still plays.\n\n## The sounds are original\n\nEvery clip is computed from sine and pulse waves by [`tools/synth.py`](tools/synth.py), using only the Python standard library. Regenerate them, byte for byte, with:\n\n```\npython3 -I mods/pager/tools/synth.py\n```\n\n## Built from a prompt\n\nThis mod was built from [`../../prompts/pager.md`](../../prompts/pager.md).\n",
+      "reach": [
+        "network",
+        "plays sound"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": true,
+        "model": false,
+        "sound": true,
+        "hooks": [
+          "classic.SessionStart",
+          "classic.UserPromptSubmit",
+          "classic.Notification"
+        ]
+      }
+    },
+    {
+      "name": "play-by-play",
+      "title": "Play-by-Play",
+      "tagline": "Replays every change Claude made in a turn, shell edits included.",
+      "category": "review",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "review",
+        "diff",
+        "replay",
+        "changes",
+        "git"
+      ],
+      "prompt": "Build me a Claude Code mod called \"play-by-play\" that replays every change Claude made in a turn, one step at a time.\n\nWhat it does\n- After a turn that changed files, show a hint above my prompt: \"4 edits · 3 files · +38 −12 · press r or /replay\".\n- /replay opens a pane that steps through each change in order: the file name, the diff (removed lines red, added lines green) and Prev, Next and Close buttons. Arrow keys work too.\n\nWhat is new here\n- Shell changes too: snapshot git diff before and after each Bash call, so renames and edits made by commands appear as steps, marked \"via shell\".\n- A scoreboard at the top: files touched, lines added and removed, and the biggest change.\n- /replay <n> replays an earlier turn (keep the last 10 turns of the session).\n- A jump list: press a number to jump to a file's first change.\n\nGuardrails\n- Read-only: it never reverts or edits anything. Deterministic, no model calls.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Play-by-Play\n\nReplays every change Claude made in a turn, shell edits included.\n\n## Install\n\n```\n/plugin install play-by-play --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n- After a turn that changed files, a hint shows above the prompt:\n  `4 edits · 3 files · +38 −12 · press r or /replay`, with a **Replay** and a **Hide** button.\n  `r` and `x` press them once the band has the keyboard (click it, or ctrl+x tab).\n- `/replay` opens a pane on the latest turn. `/replay <n>` opens an earlier one: 1 is the latest,\n  up to 10 turns that changed files are kept.\n- The pane shows, top to bottom:\n  - a scoreboard: files touched, lines added and removed, edit count, and the file with the biggest change;\n  - a jump list of the files, numbered 1-9 in the order they were first changed;\n  - **Prev**, **Next** and **Close**, and \"Step 2 of 5\";\n  - the step: file name, what happened (edit, write, create, delete, rename, cell), `+/−` counts,\n    **via shell** when a command made it, and the diff with removed lines red and added lines green.\n- Keys while the pane has the keyboard (it takes it when `/replay` opens it):\n\n  | Key | Does |\n  | --- | --- |\n  | `n` / down arrow | next step |\n  | `p` / up arrow | previous step |\n  | `1`-`9` | first change of that file |\n  | `q`, Esc | close |\n  | left / right arrow | previous / next, after a click on the pane's \"Keys\" line |\n\n  The mouse wheel and Page Up / Page Down still scroll a long diff.\n\n## Settings\n\nNone.\n\n## What it can touch\n\n- **Reads**: the records the Edit, Write and NotebookEdit tools return (the text before and after).\n  It never opens a file itself.\n- **Runs**: around each Bash call, read-only git commands in the session's folder: `git rev-parse`,\n  `git diff`, `git ls-files --others`, `git hash-object` (without `-w`), `git show <HEAD>:<path>`.\n  Each has a 5 second limit. Nothing is staged, stashed, committed or written.\n- **Writes**: nothing. It never reverts or edits a file. What it records lives in the session's memory\n  and is gone when the session ends.\n- **Network**: none. **Model calls**: none.\n\n## Limits\n\n- Shell changes need a git repository at the session's folder. Elsewhere commands run unwatched.\n- Files git ignores (`node_modules`, build output) are not tracked, by design.\n- An untracked file a command changes or deletes shows as a step without lines, since git kept no\n  earlier copy, unless a file tool wrote that file earlier in the session.\n- A file you save in your editor while a command runs shows as a change \"via shell\".\n- A command run in the background is compared when it starts running in the background, not when it ends.\n- If one command's git snapshots take over 2 seconds (a very large repository), shell tracking turns off\n  for the rest of the session and the transcript says so once. File tools are still tracked.\n- Up to 25 changed files are compared per command; the rest are counted in one \"more files\" step.\n  A step draws at most 400 diff lines; a turn keeps at most 300,000 characters of diff and 500 steps.\n  Counts always cover the whole change.\n- Up and down step through changes only when the terminal sends them as scroll keys to the focused pane,\n  and left and right need a click on the \"Keys\" line first. VS Code and the mobile app have no key line:\n  use the buttons there. The band shows on the terminal and the desktop app only.\n- `r` in the prompt box types an `r`; it presses Replay only once the band has the keyboard.\n\n## Built from a prompt\n\nThis mod was built from [prompts/play-by-play.md](../../prompts/play-by-play.md).\n",
+      "reach": [
+        "runs commands",
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": true,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "tool.call",
+          "ui.scroll"
+        ]
+      }
+    },
+    {
+      "name": "porthole",
+      "title": "Porthole",
+      "tagline": "A live preview of the app you are building, right beside the chat.",
+      "category": "workflow",
+      "surfaces": [
+        "terminal"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "preview",
+        "browser",
+        "screenshot",
+        "dev-server",
+        "localhost",
+        "kitty-graphics",
+        "pane"
+      ],
+      "prompt": "Build me a Claude Code mod called \"porthole\": a live preview of the app I am building, drawn beside the chat in my terminal.\n\nWhat it does\n- /porthole <url> opens a side pane with a screenshot of the page, sized to the pane. /porthole with no URL uses the last dev-server address it saw.\n- Dev-server detection: when Claude's Bash output contains a local address (localhost or 127.0.0.1 with a port), offer \"Open in porthole\" as a toast.\n- After Claude edits a file, refresh the preview automatically, at most once every 2 seconds.\n- /porthole mobile and /porthole desktop switch the viewport (390px or 1280px wide).\n\nHow it works\n- Screenshots come from the Chrome or Chromium already installed, run headless through a process call. No extra installs, no background server.\n- Draw the screenshot with the terminal's image support (kitty graphics: kitty, Ghostty, iTerm2, WezTerm). If the terminal cannot show images, say so once and suggest the desktop app's browser instead.\n\nGuardrails\n- Only opens localhost or 127.0.0.1 unless I pass a full URL myself. Always a fresh, throwaway browser profile: no cookies, no logged-in accounts.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Porthole\n\nA live preview of the app you are building, right beside the chat.\n\n## Install\n\n```\n/plugin install porthole --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n| You type | What happens |\n| --- | --- |\n| `/porthole http://localhost:5173` | Opens the Porthole pane with a screenshot of the page, sized to the pane. |\n| `/porthole` | Opens the last dev-server address porthole saw (or the page already in the pane). |\n| `/porthole mobile` / `/porthole desktop` | Switches the viewport to 390 px or 1280 px wide and shoots again. |\n| `/porthole 3000` or `/porthole localhost:3000/app` | Shorthands for a local address. |\n\n- **Dev-server detection.** When a Bash result from Claude names a local server\n  (`http://localhost:<port>` or `http://127.0.0.1:<port>`), a toast says\n  `Open in porthole: http://localhost:5173/ - type /porthole`. Each address is offered once per session.\n- **Auto refresh.** While the pane is open, a file edit by Claude (Edit, Write, MultiEdit, NotebookEdit)\n  refreshes the screenshot 2 seconds later. Edits inside that window share one refresh, so refreshes are\n  never closer than 2 seconds apart, and the dev server gets a moment to rebuild first.\n- **In the pane.** A status line (address, viewport, shot number), a `Refresh` button and a\n  `Mobile` / `Desktop` button. Close it with the pane's own close mark; that also deletes the picture.\n\n## Settings\n\n| Field | Default | Meaning |\n| --- | --- | --- |\n| `chromePath` | empty | Full path to a Chrome or Chromium executable. Empty: porthole looks in `/Applications` (Google Chrome, Chromium) and then on `PATH` (`google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser`). |\n\n## What it can touch\n\n- **Processes.** For each screenshot: `mktemp -d` to make a private run folder in `$TMPDIR`, then the Chrome\n  you already have, headless:\n  `--headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check --disable-extensions --disable-background-networking --disable-sync --use-mock-keychain --force-device-scale-factor=1 --timeout=15000 --user-data-dir=<run folder>/profile --window-size=W,H --screenshot=<run folder>/shot.png <url>`.\n  Arguments are passed as a list, never through a shell. Chrome is stopped as soon as it reports the PNG\n  written (30 second hard stop). `rm -rf` runs only on porthole's own run folders\n  (`$TMPDIR/porthole.XXXXXX` and the profile inside), checked by an allow-list before every call.\n- **Browser profile.** A brand new profile every shot, deleted right after: no cookies, no signed-in\n  accounts, nothing shared with your own Chrome.\n- **Files.** Checks that Chrome and the screenshot exist. Reads no project files. The screenshot is read\n  by the terminal itself to draw it.\n- **Network.** Only Chrome loading the page you asked for. Background networking (sync, updates) is\n  switched off. Porthole opens `localhost` and `127.0.0.1` on its own; any other site only when you type\n  its full `http://` or `https://` URL. `file:`, `javascript:`, `data:`, `chrome:` and every other scheme\n  are refused.\n- **Model calls.** None.\n\n## Limits\n\n- **Terminal only.** The picture is a terminal `Image` (kitty graphics protocol). The engine documents\n  kitty and Ghostty; in a terminal it cannot draw in (or over ssh or tmux, where the terminal cannot read\n  the file) the pane shows a text stand-in, a toast says so once, and auto refresh pauses. Manual refresh\n  still works.\n- **Desktop app, VS Code, mobile.** The pane shows one line pointing you to the desktop app's built-in\n  browser pane, and porthole does not start Chrome there.\n- **A screenshot, not a browser.** You cannot click or scroll the page; you see its top. Pages behind a\n  login show the logged-out view, by design of the throwaway profile.\n- **The toast has no button.** Toasts in this API carry text only, so the toast names the command to type.\n- **Detection reads Bash results only.** A server Claude starts in the background is caught when its log\n  passes through a Bash result (for example `cat` of the log). Addresses like `0.0.0.0`, `[::]` or a LAN IP\n  are not detected; type them in full.\n- **Sizing.** The first shot after opening is 1280 x 800 (the pane has not been measured yet); later\n  desktop shots match the pane's shape. Pictures are fitted assuming a terminal cell about twice as tall\n  as it is wide.\n- **macOS and Linux.** Uses `mktemp` and `rm`; Windows is not supported.\n\n## Built from a prompt\n\nThis mod was built from [prompts/porthole.md](../../prompts/porthole.md).\n",
+      "reach": [
+        "reads files",
+        "runs commands",
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "read",
+        "commands": true,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "tool.call",
+          "ui.close"
+        ]
+      }
+    },
+    {
+      "name": "redline",
+      "title": "Redline",
+      "tagline": "Context fill, session cost and pace on one line, with a warning before the red line.",
+      "category": "cost",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "context",
+        "cost",
+        "usage",
+        "tokens",
+        "rate-limits",
+        "status-line",
+        "compact"
+      ],
+      "prompt": "Build me a Claude Code mod called \"redline\": one glanceable gauge for how close I am to my limits.\n\nWhat it does\n- A compact gauge in the status line: context fill as a percentage with a small bar, the session cost so far, and tokens per minute.\n- Colours: normal under 60% context, amber from 60%, red from 80%.\n- When context crosses 80%, show one toast suggesting /compact or a fresh session, once per crossing (not on every redraw).\n- /redline opens a detail view: context used vs window, input / output / cache read / cache write tokens, estimated cost (always marked ≈), time in session, and the busiest turns.\n\nWhat is new\n- Pace: from the last 10 minutes of usage, estimate when the context will hit 100% at the current rate (\"full in ~25m\").\n- If Claude Code exposes plan usage limits (5-hour or weekly windows) to mods, show them with a run-out estimate too. If it does not, leave them out and say so in the detail view, instead of guessing.\n- A band above the prompt mode for people who hide the status line: /redline band toggles it.\n\nHow it works\n- Read usage from the session and the model request events; cost from a small, clearly labelled built-in price table per model family.\n- Deterministic, no model calls, no files, no network.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Redline\n\nContext fill, session cost and pace on one line, with a warning before the red line.\n\n```\nctx 82% ████████░░ RED · $4.12 · 3.9k tok/min · full in ~7m · 5h 46% · 7d 13%\n```\n\n## Install\n\n```\n/plugin install redline --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n- **Status line** (under the prompt), updated on every model request:\n  - context fill as a percentage with a 10-cell bar, and the level as a word: nothing under 60%, `AMBER` from 60%, `RED` from 80% (the status line has no colour, so the word carries it);\n  - the session cost so far: Claude Code's own figure (what `/cost` shows) where it keeps one, shown plain; otherwise an estimate from the price table, marked `≈`;\n  - new tokens per minute over the last 10 minutes;\n  - the pace: when the context hits 100% at the rate it grew over the last 10 minutes (`full in ~25m`);\n  - your plan's 5-hour and weekly windows (`5h 46%`, `7d 13%`), with `out in ~40m` added when a window will run dry before it resets.\n- **Toast at 80%**: one toast suggesting `/compact` or a fresh session (`/clear`), once per crossing. It re-arms only after the context drops under 75% (a compaction, a fresh session), so it never nags on every redraw.\n- **`/redline`** opens the detail view in a pane: context used against the window, the pace and its rate, input / output / cache read / cache write tokens, the cost (Claude Code's own ledger, plus a per-category estimate from the price table), time in session, each plan window with its reset time and run-out estimate, and the five busiest turns. Buttons: show or hide the band, close. Where no surface places the pane, the same view is printed as the command's output.\n- **`/redline band`** toggles a band above the prompt with the same gauge, in colour (green, amber, red), for people who hide the status line. Its `Hide` button turns it off. The choice is remembered across sessions. It steps aside while a survey holds that space.\n\n## Settings\n\nNone. The thresholds (60%, 80%, re-arm under 75%) and the 10-minute window are fixed.\n\n## What it can touch\n\n- Reads: what Claude Code reports about the session (`$.session.usage()`, the `session.measure` event), each model request's token counts (`turn.step`), each turn's prompt text (`turn.start`, shown only in the busiest-turns list), and compactions and `/clear`.\n- Writes: one remembered value in the plugin's own store (whether the band is on). No files.\n- No processes, no network, no model calls. It costs nothing to run.\n\n## Where the numbers come from\n\n- **Context window**: Claude Code reports it for the model in use, so a 1M-token model reads correctly. No table is involved.\n- **Context fill**: Claude Code's own figures (`context.tokens` and `context.percent`, the status line's used percentage) whenever it has measured the latest request. Between its measurements the gauge counts the main conversation's last request itself, input side (uncached + cache read + cache write), the same way, so it moves on every request. Subagent requests count toward tokens and cost, never toward the session's context.\n- **Session cost**: Claude Code's own total (`cost.usd`, what `/cost` shows), shown without `≈` since it is not redline's estimate. Where Claude Code keeps no ledger, redline's built-in price table prices the requests it counted (marked `≈`), and a model the table does not know shows tokens only, never a guessed price.\n- **Price table** (`hooks/prices.ts`): list prices per model family as of 2026-10-08, used for the per-category and per-turn estimates. It leaves out long-context premiums, fast mode, 1-hour cache writes, batch and regional pricing, so every figure from it is marked `≈`.\n- **Plan run-out**: the average pace a window has been used at since it opened (its reset time less its length). Shown for the 5-hour and weekly windows; a gateway's spend limit is shown with no estimate.\n\n## Limits\n\n- Plan windows appear only on a Claude subscription, after the first reply of a session; with an API key there are none, and the detail view says so.\n- Token counts (and the price-table estimate) start when redline loads; the ledger cost and context fill cover the whole session.\n- The pace needs a minute of growing context inside the last 10 minutes. Flat or shrinking context gives no estimate. Right after a compaction the fill is Claude Code's own estimate of the compacted size until the next reply measures it.\n- The status line and band update on model requests and measurements, not on a timer, so the session time in the detail view refreshes with them.\n- Terminal and desktop are supported and tested. VS Code and mobile draw the pane through the same hooks but are not tested.\n\n## Built from a prompt\n\nThis mod was built from [its prompt](../../prompts/redline.md).\n",
+      "reach": [
+        "display only"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "session.compact"
+        ]
+      }
+    },
+    {
+      "name": "thermostat",
+      "title": "Thermostat",
+      "tagline": "Shows when your prompt cache goes cold, and stops the expensive send.",
+      "category": "cost",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "keep-warm pings only when you turn them on",
+      "version": "0.1.0",
+      "keywords": [
+        "prompt-cache",
+        "cost",
+        "status-line",
+        "keep-warm",
+        "guard"
+      ],
+      "prompt": "Build me a Claude Code mod called \"thermostat\" that prevents cold-cache surprises.\n\nBackground: Claude Code keeps the conversation in a prompt cache that goes cold after a stretch of inactivity (about an hour on a subscription, 5 minutes by default on an API key). The first message after that re-reads the whole conversation at full price.\n\nWhat it does\n- The status line shows the cache temperature, e.g. \"cache warm · 41m left\", amber under 10 minutes and \"cold\" once it has expired.\n- When I submit a prompt while the cache is cold, hold it once and show the estimate: tokens to re-read and the cost of this send cold vs warm. Sending again confirms; /clear starts fresh.\n- /warm <duration> (e.g. /warm 90m) keeps the cache warm while I am away with a tiny ping just before it would go cold. /warm off stops it.\n\nWhat is new here\n- Smart keep-warm: before each ping, compare the cost of the remaining pings with the cost of one cold re-read. If pinging would cost more, stop and say so.\n- A guard setting: hold (default), warn (show the estimate, do not hold) or off.\n- /thermostat shows a session receipt: cold sends paid, pings sent, estimated money saved.\n- Work out the cache window from the session model and auth type, overridable in settings.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Thermostat\n\nShows when your prompt cache goes cold, and stops the expensive send.\n\nClaude Code keeps your conversation in a prompt cache. After a stretch of quiet (about an hour on a subscription, 5 minutes on an API key) the cache lapses, and the next message re-reads the whole conversation at the full cache-write price. Thermostat shows you that clock, holds the surprise send once, and can keep the cache warm while you are away when that is actually cheaper.\n\n## Install\n\n```\n/plugin install thermostat --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n**The countdown.** At the end of the prompt footer, beside the mode labels:\n\n- `cache warm · 41m left` - quiet while there is time\n- `cache warm · 8m left` - amber in the last 10 minutes (the last 2 of a 5-minute window)\n- `cache cold · 182k to re-read` - once it has lapsed\n- `· warming 1h12m` is added while `/warm` runs\n\nThis draws on the terminal and the desktop app. Where no footer draws (VS Code, mobile, or a footer that is hidden) the same text appears on the plain status line under the prompt, without colour. Nothing shows until the conversation has something cached.\n\n**The guard.** When you send a prompt on a cold cache, it is held once and you see what it costs:\n\n> Thermostat held this prompt once: the cache went cold 23m ago, so this send re-reads 150k tokens: ~$1.20 cold vs ~$0.03 warm at Opus 5.5 API list prices. Send it again to go ahead, or /clear to start fresh.\n\nSend it again to go ahead (the words are put back in the prompt box if it is empty), or `/clear` to start a fresh conversation instead. It only holds prompts you type yourself, only when the re-read is at least 20k tokens, never a prompt typed while a turn is running, and a hold counts as seen for 10 minutes.\n\n**Keep-warm.** `/warm 90m` (or `2h`, `1h30m`, `45`) sends a tiny ping just before the cache would go cold, for as long as you asked. Before every ping it compares what the remaining pings will cost with what one cold re-read would add; if pinging costs more, it stops and says so in the transcript. It also refuses up front when the whole window would not pay. `/warm` on its own shows where it stands, `/warm off` stops it. A window can run up to 24 hours.\n\nHow a ping works: it re-sends the conversation's last request (same model, system prompt, tools and messages) with one line asking for the word \"ok\", tools denied. That reads the conversation's own cache entry, which restarts its timer. Nothing is added to your transcript. Every ping's usage is checked: if it did not read the conversation back from the cache, keep-warm stops rather than keep paying for pings that are not helping.\n\n**The receipt.** `/thermostat` shows the cache right now, cold sends paid (and how much more than warm they cost), prompts held and how many you answered with `/clear`, pings sent and what they cost, sends that arrived warm because of the pings, an estimate of money saved, and the session total as `/cost` counts it.\n\n## Settings\n\n| Field | Default | What it does |\n| --- | --- | --- |\n| `guard` | `hold` | `hold` stops the first cold send once and shows the cost. `warn` shows the cost in a toast and sends. `off` does nothing. |\n| `cacheMinutes` | `0` | The cache window in minutes, used until Claude Code reports its own. `0` works it out from your login. |\n\nThe window is worked out in this order: what Claude Code itself reports (its cache TTL on a model switch, or whether a resumed cache has expired), then `cacheMinutes`, then your login (60 minutes on a subscription, 5 on an API key), and 5 minutes when none of these is known.\n\nPrices come from a small table of API list prices per model family (October 2026), with cache writes at 1.25x input for the 5-minute window and 2x for the hour. When Claude Code prices a re-cache itself (on a resume or a model switch, including an organisation's managed pricing), its rate is used instead. On a subscription the dollars measure how much of your plan a send uses, not a bill.\n\n## What it can touch\n\n- **Reads:** each prompt as you submit it (to decide whether to hold it; the text is not kept), the token counts of each main-conversation model request, what Claude Code reports on a resume or model switch, the prompt box (only to check it is empty before putting a held prompt back), which kind of login the session uses (the kind only: the credential stays with Claude Code, and this mod makes no network requests that could use it), and the session's cost total.\n- **Writes:** its own session state, the footer label and status line, a toast in `warn` mode, and short dim notes in the transcript when keep-warm stops (those are not sent to the model). `/warm` and `/thermostat` print their answers as command output, which the model can read like any command's. No files, no settings, nothing kept across sessions.\n- **Processes and network:** none.\n- **Model calls:** only keep-warm pings, only after you run `/warm`, at most one per cache window (about every 58 minutes on a subscription, every 4 minutes on a 5-minute window). Each costs roughly one cache read of the conversation plus a few tokens; the smart rule stops them as soon as they would cost more than they save, a window ends after 24 hours at most, and three failed pings in a row end it too.\n\n## Limits\n\n- The window is a model of the cache, not a reading of it. Claude Code only states its cache TTL on a model switch (and implies it on a resume), so until then it comes from your login or `cacheMinutes`. Other things can make a send cold early (tools or instructions changing, the cache being evicted); the receipt still books those from the real token counts.\n- The countdown starts with the first model request after the mod loads, or with a resume. Installed in the middle of a conversation, it shows nothing until your next message.\n- After a model switch the new model starts with nothing cached, so that first send is neither held nor counted as a cold send.\n- A ping can make the model think, which is billed as output; the measured cost of each ping feeds the next decision. Pings cannot go out while the computer sleeps; if it sleeps past the expiry, keep-warm stops and says so.\n- In the desktop app the held prompt may not go back into the prompt box (the app can refuse that); send it again from your history.\n- The footer label is checked through the engine's test kit on the terminal and desktop surfaces; how each terminal paints it has not been checked by hand.\n- Prices are list prices unless Claude Code priced a re-cache itself. Amazon Bedrock and Google Vertex AI bill separately.\n\n## Built from a prompt\n\nThis mod was built from [the Thermostat prompt](../../prompts/thermostat.md).\n",
+      "reach": [
+        "calls a model",
+        "hooks prompts"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": true,
+        "sound": false,
+        "hooks": [
+          "prompt.submit",
+          "classic.SessionStart",
+          "classic.PostModelSwitch"
+        ]
+      }
+    },
+    {
+      "name": "wardrobe",
+      "title": "Wardrobe",
+      "tagline": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
+      "category": "looks",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "theme",
+        "looks",
+        "accessibility",
+        "colorblind",
+        "high-contrast",
+        "diff",
+        "display"
+      ],
+      "prompt": "Build me a Claude Code mod called \"wardrobe\" that restyles how Claude Code draws its work, switchable live.\n\nWhat it does\n- /wear <theme> switches theme instantly. /wear with no argument lists the themes with a one-line preview of each.\n- Restyle what a mod is allowed to draw: tool rows (an icon per tool, plus timing), tool results, diff cards, the spinner and the turn duration.\n- Themes: noir, paper (light), tokyo-night, dracula, catppuccin, solarized, nord.\n\nWhat is new here\n- Two accessibility themes: \"high-contrast\" (WCAG AAA text contrast) and \"colorblind\" (diffs in blue and orange instead of red and green, tool icons that differ by shape, not only colour). Check every theme for diff contrast.\n- auto mode: a light theme by day and a dark theme by night, with the switch times as settings.\n- /wear pin saves the current theme for this project only; other projects keep the global theme.\n\nGuardrails\n- Display only: no files touched except the mod's own store, no processes, no network.\n- If a theme cannot draw something, fall back to Claude Code's own drawing instead of breaking the screen.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Wardrobe\n\nRestyle Claude Code live, including colourblind-safe and high-contrast themes.\n\n## Install\n\n```\n/plugin install wardrobe --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n| Command | What it does |\n| --- | --- |\n| `/wear` | Lists every theme with a one-line preview in its own colours (tool icons, an added and a removed diff chip) and marks the one you wear. |\n| `/wear <theme>` | Switches now. What is already on screen redraws. |\n| `/wear auto` | A day theme by day and a night theme by night (see Settings). |\n| `/wear pin` | This project keeps what it wears now; other projects keep the global choice. While pinned, `/wear <theme>` changes this project's pin. |\n| `/wear unpin` | This project follows the global choice again. |\n| `/wear default` | Back to Claude Code's own drawing. |\n\nThemes: `noir`, `paper` (light), `tokyo-night`, `dracula`, `catppuccin`, `solarized`, `nord`, `high-contrast`, `colorblind`. Short forms work too: `drac`, `hc`, `colourblind`, `tokyo night`.\n\nWhat changes, on the terminal and in the desktop app:\n\n| Where | What wardrobe draws |\n| --- | --- |\n| Tool rows | The theme's icon for the kind of tool (shell, read, edit, write, search, web, agent, todo, MCP), Claude Code's own row, then a status glyph and how long the call took. |\n| Folded tool groups | One icon per call before the count line; a failed call in the error colour. |\n| Diff cards (Edit, Write) | Numbered lines in the theme's add and remove colours, with a `+N -N` summary. |\n| Small shell output | A themed card; stderr lines are marked `!`, not only coloured. |\n| Spinner | The theme's suffix after the word; on the terminal, a chip saying what the turn is doing (thinking, writing, using tools). |\n| Turn duration | A themed `Baked for 3s` line (the terminal draws this line; the desktop has its own footer). |\n\n### Accessibility\n\n- `high-contrast`: every colour pair wardrobe paints is at least 7:1 (WCAG AAA).\n- `colorblind`: added lines are blue and removed lines orange, never red and green; tool icons differ by shape (triangle, disc, diamond, square, cross, bars).\n- Every other theme: at least 4.5:1 (WCAG AA). `tests/themes.test.ts` checks every pair of every theme.\n- Every theme gives each tool kind and each status its own glyph, so colour is never the only cue.\n- Every coloured span is painted on the theme's own background, so the contrast holds whatever your terminal's background is.\n\n## Settings\n\nSet these in `/config`. A value wardrobe cannot read falls back to its default, and `/wear` names it.\n\n| Setting | Default | Meaning |\n| --- | --- | --- |\n| `dayTheme` | `paper` | What `/wear auto` wears by day. |\n| `nightTheme` | `tokyo-night` | What `/wear auto` wears by night. |\n| `dayStarts` | `07:00` | When the day starts, 24-hour local time. |\n| `nightStarts` | `19:00` | When the night starts. A day that crosses midnight (`20:00` to `06:00`) works. |\n\n## What it can touch\n\n- Its own store: the global choice and the per-project pins, keyed by the project root's path.\n- For the session, in memory: each tool call's start and end time, for its row.\n- Reads the project root, the attached surfaces and the clock.\n- No files, no processes, no network, no model calls. It never refuses or changes a tool call: its tool hook only notes when a call starts and ends.\n\n## Limits\n\n- It restyles what Claude Code lets a mod draw. What Claude Code still draws itself (the tool's own row inside wardrobe's icon and status, Read and Grep results, the prompt, dialogs) keeps the colours of Claude Code's own `/theme`; pick a matching one there for the same reading everywhere.\n- Tool rows wrap Claude Code's own row instead of replacing it, so expanding a row and its output keep working.\n- Claude Code draws these itself: errors, diffs over 120 lines, edits held for review, and shell output over 8 lines or with colour codes or anything unusual.\n- VS Code and the mobile app are not restyled; `/wear` says so when one is attached.\n- Auto mode checks the clock once a minute, so a switch can land up to a minute late. A choice made in another session reaches this one the same way.\n- Tool calls made before wardrobe loaded show no time.\n- Not verified: the paint itself in a real terminal and in the desktop app. The tests check the drawn trees against each surface's rules, not pixels.\n\n## Built from a prompt\n\nThis mod was built from [prompts/wardrobe.md](../../prompts/wardrobe.md).\n",
+      "reach": [
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "tool.call"
+        ]
+      }
+    }
+  ],
+  "starters": [
+    {
+      "name": "mod-maker",
+      "title": "Mod Maker",
+      "tagline": "Describe the feature you wish Claude Code had. Get a tested, installable mod.",
+      "prompt": "Build me a Claude Code mod: [what you want to see or change, e.g. \"a pomodoro timer in the status line that chimes when 25 minutes are up and asks if I want a break\"].\n\nHow to build it\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Pick the right shape and tell me in one line which and why: a band above the prompt, a side pane, a status line entry, a toast, a sound, a slash command, or a hook on tool calls or prompts.\n- Keep it small: only draw and do what I asked. No network calls, no model calls and no reading files it does not need, unless I ask for them.\n- If it can block or change anything (a tool call, a prompt), make it fail safe: when the mod itself breaks, it should say so, not silently let things through or silently block me.\n\nProve it works\n- Write tests for the main behaviour, including the UI on both the terminal and the desktop app if it draws anything.\n- Run `claude plugin validate` and `claude plugin test` until both pass.\n\nThen\n- Load it in this session so I can try it, and take my changes in plain words.\n- When I say it is good: copy it to a folder I keep, install it so it loads in every session, and tell me where it lives and how to turn it off.\n- Finally, add a marketplace file so I can share it, and give me the one-line install command to send a friend."
+    },
+    {
+      "name": "mod-matchmaker",
+      "title": "Mod Matchmaker",
+      "tagline": "Let Claude check your setup and pick the mods worth installing, in order.",
+      "prompt": "Read the mod catalogue at https://github.com/modmyclaude/claude-code-mods (the README and the prompts folder), then help me pick the mods worth installing.\n\nCheck my setup yourself first\n- My OS, my Claude Code version (mods need 2.1.287 or newer), whether I am in a terminal or the desktop app, my terminal width, and whether my terminal can show images. Ask me only about what you cannot check.\n\nThen ask me three quick questions\n- Do I use subagents? Do I run long sessions or step away mid-session? Do I share my screen or record demos?\n\nRecommend\n- A table: mod, yes / maybe / skip, and one line on why for my setup. Flag anything that will not run here.\n- Group the yeses into packs: Safety, Cost, Visibility, Looks. Order them by what I would feel first.\n- Give the exact install line for each pick.\n- Suggest one custom mod idea tailored to how I work, and offer to build it with the Mod Maker prompt.\n\nRules\n- Do not install anything until I say yes to each one. Mods run with my permissions."
+    }
+  ]
+}
