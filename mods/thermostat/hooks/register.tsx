@@ -85,9 +85,15 @@ type Snapshot = {
   send: SendEstimate
 }
 
-/** Only a person at a prompt can read a hold and send again. */
-function isPerson(origin: PromptOrigin): boolean {
-  return origin.kind === 'composer' || origin.kind === 'bridge'
+/**
+ * Only a person at a prompt can read a hold and send again: the terminal's
+ * own composer, Remote Control, or the desktop app, whose prompts arrive as
+ * an SDK host's (`sdk`) with a desktop surface attached. A plain `claude -p`
+ * run is `sdk` with no surface: nobody would see the hold, so it is never held.
+ */
+async function isPerson($: Dollar, origin: PromptOrigin): Promise<boolean> {
+  if (origin.kind === 'composer' || origin.kind === 'bridge') return true
+  return origin.kind === 'sdk' && (await $.session.surfaces()).includes('desktop')
 }
 
 function pingSummary(warm: ThermostatWarm): string {
@@ -534,7 +540,7 @@ export const register: Register = (on, options) => {
   // turn runs (`turnId` set) joins that turn, whose next request pays the same
   // either way, so it is never held.
   on('prompt.submit', async ($, e, next) => {
-    if (live.settings.guard === 'off' || !isPerson(e.origin) || e.turnId !== undefined) return next(e)
+    if (live.settings.guard === 'off' || e.turnId !== undefined || !(await isPerson($, e.origin))) return next(e)
     const s = await snapshot($)
     if (s.temp.kind !== 'cold' || s.cache.lastAt === null || s.cache.tokens < HOLD_MIN_TOKENS) return next(e)
     const why = coldReason(s)

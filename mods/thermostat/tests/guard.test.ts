@@ -1,7 +1,8 @@
 // The guard, through the real prompt.submit chain: what it holds, what it
 // lets through, and that it fails open.
 
-import { expect, test } from 'claude-code/testing'
+import { describe, expect, test } from 'claude-code/testing'
+import type { PromptOrigin, RenderSurface } from 'claude-code'
 
 import { API_KEY, MIN, PERSON, SLOW, command, start, step, submit, usage, world } from './world'
 
@@ -58,15 +59,6 @@ test('a small conversation is not worth holding', SLOW, async ($, on) => {
   await step($, w, usage(9_000, 1_000)) // 11k tokens
   await w.clock.advance(2 * 60 * MIN)
   expect((await submit($, 'hello again')).drop).toBeUndefined()
-})
-
-test('only a person at the prompt is held: a scheduled prompt goes through cold', SLOW, async ($, on) => {
-  const w = world(on)
-  await start($)
-  await step($, w, CONVERSATION)
-  await w.clock.advance(61 * MIN)
-  const scheduled = await submit($, 'nightly check', { kind: 'scheduled-trigger' })
-  expect(scheduled.drop).toBeUndefined()
 })
 
 test('guard=warn shows the estimate and sends', { ...SLOW, options: { guard: 'warn' } }, async ($, on) => {
@@ -192,4 +184,31 @@ test("the estimate uses Claude Code's own cache-write rate once it has priced on
   })
   const held = await submit($, 'where were we')
   expect(held.drop).toContain('~$0.90 cold vs ~$0.03 warm at Opus 5.5 prices, cache rate from Claude Code')
+})
+
+describe('who is held: each prompt origin on each kind of session', () => {
+  const cases: [origin: PromptOrigin, surfaces: RenderSurface[], isHeld: boolean, why: string][] = [
+    [{ kind: 'composer' }, ['terminal'], true, 'typed at the terminal'],
+    [{ kind: 'bridge' }, ['terminal', 'mobile'], true, 'sent through Remote Control'],
+    [{ kind: 'sdk' }, ['desktop'], true, 'typed in the desktop app'],
+    [{ kind: 'sdk' }, ['terminal', 'desktop'], true, 'the desktop app beside a terminal'],
+    [{ kind: 'sdk' }, [], false, 'a plain claude -p run: nobody would see the hold'],
+    [{ kind: 'sdk' }, ['terminal'], false, 'an SDK turn with no desktop attached'],
+    [{ kind: 'sdk' }, ['vscode'], false, 'an SDK turn in VS Code'],
+    [{ kind: 'scheduled-trigger' }, ['desktop'], false, 'a scheduled prompt'],
+    [{ kind: 'unclassified' }, ['desktop'], false, 'a turn of unknown origin'],
+    [{ kind: 'plugin', name: 'other' }, ['terminal'], false, "another plugin's prompt"],
+  ]
+  for (const [origin, surfaces, isHeld, why] of cases) {
+    test(`${origin.kind} on [${surfaces.join(', ')}]: ${isHeld ? 'held' : 'passes'} (${why})`, SLOW, async ($, on) => {
+      const w = world(on)
+      w.surfaces = surfaces
+      await start($)
+      await step($, w, CONVERSATION)
+      await w.clock.advance(61 * MIN)
+      const sent = await submit($, 'cold send', origin)
+      if (isHeld) expect(sent.drop).toContain('Thermostat held this prompt once')
+      else expect(sent.drop).toBeUndefined()
+    })
+  }
 })

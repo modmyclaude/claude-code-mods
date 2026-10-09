@@ -25,7 +25,7 @@ This draws on the terminal and the desktop app. Where no footer draws (VS Code, 
 
 > Thermostat held this prompt once: the cache went cold 23m ago, so this send re-reads 150k tokens: ~$1.20 cold vs ~$0.03 warm at Opus 5.5 API list prices. Send it again to go ahead, or /clear to start fresh.
 
-Send it again to go ahead (the words are put back in the prompt box if it is empty), or `/clear` to start a fresh conversation instead. It only holds prompts you type yourself, only when the re-read is at least 20k tokens, never a prompt typed while a turn is running, and a hold counts as seen for 10 minutes.
+Send it again to go ahead (the words are put back in the prompt box if it is empty), or `/clear` to start a fresh conversation instead. It only holds prompts you type yourself (at the terminal, in the desktop app, or through Remote Control; never a headless `claude -p` run, where nobody would see the hold), only when the re-read is at least 20k tokens, never a prompt typed while a turn is running, and a hold counts as seen for 10 minutes.
 
 **Keep-warm.** `/warm 90m` (or `2h`, `1h30m`, `45`) sends a tiny ping just before the cache would go cold, for as long as you asked. Before every ping it compares what the remaining pings will cost with what one cold re-read would add; if pinging costs more, it stops and says so in the transcript. It also refuses up front when the whole window would not pay. `/warm` on its own shows where it stands, `/warm off` stops it. A window can run up to 24 hours.
 
@@ -47,7 +47,7 @@ Prices come from a small table of API list prices per model family (October 2026
 ## What it can touch
 
 - **Reads:** each prompt as you submit it (to decide whether to hold it; the text is not kept), the token counts of each main-conversation model request, what Claude Code reports on a resume or model switch, the prompt box (only to check it is empty before putting a held prompt back), which kind of login the session uses (the kind only: the credential stays with Claude Code, and this mod makes no network requests that could use it), and the session's cost total.
-- **Writes:** its own session state, the footer label and status line, a toast in `warn` mode, and short dim notes in the transcript when keep-warm stops (those are not sent to the model). `/warm` and `/thermostat` print their answers as command output, which the model can read like any command's. No files, no settings, nothing kept across sessions.
+- **Writes:** its own session state, the prompt box (a held prompt's words, only into an empty box), the footer label and status line, a toast in `warn` mode, and short dim notes in the transcript when keep-warm stops (those are not sent to the model). `/warm` and `/thermostat` print their answers as command output, which the model can read like any command's. No files, no settings, nothing kept across sessions.
 - **Processes and network:** none.
 - **Model calls:** only keep-warm pings, only after you run `/warm`, at most one per cache window (about every 58 minutes on a subscription, every 4 minutes on a 5-minute window). Each costs roughly one cache read of the conversation plus a few tokens; the smart rule stops them as soon as they would cost more than they save, a window ends after 24 hours at most, and three failed pings in a row end it too.
 
@@ -57,7 +57,8 @@ Prices come from a small table of API list prices per model family (October 2026
 - The countdown starts with the first model request after the mod loads, or with a resume. Installed in the middle of a conversation, it shows nothing until your next message.
 - After a model switch the new model starts with nothing cached, so that first send is neither held nor counted as a cold send.
 - A ping can make the model think, which is billed as output; the measured cost of each ping feeds the next decision. Pings cannot go out while the computer sleeps; if it sleeps past the expiry, keep-warm stops and says so.
-- In the desktop app the held prompt may not go back into the prompt box (the app can refuse that); send it again from your history.
+- In the desktop app the held prompt may not go back into the prompt box (the app can refuse that); send it again from your history. The desktop app is recognised by its prompts arriving as an SDK host's with a desktop surface attached; prompts from the VS Code extension are not held.
+- The guard puts a held prompt's words back into the prompt box (only when the box is empty); attached files are not put back.
 - The footer label is checked through the engine's test kit on the terminal and desktop surfaces; how each terminal paints it has not been checked by hand.
 - Prices are list prices unless Claude Code priced a re-cache itself. Amazon Bedrock and Google Vertex AI bill separately.
 

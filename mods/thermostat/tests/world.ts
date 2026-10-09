@@ -3,7 +3,7 @@
 // records of everything the mod shows. Nothing here decides an outcome; each
 // test sets the inputs and reads what the mod did.
 
-import type { ModelForkResult, On, PromptOrigin, SessionAuthorization, TurnUsage } from 'claude-code'
+import type { ModelForkResult, On, PromptOrigin, RenderSurface, SessionAuthorization, TurnUsage } from 'claude-code'
 import { mock } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 
@@ -31,6 +31,8 @@ export type World = {
   fork: ModelForkResult
   /** What the next model request reports. */
   usage: TurnUsage | null
+  /** The surfaces the session draws on, as `$.session.surfaces()` answers. */
+  surfaces: RenderSurface[]
   /** The session's total as /cost would show it. */
   sessionUsd: number
   /** Makes every `$.state` read fail, to break the mod's own logic. */
@@ -68,6 +70,7 @@ export function world(on: On, auth: SessionAuthorization = SUBSCRIPTION): World 
     box: '',
     fork: forkAnswer(0),
     usage: null,
+    surfaces: ['terminal'],
     sessionUsd: 4.2,
     isStateBroken: false,
   }
@@ -75,6 +78,7 @@ export function world(on: On, auth: SessionAuthorization = SUBSCRIPTION): World 
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.authorize', () => ({ value: auth }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
+  on('session.surfaces', () => ({ value: w.surfaces }))
   on('session.usage', () => ({
     value: { startedAt: T0, context: { window: 1_000_000 }, rateLimits: [], cost: { usd: w.sessionUsd } },
   }))
