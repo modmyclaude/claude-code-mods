@@ -101,21 +101,30 @@ export const register: Register = (on, options) => {
     })
   })
 
-  // The band above the prompt: where the pane has no room to open.
+  // The band above the prompt: where the pane has no room to open. The hold
+  // goes on top, the most important thing on screen, and whatever other mods
+  // draw in the band stays beneath it rather than being erased.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const list = await read($, holds)
     const first = list.find(h => h.mode === 'band')
     if (!first) return next(e)
-    return drawHold($.ui.resolve(e), first, {
-      rows: e.props.maxRows,
-      columns: e.props.bodyColumns,
-      compact: true,
-      surface: e.surface,
-      queued: list.length - 1,
-      onCancel: () => decide($, first.id, 'cancel'),
-      onProceed: () => decide($, first.id, 'proceed'),
-    })
+    const kit = $.ui.resolve(e)
+    const below = await next(e)
+    return (
+      <kit.Box flexDirection="column">
+        {drawHold(kit, first, {
+          rows: e.props.maxRows,
+          columns: e.props.bodyColumns,
+          compact: true,
+          surface: e.surface,
+          queued: list.length - 1,
+          onCancel: () => decide($, first.id, 'cancel'),
+          onProceed: () => decide($, first.id, 'proceed'),
+        })}
+        {below}
+      </kit.Box>
+    )
   })
 }
 
