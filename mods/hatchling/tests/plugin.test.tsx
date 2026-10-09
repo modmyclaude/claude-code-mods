@@ -42,6 +42,9 @@ type World = {
   copies: string[]
   timers: { every: number; after: number }
   hatches: string[]
+  /** Every store write the plugin made, and every command it registered. */
+  writes: string[]
+  registered: Record<string, unknown>[]
 }
 
 /** The engine beneath the plugin. `saved` is what the store held before. */
@@ -54,6 +57,8 @@ type WorldOptions = {
 
 function world(on: On, saved?: Record<string, unknown>, options: WorldOptions = {}): World {
   const store = new Map<string, unknown>(Object.entries(saved ?? {}))
+  const writes: string[] = []
+  const registered: Record<string, unknown>[] = []
   const surfaces: RenderSurface[] = [...(options.surfaces ?? ['terminal'])]
   on('session.surfaces', () => ({ value: [...surfaces] }))
   on('session.attach', ($, e) => ({ clientId: e.clientId }))
@@ -78,6 +83,7 @@ function world(on: On, saved?: Record<string, unknown>, options: WorldOptions = 
   })
   on('store.set', ($, e) => {
     if (options.brokenStore === true) throw new Error('disk full')
+    writes.push(e.key)
     const value = JSON.parse(JSON.stringify(e.value)) as HatchlingPet
     if (value.hatch !== undefined) hatches.push(JSON.stringify(value.hatch))
     store.set(e.key, value)
@@ -98,7 +104,10 @@ function world(on: On, saved?: Record<string, unknown>, options: WorldOptions = 
     copies.push(e.text)
     return { value: { isCopied: true as const } }
   })
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('command.register', ($, e) => {
+    registered.push({ ...e })
+    return { value: { command: e.name } }
+  })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
@@ -114,7 +123,7 @@ function world(on: On, saved?: Record<string, unknown>, options: WorldOptions = 
     if (e.command.startsWith('fail')) return { isError: true as const, result: 'Exit code 1', text: 'Exit code 1\nTests:  2 failed, 10 passed' }
     return { result: { stdout: OUTPUT[e.command] ?? 'ok', stderr: '', interrupted: false }, text: OUTPUT[e.command] ?? 'ok' }
   })
-  return { surfaces, store, clock, toasts, copies, timers, hatches }
+  return { surfaces, store, clock, toasts, copies, timers, hatches, writes, registered }
 }
 
 function pet(w: World): HatchlingPet {
@@ -914,5 +923,72 @@ describe('control characters', () => {
     const ui = await band($, 'desktop')
     expect(await shown(ui)).toContain('Mochi')
     await expectClean(ui, 'desktop')
+  })
+})
+
+describe('verify follow-ups', () => {
+  test('/pet is registered to run at once, even mid-turn', async ($, on) => {
+    const w = world(on)
+    await start($)
+    expect(w.registered).toEqual([
+      expect.objectContaining({ name: 'pet', immediate: true, argumentHint: '[name <name> | hide | show | card]' }),
+    ])
+  })
+
+  test('/pet rows with control characters in their text still draw, cleaned', async ($, on) => {
+    world(on, { pet: savedPet() })
+    await start($)
+    const dirty = (text: string) =>
+      text.replace('Pip the Geobug', 'P\u001b[31mip\u0007 the Geobug').replace('Plain rock', 'Plain\u0000 rock\u007f\u009b')
+    const stats = dirty((await petCommand($, '')).text ?? '')
+    const card = dirty((await petCommand($, 'card')).text ?? '')
+    for (const surface of SURFACES) {
+      for (const [args, text, key] of [['', stats, 'stats'], ['card', card, 'card']] as const) {
+        const row = await $.ui.mount({
+          plugin: 'hatchling', surface, component: 'CommandOutput',
+          props: { command: 'pet', args, text, isErrored: false },
+        })
+        expect(await row.find({ key }), `${surface} ${key}`).toBeDefined()
+        // JSON escapes C0 as \\u00XX but leaves DEL and C1 as they are.
+        const drawn = JSON.stringify(await row.drawn())
+        expect(/\\u00[01][0-9a-f]/.test(drawn) || /[\u007f-\u009f]/.test(drawn), `${surface} ${key}`).toBe(false)
+        expect(await shown(row)).toContain('the Geobug')
+        await row.unmount()
+      }
+    }
+  })
+
+  test('an old egg without a seed gets one on its first call, even with no fresh start', async ($, on) => {
+    const egg = { v: 1, bornAt: T0 - DAY, eggCalls: 10, xp: 0, hidden: false, toolCalls: 10, turns: 1, testsPassed: 0 }
+    const w = world(on, { pet: egg })
+    await bash($, 'ls')
+    expect(pet(w).seed).toHaveLength(4)
+    const seed = pet(w).seed
+    await bash($, 'ls', 3)
+    expect(pet(w).seed).toEqual(seed)
+  })
+
+  test('a phone alone draws no band, so no timer runs', async ($, on) => {
+    const w = world(on, { pet: savedPet() }, { surfaces: ['mobile'] })
+    await $.session.start({ cwd: '/work', surface: null, isInteractive: false })
+    await $.session.attach({ surface: 'mobile', clientId: 'phone' })
+    await bash($, 'npm test')
+    await $.turn.start({ text: 'go', turnId: 't8' })
+    await turn($)
+    await w.clock.advance(2 * SLEEP)
+    expect(w.timers).toEqual({ every: 0, after: 0 })
+  })
+
+  test('/pet and /pet card only read the saved pet', async ($, on) => {
+    const w = world(on, { pet: savedPet() })
+    await start($)
+    const before = w.writes.length
+    await petCommand($, '')
+    await petCommand($, 'card')
+    expect(w.writes.length).toBe(before)
+    // A change another session saved a moment ago is shown, and left alone.
+    w.store.set('pet', savedPet({ name: 'Bao', xp: 300 }))
+    expect((await petCommand($, '')).text).toContain('Bao the Geobug')
+    expect(pet(w).name).toBe('Bao')
   })
 })

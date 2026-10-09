@@ -69,7 +69,8 @@ None.
   line spacing: generous line spacing can show thin seams between rows of pixels.
 - "Tests passed" is read from the runner's summary in the Bash output. A runner with an unusual
   summary is not recognised (no cheer, no harm). Commands that only show a log (`cat`, `grep`,
-  `gh run view`, `docker logs`, `kubectl logs`, also after a `cd`) do not count. Test runs started in
+  `gh run view`, `docker logs`, `kubectl logs`, also after a `cd` or wrapped in `sudo`, `env`, a
+  subshell or `bash -c`) do not count. Test runs started in
   the background, very long outputs whose summary is cut, and PowerShell are not read.
 - Animation runs on a timer only while something happens (a reaction, Claude working, the doze-off);
   when idle, asleep or hidden no timer runs.

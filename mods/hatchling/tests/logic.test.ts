@@ -129,17 +129,21 @@ describe('the hatch roll', () => {
 
 describe('hatching and growing', () => {
   test('the egg hatches on exactly the 25th tool call', () => {
-    let pet = freshPet(T0)
-    for (let call = 1; call < HATCH_AT; call += 1) {
+    // The first call lays the egg's seed; every later call, the hatch
+    // included, reads it and asks for no more randomness.
+    let pet = applyToolCall(freshPet(T0), { hasPassedTests: false }, T0, replay([0, 0, 0xffffffff, 0])).pet
+    expect(pet.seed).toEqual([0, 0, 0xffffffff, 0])
+    for (let call = 2; call < HATCH_AT; call += 1) {
       const change = applyToolCall(pet, { hasPassedTests: false }, T0, forbidden)
       expect(change.isHatched).toBe(false)
       pet = change.pet
     }
     expect(pet.eggCalls).toBe(24)
     expect(pet.hatch).toBeUndefined()
-    const change = applyToolCall(pet, { hasPassedTests: false }, T0 + 5, replay([0, 0, 0xffffffff, 0]))
+    const change = applyToolCall(pet, { hasPassedTests: false }, T0 + 5, forbidden)
     expect(change.isHatched).toBe(true)
     expect(change.pet.hatch).toEqual({ species: 'pebblet', shiny: false, at: T0 + 5 })
+    expect(change.pet.name).toBe('Pip')
     expect(change.pet.xp).toBe(0)
   })
 
@@ -147,6 +151,13 @@ describe('hatching and growing', () => {
     let pet = hatched(0, 'geobug', true)
     for (let call = 0; call < 1000; call += 1) pet = applyToolCall(pet, { hasPassedTests: false }, T0, forbidden).pet
     expect(pet.hatch).toEqual({ species: 'geobug', shiny: true, at: T0 })
+  })
+
+  test('an egg saved without a seed gets one on its next call, and keeps it', () => {
+    const old = { ...freshPet(T0), eggCalls: 10 }
+    const once = applyToolCall(old, { hasPassedTests: false }, T0, replay([5, 6, 7, 8])).pet
+    expect(once.seed).toEqual([5, 6, 7, 8])
+    expect(applyToolCall(once, { hasPassedTests: false }, T0, forbidden).pet.seed).toEqual([5, 6, 7, 8])
   })
 
   test('a name chosen before hatching is kept', () => {
@@ -221,6 +232,10 @@ describe('the test-run detector', () => {
     ['after a cd', 'cd app && npm test', 'Tests:       12 passed, 12 total'],
     ['after an echo', 'echo start && npm test', 'Tests:       12 passed, 12 total'],
     ['piped to tail', 'npm test 2>&1 | tail -5', 'Tests:       12 passed, 12 total'],
+    ['a log, then a run on the next line', 'cat ci.log\nnpm test', 'Tests:       12 passed, 12 total'],
+    ['with an env prefix', 'CI=1 npm test', 'Tests:       12 passed, 12 total'],
+    ['in a subshell', '(cd app && npm test)', 'Tests:       12 passed, 12 total'],
+    ['through bash -c', "bash -c 'npm test'", 'Tests:       12 passed, 12 total'],
   ]
   const fails: [string, string, string][] = [
     ['jest failure', 'npx jest', 'Tests:       1 failed, 11 passed, 12 total'],
@@ -244,6 +259,11 @@ describe('the test-run detector', () => {
     ['compose logs', 'docker compose logs web', 'Tests:       12 passed, 12 total'],
     ['kubectl logs', 'kubectl logs pod/api', 'test result: ok. 7 passed; 0 failed'],
     ['a log piped along', 'cat ci.log | grep Tests', 'Tests:       12 passed, 12 total'],
+    ['a log in a subshell', '(cd app && cat ci.log)', 'Tests:       12 passed, 12 total'],
+    ['a log with an env prefix', 'FOO=1 cat ci.log', 'Tests:       12 passed, 12 total'],
+    ['a log with sudo', 'sudo cat ci.log', 'Tests:       12 passed, 12 total'],
+    ['a log through bash -c', "bash -c 'cat ci.log'", 'Tests:       12 passed, 12 total'],
+    ['a log through env and sh -c', 'env sh -c "tail -n 50 ci.log"', 'Tests:       12 passed, 12 total'],
     ['nextest failure', 'cargo nextest run', 'Summary [ 1.2s] 10 tests run: 9 passed, 1 failed'],
   ]
   for (const [name, command, output] of passes) {
