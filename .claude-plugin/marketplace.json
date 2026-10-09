@@ -24,6 +24,21 @@
       ]
     },
     {
+      "name": "crossroads",
+      "source": "./mods/crossroads",
+      "description": "Three ways forward after every turn, risky ones marked. About $0.0002 a turn.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "keywords": [
+        "next-prompt",
+        "suggestions",
+        "workflow",
+        "band",
+        "hotkeys",
+        "safety"
+      ]
+    },
+    {
       "name": "fine-print",
       "source": "./mods/fine-print",
       "description": "A second reader that flags what you would miss in a wall of text.",
