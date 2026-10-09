@@ -118,7 +118,14 @@ export function world(on: On, setup: { placed?: boolean; reason?: string } = {})
       return r.agentId ?? ''
     },
     /** One model request in a loop (`agentId` absent: the main loop), with its usage. */
+    /** A model request, read to its end, then the mod's count of it (made just after) let run. */
     async step($: Engine, agentId: string | undefined, usage: TurnUsage | null | 'no-response', model = 'claude-haiku-5-5') {
+      const response = await this.request($, agentId, usage, model)
+      await clock.settle()
+      return response
+    },
+    /** A model request read to its end, its count not yet run. */
+    async request($: Engine, agentId: string | undefined, usage: TurnUsage | null | 'no-response', model = 'claude-haiku-5-5') {
       stepUsage.push(usage)
       const stream = $.turn.step({
         turnId: `turn-${agentId ?? 'main'}`, index: 0, model, messageCount: 1,
