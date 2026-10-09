@@ -1,0 +1,7 @@
+# Internal: third-party source material, research, decisions, rework map. Never published.
+_internal/
+.DS_Store
+node_modules/
+# Engine-written API types (laid locally by scripts/check.sh; not ours to publish)
+.cache/
+mods/*/.claude-plugin/types/

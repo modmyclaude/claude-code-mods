@@ -1,0 +1,10 @@
+{
+  "name": "claude-mods-workspace",
+  "private": true,
+  "scripts": {
+    "check": "scripts/check.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

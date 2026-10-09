@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mod My Claude - curated, tested Claude Code mods</title>
+  <meta name="description" content="Curated, tested Claude Code mods. Every mod ships with the prompt that built it.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f3eee2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#13120e" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Mod My Claude">
+  <meta property="og:description" content="Curated, tested Claude Code mods. Every mod ships with the prompt that built it.">
+  <meta property="og:url" content="https://modmyclaude.github.io/claude-code-mods/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@900&text=MODYCLAUEmodyclaue&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#mods">Skip to the mods</a>
+
+  <header class="bar">
+    <div class="wrap bar-inner">
+      <a class="bar-home" href="./"><span class="bar-mark" aria-hidden="true">M</span>modmyclaude</a>
+      <nav class="bar-nav" aria-label="Sections">
+        <a href="#mods">Mods</a>
+        <a href="#build">Build your own</a>
+        <a href="#safety">Safety</a>
+        <a href="https://github.com/modmyclaude/claude-code-mods">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap">
+        <p class="eyebrow">A mod shelf for Claude Code</p>
+        <h1 id="hero-title" class="wordmark"><span class="wm-tape">Mod</span> <span class="wm-rest">My Claude</span></h1>
+
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="promise">Curated, tested Claude Code mods. Every mod ships with the prompt that built it.</p>
+            <p class="hero-meta"><strong id="mod-count">The mods</strong> <span aria-hidden="true">/</span> validated and tested on every commit <span aria-hidden="true">/</span> terminal and desktop app <span aria-hidden="true">/</span> MIT</p>
+            <p class="hero-links">
+              <a class="btn btn-solid" href="#mods">Browse the mods</a>
+              <a class="btn" href="https://github.com/modmyclaude/claude-code-mods">View on GitHub
+                <svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3h8v8M13 3 3 13" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              </a>
+            </p>
+          </div>
+
+          <div class="hero-install">
+            <p class="label" id="hero-install-label">Install your first mod</p>
+            <div class="cmd" role="group" aria-labelledby="hero-install-label">
+              <span class="cmd-prompt" aria-hidden="true">&gt;</span>
+              <code id="hero-cmd">/plugin install last-look --marketplace modmyclaude/claude-code-mods</code>
+              <button class="btn btn-copy" type="button" data-copy-from="hero-cmd" data-copy-what="the install line"><span class="lbl">Copy</span><span class="vh"> the install line</span></button>
+            </div>
+            <ul class="install-note">
+              <li>Needs Claude Code 2.1.287 or newer. Run <code>claude update</code> if you are behind.</li>
+              <li>Type the line in Claude Code running in a terminal, then answer <code>y</code> to add the marketplace.</li>
+              <li>Mods installed at user scope also load in the desktop app.</li>
+              <li>The VS Code extension does not draw mods yet.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="mods" class="section catalogue" aria-labelledby="mods-title">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow"><span class="num">01</span> The catalogue</p>
+          <h2 id="mods-title">The mods</h2>
+          <p class="section-lede">Open a mod to read the prompt that built it. Every badge under "Can reach" comes from Claude Code's own validator.</p>
+        </div>
+
+        <div class="controls">
+          <div class="search">
+            <label class="label" for="q">Search</label>
+            <div class="search-field">
+              <svg class="search-ico" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m13 13 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+              <input id="q" type="search" name="q" placeholder="cost, review, pet, git..." autocomplete="off" spellcheck="false" maxlength="80">
+            </div>
+          </div>
+          <div class="filter">
+            <p class="label" id="chips-label">Category</p>
+            <div class="chips" id="chips" role="group" aria-labelledby="chips-label"></div>
+          </div>
+        </div>
+
+        <p class="result-count" id="result-count" aria-live="polite"></p>
+        <ul class="grid" id="grid" role="list"></ul>
+        <div class="empty" id="empty" hidden>
+          <p>Nothing matches that yet.</p>
+          <button class="btn" type="button" id="clear">Clear search and filter</button>
+        </div>
+        <noscript>
+          <p class="empty">The gallery needs JavaScript. The full catalogue is also in the <a href="https://github.com/modmyclaude/claude-code-mods#the-mods">README on GitHub</a>.</p>
+        </noscript>
+      </div>
+    </section>
+
+    <section id="build" class="section build" aria-labelledby="build-title">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow"><span class="num">02</span> Build your own</p>
+          <h2 id="build-title">Start from a prompt</h2>
+          <p class="section-lede">Every mod here started as a prompt. Paste one of these into Claude Code, or open any mod above, change a line of its prompt and build your own version.</p>
+        </div>
+        <ul class="starters" id="starters" role="list"></ul>
+      </div>
+    </section>
+
+    <section id="safety" class="section safety" aria-labelledby="safety-title">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow"><span class="num">03</span> Safety</p>
+          <h2 id="safety-title">What a mod can do</h2>
+        </div>
+        <ol class="safety-list">
+          <li>
+            <h3>Mods run with your permissions</h3>
+            <p>They are not sandboxed. A mod can see your prompts and tool calls, so only install mods you trust.</p>
+          </li>
+          <li>
+            <h3>The badges are not our claims</h3>
+            <p>"Can reach" comes from Claude Code's own validator, run every time the catalogue is built. A mod that reads files, runs commands, calls a model or uses the network says so.</p>
+          </li>
+          <li>
+            <h3>Every mod is reviewed and tested</h3>
+            <p>A second maintainer reviews each mod against its prompt. Strict validation and the mod's own tests run on every commit.</p>
+          </li>
+          <li>
+            <h3>"Unverified" means look first</h3>
+            <p>The validator could not report on that mod when the catalogue was built. Read its code before you install it.</p>
+          </li>
+        </ol>
+        <p class="safety-link"><a href="https://github.com/modmyclaude/claude-code-mods/blob/main/SECURITY.md">Read SECURITY.md</a>, including how to report a problem privately.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <p>Not affiliated with or endorsed by Anthropic. Claude and Claude Code are trademarks of Anthropic, PBC.</p>
+      <p><a href="https://github.com/modmyclaude/claude-code-mods/blob/main/LICENSE">MIT License</a> <span aria-hidden="true">/</span> <a href="https://github.com/modmyclaude/claude-code-mods">modmyclaude/claude-code-mods</a></p>
+    </div>
+  </footer>
+
+  <dialog class="mod-dialog" id="mod-dialog" aria-labelledby="dlg-title">
+    <div class="dlg-top">
+      <span class="dlg-path" id="dlg-path"></span>
+      <button class="btn btn-close" type="button" id="dlg-close">Close</button>
+    </div>
+    <div class="dlg-main" id="dlg-main"></div>
+    <p class="vh" id="dlg-live" role="status" aria-live="polite"></p>
+  </dialog>
+
+  <p class="vh" id="live" role="status" aria-live="polite"></p>
+</body>
+</html>

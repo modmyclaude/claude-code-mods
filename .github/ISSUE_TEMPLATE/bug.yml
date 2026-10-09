@@ -1,0 +1,22 @@
+name: Bug in a mod
+description: A mod does not work or behaves unexpectedly
+labels: [bug]
+body:
+  - type: input
+    id: mod
+    attributes:
+      label: Which mod?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Claude Code version (claude --version) and surface (terminal or desktop app)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
