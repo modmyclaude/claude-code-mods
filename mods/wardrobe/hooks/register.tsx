@@ -6,10 +6,10 @@
 // own drawing when it has nothing to add, and when it fails.
 
 import { atom, read } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { EngineInterface, Register, RenderElement, Timer } from 'claude-code'
 
 import type { WardrobeLook } from '../types'
-import { diffCard, shellCard } from './content'
+import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, groupRow, listText, listTree, shellTree, spinnerRow, toolRow, turnRow } from './draw'
 import { AUTO, CHOICES, DEFAULT, minuteOfDay, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
 import { themeById } from './themes'
@@ -23,6 +23,13 @@ const look = atom(LOOK, { theme: DEFAULT, choice: DEFAULT, scope: 'global', phas
 const TICK_MS = 60_000
 
 type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock'>
+
+/**
+ * Where wardrobe draws in place of a component (a result card, the turn line,
+ * the list), it first asks what lies beneath: when another mod drew its own
+ * tree there, that tree stands and wardrobe steps aside.
+ */
+const drewOwn = (below: RenderElement) => below.type !== 'engine'
 
 /** Works out what to wear now and publishes it; every drawing that reads it redraws. */
 async function refresh($: Dollar, settings: Settings): Promise<WardrobeLook> {
@@ -68,17 +75,17 @@ async function pin($: Dollar, settings: Settings): Promise<string> {
   await $.store.set('pins', pins)
   const after = await refresh($, settings)
   const what = after.choice === DEFAULT ? "Claude Code's own look" : after.choice
-  return `Pinned ${what} to ${after.root}. Other projects keep the global choice.`
+  return `Pinned ${what} to ${clean(after.root)}. Other projects keep the global choice.`
 }
 
 /** `/wear unpin`: this project follows the global choice again. */
 async function unpin($: Dollar, settings: Settings): Promise<string> {
   const root = await $.session.root()
   const pins = pinsOf(await $.store.get('pins'))
-  if (!Object.hasOwn(pins, root)) return `${root} has no pin. ${describeLook(await refresh($, settings), settings)}`
+  if (!Object.hasOwn(pins, root)) return `${clean(root)} has no pin. ${describeLook(await refresh($, settings), settings)}`
   delete pins[root]
   await $.store.set('pins', pins)
-  return `Unpinned ${root}. ${describeLook(await refresh($, settings), settings)}`
+  return `Unpinned ${clean(root)}. ${describeLook(await refresh($, settings), settings)}`
 }
 
 export const register: Register = (on, options) => {
@@ -119,7 +126,7 @@ export const register: Register = (on, options) => {
       case 'unpin':
         return { text: await unpin($, settings) }
       case 'unknown':
-        return { text: `No theme called "${command.word}". Try one of: ${CHOICES.join(', ')}; or pin, unpin.` }
+        return { text: `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin.` }
     }
   }).catch(() => ({ text: 'wardrobe: /wear could not finish. Run /wear to see what is worn.' }))
 
@@ -165,10 +172,12 @@ export const register: Register = (on, options) => {
     const theme = themeById(worn.theme)
     if (!theme) return next(e)
     const diff = diffCard(e.props.tool, e.props.output)
+    const shell = !diff && e.props.tool === 'Bash' ? shellCard(e.props.output) : null
+    if (!diff && !shell) return next(e)
+    const below = await next(e)
+    if (drewOwn(below)) return below
     if (diff) return diffTree($.ui.resolve(e), theme, diff, worn.root)
-    const shell = e.props.tool === 'Bash' ? shellCard(e.props.output) : null
-    if (shell) return shellTree($.ui.resolve(e), theme, shell)
-    return next(e)
+    return shell ? shellTree($.ui.resolve(e), theme, shell) : below
   }).catch(($, e, next) => next(e))
 
   // The spinner: the theme's suffix after the word; on the terminal, a chip
@@ -180,21 +189,25 @@ export const register: Register = (on, options) => {
     const theme = themeById((await read($, look)).theme)
     if (!theme) return next(e)
     const engine = await next(e.props.message === null ? { ...e, props: { ...e.props, suffix: theme.spinnerSuffix } } : e)
-    return e.surface === 'terminal' ? spinnerRow($.ui.resolve(e), theme, e.props.mode, engine) : engine
+    return e.surface === 'terminal' ? spinnerRow($.ui.resolve(e), theme, e.props.mode, engine, e.viewport?.columns) : engine
   }).catch(($, e, next) => next(e))
 
   // The line closing a turn; the engine raises it on the terminal alone.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
     if (e.surface !== 'terminal') return next(e)
+    const { word, durationMs } = e.props
+    if (typeof word !== 'string' || !Number.isFinite(durationMs) || durationMs < 0) return next(e)
     const theme = themeById((await read($, look)).theme)
     if (!theme) return next(e)
-    return turnRow($.ui.resolve(e), theme, e.props.word, e.props.durationMs)
+    const below = await next(e)
+    return drewOwn(below) ? below : turnRow($.ui.resolve(e), theme, word, durationMs)
   }).catch(($, e, next) => next(e))
 
   // `/wear` with no argument: the list, each theme previewed in its own colours.
   on('ui.render', { component: 'CommandOutput', props: { command: 'wear' } }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     if (e.props.isErrored || parseWear(e.props.args).kind !== 'list') return next(e)
-    return listTree($.ui.resolve(e), await read($, look), settings, problems, e.viewport?.columns)
+    const below = await next(e)
+    return drewOwn(below) ? below : listTree($.ui.resolve(e), await read($, look), settings, problems, e.viewport?.columns)
   }).catch(($, e, next) => next(e))
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { DIFF_LINE_CAP, diffCard, shellCard, shortPath } from '../hooks/content'
+import { clean, DIFF_CHAR_CAP, DIFF_LINE_CAP, diffCard, shellCard, shortPath } from '../hooks/content'
 import {
   formatDuration,
   formatMs,
@@ -199,9 +199,10 @@ describe('diffCard()', () => {
     expect(card?.lines[3]).toEqual({ kind: 'add', text: 'z', no: 40 })
   })
 
-  test('tabs become spaces and control characters cannot reach a Text', () => {
-    const card = diffCard('Edit', { filePath: 'x', structuredPatch: [{ oldStart: 1, newStart: 1, lines: ['+\tif (a)\u001b[0m\r'] }] })
-    expect(card?.lines[0]?.text).toBe('  if (a)�[0m')
+  test('lines and the path are cleaned before they can reach a Text', () => {
+    const card = diffCard('Edit', { filePath: 'src/\u0007x\u009b1m.ts', structuredPatch: [{ oldStart: 1, newStart: 1, lines: ['+\tif (a)\u001b[0m\r\u0085'] }] })
+    expect(card?.lines[0]?.text).toBe('  if (a)�')
+    expect(card?.path).toBe('src/�x.ts')
   })
 
   const refused: [string, unknown][] = [
@@ -211,6 +212,8 @@ describe('diffCard()', () => {
     ['an edit held for review', { ...EDIT, staged: true }],
     ['a line that is not a diff line', { filePath: 'x', structuredPatch: [{ oldStart: 1, newStart: 1, lines: ['?what'] }] }],
     ['a hunk without numbers', { filePath: 'x', structuredPatch: [{ lines: ['+a'] }] }],
+    ['binary content (NUL)', { filePath: 'x', structuredPatch: [{ oldStart: 1, newStart: 1, lines: ['+PNG\u0000\u0001'] }] }],
+    ['a diff too wide to draw whole', { filePath: 'x', structuredPatch: [{ oldStart: 1, newStart: 1, lines: [`+${'x'.repeat(DIFF_CHAR_CAP + 1)}`] }] }],
     [
       'a diff too long to draw whole',
       { filePath: 'x', structuredPatch: [{ oldStart: 1, newStart: 1, lines: Array.from({ length: DIFF_LINE_CAP + 1 }, (_, i) => `+${i}`) }] },
@@ -228,12 +231,17 @@ describe('shellCard()', () => {
 
   test('reads a small plain run as lines', () => {
     expect(shellCard(plain)).toEqual({ stdout: ['a', 'b'], stderr: ['warn'] })
+    expect(shellCard({ ...plain, stdout: '\u001b[32mok\u001b[0m\n\u009b1mbold\n' })).toEqual({ stdout: ['ok', 'bold'], stderr: ['warn'] })
     expect(shellCard({ stdout: '', stderr: '', interrupted: false, noOutputExpected: true })).toEqual({ stdout: [], stderr: [] })
   })
 
   const refused: [string, unknown][] = [
-    ['colour codes', { ...plain, stdout: '\u001b[31mred\u001b[0m' }],
-    ['a progress bar', { ...plain, stdout: '10%\r20%' }],
+    ['a progress bar (CR)', { ...plain, stdout: '10%\r20%' }],
+    ['binary output (NUL)', { ...plain, stdout: 'PK\u0000\u0003' }],
+    ['a bell (BEL)', { ...plain, stderr: 'done\u0007' }],
+    ['a delete (DEL)', { ...plain, stdout: 'a\u007fb' }],
+    ['a C1 control (NEL)', { ...plain, stdout: 'a\u0085b' }],
+    ['a lone escape', { ...plain, stdout: 'a\u001b' }],
     ['a background task', { ...plain, backgroundTaskId: 'b1' }],
     ['an interrupted run', { ...plain, interrupted: true }],
     ['an image', { ...plain, isImage: true }],
@@ -259,6 +267,30 @@ describe('shortPath()', () => {
   for (const [path, root, shown] of cases) {
     test(`${path} under ${root || '(none)'} is ${shown}`, () => {
       expect(shortPath(path, root)).toBe(shown)
+    })
+  }
+})
+
+describe('clean()', () => {
+  const cases: [string, string, string][] = [
+    ['ANSI colour', 'a\u001b[31mred\u001b[0m', 'ared'],
+    ['8-bit CSI', 'a\u009b1mb', 'ab'],
+    ['OSC hyperlink', '\u001b]8;;https://x\u0007link\u001b]8;;\u0007', 'link'],
+    ['two-character escape', 'a\u001bcb', 'ab'],
+    ['lone escape at the end', 'a\u001b', 'a�'],
+    ['BEL', 'a\u0007b', 'a�b'],
+    ['NUL', 'a\u0000b', 'a�b'],
+    ['DEL', 'a\u007fb', 'a�b'],
+    ['C1 NEL', 'a\u0085b', 'a�b'],
+    ['C1 top', 'a\u009fb', 'a�b'],
+    ['newline in one line', 'a\nb', 'a�b'],
+    ['tab', '\tx', '  x'],
+    ['carriage return', 'x\r', 'x'],
+    ['plain text and accents', 'café ✓', 'café ✓'],
+  ]
+  for (const [name, input, output] of cases) {
+    test(name, () => {
+      expect(clean(input)).toBe(output)
     })
   }
 })

@@ -17,8 +17,9 @@ export type DiffCard = {
   lines: DiffLine[]
 }
 
-/** Past this many lines the engine's own card (which can fold and expand) draws instead. */
+/** Past this many lines, or characters, the engine's own card (which can fold and expand) draws instead. */
 export const DIFF_LINE_CAP = 120
+export const DIFF_CHAR_CAP = 8000
 
 /** A shell result is drawn by wardrobe only while it is this small. */
 export const SHELL_LINE_CAP = 8
@@ -27,9 +28,34 @@ export const SHELL_CHAR_CAP = 1500
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** Tabs as spaces, and any other control character as U+FFFD, so a Text accepts it. */
+// Untrusted text (file contents, shell output, paths, typed words) reaches a
+// drawn tree only through clean(): the engine refuses a whole tree holding a
+// C0 or C1 control character, so one stray byte would cost the drawing.
+
+// ANSI escape sequences, 7-bit and 8-bit: CSI (`ESC [`, U+009B), OSC (`ESC ]`,
+// U+009D) up to its terminator, and the two-character escapes (`ESC 7`, `ESC c`).
+const ANSI =
+  /\u001b\[[0-?]*[ -/]*[@-~]|\u009b[0-?]*[ -/]*[@-~]|(?:\u001b\]|\u009d)[^\u0007\u001b\u009c]*(?:\u0007|\u001b\\|\u009c)|\u001b[ -/]*[0-~]/g
+
+/** Every C0 control but tab and newline, DEL, and every C1 control (U+0080 to U+009F). */
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
+
+/** Text without its ANSI escape sequences. */
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI, '')
+}
+
+/** Whether text still holds a control character a Text cannot take (tab and newline aside). */
+export function hasControl(text: string): boolean {
+  return CONTROL.test(text)
+}
+
+/** One drawable line: ANSI sequences gone, tabs as spaces, any other control character as U+FFFD. */
 export function clean(text: string): string {
-  return text.replace(/\t/g, '  ').replace(/\r/g, '').replace(/[\u0000-\u001f\u007f-\u009f]/g, '�')
+  return stripAnsi(text)
+    .replace(/\t/g, '  ')
+    .replace(/\r/g, '')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '�')
 }
 
 /**
@@ -52,6 +78,7 @@ export function diffCard(tool: string, output: unknown): DiffCard | null {
     let newNo = hunk.newStart
     for (const raw of hunk.lines) {
       if (typeof raw !== 'string') return null
+      if (raw.includes('\u0000')) return null // binary content: the engine's to draw
       const marker = raw.slice(0, 1)
       const text = clean(raw.slice(1))
       if (marker === '+') {
@@ -69,8 +96,9 @@ export function diffCard(tool: string, output: unknown): DiffCard | null {
     }
   }
   if (lines.length > DIFF_LINE_CAP || added + removed === 0) return null
+  if (lines.reduce((n, line) => n + line.text.length, 0) > DIFF_CHAR_CAP) return null
   return {
-    path: filePath,
+    path: clean(filePath),
     verb: tool === 'Write' ? 'Wrote' : 'Updated',
     added,
     removed,
@@ -90,13 +118,17 @@ export function shellCard(output: unknown): { stdout: string[]; stderr: string[]
   if (typeof stdout !== 'string' || typeof stderr !== 'string') return null
   if (output.interrupted === true || output.isImage === true) return null
   for (const [key, value] of Object.entries(output)) if (value && !PLAIN_SHELL_FIELDS.has(key)) return null
-  // Colour codes, carriage returns and the like: the engine knows how to draw those.
-  if (/[\u0000-\u0008\u000b-\u001f\u007f]/.test(stdout + stderr)) return null
-  if (stdout.length + stderr.length > SHELL_CHAR_CAP) return null
-  const out = splitLines(stdout)
-  const err = splitLines(stderr)
-  if (out.length + err.length > SHELL_LINE_CAP) return null
-  return { stdout: out.map(clean), stderr: err.map(clean) }
+  // Colour codes are dropped (the theme colours the card); anything else that
+  // controls the terminal (a carriage return, a bell, NUL, DEL, C1) means the
+  // output is not plain text, and the engine draws it.
+  const out = stripAnsi(stdout)
+  const err = stripAnsi(stderr)
+  if (hasControl(out + err)) return null
+  if (out.length + err.length > SHELL_CHAR_CAP) return null
+  const outLines = splitLines(out)
+  const errLines = splitLines(err)
+  if (outLines.length + errLines.length > SHELL_LINE_CAP) return null
+  return { stdout: outLines.map(clean), stderr: errLines.map(clean) }
 }
 
 function splitLines(text: string): string[] {

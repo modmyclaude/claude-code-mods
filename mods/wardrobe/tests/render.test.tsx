@@ -180,9 +180,13 @@ describe('shell results', () => {
       expect(await quiet.find({ type: 'Text', text: ' (no output) ' })).toBeDefined()
       await quiet.unmount()
 
+      // Colour codes are dropped and the theme colours the text; a progress bar's CR is the engine's.
       const coloured = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'ToolResult', props: bash({ stdout: '\u001b[32mok\u001b[0m', stderr: '', interrupted: false }) })
-      expect(await coloured.drawn()).toEqual(ENGINE)
+      expect((await coloured.find({ type: 'Text', text: ' ok ' }))?.props).toEqual({ color: dracula.palette.text, backgroundColor: dracula.palette.bg })
       await coloured.unmount()
+      const progress = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'ToolResult', props: bash({ stdout: '10%\r20%', stderr: '', interrupted: false }) })
+      expect(await progress.drawn()).toEqual(ENGINE)
+      await progress.unmount()
 
       const read = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'ToolResult', props: { tool_use_id: 't2', tool: 'Read', output: { type: 'text' }, isErrored: false } })
       expect(await read.drawn()).toEqual(ENGINE)
