@@ -274,15 +274,31 @@ export function buildRequest(
   return { system: SYSTEM, prompt }
 }
 
+// Escape sequences: OSC (to BEL or ST), CSI (7-bit and the C1 byte), then any
+// other ESC sequence. Each class is disjoint from the next, so it scans once.
+const ANSI = /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b\[[0-?]*[ -/]*[@-~]|\u009b[0-?]*[ -/]*[@-~]|\u001b[ -/]*[0-~]/g
+// C0 but tab, newline and return; DEL; C1.
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g
+
 /**
- * Makes model text safe and plain for one line: control, format and bidi
- * characters out (no terminal tricks), dashes to the house " - ", whitespace
- * collapsed, a leading list marker dropped, length capped.
+ * Text the engine will draw: it refuses a tree holding a control character
+ * (and draws its own in place of the note and every band beneath). Escape
+ * sequences go, tabs and returns become spaces, newlines stay, and any other
+ * C0, DEL or C1 character is shown as U+FFFD.
+ */
+export function drawable(text: string): string {
+  return text.replace(ANSI, '').replace(/[\t\r]/g, ' ').replace(CONTROL, '\ufffd')
+}
+
+/**
+ * Makes model text safe and plain for one line: drawable (above), format and
+ * bidi characters out (no terminal tricks), dashes to the house " - ",
+ * whitespace collapsed, a leading list marker dropped, length capped.
  */
 export function clean(value: unknown, max: number): string {
   if (typeof value !== 'string') return ''
-  const text = value
-    .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ')
+  const text = drawable(value)
+    .replace(/[\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ')
     .replace(/\s*[\u2013\u2014]\s*/g, ' - ')
     .replace(/\s+/g, ' ')
     .trim()

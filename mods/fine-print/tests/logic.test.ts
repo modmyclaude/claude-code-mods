@@ -10,6 +10,7 @@ import {
   clipReply,
   countWords,
   describeToolUse,
+  drawable,
   explainPrompt,
   formatNotes,
   isOwnQuestion,
@@ -254,7 +255,9 @@ describe('clean', () => {
     ['cost \u2013 high', 'cost - high'],
     ['- leading marker', 'leading marker'],
     ['2) numbered', 'numbered'],
-    ['line\none\u0007', 'line one'],
+    ['line\none\u0007', 'line one\ufffd'],
+    ['\u001b[31mred\u001b[0m alert', 'red alert'],
+    ['bell\u0007 nul\u0000 del\u007f nel\u0085', 'bell\ufffd nul\ufffd del\ufffd nel\ufffd'],
     ['safe\u202eevil\u2066', 'safe evil'],
   ]
   for (const [raw, expected] of cases) {
@@ -262,6 +265,40 @@ describe('clean', () => {
   }
 
   test('caps with an ellipsis', () => expect(clean('abcdefghij', 8)).toBe('abcde...'))
+})
+
+describe('drawable', () => {
+  const cases: [string, string][] = [
+    ['plain text', 'plain text'],
+    ['keeps\nnewlines', 'keeps\nnewlines'],
+    ['tab\there\r', 'tab here '],
+    ['\u001b[1;31mbold red\u001b[0m', 'bold red'],
+    ['\u001b]0;title\u0007after', 'after'],
+    ['\u001b]8;;https://x.io\u001b\\link\u001b]8;;\u001b\\', 'link'],
+    ['\u009b2Jcleared', 'cleared'],
+    ['\u001bcreset', 'reset'],
+    ['a\u0000b\u0007c\u007fd\u0085e\u0098f', 'a\ufffdb\ufffdc\ufffdd\ufffde\ufffdf'],
+    // The C1 CSI byte with its final byte is a whole sequence, removed.
+    ['e\u009bf', 'e'],
+    ['lone escape \u001b', 'lone escape \ufffd'],
+    // An unterminated OSC loses its ESC ] like any two-byte escape; no control is left.
+    ['unterminated \u001b]0;title', 'unterminated 0;title'],
+  ]
+  for (const [raw, expected] of cases) {
+    test(JSON.stringify(raw), () => expect(drawable(raw)).toBe(expected))
+  }
+
+  test('leaves no control character behind, on any input', () => {
+    const every = Array.from({ length: 0xa0 }, (_, code) => String.fromCharCode(code)).join('')
+    expect(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/.test(drawable(every))).toBe(false)
+  })
+
+  test('stays fast on 50000 characters of escapes', () => {
+    const started = Date.now()
+    drawable('\u001b]'.repeat(25_000))
+    drawable('\u001b['.repeat(25_000))
+    expect(Date.now() - started).toBeLessThan(200)
+  })
 })
 
 describe('parseVerdict', () => {

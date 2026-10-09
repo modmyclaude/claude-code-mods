@@ -13,6 +13,7 @@ import {
   MODEL,
   buildRequest,
   countWords,
+  drawable,
   explainPrompt,
   formatNotes,
   isOwnQuestion,
@@ -37,7 +38,7 @@ type Request = { system: string; prompt: string }
 // file, so every helper that touches `$` lives out here.
 
 function debug($: EngineInterface, text: string) {
-  $.ui.log(`fine-print: ${text}`, { to: 'debug' })
+  $.ui.log(drawable(`fine-print: ${text}`), { to: 'debug' })
 }
 
 // One toast per session when the model cannot be reached, so a blocked or
@@ -45,7 +46,7 @@ function debug($: EngineInterface, text: string) {
 async function warnOnce($: EngineInterface, why: string) {
   let isFirst = false
   await update($, warned, was => ((isFirst = !was), true))
-  if (isFirst) $.ui.toast(`Fine Print could not run its check (${why}). It will try again after the next long reply.`)
+  if (isFirst) $.ui.toast(drawable(`Fine Print could not run its check (${why}). It will try again after the next long reply.`))
 }
 
 function capLine(maxChecks: number): string {
@@ -168,7 +169,8 @@ async function explain($: EngineInterface, id: string) {
   // Not sent: put the note back as it was, so its record stays true.
   await update($, notes, list => withStatus(list, id, 'open'))
   await update($, shown, () => id)
-  $.ui.toast(`Fine Print could not send the question (${why}). The note is still open.`)
+  // The reason is another hook's or the engine's words: make them drawable.
+  $.ui.toast(drawable(`Fine Print could not send the question (${why}). The note is still open.`))
 }
 
 export const register: Register = (on, options) => {
@@ -227,11 +229,14 @@ export const register: Register = (on, options) => {
 
     const others = list.filter(one => one.status === 'open' && one.id !== id).length
     const { Box, Button, Text } = $.ui.resolve(e)
-    // Other mods' bands draw beneath the note, never erased by it.
+    // Other mods' bands draw first, the note after them: never erased by it,
+    // and when the band overflows it is the note's end that scrolls away,
+    // never another mod's buttons.
     const below = await next(e)
 
     return (
       <Box key="fine-print" flexDirection="column">
+        {below}
         <Box flexDirection="row">
           <Box flexShrink={0}>
             <Text bold color="warning">
@@ -261,7 +266,6 @@ export const register: Register = (on, options) => {
           <Button key="explain" label="Explain more" onPress={() => explain($, id)} />
           <Button key="dismiss" label="Dismiss" hotkey="d" role="dismiss" onPress={() => settle($, id, 'dismissed')} />
         </Box>
-        {below}
       </Box>
     )
   })
