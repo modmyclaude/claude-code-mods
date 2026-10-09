@@ -549,7 +549,8 @@ export const register: Register = on => {
           <Button
             key={`pick-${n}`}
             plain
-            {...(digits ? { hotkey: n } : {})}
+            // A risky suggestion is click-only: one stray digit must never draft a push or deploy.
+            {...(digits && item.risk === null ? { hotkey: n } : {})}
             label={clip(item.text, room)}
             onPress={press => void pick($, press, index)}
           />

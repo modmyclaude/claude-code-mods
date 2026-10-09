@@ -319,6 +319,9 @@ test('a risky suggestion is amber with its note and never option 1', async ($, o
     expect(await labels(ui)).toEqual(['run the auth tests', 'add the guard to signup.ts', 'push to main'])
     const note = await ui.find({ type: 'Text', text: '(pushes)' })
     expect(note?.props.color).toBe('warning')
+    // Safe items keep their digit; the risky one is click-only.
+    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
+    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
     await ui.unmount()
   }
 })
