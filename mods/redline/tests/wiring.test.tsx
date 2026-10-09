@@ -673,6 +673,25 @@ describe('repaint at every plan window reset', () => {
     }
   })
 
+  test('a reset past the longest timer delay re-arms once at the cap, then flips at the real reset', async ($, on) => {
+    const MAX_DELAY = 2_147_483_647 // what a timer holds, ~24.8 days
+    const resetMs = T0 + 30 * 24 * 60 * MIN
+    const w = world(on, { rateLimits: [{ kind: 'spend_limit', percentUsed: 100, resetsAt: new Date(resetMs).toISOString() }] })
+    await request($, pct(20))
+    expect(w.status()).toContain('spend OUT, resets in ~30d')
+    await w.clock.advance(11 * MIN) // the idle repaint fires and re-arms from +10m
+    const painted = w.statuses.length
+    const capFire = 10 * MIN + 1000 + MAX_DELAY
+    await w.clock.advance(capFire - 11 * MIN - 5000) // just before the cap
+    expect(w.statuses).toHaveLength(painted)
+    await w.clock.advance(10_000) // just after it: one repaint, no loop
+    expect(w.statuses).toHaveLength(painted + 1)
+    expect(w.status()).toContain('OUT') // about 5 days still to go
+    await w.clock.advance(resetMs - T0 - capFire + MIN) // past the real reset
+    expect(w.status()).toContain('spend reset')
+    expect(w.statuses).toHaveLength(painted + 2)
+  })
+
   test('a reset due before the idle repaint is armed by the reading itself', async ($, on) => {
     const w = world(on, { rateLimits: [FIVE_OUT(5)] })
     await request($, pct(20))

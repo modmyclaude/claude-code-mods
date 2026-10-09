@@ -342,7 +342,8 @@ export function fmtUsd(usd: number): string {
 
 export function fmtDuration(ms: number): string {
   if (ms < MINUTE) return '<1m'
-  if (ms < HOUR) return `${Math.round(ms / MINUTE)}m`
+  // 59m 40s rounds to the hour, not to "60m".
+  if (ms < HOUR) return Math.round(ms / MINUTE) === 60 ? '1h' : `${Math.round(ms / MINUTE)}m`
   if (ms < 24 * HOUR) {
     const h = Math.floor(ms / HOUR)
     const m = Math.round((ms - h * HOUR) / MINUTE)
@@ -350,7 +351,8 @@ export function fmtDuration(ms: number): string {
   }
   const d = Math.floor(ms / (24 * HOUR))
   const h = Math.round((ms - d * 24 * HOUR) / HOUR)
-  return h === 0 ? `${d}d` : `${d}d ${h}h`
+  // 23h 50m rounds up into the next day, as 59m 40s does into the next hour.
+  return h === 0 ? `${d}d` : h === 24 ? `${d + 1}d` : `${d}d ${h}h`
 }
 
 export function fmtPace(ms: number | undefined): string | undefined {

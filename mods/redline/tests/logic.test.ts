@@ -10,6 +10,7 @@ import {
   bar,
   busiest,
   EMPTY_GAUGE,
+  fmtDuration,
   fmtPace,
   fmtTokens,
   fmtUsd,
@@ -113,6 +114,16 @@ describe('pace', () => {
   test('no window: no estimate', () => {
     expect(paceEta([{ t: 0, tokens: 1 }, { t: 5 * MIN, tokens: 2 }], null, 5 * MIN)).toBeUndefined()
   })
+
+  const durations: [number, string][] = [
+    [30_000, '<1m'],
+    [25 * MIN, '25m'],
+    [59 * MIN + 40_000, '1h'],
+    [2 * HOUR + 10 * MIN, '2h 10m'],
+    [3 * 24 * HOUR + 5 * HOUR, '3d 5h'],
+    [30 * 24 * HOUR - 10 * MIN, '30d'],
+  ]
+  for (const [ms, text] of durations) test(`${ms} ms reads ${text}`, () => expect(fmtDuration(ms)).toBe(text))
 
   const words: [number | undefined, string | undefined][] = [
     [undefined, undefined],
