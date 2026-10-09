@@ -326,13 +326,12 @@ export const register: Register = on => {
     const args = e.args.trim()
     const verb = (args.split(/\s+/)[0] ?? '').toLowerCase()
 
-    if (verb === '') {
-      const { pet } = await commit($, same)
-      return { text: statText(pet, await $.clock.now()) }
-    }
-    if (verb === 'card') {
-      const { pet } = await commit($, same)
-      return { text: `\`\`\`\n${cardText(pet, await $.clock.now())}\n\`\`\`` }
+    // The two display verbs only read: a write here could undo another
+    // session's change made a moment before.
+    if (verb === '' || verb === 'card') {
+      const now = await $.clock.now()
+      const pet = normalizePet(await $.store.get(STORE_KEY), now)
+      return { text: verb === 'card' ? `\`\`\`\n${cardText(pet, now)}\n\`\`\`` : statText(pet, now) }
     }
     if (verb === 'name') {
       const result = cleanName(args.slice(verb.length))

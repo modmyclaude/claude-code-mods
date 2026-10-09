@@ -131,12 +131,14 @@ export function applyToolCall(
     testsPassed: pet.testsPassed + (outcome.hasPassedTests ? 1 : 0),
   }
   if (pet.hatch === undefined) {
+    // The roll reads the egg's seed, so every session hatches the same pet.
+    // An egg saved without one (older versions) gets it on its next call.
+    const seed = pet.seed ?? [u32(), u32(), u32(), u32()]
+    next.seed = seed
     next.eggCalls = Math.min(HATCH_AT, pet.eggCalls + 1)
     if (next.eggCalls < HATCH_AT) return { pet: next, isHatched: false }
-    // The egg's own seed when it has one, so every session rolls the same pet.
-    const seed = pet.seed
     let at = 0
-    const roll = rollHatch(seed === undefined ? u32 : () => seed[at++ % seed.length] ?? 0)
+    const roll = rollHatch(() => seed[at++ % seed.length] ?? 0)
     next.hatch = { species: roll.species, shiny: roll.shiny, at: now }
     next.name = pet.name ?? roll.name
     return { pet: next, isHatched: true }
@@ -215,11 +217,29 @@ const PASSED: readonly RegExp[] = [
  */
 export function detectTestPass(command: string, output: string): boolean {
   // Every step of the chain only shows text (`cd app && cat ci.log`): not a run.
-  const steps = command.split(/&&|\|\||;/).map(step => step.split('|')[0] ?? '')
-  if (steps.every(step => step.trim() === '' || VIEWER.test(step))) return false
+  const steps = command.split(/&&|\|\||;|\n/).map(step => bareStep(step.split('|')[0] ?? ''))
+  if (steps.every(step => step === '' || VIEWER.test(step))) return false
   const text = output.replace(ANSI, '')
   if (FAILED.some(pattern => pattern.test(text))) return false
   return PASSED.some(pattern => pattern.test(text))
+}
+
+/**
+ * One step of a command without what only wraps it: a subshell's bracket,
+ * `sudo`, `env`, `NAME=value` and `bash -c '...'`, so `sudo cat ci.log`
+ * reads as `cat ci.log`.
+ */
+function bareStep(step: string): string {
+  let bare = step.trim()
+  for (;;) {
+    const next = bare
+      .replace(/^[({]\s*/, '')
+      .replace(/^(sudo|env|exec|time|nice|command)\s+/, '')
+      .replace(/^[A-Za-z_][A-Za-z0-9_]*=\S*\s+/, '')
+      .replace(/^(ba|z)?sh\s+-c\s+['"]?/, '')
+    if (next === bare) return bare
+    bare = next
+  }
 }
 
 // ---------------------------------------------------------------- names
