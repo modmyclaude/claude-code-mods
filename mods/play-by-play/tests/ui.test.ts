@@ -5,6 +5,8 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+
 import { fakeGit, fileTools, PANE, panes, PLUGIN, repo, runReplay, session, start, threeChanges, turn } from './fixtures'
 
 const BAND_PROPS = {
@@ -303,6 +305,66 @@ describe('the replay pane', () => {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PANE, props: PANE_PROPS })
       expect(await ui.find({ type: 'Text', text: /Nothing to replay yet/ })).toBeDefined()
       expect(await ui.find({ key: 'close' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  // Bolt (MM-091): asleep beside "Nothing to replay yet", gone once a turn has
+  // changed files, and out of the way in a narrow pane. A Raster on the terminal,
+  // one code-font cell per character on the desktop.
+  type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  const under = (node: unknown, key: string): Drawn | undefined => {
+    if (node === null || typeof node !== 'object') return undefined
+    const n = node as Drawn
+    if (n.key === key || n.props?.key === key) return n
+    for (const c of n.children ?? []) {
+      const hit = under(c, key)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
+  /** Bolt's size as cells: a Raster's columns x rows, or the desktop's rows of one-cell Boxes. */
+  const boltSize = (bolt: Drawn | undefined) => {
+    if (bolt === undefined) return undefined
+    if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows]
+    const rows = (bolt.children ?? []) as Drawn[]
+    return [(rows[0]?.children ?? []).length, rows.length]
+  }
+
+  test('Bolt sleeps beside "Nothing to replay yet"; a turn with changes or a narrow pane leaves it out', async ($, on) => {
+    const git = repo()
+    const world = session(on)
+    panes(on, true, world.opened)
+    fakeGit(on, git)
+    fileTools(on, git, [])
+    await start($)
+    const mount = (surface: 'terminal' | 'desktop', bodyColumns = PANE_PROPS.bodyColumns) =>
+      $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PANE, props: { ...PANE_PROPS, bodyColumns } })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await mount(surface)
+      const tree = await ui.drawn()
+      expect(boltSize(under(under(tree, 'empty'), 'bolt'))).toEqual([3, 2])
+      if (surface === 'terminal') expect(under(tree, 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'tiny', pose: 'sleep' })))
+      expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
+      if (surface === 'desktop') {
+        const cells = ((under(tree, 'bolt')?.children ?? []) as Drawn[]).flatMap(row => (row.children ?? []) as Drawn[])
+        expect(cells.every(cell => cell.type === 'Box' && cell.props?.width === 1)).toBe(true)
+      }
+      expect((await ui.find({ key: 'empty' }))?.text).toContain('Nothing to replay yet: no turn has changed files.')
+      expect(await ui.find({ key: 'close' })).toBeDefined()
+      await ui.unmount()
+      const narrow = await mount(surface, 30)
+      expect(await narrow.find({ key: 'bolt' })).toBeUndefined()
+      expect((await narrow.find({ key: 'empty' }))?.text).toBe('Nothing to replay yet: no turn has changed files.')
+      await narrow.unmount()
+    }
+    await turn($, 't1', () => threeChanges($))
+    for (const surface of ['terminal', 'desktop'] as const) {
+      await runReplay($)
+      const ui = await mount(surface)
+      expect(await ui.find({ type: 'Text', text: 'Step 1 of 3' })).toBeDefined()
+      expect(await ui.find({ key: 'empty' })).toBeUndefined()
+      expect(await ui.find({ key: 'bolt' })).toBeUndefined()
       await ui.unmount()
     }
   })

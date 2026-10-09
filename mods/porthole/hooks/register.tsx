@@ -9,6 +9,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { PortholeImages, PortholeMode, PortholeShot, PortholeView } from '../types'
+import { boltSprite } from './bolt-draw'
 import {
   chromeArgv,
   fitBox,
@@ -37,6 +38,8 @@ const PROBE_MS = 300
 const CHROME_DEADLINE_MS = 30_000
 /** How a blit refusal reads when the Image is showing its alt text instead of pixels. */
 const DRAWS_ALT = /\balt\b|placeholder|cannot read|can't read/i
+/** Narrower than this, the pane keeps every column for its line and Bolt steps out. */
+const BOLT_MIN_COLUMNS = 40
 
 /**
  * The command origins that are the person typing: Enter at the terminal, or Remote
@@ -434,8 +437,12 @@ export const register: Register = (on, options) => {
     room = { columns, rows: Math.max(1, bodyRows - 1) } // the next shot's shape follows the pane
 
     if (current.url === null) {
+      // Bolt waits for the first address (MM-091): a static sprite, only where the
+      // pane has room for it.
+      const roomy = columns >= BOLT_MIN_COLUMNS
       return (
-        <Box key="status">
+        <Box key="status" flexDirection="row" gap={2} alignItems="center">
+          {roomy ? boltSprite($.ui.resolve(e), e.surface, { size: 'small', pose: 'idle' }) : null}
           <Text dimColor>No page yet. Type /porthole followed by an address.</Text>
         </Box>
       )

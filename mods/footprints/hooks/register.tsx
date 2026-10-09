@@ -8,6 +8,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer, ToolCallResult } from 'claude-code'
 
 import type { FootprintsMark as Mark, FootprintsTree as Tree } from '../types'
+import { boltSprite } from './bolt-draw'
 import {
   BIG_FOLDER,
   HEADER_SEPARATOR,
@@ -54,6 +55,8 @@ const SHIMMER_MS = 120
 const SLOW_GIT_MS = 2000
 const SLOW_GIT_LINE = 'Footprints: shell tracking paused, git status is slow in this repo'
 const MAX_OUTSIDE = 50
+/** Narrower than this, the pane keeps every column for the tree and Bolt steps out. */
+const BOLT_MIN_COLUMNS = 40
 
 const MARKS = { plugin: 'footprints', key: 'marks' } as const
 const TREE = { plugin: 'footprints', key: 'tree' } as const
@@ -560,6 +563,9 @@ export const register: Register = on => {
     }
 
     const rootName = clean(tree ? (tree.root.split('/').filter(Boolean).pop() ?? tree.root) : '')
+    // Bolt waits in the touched-only view while nothing is touched (MM-091): a static
+    // sprite beside that line alone, only where the pane has room for it.
+    const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
 
     return (
       <Box flexDirection="column">
@@ -595,7 +601,8 @@ export const register: Register = on => {
           ''
         )}
         {view.rows.length === 0 ? (
-          <Box key="empty">
+          <Box key="empty" flexDirection="row" gap={2} alignItems="center">
+            {tree && touchedOnly && roomy ? boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'idle' }) : null}
             <Text dimColor>{!tree ? 'Reading the file list...' : touchedOnly ? 'Nothing touched yet.' : 'No files here.'}</Text>
           </Box>
         ) : (

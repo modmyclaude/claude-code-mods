@@ -17,6 +17,8 @@ import type {
   TurnCompleteInput,
 } from 'claude-code'
 
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+
 const PLUGIN = 'fine-print'
 const SURFACES = ['terminal', 'desktop'] as const
 const ZERO = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
@@ -557,6 +559,60 @@ test('only open notes count as more open notes', async ($, on) => {
   ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: 'Second note' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /more open note/ })).toBeUndefined()
+})
+
+// Bolt (MM-091): beside "flagged nothing" in the /fineprint pane, never beside a
+// note, and out of the way in a narrow pane. A Raster on the terminal, one
+// code-font cell per character on the desktop.
+type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+const under = (node: unknown, key: string): Drawn | undefined => {
+  if (node === null || typeof node !== 'object') return undefined
+  const n = node as Drawn
+  if (n.key === key || n.props?.key === key) return n
+  for (const c of n.children ?? []) {
+    const hit = under(c, key)
+    if (hit !== undefined) return hit
+  }
+  return undefined
+}
+/** Bolt's size as cells: a Raster's columns x rows, or the desktop's rows of one-cell Boxes. */
+const boltSize = (bolt: Drawn | undefined) => {
+  if (bolt === undefined) return undefined
+  if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows]
+  const rows = (bolt.children ?? []) as Drawn[]
+  return [(rows[0]?.children ?? []).length, rows.length]
+}
+
+test('Bolt stands beside "flagged nothing" in the pane; a note or a narrow pane leaves it out', async ($, on) => {
+  const seen = world(on, [JSON.stringify(FLAG)])
+  const mount = (surface: (typeof SURFACES)[number], bodyColumns: number = PANE_PROPS.bodyColumns) =>
+    $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: 'fineprint', props: { ...PANE_PROPS, bodyColumns } })
+  expect(await $.command.run(FINEPRINT)).toEqual({})
+  for (const surface of SURFACES) {
+    const pane = await mount(surface)
+    const tree = await pane.drawn()
+    expect(boltSize(under(under(tree, 'empty'), 'bolt'))).toEqual([10, 5])
+    if (surface === 'terminal') expect(under(tree, 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'small', pose: 'idle' })))
+    expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
+    if (surface === 'desktop') {
+      const cells = ((under(tree, 'bolt')?.children ?? []) as Drawn[]).flatMap(row => (row.children ?? []) as Drawn[])
+      expect(cells.every(cell => cell.type === 'Box' && cell.props?.width === 1)).toBe(true)
+    }
+    expect((await pane.find({ key: 'empty' }))?.text).toContain('Fine Print has flagged nothing this session.')
+    await pane.unmount()
+    const narrow = await mount(surface, 30)
+    expect(await narrow.find({ key: 'bolt' })).toBeUndefined()
+    expect((await narrow.find({ key: 'empty' }))?.text).toContain('Fine Print has flagged nothing this session.')
+    await narrow.unmount()
+  }
+  await endTurn($, seen, turn(LONG_REPLY))
+  for (const surface of SURFACES) {
+    const pane = await mount(surface)
+    expect(await pane.find({ key: 'bolt' })).toBeUndefined()
+    expect(await pane.find({ key: 'empty' })).toBeUndefined()
+    expect(await pane.find({ type: 'Text', text: 'Fine Print: 1 note this session, newest first.' })).toBeDefined()
+    await pane.unmount()
+  }
 })
 
 // Another mod's band, loaded beneath this one (the append tier sits under user).

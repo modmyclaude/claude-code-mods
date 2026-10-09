@@ -6,6 +6,8 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock, Plugin } from 'claude-code/testing'
 import type { On, PromptOrigin, RenderSurface } from 'claude-code'
 
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const TMP = '/tmp/pt'
 const PANE = { title: 'Porthole', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 41 }, view: {} } as const
@@ -433,6 +435,62 @@ test('the pane: an Image on the terminal, one line on the desktop', async ($, on
       expect(await ui.find({ key: 'shot' })).toBeUndefined()
       expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
     }
+    await ui.unmount()
+  }
+})
+
+// Bolt (MM-091): beside "No page yet" on the terminal, the one surface that draws
+// it; gone once a page is open, and out of the way in a narrow pane. A Raster on
+// the terminal; the desktop keeps its one browser-pane line and no Bolt.
+type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+const under = (node: unknown, key: string): Drawn | undefined => {
+  if (node === null || typeof node !== 'object') return undefined
+  const n = node as Drawn
+  if (n.key === key || n.props?.key === key) return n
+  for (const c of n.children ?? []) {
+    const hit = under(c, key)
+    if (hit !== undefined) return hit
+  }
+  return undefined
+}
+/** Bolt's size as cells: a Raster's columns x rows, or the desktop's rows of one-cell Boxes. */
+const boltSize = (bolt: Drawn | undefined) => {
+  if (bolt === undefined) return undefined
+  if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows]
+  const rows = (bolt.children ?? []) as Drawn[]
+  return [(rows[0]?.children ?? []).length, rows.length]
+}
+
+test('Bolt waits beside "No page yet" on the terminal; a page, a narrow pane or the desktop leaves it out', async ($, on) => {
+  const w = world(on)
+  w.surfaces = ['terminal', 'desktop']
+  const mount = (surface: 'terminal' | 'desktop', bodyColumns: number = PANE.bodyColumns) =>
+    $.ui.mount({ plugin: 'porthole', surface, component: 'Pane', requestId: 'porthole', props: { ...PANE, bodyColumns }, viewport: VIEWPORT })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await mount(surface)
+    const tree = await ui.drawn()
+    if (surface === 'terminal') {
+      expect(boltSize(under(under(tree, 'status'), 'bolt'))).toEqual([10, 5])
+      expect(under(tree, 'bolt')?.type).toBe('Raster')
+      expect(under(tree, 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'small', pose: 'idle' })))
+      expect((await ui.find({ key: 'status' }))?.text).toBe('No page yet. Type /porthole followed by an address.')
+    } else {
+      expect(boltSize(under(tree, 'bolt'))).toBeUndefined()
+      expect((await ui.find({ key: 'elsewhere' }))?.text).toContain('open your page in the built-in browser pane')
+    }
+    await ui.unmount()
+    const narrow = await mount(surface, 30)
+    expect(await narrow.find({ key: 'bolt' })).toBeUndefined()
+    if (surface === 'terminal') expect((await narrow.find({ key: 'status' }))?.text).toBe('No page yet. Type /porthole followed by an address.')
+    await narrow.unmount()
+  }
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await mount(surface)
+    expect(await ui.find({ key: 'bolt' })).toBeUndefined()
+    if (surface === 'terminal') expect((await ui.find({ key: 'status' }))?.text).toBe('localhost:5173 - desktop 1280px - shot 1')
+    else expect((await ui.find({ key: 'elsewhere' }))?.text).toContain('http://localhost:5173/')
     await ui.unmount()
   }
 })

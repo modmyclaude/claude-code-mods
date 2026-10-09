@@ -6,6 +6,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, TurnCompleteInput } from 'claude-code'
 
 import type { FinePrintNote, FinePrintNoteStatus, FinePrintTopic } from '../types'
+import { boltSprite } from './bolt-draw'
 import {
   MAX_NOTES,
   MAX_TOKENS,
@@ -31,6 +32,9 @@ const shown = atom({ plugin: 'fine-print', key: 'shown' } as const, null)
 const checks = atom({ plugin: 'fine-print', key: 'checks' } as const, 0)
 const capNoticed = atom({ plugin: 'fine-print', key: 'capNoticed' } as const, false)
 const warned = atom({ plugin: 'fine-print', key: 'warned' } as const, false)
+
+/** Narrower than this, the pane keeps every column for the list and Bolt steps out. */
+const BOLT_MIN_COLUMNS = 40
 
 type Settings = { topics: readonly FinePrintTopic[]; maxChecks: number }
 type Request = { system: string; prompt: string }
@@ -228,17 +232,29 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: 'fineprint' }, async ($, e) => {
     const [list, used, now] = await Promise.all([read($, notes), read($, checks), $.clock.now()])
     const { Box, Text } = $.ui.resolve(e)
+    const lines = noteLines(list, now, used, settings.maxChecks).map(line =>
+      line.kind === 'blank' ? (
+        <Text> </Text>
+      ) : (
+        <Text bold={line.kind === 'head' || line.kind === 'title'} dimColor={line.kind === 'spend'} wrap="wrap">
+          {line.text}
+        </Text>
+      ),
+    )
+
+    // Bolt keeps the empty list company (MM-091): a static sprite beside "flagged
+    // nothing", only where the pane has room for it. A list with notes goes without.
+    const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
 
     return (
       <Box flexDirection="column">
-        {noteLines(list, now, used, settings.maxChecks).map(line =>
-          line.kind === 'blank' ? (
-            <Text> </Text>
-          ) : (
-            <Text bold={line.kind === 'head' || line.kind === 'title'} dimColor={line.kind === 'spend'} wrap="wrap">
-              {line.text}
-            </Text>
-          ),
+        {list.length === 0 ? (
+          <Box key="empty" flexDirection="row" gap={2} alignItems="center">
+            {roomy ? boltSprite($.ui.resolve(e), e.surface, { size: 'small', pose: 'idle' }) : null}
+            {lines}
+          </Box>
+        ) : (
+          lines
         )}
       </Box>
     )

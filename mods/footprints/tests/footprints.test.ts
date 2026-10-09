@@ -3,6 +3,8 @@
 import { describe, expect, test } from 'claude-code/testing'
 import type { Engine, FoundElement } from 'claude-code/testing'
 
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+
 import { PANE, PLUGIN, ROOT, SURFACES, abs, paneProps, world, type World } from './world'
 
 type Surface = (typeof SURFACES)[number]
@@ -345,6 +347,76 @@ describe('the pane', () => {
     expect(w.rec.toasts.at(-1)).toBe('All files')
     expect(w.rec.opens).toEqual([PANE]) // already open: not opened again
     expect(await ui.find({ key: 'f:README.md' })).toBeDefined()
+  })
+
+  // Bolt (MM-091): beside "Nothing touched yet." in the touched-only view, never beside
+  // "Reading the file list..." or "No files here." (the same row), gone once a file is
+  // touched, and out of the way in a narrow pane. A Raster on the terminal, one
+  // code-font cell per character on the desktop.
+  type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  const under = (node: unknown, key: string): Drawn | undefined => {
+    if (node === null || typeof node !== 'object') return undefined
+    const n = node as Drawn
+    if (n.key === key || n.props?.key === key) return n
+    for (const c of n.children ?? []) {
+      const hit = under(c, key)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
+  /** Bolt's size as cells: a Raster's columns x rows, or the desktop's rows of one-cell Boxes. */
+  const boltSize = (bolt: Drawn | undefined) => {
+    if (bolt === undefined) return undefined
+    if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows]
+    const rows = (bolt.children ?? []) as Drawn[]
+    return [(rows[0]?.children ?? []).length, rows.length]
+  }
+
+  test('Bolt waits beside "Nothing touched yet." alone; the other empty lines, a touch or a narrow pane leave it out', async ($, on) => {
+    world(on, { tracked: [] })
+    await start($)
+    for (const surface of SURFACES) {
+      // Touched-only before the file list is read: still reading, so no Bolt.
+      const ui = await mount($, surface)
+      await ui.press({ key: 'touched' })
+      expect((await ui.find({ key: 'empty' }))?.text, surface).toBe('Reading the file list...')
+      expect(await ui.find({ key: 'bolt' }), surface).toBeUndefined()
+      await ui.press({ key: 'touched' })
+      await ui.unmount()
+    }
+    await footprints($)
+    for (const surface of SURFACES) {
+      const ui = await mount($, surface)
+      expect((await ui.find({ key: 'empty' }))?.text, surface).toBe('No files here.')
+      expect(await ui.find({ key: 'bolt' }), surface).toBeUndefined()
+      await ui.unmount()
+    }
+    await footprints($, 'touched')
+    for (const surface of SURFACES) {
+      const ui = await mount($, surface)
+      const tree = await ui.drawn()
+      expect(boltSize(under(under(tree, 'empty'), 'bolt')), surface).toEqual([3, 2])
+      if (surface === 'terminal') expect(under(tree, 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'tiny', pose: 'idle' })))
+      expect(under(tree, 'bolt')?.type, surface).toBe(surface === 'terminal' ? 'Raster' : 'Box')
+      if (surface === 'desktop') {
+        const cells = ((under(tree, 'bolt')?.children ?? []) as Drawn[]).flatMap(row => (row.children ?? []) as Drawn[])
+        expect(cells.every(cell => cell.type === 'Box' && cell.props?.width === 1)).toBe(true)
+      }
+      expect((await ui.find({ key: 'empty' }))?.text, surface).toContain('Nothing touched yet.')
+      await ui.unmount()
+      const narrow = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PANE, props: paneProps({ bodyColumns: 30 }) })
+      expect(await narrow.find({ key: 'bolt' }), surface).toBeUndefined()
+      expect((await narrow.find({ key: 'empty' }))?.text, surface).toBe('Nothing touched yet.')
+      await narrow.unmount()
+    }
+    await $.tool.call({ tool: 'Write', file_path: abs('src/new.ts'), content: 'new' })
+    for (const surface of SURFACES) {
+      const ui = await mount($, surface)
+      expect(await ui.find({ key: 'f:src/new.ts' }), surface).toBeDefined()
+      expect(await ui.find({ key: 'empty' }), surface).toBeUndefined()
+      expect(await ui.find({ key: 'bolt' }), surface).toBeUndefined()
+      await ui.unmount()
+    }
   })
 
   test('a pane the surface cannot seat says so in one toast', async ($, on) => {

@@ -9,6 +9,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { PlayByPlayStep, PlayByPlayTurn } from '../types'
+import { boltSprite } from './bolt-draw'
 import { clean, cleanName } from './diff'
 import { shellSteps, snapshot, type Run, type Snapshot } from './shell'
 import {
@@ -36,6 +37,8 @@ const TITLE = 'Play-by-Play'
 const SLOW_MS = 2_000
 /** Each git call's limit: a call past it fails, which pauses tracking too. */
 const GIT_TIMEOUT_MS = SLOW_MS + 1_000
+/** Narrower than this, the pane keeps every column for its line and Bolt steps out. */
+const BOLT_MIN_COLUMNS = 40
 
 const current = atom({ plugin: 'play-by-play', key: 'current' } as const, null)
 const turns = atom({ plugin: 'play-by-play', key: 'turns' } as const, [])
@@ -309,9 +312,15 @@ export const register: Register = on => {
     const at = await read($, view)
     const turn = list[list.length - at.back]
     if (turn === undefined || turn.steps.length === 0) {
+      // Bolt sleeps while there is nothing to replay (MM-091): a static sprite,
+      // only where the pane has room for it.
+      const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
       return (
         <Box flexDirection="column">
-          <Text dimColor>Nothing to replay yet: no turn has changed files.</Text>
+          <Box key="empty" flexDirection="row" gap={2} alignItems="center">
+            {roomy ? boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'sleep' }) : null}
+            <Text dimColor>Nothing to replay yet: no turn has changed files.</Text>
+          </Box>
           {close}
         </Box>
       )
