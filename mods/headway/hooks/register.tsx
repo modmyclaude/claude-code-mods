@@ -172,14 +172,14 @@ export const register: Register = on => {
       return {}
     }
     if (word !== '') {
-      $.ui.toast('headway: try /headway, /headway hide or /headway show.')
+      $.ui.toast('try /headway, /headway hide or /headway show.')
       return {}
     }
     const opened = await $.ui.open({ id: PANE, title: 'Headway', focus: true, closeOnEscape: true })
-    if (!opened.isPlaced) $.ui.toast(`headway: the plan pane is waiting (${opened.reason}).`)
+    if (!opened.isPlaced) $.ui.toast(`the plan pane is waiting (${opened.reason}).`)
     return {}
   }).catch($ => {
-    $.ui.toast('headway: that command failed.')
+    $.ui.toast('that command failed.')
     return {}
   })
 

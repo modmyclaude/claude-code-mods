@@ -77,6 +77,7 @@ Change them in `/config`.
 
 ## Limits
 
+- In the desktop app, a `/breathe` sent as the very first prompt of a new session may show "/breathe isn't a command here." The app checks the command before mods have registered theirs; the command still runs, and later ones show no such line.
 - **Surfaces:** the band and the spinner are drawn by Claude Code in the terminal and the desktop app only. On mobile and in VS Code mods get neither, so there Second Wind puts the current cue in its status line instead, and only when no terminal or desktop window is attached to the session.
 - **The desktop circle** is an SVG picture, which cannot use theme keys. It is a soft blue at partial opacity that follows the app's light or dark mode. Everything else uses your theme's colours. The circle animates each step of the breath by itself, so if the band first appears mid-step, that one step plays from its start; the next step is back in time.
 - **Days** are your computer's local calendar days. Flying west so the date goes back never breaks a streak.

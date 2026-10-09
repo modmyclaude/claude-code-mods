@@ -410,7 +410,7 @@ describe('/headway', () => {
     await headway($, 'show')
     await expectBand($, 'Plan the schema (0/6) ▱▱▱▱▱▱')
     await headway($, 'sideways')
-    expect(w.toasts).toContain('headway: try /headway, /headway hide or /headway show.')
+    expect(w.toasts).toContain('try /headway, /headway hide or /headway show.')
   })
 
   test('opens a pane with every step’s status and time; its button toggles the line', async ($, on) => {

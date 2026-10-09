@@ -565,7 +565,7 @@ test('desktop: a refused Send says why and keeps the suggestion to try again', a
   await ui.press({ key: 'send' })
 
   expect(seen.submitted).toHaveLength(1)
-  expect(seen.toasts).toEqual(['Crossroads: the prompt was not sent (a policy hook refused it).'])
+  expect(seen.toasts).toEqual(['The prompt was not sent (a policy hook refused it).'])
   expect(await ui.find({ key: 'send' })).toBeDefined()
   expect(await crossroads($, seen)).toContain('taken 0')
 })
@@ -643,17 +643,17 @@ test('/crossroads shows calls and cost in a toast, never to the model; off, on a
   expect(status).toContain('Today: 1 call, about $0.0002')
   expect(status).toContain('ignored 3')
 
-  expect(await run('off')).toContain('Crossroads is off')
+  expect(await run('off')).toContain('Off')
   await finishTurn($, seen)
   expect(seen.calls).toHaveLength(1)
   // Off means fully off: even a risky engine guess passes as the engine made it.
   expect((await $.prompt.suggest({ text: 'git push', origin: ENGINE })).isShown).toBe(true)
 
-  expect(await run('on')).toContain('Crossroads is on')
+  expect(await run('on')).toContain('On. Suggestions')
   await finishTurn($, seen)
   expect(seen.calls).toHaveLength(2)
 
-  expect(await run('forget')).toContain('forgot')
+  expect(await run('forget')).toContain('Forgot')
   expect(await run('')).toContain('taken 0, edited 0, ignored 0')
   expect(await run('bogus')).toContain('Usage')
 })
@@ -661,7 +661,7 @@ test('/crossroads shows calls and cost in a toast, never to the model; off, on a
 test('/crossroads still answers when its store fails', async ($, on) => {
   const seen = world(on)
   seen.isStoreBroken = true
-  expect(await crossroads($, seen)).toBe('Crossroads could not read its counts.')
+  expect(await crossroads($, seen)).toBe('Could not read its counts.')
 })
 
 test('a prompt always goes in, even when learning from it fails', async ($, on) => {
@@ -826,7 +826,7 @@ describe('control characters never take the band down (API-GOTCHAS #31)', () => 
       await ui.press({ key: 'pick-1' })
       await ui.press({ key: 'send' })
       expect(seen.toasts).toHaveLength(1)
-      expect(seen.toasts[0]).toMatch(/^Crossroads: the prompt was not sent \(policy\uFFFD? says no\)\.$/)
+      expect(seen.toasts[0]).toMatch(/^The prompt was not sent \(policy\uFFFD? says no\)\.$/)
       await ui.unmount()
       for (const surface of SURFACES) await (await mountBand($, surface)).unmount()
     })

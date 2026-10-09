@@ -205,7 +205,7 @@ export function world(on: On, setup: WorldSetup = {}) {
     async say($: Engine, args = '') {
       const logged = rec.logs.length
       const result = await this.breathe($, args)
-      return { result, text: rec.logs.length > logged ? rec.logs.at(-1) : undefined }
+      return { result, text: rec.logs.length > logged ? rec.logs.slice(logged).join('\n') : undefined }
     },
     band($: Engine, surface: Surface, over: Partial<RenderPropsOf['AbovePrompt']> = {}) {
       return $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(over), viewport: VIEWPORT })

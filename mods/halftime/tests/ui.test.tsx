@@ -76,7 +76,7 @@ for (const surface of SURFACES) {
     expect(line).toContain('halftime daily 10-09 · sweep 47s · played 47s')
     await ui.press({ key: 'copy' })
     expect(seen.copies).toEqual(['halftime daily 10-09 · sweep 47s · played 47s'])
-    expect(seen.toasts).toContain('halftime: result copied')
+    expect(seen.toasts).toContain('result copied')
 
     // Again: the same daily field, now losing on a mine; the best stands.
     await ui.press({ key: 'again' })
@@ -273,7 +273,7 @@ test('commands: help, off, auto, practice', async ($, on) => {
   expect(await said($, seen, 'sweep practice')).toContain('sweep is above the prompt')
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   expect(titleText((await boardOf(ui))!)).toContain('practice')
-  expect(await said($, seen, 'off')).toBe('halftime: closed')
+  expect(await said($, seen, 'off')).toBe('closed')
   expect(await bandText(ui)).toBe('ENGINE')
   expect(await said($, seen, 'auto on')).toContain('auto is on')
   await $.command.run(halftime(''))

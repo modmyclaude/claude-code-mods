@@ -319,7 +319,7 @@ test('auto mode only offers a line after 10 s of a main-loop turn, and never tak
   await clock.advance(30_000)
   expect(await bandText(ui)).toBe('ENGINE')
 
-  expect(await said($, seen, 'auto off')).toBe('halftime auto is off')
+  expect(await said($, seen, 'auto off')).toBe('auto is off')
   await $.turn.start({ text: 'long one', turnId: 'main-3' })
   await clock.advance(30_000)
   expect(await bandText(ui)).toBe('ENGINE')

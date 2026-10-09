@@ -391,7 +391,8 @@ export const register: Register = (on, options) => {
   // The answer is for the person, not the model (API-GOTCHAS #18): a dim
   // transcript line Claude never reads, and an empty result.
   on('command.run', { command: 'breathe' }, async ($, e) => {
-    $.ui.log((await breathe($, e.args, e.origin.kind)).text)
+    // One log line per line: the desktop app runs a multi-line log together (MM-087).
+    for (const line of (await breathe($, e.args, e.origin.kind)).text.split('\n')) $.ui.log(line)
     return {}
   }).catch(($) => {
     $.ui.log('Second Wind could not answer that just now.')

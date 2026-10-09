@@ -47,6 +47,7 @@ None. Use the commands above.
 
 ## Limits
 
+- In the desktop app, a `/crossroads` sent as the very first prompt of a new session may show "/crossroads isn't a command here." The app checks the command before mods have registered theirs; the command still runs, and later ones show no such line.
 - The model's reply must be strict JSON followed by an `END` line. A reply that is cut off or malformed shows nothing rather than half a list.
 - Claude Code's own guess only exists in the terminal, and only when its prompt suggestions are on. Crossroads waits up to 4 seconds for it, then writes all three itself. A guess that arrives later becomes option 1 (the last suggestion drops off), so the ghost text and option 1 still agree.
 - Button labels keep the surface's own button style (the API gives buttons no colour), so the risk note beside a risky item is what is amber.

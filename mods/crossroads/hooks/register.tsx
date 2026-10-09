@@ -187,7 +187,7 @@ async function refuseModel($: EngineInterface, why: string) {
   if (live.isModelRefused) return
   live.isModelRefused = true
   debug($, `model refused: ${why}`)
-  $.ui.toast(`Crossroads: the small model is not available here (${clip(clean(why), 80)}). No suggestions this session.`)
+  $.ui.toast(`The small model is not available here (${clip(clean(why), 80)}). No suggestions this session.`)
 }
 
 async function readEnv($: EngineInterface): Promise<string | undefined> {
@@ -345,7 +345,7 @@ async function pick($: EngineInterface, press: UiPressArgument, index: number) {
     filled = undefined
   }
   if (filled?.refusal === 'dialog') {
-    $.ui.toast('Crossroads: close the open dialog, then pick again.')
+    $.ui.toast('Close the open dialog, then pick again.')
 
     return
   }
@@ -399,7 +399,7 @@ async function send($: EngineInterface) {
     refusal = String(error)
   }
   if (refusal !== undefined) {
-    $.ui.toast(`Crossroads: the prompt was not sent (${clip(clean(refusal), 80)}).`)
+    $.ui.toast(`The prompt was not sent (${clip(clean(refusal), 80)}).`)
     live.take = { text: item.text, kind: item.kind }
     await update($, view, (): CrossroadsView => ({ phase: 'copied', epoch: taken.epoch, item, isCopied: true }))
 
@@ -510,19 +510,19 @@ export const register: Register = on => {
       moveOn()
       live.shown = undefined
       await clearView($)
-      $.ui.toast('Crossroads is off. /crossroads on turns it back on.')
+      $.ui.toast('Off. /crossroads on turns it back on.')
 
       return {}
     }
     if (arg === 'on') {
       await $.store.set('enabled', true)
-      $.ui.toast('Crossroads is on. Suggestions appear after your next turn.')
+      $.ui.toast('On. Suggestions appear after your next turn.')
 
       return {}
     }
     if (arg === 'forget') {
       await $.store.delete(await projectStoreKey($))
-      $.ui.toast('Crossroads forgot what it had counted for this project.')
+      $.ui.toast('Forgot what it had counted for this project.')
 
       return {}
     }
@@ -538,7 +538,7 @@ export const register: Register = on => {
 
     return {}
   }).catch($ => {
-    $.ui.toast('Crossroads could not read its counts.')
+    $.ui.toast('Could not read its counts.')
 
     return {}
   })

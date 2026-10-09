@@ -85,6 +85,7 @@ session.
 
 ## Limits
 
+- In the desktop app, a `/halftime` sent as the very first prompt of a new session may show "/halftime isn't a command here." The app checks the command before mods have registered theirs; the command still runs, and later ones show no such line.
 - **Terminal and desktop app only.** VS Code and the mobile app have no band
   and no board; there `/halftime` shows a one-line scorecard instead.
 - **Starting a game cannot hand it your keys.** Claude Code gives the band the

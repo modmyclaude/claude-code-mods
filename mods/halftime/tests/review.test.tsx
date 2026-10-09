@@ -82,10 +82,10 @@ test('R-3 (#18): where the band draws, every /halftime answer is a toast and the
   for (const surfaces of [['terminal'], ['desktop'], ['mobile', 'desktop']] as const) {
     attached.splice(0, attached.length, ...surfaces)
     expect(await said($, seen, '')).toBe('halftime · cratehop - · tailchase - · merge - · sweep - · 0s played while waiting')
-    expect(await said($, seen, 'cratehop')).toBe('halftime: cratehop is above the prompt - click the board (or ctrl+x tab, then a key) to play')
-    expect(await said($, seen, 'auto on')).toContain('halftime auto is on')
-    expect(await said($, seen, 'auto off')).toBe('halftime auto is off')
-    expect(await said($, seen, 'off')).toBe('halftime: closed')
+    expect(await said($, seen, 'cratehop')).toBe('cratehop is above the prompt - click the board (or ctrl+x tab, then a key) to play')
+    expect(await said($, seen, 'auto on')).toContain('auto is on')
+    expect(await said($, seen, 'auto off')).toBe('auto is off')
+    expect(await said($, seen, 'off')).toBe('closed')
     expect(await said($, seen, 'zzz')).toContain('/halftime opens the picker')
   }
 })
@@ -98,7 +98,7 @@ test('R-3 (#18): a /halftime that fails says so in a toast, still with no text f
     return { value: undefined }
   })
   expect(await $.command.run(halftime('auto on'))).toEqual({})
-  expect(toasts).toEqual(['halftime: that did not work - try /halftime again'])
+  expect(toasts).toEqual(['that did not work - try /halftime again'])
 })
 
 for (const surface of ['vscode', 'mobile'] as const) {
@@ -139,7 +139,7 @@ test('R-4 (#22): a copy with no clipboard in the whistle line leaves the result 
   await $.turn.complete(turnDone('main-1'))
   expect(await bandText(ui)).toContain('whistle: Claude needs you')
   await ui.press({ key: 'copy' })
-  expect(seen.toasts).toContain('halftime: this surface cannot copy - select the line instead')
+  expect(seen.toasts).toContain('this surface cannot copy - select the line instead')
   // The share line is its own line, whole, so it can be selected.
   const share = await ui.find({ type: 'Text', text: /^halftime daily 10-09 · sweep lost · played/ })
   expect(share).toBeDefined()

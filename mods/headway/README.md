@@ -60,6 +60,7 @@ None.
 
 ## Limits
 
+- In the desktop app, a `/headway` sent as the very first prompt of a new session may show "/headway isn't a command here." The app checks the command before mods have registered theirs; the command still runs, and later ones show no such line.
 - Time counts only while Claude or a subagent is working, so a pause between turns never makes a step look slow. A step's time is the span since the previous step finished; steps finished together share it.
 - Time left hides (`estimating...`) while the sample coefficient of variation of the last 8 step times is above 1.0, roughly when one step took six times another. One long step (a full test run among quick edits) stops hiding it once eight newer steps have finished; the per-step median still uses the whole session.
 - A plan-mode plan with no todo or task list after it has no progress to read. Headway shows `Plan approved · 2 stages, 6 steps` until that turn ends, then clears it.

@@ -185,26 +185,26 @@ async function command($: EngineInterface, args: string): Promise<string> {
   }
   if (isGameId(word)) {
     await apply($, (s, now) => startGame(s, word, extra === 'practice' || (extra !== 'daily' && s.practice), now))
-    return `halftime: ${word} is above the prompt - click the board (or ctrl+x tab, then a key) to play`
+    return `${word} is above the prompt - click the board (or ctrl+x tab, then a key) to play`
   }
   if (word === 'auto') {
     const current = (await read($, stats)).auto
     const auto = extra === 'on' ? true : extra === 'off' ? false : !current
     await setAuto($, auto)
     return auto
-      ? `halftime auto is on: once a turn has run ${OFFER_AFTER_MS / 1000}s, a line above the prompt offers a game (it never takes your keys)`
-      : 'halftime auto is off'
+      ? `auto is on: once a turn has run ${OFFER_AFTER_MS / 1000}s, a line above the prompt offers a game (it never takes your keys)`
+      : 'auto is off'
   }
   if (word === 'off' || word === 'close') {
     await apply($, close)
-    return 'halftime: closed'
+    return 'closed'
   }
-  return `halftime: /halftime opens the picker; /halftime ${GAME_IDS.join('|')} [practice] starts one; /halftime auto [on|off]; /halftime off closes it`
+  return `/halftime opens the picker; /halftime ${GAME_IDS.join('|')} [practice] starts one; /halftime auto [on|off]; /halftime off closes it`
 }
 
 async function copy($: EngineInterface, text: string, surface: 'terminal' | 'desktop' | 'mobile' | 'vscode') {
   const copied = await $.ui.copy({ text, surface })
-  $.ui.toast(copied.isCopied ? 'halftime: result copied' : 'halftime: this surface cannot copy - select the line instead')
+  $.ui.toast(copied.isCopied ? 'result copied' : 'this surface cannot copy - select the line instead')
 }
 
 export const register: Register = on => {
@@ -247,7 +247,7 @@ export const register: Register = on => {
     return { text: scorecard(await read($, stats)) }
   }).catch($ => {
     try {
-      $.ui.toast('halftime: that did not work - try /halftime again')
+      $.ui.toast('that did not work - try /halftime again')
     } catch {
       // Nothing left to say it with.
     }
