@@ -63,33 +63,9 @@ export const RARITY_COLOR: Readonly<Record<HatchlingRarity, string>> = {
 
 // ---------------------------------------------------------------- the egg
 
-export const EGG = {
-  palette: {
-    o: '#6f6a5a',
-    a: '#f4ecd6',
-    b: '#d8c9a2',
-    c: '#ffffff',
-    d: '#6cc4b0',
-    f: '#e88fb4',
-  } as Palette,
-  body: [
-    '...oo...',
-    '..oaco..',
-    '.oacaao.',
-    '.oaaabo.',
-    'oadaaabo',
-    'oaaadabo',
-    'oafaaabo',
-    'oaaaabbo',
-    '.oaabbo.',
-    '..oooo..',
-  ],
-  /** Cracks drawn in outline colour as the egg nears 25 calls: [x, y]. */
-  cracks: [
-    [[4, 3], [3, 4]],
-    [[4, 3], [3, 4], [4, 5], [5, 4], [6, 5]],
-  ] as readonly (readonly (readonly [number, number])[])[],
-}
+// The egg is Bolt's, the modmyclaude mascot (MM-091): its upright, leaning,
+// cracked and hatching poses live in bolt.ts, copied in from brand/bolt-sprites;
+// art.ts picks one per frame.
 
 // ---------------------------------------------------------------- species
 
@@ -442,7 +418,8 @@ export const SPECIES: readonly SpeciesArt[] = [
  * `dy`/`dx` move the body; `eyes`, `mouth`, `blush` set the face; `drop`
  * slides a sweat drop; `z` draws the sleep letter; `confetti` picks a confetti
  * pattern; `white` flashes the silhouette; `use` picks which stage an
- * evolution frame shows; `skew` tilts the egg; `split` cracks it open.
+ * evolution frame shows; `skew` leans the egg and `split` lifts its lid (Bolt's
+ * egg poses, art.ts).
  */
 export type Pose = {
   dy?: number

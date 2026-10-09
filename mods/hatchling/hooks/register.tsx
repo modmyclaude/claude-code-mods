@@ -395,7 +395,8 @@ export const register: Register = on => {
       )
     }
 
-    let sprite = spriteRows({ Box, Text }, cells, 'sprite', '\u00a0')
+    let sprite =
+      e.surface === 'desktop' ? spriteCells({ Box, Text }, cells, 'sprite') : spriteRows({ Box, Text }, cells, 'sprite', '\u00a0')
     if (e.surface === 'terminal') {
       // The terminal has a cell grid element: one Raster, not a Text per run.
       const { Raster } = $.ui.resolve(e)
@@ -466,7 +467,9 @@ export const register: Register = on => {
     const lines = body.split('\n')
     return (
       <Box key="stats" flexDirection="row" gap={2} alignItems="center">
-        {spriteRows({ Box, Text }, toCells(portrait), 'portrait', blank)}
+        {e.surface === 'desktop'
+          ? spriteCells({ Box, Text }, toCells(portrait), 'portrait')
+          : spriteRows({ Box, Text }, toCells(portrait), 'portrait', blank)}
         <Box flexDirection="column">
           {lines.map((text, i) =>
             i === 0 ? (
@@ -531,7 +534,33 @@ function shortProgress(pet: HatchlingPet): string {
   return `${pet.xp}/${stage === 'baby' ? TEEN_XP : ADULT_XP} XP`
 }
 
-/** Text-cell sprite for surfaces without a Raster: one Text per row of runs. */
+/**
+ * The desktop's sprite: one code-font cell per character, as bolt-draw.tsx draws
+ * Bolt. Its Text is proportional, so rows of Text runs drift out of line (MM-084).
+ */
+function spriteCells({ Box, Text }: Tags, cells: readonly (readonly Cell[])[], key: string) {
+  return (
+    <Box key={key} flexDirection="column" flexShrink={0}>
+      {cells.map(line => (
+        <Box flexDirection="row" flexWrap="nowrap">
+          {line.map(cell => {
+            if (cell.fg === undefined && cell.bg === undefined) return <Box width={1} />
+            const paint: TextProps = {}
+            if (cell.fg !== undefined) paint.color = cell.fg
+            if (cell.bg !== undefined) paint.backgroundColor = cell.bg
+            return (
+              <Box width={1}>
+                <Text {...paint}>{cell.ch}</Text>
+              </Box>
+            )
+          })}
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
+/** Text-cell sprite for the terminal's /pet rows and surfaces with no cell grid: one Text per row of runs. */
 function spriteRows({ Box, Text }: Tags, cells: readonly (readonly Cell[])[], key: string, blank: string) {
   return (
     <Box key={key} flexDirection="column">

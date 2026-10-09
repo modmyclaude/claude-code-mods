@@ -15,6 +15,8 @@ export type Table = { Box: ElementConstructor<BoxProps>; Text: ElementConstructo
 
 /** Under this many columns a tool row drops its status and timing chip. */
 const NARROW = 60
+/** Under this many columns the /wear list leaves Bolt out. */
+const BOLT_MIN_COLUMNS = 40
 
 /** The engine's own result gutter, drawn in the terminal's default colours. */
 const GUTTER = '  ⎿ '
@@ -210,20 +212,35 @@ export function describeLook(look: WardrobeLook, settings: Settings): string {
   return `Wearing ${look.theme} ${where}.`
 }
 
-/** `/wear` with no argument: every theme with a one-line preview in its own colours. */
+/**
+ * `/wear` with no argument: every theme with a one-line preview in its own colours,
+ * and Bolt (MM-091) beside the line that names what is worn. Bolt arrives drawn in
+ * its own palette and no theme colour touches it.
+ */
 export function listTree(
   t: Table,
   look: WardrobeLook,
   settings: Settings,
   problems: readonly string[],
   columns: number | undefined,
+  bolt: RenderElement,
 ): RenderElement {
   const { Box, Text } = t
   const wide = (columns ?? 80) >= 76
   const wearing = (choice: string) => (look.choice === choice ? <Text bold>(wearing)</Text> : null)
+  const worn = <Text>{describeLook(look, settings)}</Text>
   return (
     <Box flexDirection="column">
-      <Text>{describeLook(look, settings)}</Text>
+      {(columns ?? 80) >= BOLT_MIN_COLUMNS ? (
+        <Box key="worn" flexDirection="row" gap={1}>
+          {bolt}
+          <Box flexDirection="column" flexShrink={1}>
+            {worn}
+          </Box>
+        </Box>
+      ) : (
+        worn
+      )}
       <Box key="theme-default" flexDirection="row" gap={1}>
         <Text>{DEFAULT.padEnd(NAME_WIDTH)}</Text>
         <Text>Claude Code's own drawing</Text>

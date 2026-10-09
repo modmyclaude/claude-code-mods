@@ -9,6 +9,8 @@ import type { On, RenderElement, RenderNode, RenderSurface } from 'claude-code'
 
 import type { HatchlingPet } from '../types'
 import { rasterText } from '../hooks/art'
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+import type { BoltPick } from '../hooks/bolt-draw'
 import { applyToolCall, normalizePet } from '../hooks/pet'
 
 const T0 = Date.UTC(2026, 9, 1, 9)
@@ -185,12 +187,12 @@ async function shown(ui: Drawing): Promise<string> {
   return textOf((await ui.drawn()) as RenderElement).replace(/\u00a0/g, ' ')
 }
 
-/** The sprite as rows of characters, from a Raster or from Text rows. */
+/** The sprite as rows of characters, from a Raster or from the desktop's rows of one-cell Boxes. */
 async function sprite(ui: Drawing): Promise<string[] | undefined> {
   const found = await ui.find({ key: 'sprite' })
   if (found === undefined) return undefined
   if (found.type === 'Raster') return rasterText(String(found.props.cells), Number(found.props.columns))
-  return (found.children as RenderNode[]).map(row => textOf(row).replace(/\u00a0/g, ' '))
+  return (found.children as RenderNode[]).map(row => ((row as { children?: RenderNode[] }).children ?? []).map(cell => textOf(cell) || ' ').join(''))
 }
 
 describe('first run and hatching', () => {
@@ -1023,5 +1025,148 @@ describe('verify follow-ups', () => {
     w.store.set('pet', savedPet({ name: 'Bao', xp: 300 }))
     expect((await petCommand($, '')).text).toContain('Bao the Geobug')
     expect(pet(w).name).toBe('Bao')
+  })
+})
+
+describe("Bolt's egg, and the desktop's cell grid", () => {
+  // The egg is Bolt's (MM-091): `egg`, leaning with the wobble while Claude works,
+  // cracked from 15 calls, and lifting its lid as it hatches. A Raster on the terminal;
+  // on the desktop, like every hatchling sprite, one code-font cell per character so
+  // rows never drift (MM-084).
+  type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  /** Bolt as drawn: the Raster's cells, or each desktop row as `width:ch|fg|bg` per one-cell Box. */
+  const drawnBolt = (bolt: Drawn | undefined) => {
+    if (bolt === undefined) return undefined
+    if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows, bolt.props?.cells]
+    return ((bolt.children ?? []) as Drawn[]).map(line =>
+      ((line.children ?? []) as Drawn[]).map(cell => {
+        const text = (cell.children ?? [])[0] as Drawn | undefined
+        const paint = text === undefined ? ' ' : `${(text.children ?? []).join('')}|${text.props?.color ?? ''}|${text.props?.backgroundColor ?? ''}`
+        return `${String(cell.type)}${String(cell.props?.width)}:${paint}`
+      }),
+    )
+  }
+  /** What `pick` must draw as on `surface`: its exact cells, at its exact size. */
+  const boltAs = (surface: string, pick: BoltPick) => {
+    const cells = boltOf(pick)
+    if (surface === 'terminal') return [cells[0]?.length, cells.length, rasterCells(cells)]
+    return cells.map(line =>
+      line.map(c => `Box1:${c.fg === undefined && c.bg === undefined ? ' ' : `${c.ch}|${c.fg ?? ''}|${c.bg ?? ''}`}`),
+    )
+  }
+  const EGG: BoltPick = { size: 'small', pose: 'egg' }
+  const CRACK: BoltPick = { size: 'small', pose: 'egg-crack-1' }
+  const pick = (pose: 'egg-wobble-l' | 'egg-wobble-r' | 'egg-crack-3' | 'egg-hatch'): BoltPick => ({ size: 'small', pose })
+  /** Every desktop sprite row: a no-wrap row of Boxes one cell wide, each holding at most one character. */
+  const gridOf = (found: Drawn | undefined) =>
+    ((found?.children ?? []) as Drawn[]).map(row => {
+      const cells = (row.children ?? []) as Drawn[]
+      const isGrid =
+        row.type === 'Box' && row.props?.flexWrap === 'nowrap' &&
+        cells.every(cell => cell.type === 'Box' && cell.props?.width === 1 && [...textOf(cell as RenderNode)].length <= 1)
+      return isGrid ? cells.length : -1
+    })
+
+  test("the egg is Bolt's egg on both surfaces, cracked from 15 calls, and the info beside it is unchanged", async ($, on) => {
+    const w = world(on)
+    await start($)
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(drawnBolt(await ui.find({ key: 'sprite' })), surface).toEqual(boltAs(surface, EGG))
+      expect(await shown(ui)).toContain('Egg  hatches in 25 tool calls')
+      expect(await shown(ui)).toContain('Something stirs inside the egg')
+      await ui.unmount()
+    }
+    await bash($, 'ls', 14)
+    const still = await band($, 'desktop')
+    expect(drawnBolt(await still.find({ key: 'sprite' }))).toEqual(boltAs('desktop', EGG))
+    await still.unmount()
+    await bash($, 'ls')
+    expect(pet(w).eggCalls).toBe(15)
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(drawnBolt(await ui.find({ key: 'sprite' })), surface).toEqual(boltAs(surface, CRACK))
+      expect(await shown(ui)).toContain('15/25 to hatch')
+      await ui.unmount()
+    }
+  })
+
+  test("while Claude works the egg wobbles on its own timer through Bolt's upright and leaning poses", async ($, on) => {
+    const w = world(on)
+    await start($)
+    await $.turn.start({ text: 'go', turnId: 't1' })
+    const poses = [EGG, pick('egg-wobble-l'), pick('egg-wobble-r')]
+    for (const surface of SURFACES) {
+      const ui = await band($, surface, { isWorking: true })
+      const seen = new Set<number>()
+      for (let i = 0; i < 8; i += 1) {
+        const drawn = drawnBolt(await ui.find({ key: 'sprite' }))
+        const at = poses.findIndex(one => JSON.stringify(boltAs(surface, one)) === JSON.stringify(drawn))
+        expect(at, `${surface} frame ${i}`).toBeGreaterThanOrEqual(0)
+        seen.add(at)
+        await w.clock.advance(FRAME)
+      }
+      expect(seen.size, surface).toBe(3)
+      expect(await shown(ui)).toContain('The egg is wobbling...')
+      await ui.unmount()
+    }
+    expect(w.timers.every).toBeGreaterThanOrEqual(16)
+  })
+
+  test('the hatch shows the last crack, the lid lifting, then the pet, never Bolt again; a narrow band draws no egg', async ($, on) => {
+    const w = world(on)
+    await start($)
+    const narrow = await band($, 'terminal', { bodyColumns: 24 })
+    expect(await narrow.find({ key: 'sprite' })).toBeUndefined()
+    expect(await shown(narrow)).toMatch(/^[\u2588\u2591]{5} Something stirs inside the egg$/)
+    await narrow.unmount()
+    await bash($, 'ls', 25)
+    expect(pet(w).hatch).toBeDefined()
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(drawnBolt(await ui.find({ key: 'sprite' })), surface).toEqual(boltAs(surface, pick('egg-crack-3')))
+      await ui.unmount()
+    }
+    await w.clock.advance(4 * FRAME)
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(drawnBolt(await ui.find({ key: 'sprite' })), surface).toEqual(boltAs(surface, pick('egg-hatch')))
+      await ui.unmount()
+    }
+    await w.clock.advance(16 * FRAME)
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      const drawn = drawnBolt(await ui.find({ key: 'sprite' }))
+      expect(drawn, surface).toBeDefined()
+      for (const one of [EGG, CRACK, pick('egg-crack-3'), pick('egg-hatch')]) expect(drawn, surface).not.toEqual(boltAs(surface, one))
+      await ui.unmount()
+    }
+  })
+
+  test('on the desktop every sprite row is one code-font cell per character: egg, pets at each stage, and the /pet row', async ($, on) => {
+    const w = world(on)
+    await start($)
+    const sizes: [number, number][] = [[10, 5], [10, 5], [12, 5], [16, 6]]
+    const pets = [undefined, savedPet({ xp: 0 }), savedPet({ xp: 300 }), savedPet({ xp: 900 })]
+    for (const [i, saved] of pets.entries()) {
+      if (saved !== undefined) {
+        w.store.set('pet', saved)
+        await start($)
+      }
+      const [columns, rows] = sizes[i] ?? [0, 0]
+      const ui = await band($, 'desktop')
+      expect(gridOf(await ui.find({ key: 'sprite' })), `pet ${i}`).toEqual(Array<number>(rows).fill(columns))
+      await ui.unmount()
+      const terminal = await band($, 'terminal')
+      expect((await terminal.find({ key: 'sprite' }))?.type, `pet ${i}`).toBe('Raster')
+      await terminal.unmount()
+    }
+    const stats = (await petCommand($, '')).text ?? ''
+    const row = await $.ui.mount({
+      plugin: 'hatchling', surface: 'desktop', component: 'CommandOutput',
+      props: { command: 'pet', args: '', text: stats, isErrored: false },
+    })
+    expect(gridOf(await row.find({ key: 'portrait' }))).toEqual(Array<number>(6).fill(16))
+    expect(await shown(row)).toContain('Pip the Geobug')
   })
 })

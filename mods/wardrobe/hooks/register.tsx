@@ -9,6 +9,7 @@ import { atom, read } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, Timer } from 'claude-code'
 
 import type { WardrobeLook } from '../types'
+import { boltSprite } from './bolt-draw'
 import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, groupRow, listText, listTree, shellTree, spinnerRow, toolRow, turnRow } from './draw'
 import { AUTO, CHOICES, DEFAULT, minuteOfDay, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
@@ -225,9 +226,10 @@ export const register: Register = (on, options) => {
     return drewOwn(below) ? below : turnRow($.ui.resolve(e), theme, word, durationMs)
   }).catch(($, e, next) => next(e))
 
-  // The `/wear` pane: every theme previewed in its own colours, the worn one marked.
-  // Box and Text alone, so it draws on every surface that shows a pane.
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =>
-    listTree($.ui.resolve(e), await read($, look), settings, problems, e.props.bodyColumns),
-  ).catch(($, e, next) => next(e))
+  // The `/wear` pane: every theme previewed in its own colours, the worn one marked,
+  // and a static Bolt (MM-091). Box and Text alone, but for Bolt's Raster on the terminal.
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const bolt = boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'idle' })
+    return listTree($.ui.resolve(e), await read($, look), settings, problems, e.props.bodyColumns, bolt)
+  }).catch(($, e, next) => next(e))
 }

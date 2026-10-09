@@ -12,7 +12,8 @@ A collectible pixel pet that hatches, reacts and evolves while you code.
 
 ## Use it
 
-An egg appears in a small band above your prompt. It wobbles while Claude works and hatches after
+An egg appears in a small band above your prompt: Bolt's egg, in the modmyclaude mascot's lime with
+its antenna light on. It wobbles while Claude works, cracks as it nears hatching and hatches after
 25 tool calls into one of 8 original species:
 
 | Species | Rarity | Odds |

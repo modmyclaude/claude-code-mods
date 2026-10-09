@@ -14,7 +14,7 @@ export const BOLT_PALETTE = {
 } as const
 
 export type BoltSize = 'small' | 'tiny'
-export type BoltSmallPose = 'idle' | 'run1' | 'run2' | 'jump' | 'crash' | 'cheer' | 'sleep' | 'think' | 'egg' | 'egg-crack'
+export type BoltSmallPose = 'idle' | 'run1' | 'run2' | 'jump' | 'crash' | 'cheer' | 'sleep' | 'sweat' | 'think' | 'egg' | 'egg-wobble-l' | 'egg-wobble-r' | 'egg-crack-1' | 'egg-crack-2' | 'egg-crack-3' | 'egg-hatch'
 export type BoltTinyPose = 'idle' | 'run1' | 'run2' | 'jump' | 'crash' | 'cheer' | 'sleep'
 export type BoltPose = BoltSmallPose | BoltTinyPose
 
@@ -31,9 +31,15 @@ export const BOLT_SPRITES = {
     'crash': ['......OO..', '.....S....', '..BBBBBB..', '.BBBBBBBB.', 'BEBEBBEBEB', 'BBEBBBBEBB', 'BEBEBBEBEB', 'BBBBEEBBBB', '.SSSSSSSS.', 'SS......SS'],
     'cheer': ['S...OO...S', 'S...SS...S', 'SBBBBBBBBS', '.BBBBBBBB.', 'BBWEBBWEBB', 'BBEEBBEEBB', 'BKKBBBBKKB', 'BBBEEEEBBB', '.SSSSSSSS.', '..SS..SS..'],
     'sleep': ['....SS....', '....SS....', '..BBBBBB..', '.BBBBBBBB.', 'BBBBBBBBBB', 'BBEEBBEEBB', 'BKKBBBBKKB', 'BBBBBBBBBB', '.SSSSSSSS.', '..SS..SS..'],
+    'sweat': ['....OO....', '....SS...G', '..BBBBBB.G', '.BBBBBBBB.', 'BBWEBBWEBB', 'BBEEBBEEBB', 'BKKBBBBKKB', 'BBBBEEEBBB', '.SSSSSSSS.', '..SS..SS..'],
     'think': ['....OO....', '....SS....', '..BBBBBB..', '.BBWEBWEB.', 'BBBEEBEEBB', 'BBBBBBBBBB', 'BKKBBBBKKB', 'BBBBBEBBBB', '.SSSSSSSS.', '..SS..SS..'],
-    'egg': ['....OO....', '....SS....', '...BBBB...', '..BWBBBB..', '.BWBBBBBB.', '.BBBBBSBB.', '.BBSBBBBB.', '.BBBBBBBS.', '..BBBBBS..', '...SSSS...'],
-    'egg-crack': ['....OO....', '....SS....', '...BBBB...', '..BWBBBB..', '.BWBBBBBB.', '.BEBEBEBB.', '.BBEBEBEB.', '.BBBBBBBS.', '..BBBBBS..', '...SSSS...'],
+    'egg': ['....OO....', '....SS....', '...BWBB...', '..BWBBBB..', '..BBBBBB..', '.BBBBBBBB.', '.BBBBBBBB.', '.BBBBBBBS.', '..BBBBBS..', '...SSSS...'],
+    'egg-wobble-l': ['...OO.....', '...SS.....', '..BWBB....', '.BWBBBB...', '.BBBBBB...', '.BBBBBBBB.', '.BBBBBBBB.', '.BBBBBBBS.', '..BBBBBS..', '...SSSS...'],
+    'egg-wobble-r': ['.....OO...', '.....SS...', '....BWBB..', '...BWBBBB.', '...BBBBBB.', '.BBBBBBBB.', '.BBBBBBBB.', '.BBBBBBBS.', '..BBBBBS..', '...SSSS...'],
+    'egg-crack-1': ['....OO....', '....SS....', '...BWBB...', '..BWBBBB..', '..BBBBBB..', '.BBBBBBBB.', '.BEBBBBBB.', '.BBEBBBBS.', '..BBBBBS..', '...SSSS...'],
+    'egg-crack-2': ['....OO....', '....SS....', '...BWBB...', '..BWBBBB..', '..BBBBBB..', '.BBBBBBBB.', '.BEBEBBBB.', '.BBEBEBBS.', '..BBBBBS..', '...SSSS...'],
+    'egg-crack-3': ['....OO....', '....SS....', '...BWBB...', '..BWBBBB..', '..BBBBBB..', '.BBBBBBBB.', '.BEBEBEBB.', '.BBEBEBES.', '..BBBBBS..', '...SSSS...'],
+    'egg-hatch': ['......OO..', '......SS..', '....BWBBBB', '....B.B.B.', '..........', '..........', '.B.B.B.BB.', '.BSSSSSSB.', '..BBBBBS..', '...SSSS...'],
   },
   tiny: {
     'idle': ['.O.', 'BEB', 'BBB', 'S.S'],

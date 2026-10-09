@@ -14,13 +14,16 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput, ThemeKey, Timer } from 'claude-code'
 
-import { detailLines, detailText } from './detail'
-import type { Tone } from './detail'
+import { boltSprite } from './bolt-draw'
+import { boltPose, detailLines, detailText } from './detail'
+import type { DetailLine, Tone } from './detail'
 import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
 import type { Level, Reading } from './gauge'
 import type { RedlineGauge } from '../types'
 
 const PANE = 'redline'
+/** Narrower than this, the detail pane keeps every column for the figures and Bolt steps out. */
+const BOLT_MIN_COLUMNS = 40
 const BAND_STORE_KEY = 'isBandOn'
 const gauge = atom({ plugin: 'redline', key: 'gauge' } as const, EMPTY_GAUGE)
 const isBandOn = atom({ plugin: 'redline', key: 'isBandOn' } as const, false)
@@ -267,13 +270,30 @@ export const register: Register = on => {
     const lines = detailLines(g, now, e.props.bodyColumns >= 70 ? 20 : 10)
     const toneProps = (tone: Tone) =>
       tone === 'title' ? { bold: true } : tone === 'dim' ? { dimColor: true } : tone === 'plain' ? {} : { color: LEVEL_COLOR[tone] }
+    const row = (line: DetailLine) => (
+      <Box key={line.key}>
+        <Text {...toneProps(line.tone)}>{line.text}</Text>
+      </Box>
+    )
+    // Bolt keeps watch beside the context row (MM-091): a static sprite, crashed
+    // once the context is full or a plan window is spent; only where the pane has room.
+    const at = lines.findIndex(line => line.key === 'context')
+    const end = lines[at + 1]?.key === 'context-used' ? at + 2 : at + 1
+    const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
     return (
       <Box flexDirection="column">
-        {lines.map(line => (
-          <Box key={line.key}>
-            <Text {...toneProps(line.tone)}>{line.text}</Text>
-          </Box>
-        ))}
+        {roomy
+          ? [
+              ...lines.slice(0, at).map(row),
+              <Box key="context-row" flexDirection="row" gap={2}>
+                <Box flexDirection="column" flexShrink={1}>
+                  {lines.slice(at, end).map(row)}
+                </Box>
+                {boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: boltPose(g, now) })}
+              </Box>,
+              ...lines.slice(end).map(row),
+            ]
+          : lines.map(row)}
         <Box flexDirection="row" gap={1} marginTop={1}>
           <Button key="band" label={band ? 'Hide band' : 'Show band'} onPress={() => setBand($, was => !was)} />
           <Button key="close" label="Close" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />

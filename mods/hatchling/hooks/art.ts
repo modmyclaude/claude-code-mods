@@ -1,8 +1,11 @@
-// Turns the art in sprites.ts into pixels for one mood and frame, then into
-// text cells (half-blocks: two pixels per cell) for every surface. Pure.
+// Turns the art in sprites.ts (and Bolt's egg, from bolt.ts) into pixels for one
+// mood and frame, then into text cells (half-blocks: two pixels per cell) for
+// every surface. Pure.
 
 import type { HatchlingMood, HatchlingSpecies, HatchlingStage } from '../types'
-import { CANVAS, CONFETTI, EGG, EGG_WORKING, FX, MOODS, SPECIES } from './sprites'
+import { BOLT_PALETTE, BOLT_SPRITES } from './bolt'
+import type { BoltSmallPose } from './bolt'
+import { CANVAS, CONFETTI, EGG_WORKING, FX, MOODS, SPECIES } from './sprites'
 import type { MoodArt, Pose, SpeciesArt } from './sprites'
 
 /** A pixel: a #rrggbb colour, or null where nothing is drawn. */
@@ -29,6 +32,9 @@ export type View = {
   /** The stage before an evolution (the evolve flash shows both). */
   from?: HatchlingStage
 }
+
+/** Tool calls from which the egg shows its first crack, and its second, before it hatches at 25. */
+const CRACKS_AT = [15, 21] as const
 
 const UPPER = '▀' // ▀
 const LOWER = '▄' // ▄
@@ -147,34 +153,45 @@ function put(frame: Frame, x: number, y: number, color: string, isInk: boolean):
   inkRow[x] = isInk
 }
 
-function drawEgg(frame: Frame, view: View, mood: HatchlingMood, pose: Pose): void {
-  const body = EGG.body
-  const x0 = Math.floor((frame.w - (body[0]?.length ?? 0)) / 2)
-  const y0 = frame.h - body.length
-  const cracks =
-    mood === 'hatch' ? EGG.cracks[1] : view.eggCalls >= 21 ? EGG.cracks[1] : view.eggCalls >= 15 ? EGG.cracks[0] : []
-  const isCrack = (x: number, y: number) => (cracks ?? []).some(([cx, cy]) => cx === x && cy === y)
+/**
+ * Which of Bolt's egg poses a frame shows: the lid lifting off as it hatches, the
+ * cracks as it nears 25 calls, else upright or leaning with the wobble. Bolt has no
+ * cracked lean, so a cracked egg keeps its crack on every frame of the wobble.
+ */
+function eggPose(view: View, mood: HatchlingMood, pose: Pose): BoltSmallPose {
+  if (pose.split === true) return 'egg-hatch'
+  if (mood === 'hatch') return 'egg-crack-3'
+  if (view.eggCalls >= CRACKS_AT[1]) return 'egg-crack-2'
+  if (view.eggCalls >= CRACKS_AT[0]) return 'egg-crack-1'
+  const lean = pose.skew ?? 0
+  return lean < 0 ? 'egg-wobble-l' : lean > 0 ? 'egg-wobble-r' : 'egg'
+}
 
-  body.forEach((row, y) => {
-    // A tilt moves the top half; a split lifts the top off like a lid.
-    const isTop = y < 4
-    const dx = isTop ? (pose.skew ?? 0) + (pose.split === true ? -1 : 0) : 0
-    const dy = isTop && pose.split === true ? -1 : 0
+/**
+ * The egg is Bolt's (MM-091, brand/bolt-sprites), drawn exactly as Bolt is drawn:
+ * never tilted, split or recoloured here; its own poses lean, crack and hatch.
+ */
+function drawEgg(frame: Frame, view: View, mood: HatchlingMood, pose: Pose): void {
+  const rows: readonly string[] = BOLT_SPRITES.small[eggPose(view, mood, pose)]
+  const x0 = Math.floor((frame.w - (rows[0]?.length ?? 0)) / 2)
+  const y0 = frame.h - rows.length
+  rows.forEach((row, y) => {
     for (let x = 0; x < row.length; x += 1) {
       const letter = row[x] ?? '.'
-      const color = isCrack(x, y) ? (EGG.palette.o ?? null) : letter === '.' ? null : (EGG.palette[letter] ?? null)
-      if (color !== null) put(frame, x0 + x + dx, y0 + y + dy, color, !isCrack(x, y))
+      // The crack's ink is a hole in the one-colour copy, as eyes are.
+      if (letter !== '.') put(frame, x0 + x, y0 + y, BOLT_PALETTE[letter as keyof typeof BOLT_PALETTE], letter !== 'E')
     }
   })
 }
 
+/** Bits of Bolt's eggshell around the newly hatched pet. */
 function drawShell(frame: Frame): void {
   const { w, h } = frame
-  const bits: readonly (readonly [number, number, string])[] = [
-    [0, h - 1, 'a'], [1, h - 1, 'b'], [0, h - 2, 'a'],
-    [w - 1, h - 1, 'a'], [w - 2, h - 1, 'b'],
+  const bits: readonly (readonly [number, number, keyof typeof BOLT_PALETTE])[] = [
+    [0, h - 1, 'B'], [1, h - 1, 'S'], [0, h - 2, 'B'],
+    [w - 1, h - 1, 'B'], [w - 2, h - 1, 'S'],
   ]
-  for (const [x, y, letter] of bits) put(frame, x, y, EGG.palette[letter] ?? FX.flash, true)
+  for (const [x, y, letter] of bits) put(frame, x, y, BOLT_PALETTE[letter], true)
 }
 
 function drawConfetti(frame: Frame, pattern: number): void {

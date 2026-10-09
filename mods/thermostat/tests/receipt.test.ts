@@ -1,9 +1,12 @@
 // What the receipt counts, from the usage the model requests report, and how
 // a resume, a compaction and a session without caching change the picture.
 
-import { expect, test } from 'claude-code/testing'
+import { describe, expect, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 
-import { API_KEY, MIN, SLOW, command, paneText, start, step, submit, usage, world } from './world'
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+import type { BoltPick } from '../hooks/bolt-draw'
+import { API_KEY, MIN, PANE_PROPS, SLOW, command, paneText, start, step, submit, usage, world } from './world'
 
 test('a send that re-reads the conversation cold is booked with what it cost over warm', { ...SLOW, options: { guard: 'off' } }, async ($, on) => {
   const w = world(on)
@@ -117,4 +120,123 @@ test('both commands run at once, even while a turn is in flight', async ($, on) 
   await start($)
   expect(w.registered).toContainEqual(expect.objectContaining({ name: 'warm', immediate: true }))
   expect(w.registered).toContainEqual(expect.objectContaining({ name: 'thermostat', immediate: true }))
+})
+
+describe('Bolt beside the receipt', () => {
+  // Bolt (MM-091): asleep beside the receipt's first line while the cache is cold or
+  // empty, up while it is warm, and out of the way in a narrow pane. A Raster on the
+  // terminal, one code-font cell per character on the desktop. The hold notice and
+  // the footer countdown never show it.
+  type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  const under = (node: unknown, key: string): Drawn | undefined => {
+    if (node === null || typeof node !== 'object') return undefined
+    const n = node as Drawn
+    if (n.key === key || n.props?.key === key) return n
+    for (const c of n.children ?? []) {
+      const hit = under(c, key)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
+  /** Bolt as drawn: the Raster's cells, or each desktop row as `width:ch|fg|bg` per one-cell Box. */
+  const drawnBolt = (bolt: Drawn | undefined) => {
+    if (bolt === undefined) return undefined
+    if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows, bolt.props?.cells]
+    return ((bolt.children ?? []) as Drawn[]).map(line =>
+      ((line.children ?? []) as Drawn[]).map(cell => {
+        const text = (cell.children ?? [])[0] as Drawn | undefined
+        const paint = text === undefined ? ' ' : `${(text.children ?? []).join('')}|${text.props?.color ?? ''}|${text.props?.backgroundColor ?? ''}`
+        return `${String(cell.type)}${String(cell.props?.width)}:${paint}`
+      }),
+    )
+  }
+  /** What `pick` must draw as on `surface`: its exact cells, at its exact size. */
+  const boltAs = (surface: string, pick: BoltPick) => {
+    const cells = boltOf(pick)
+    if (surface === 'terminal') return [cells[0]?.length, cells.length, rasterCells(cells)]
+    return cells.map(line =>
+      line.map(c => `Box1:${c.fg === undefined && c.bg === undefined ? ' ' : `${c.ch}|${c.fg ?? ''}|${c.bg ?? ''}`}`),
+    )
+  }
+  const SLEEP: BoltPick = { size: 'tiny', pose: 'sleep' }
+  const IDLE: BoltPick = { size: 'tiny', pose: 'idle' }
+  const SURFACES = ['terminal', 'desktop'] as const
+  const pane = ($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 100) =>
+    $.ui.mount({ plugin: 'thermostat', surface, component: 'Pane', requestId: 'thermostat-receipt', props: { ...PANE_PROPS, bodyColumns } })
+  const title = 'Thermostat receipt for this session'
+
+  test('Bolt sleeps beside the first line while nothing is cached, and stands once the cache is warm', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      const tree = await ui.drawn()
+      expect(drawnBolt(under(under(tree, 'head'), 'bolt')), surface).toEqual(boltAs(surface, SLEEP))
+      expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
+      expect((await ui.find({ key: 'head' }))?.text).toContain(title)
+      expect((await ui.findAll({ type: 'Text' })).map(one => one.text)).toContain('Cache: nothing cached yet (60m window, subscription login).')
+      await ui.unmount()
+    }
+    await step($, w, usage(140_000, 9_000))
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(under(await ui.find({ key: 'head' }), 'bolt')), surface).toEqual(boltAs(surface, IDLE))
+      expect((await ui.find({ key: 'head' }))?.text).toContain(title)
+      expect((await ui.findAll({ type: 'Text' })).map(one => one.text).join('\n')).toContain('Cache: warm, 60m left')
+      await ui.unmount()
+    }
+  })
+
+  test('a receipt left open puts Bolt to sleep when the cache goes cold, on the redraw it already gets', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await step($, w, usage(140_000, 9_000))
+    const panes = []
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      panes.push([surface, ui] as const)
+    }
+    const redraws = w.invalidates
+    await w.clock.advance(61 * MIN)
+    // Only the countdown's own 30-second redraw: Bolt adds no timer of its own.
+    expect(w.invalidates - redraws).toBe(122)
+    for (const [surface, ui] of panes) {
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, SLEEP))
+      expect((await ui.findAll({ type: 'Text' })).map(one => one.text)).toContain(
+        'Cache: cold for 1m (60m window, subscription login). 150k tokens at Opus 5.5 prices: the next send costs ~$1.20 instead of ~$0.03.',
+      )
+      await ui.unmount()
+    }
+  })
+
+  test('a narrow receipt leaves Bolt out and keeps every line', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await step($, w, usage(140_000, 9_000))
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface, 39)
+      expect(await ui.find({ key: 'bolt' }), surface).toBeUndefined()
+      expect(await ui.find({ key: 'head' })).toBeUndefined()
+      const texts = (await ui.findAll({ type: 'Text' })).map(one => one.text)
+      expect(texts[0]).toBe(title)
+      expect(texts.join('\n')).toContain('Cache: warm, 60m left')
+      await ui.unmount()
+    }
+  })
+
+  test('the hold notice and the footer countdown stay as they were, with no Bolt', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await step($, w, usage(140_000, 9_000))
+    await w.clock.advance(70 * MIN)
+    const held = await submit($, 'back again')
+    expect(held.drop).toMatch(/^Thermostat held this prompt once: the cache went cold 10m ago, so this send re-reads 150k tokens: .* Send it again to go ahead, or \/clear to start fresh\.$/)
+    for (const surface of SURFACES) {
+      const footer = await $.ui.mount({ plugin: 'thermostat', surface, component: 'SessionMode', props: { modes: [] } })
+      expect((await footer.find({ key: 'thermostat' }))?.text).toBe('cache cold · 150k to re-read')
+      expect(await footer.find({ key: 'bolt' })).toBeUndefined()
+      await footer.unmount()
+    }
+  })
 })

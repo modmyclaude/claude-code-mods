@@ -5,6 +5,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { HatchlingPet } from '../types'
 import { drawFrame, monoLines, moodArt, rasterCells, rasterText, toCells } from '../hooks/art'
+import { BOLT_PALETTE, boltCells } from '../hooks/bolt'
 import {
   ADULT_XP,
   applyToolCall,
@@ -409,10 +410,34 @@ describe('the art', () => {
     expect(monoLines(frame).every(line => line.length === CANVAS.adult.w)).toBe(true)
   })
 
-  test('the egg cracks as it nears hatching', () => {
-    const egg = (calls: number) => JSON.stringify(drawFrame({ stage: 'egg', shiny: false, eggCalls: calls }, 'idle', 0, false))
-    expect(egg(0)).toBe(egg(14))
-    expect(egg(15)).not.toBe(egg(14))
-    expect(egg(21)).not.toBe(egg(15))
+  test("the egg is Bolt's egg: it leans with the wobble, cracks at 15 and 21 calls, and lifts its lid to hatch", () => {
+    const egg = (calls: number, isWorking = false, tick = 0) =>
+      toCells(drawFrame({ stage: 'egg', shiny: false, eggCalls: calls }, 'idle', tick, isWorking))
+    expect(egg(0)).toEqual(boltCells('small', 'egg'))
+    expect(egg(14)).toEqual(boltCells('small', 'egg'))
+    expect(egg(15)).toEqual(boltCells('small', 'egg-crack-1'))
+    expect(egg(20)).toEqual(boltCells('small', 'egg-crack-1'))
+    expect(egg(21)).toEqual(boltCells('small', 'egg-crack-2'))
+    expect(egg(24)).toEqual(boltCells('small', 'egg-crack-2'))
+    // The wobble keeps its frames and cadence (2 ticks each): upright, lean left, upright, lean right.
+    const wobble = ['egg', 'egg', 'egg-wobble-l', 'egg-wobble-l', 'egg', 'egg', 'egg-wobble-r', 'egg-wobble-r'] as const
+    wobble.forEach((pose, tick) => expect(egg(3, true, tick), `tick ${tick}`).toEqual(boltCells('small', pose)))
+    // Bolt has no cracked lean: a cracked egg keeps its crack on every frame.
+    for (let tick = 0; tick < 8; tick += 1) expect(egg(20, true, tick), `tick ${tick}`).toEqual(boltCells('small', 'egg-crack-1'))
+    // Hatching: the last crack for two frames, the lid lifting off, then the pet.
+    const hatching = (tick: number) => toCells(drawFrame({ stage: 'baby', species: 'geobug', shiny: false, eggCalls: HATCH_AT }, 'hatch', tick, false))
+    const hatch = ['egg-crack-3', 'egg-crack-3', 'egg-crack-3', 'egg-crack-3', 'egg-hatch', 'egg-hatch'] as const
+    hatch.forEach((pose, tick) => expect(hatching(tick), `tick ${tick}`).toEqual(boltCells('small', pose)))
+    expect(hatching(6)).not.toEqual(boltCells('small', 'egg-hatch'))
+    // The shell left around the new pet is Bolt's lime egg's.
+    const shell = drawFrame({ stage: 'baby', species: 'geobug', shiny: false, eggCalls: HATCH_AT }, 'hatch', 6, false)
+    expect([shell.px[9]?.[0], shell.px[9]?.[1], shell.px[9]?.[9]]).toEqual([BOLT_PALETTE.B, BOLT_PALETTE.S, BOLT_PALETTE.B])
+    // Asleep, the z sits in a cell Bolt leaves empty; every one of Bolt's cells is as drawn.
+    for (const [tick, z, row] of [[0, 'z', 1], [2, 'Z', 0]] as const) {
+      const asleep = toCells(drawFrame({ stage: 'egg', shiny: false, eggCalls: 3 }, 'sleep', tick, false))
+      expect(asleep[row]?.[9]?.ch).toBe(z)
+      expect(boltCells('small', 'egg')[row]?.[9]).toEqual({ ch: ' ' })
+      expect(asleep.map(line => line.map(cell => (cell.ch === z ? { ch: ' ' } : cell)))).toEqual(boltCells('small', 'egg'))
+    }
   })
 })

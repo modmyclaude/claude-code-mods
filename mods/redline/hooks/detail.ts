@@ -2,7 +2,7 @@
 // Text rows (colouring by `tone`); where no surface places the pane, the same
 // lines print as the command's text, so the two can never disagree.
 
-import type { RedlineGauge } from '../types'
+import type { RedlineGauge, RedlineLimit } from '../types'
 import {
   bar,
   busiest,
@@ -126,6 +126,21 @@ export function detailLines(g: RedlineGauge, now: number, barCells = 20): Detail
     add(`busiest-${i + 1}`, `  ${i + 1}. ${fmtTokens(sumTokens(turn.tokens))} tok · ${turn.requests} req · ${usd} · ${turn.label}`)
   })
   return lines
+}
+
+/**
+ * Bolt's pose beside the context row (MM-091): crashed once the context is
+ * full or a 5-hour or weekly plan window is spent (OUT, its reset still to
+ * come), idle otherwise.
+ */
+export function boltPose(g: RedlineGauge, now: number): 'idle' | 'crash' {
+  const percent = percentOf(g)
+  if (percent !== undefined && percent >= 100) return 'crash'
+  const isOut = (l: RedlineLimit) => {
+    const reset = Date.parse(l.resetsAt ?? '')
+    return (Number.isNaN(reset) || reset > now) && runOut(l, now)?.kind === 'out'
+  }
+  return g.limits.some(l => (l.kind === 'five_hour' || l.kind === 'seven_day') && isOut(l)) ? 'crash' : 'idle'
 }
 
 /** The same view as text, for a surface that places no pane. */

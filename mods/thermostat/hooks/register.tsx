@@ -6,6 +6,7 @@ import { atom, read, update } from 'claude-code'
 import type { ClassicEventOf, EngineInterface, PromptOrigin, Register, Timer, TurnUsage } from 'claude-code'
 
 import type { ThermostatAuth, ThermostatCache, ThermostatEngineWrite, ThermostatReceipt, ThermostatWarm } from '../types'
+import { boltSprite } from './bolt-draw'
 import { engineWriteRate, estimatePingUsd, estimateSend, pricesFor, pricesLabel, usageUsd, writeRate } from './pricing'
 import type { Prices, SendEstimate } from './pricing'
 import {
@@ -50,6 +51,8 @@ const PING_PROMPT =
   'Keep-alive ping from the thermostat plugin, sent only to keep the prompt cache warm. Reply with the single word ok and nothing else. Do not use tools.'
 /** The pane `/thermostat` opens. */
 const RECEIPT_PANE = 'thermostat-receipt'
+/** Narrower than this, the receipt keeps every column for its lines and Bolt steps out. */
+const BOLT_MIN_COLUMNS = 40
 const USAGE = 'Use /warm 90m (or 2h, 1h30m, 45) to keep the cache warm while you are away, and /warm off to stop.'
 
 const EMPTY_CACHE: ThermostatCache = { lastAt: null, lastRealAt: null, tokens: 0, model: null, isOff: false }
@@ -502,11 +505,10 @@ async function showReceipt($: Dollar): Promise<void> {
     const opened = await $.ui.open({ id: RECEIPT_PANE, title: 'Thermostat' })
     if (opened.isPlaced) return
   }
-  $.ui.log(await receiptText($))
+  $.ui.log(await receiptText($, await snapshot($)))
 }
 
-async function receiptText($: Dollar): Promise<string> {
-  const s = await snapshot($)
+async function receiptText($: Dollar, s: Snapshot): Promise<string> {
   const r = await read($, receiptState)
   const window = `${formatDuration(s.ttlMs)} window, ${describeTtlSource(s.ttl.source)}`
   const tokens = `${formatTokens(s.cache.tokens)} tokens at ${s.prices.family} prices`
@@ -690,12 +692,25 @@ export const register: Register = (on, options) => {
   }))
 
   // The receipt pane: one line each, live, since the state reads subscribe it.
+  // Bolt minds the cache beside the first line (MM-091): asleep while it is cold
+  // or empty, up while warm. A static sprite, only where the pane has room.
   on('ui.render', { component: 'Pane', requestId: RECEIPT_PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
-    const [title, ...lines] = (await receiptText($)).split('\n')
+    const s = await snapshot($)
+    const [title, ...lines] = (await receiptText($, s)).split('\n')
+    const head = <Text bold>{title}</Text>
     return (
       <Box flexDirection="column">
-        <Text bold>{title}</Text>
+        {e.props.bodyColumns >= BOLT_MIN_COLUMNS ? (
+          <Box key="head" flexDirection="row" gap={1}>
+            {boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: s.temp.kind === 'warm' ? 'idle' : 'sleep' })}
+            <Box flexDirection="column" flexShrink={1}>
+              {head}
+            </Box>
+          </Box>
+        ) : (
+          head
+        )}
         {lines.map(line => (
           <Text>{line}</Text>
         ))}

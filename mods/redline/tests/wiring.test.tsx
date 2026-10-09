@@ -8,6 +8,9 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { CommandSpec, On, SessionRateLimit, SessionUsage, TurnUsage } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+import type { BoltPick } from '../hooks/bolt-draw'
+
 const MIN = 60_000
 const T0 = Date.parse('2026-10-08T12:00:00Z')
 const WINDOW = 200_000
@@ -781,5 +784,144 @@ describe('the recent rate everywhere', () => {
     const w = world(on)
     await burst($, w, () => $.session.end({ reason: 'clear', sessionId: 'abc', resume: { id: 'abc' } }))
     expect(w.status()).toContain('5h 50% out in ~17m')
+  })
+})
+
+describe('Bolt beside the context row', () => {
+  // Bolt (MM-091): idle beside the context row of the detail pane, crashed once the
+  // context is full or a 5-hour or weekly window is spent, and out of the way in a
+  // narrow pane. A Raster on the terminal, one code-font cell per character on the
+  // desktop. The status line and the band never show it.
+  type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  const under = (node: unknown, key: string): Drawn | undefined => {
+    if (node === null || typeof node !== 'object') return undefined
+    const n = node as Drawn
+    if (n.key === key || n.props?.key === key) return n
+    for (const c of n.children ?? []) {
+      const hit = under(c, key)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
+  /** Bolt as drawn: the Raster's cells, or each desktop row as `width:ch|fg|bg` per one-cell Box. */
+  const drawnBolt = (bolt: Drawn | undefined) => {
+    if (bolt === undefined) return undefined
+    if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows, bolt.props?.cells]
+    return ((bolt.children ?? []) as Drawn[]).map(line =>
+      ((line.children ?? []) as Drawn[]).map(cell => {
+        const text = (cell.children ?? [])[0] as Drawn | undefined
+        const paint = text === undefined ? ' ' : `${(text.children ?? []).join('')}|${text.props?.color ?? ''}|${text.props?.backgroundColor ?? ''}`
+        return `${String(cell.type)}${String(cell.props?.width)}:${paint}`
+      }),
+    )
+  }
+  /** What `pick` must draw as on `surface`: its exact cells, at its exact size. */
+  const boltAs = (surface: string, pick: BoltPick) => {
+    const cells = boltOf(pick)
+    if (surface === 'terminal') return [cells[0]?.length, cells.length, rasterCells(cells)]
+    return cells.map(line =>
+      line.map(c => `Box1:${c.fg === undefined && c.bg === undefined ? ' ' : `${c.ch}|${c.fg ?? ''}|${c.bg ?? ''}`}`),
+    )
+  }
+  const IDLE: BoltPick = { size: 'tiny', pose: 'idle' }
+  const CRASH: BoltPick = { size: 'tiny', pose: 'crash' }
+  const pane = ($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 100) =>
+    $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: { ...PANE_PROPS, bodyColumns } })
+
+  test('Bolt idles beside the context row on both surfaces, the figures intact; a narrow pane leaves it out', async ($, on) => {
+    world(on)
+    await request($, pct(30))
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      const tree = await ui.drawn()
+      expect(drawnBolt(under(under(tree, 'context-row'), 'bolt')), surface).toEqual(boltAs(surface, IDLE))
+      expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
+      expect(under(under(tree, 'context-row'), 'context')).toBeDefined()
+      expect((await ui.find({ key: 'context' }))?.text).toContain('30%')
+      expect((await ui.find({ key: 'context-used' }))?.text).toContain('60k of 200k tokens')
+      expect((await ui.find({ key: 'pace' }))?.text).toContain('Pace')
+      await ui.unmount()
+      const narrow = await pane($, surface, 39)
+      expect(await narrow.find({ key: 'bolt' }), surface).toBeUndefined()
+      expect(await narrow.find({ key: 'context-row' })).toBeUndefined()
+      expect((await narrow.find({ key: 'context' }))?.text).toContain('30%')
+      await narrow.unmount()
+    }
+  })
+
+  test('Bolt crashes once the context is full, and stands again after a /compact', async ($, on) => {
+    world(on)
+    on('session.compact', () => ({ messages: [SUMMARY], tokensBefore: pct(100), tokensAfter: pct(10) }))
+    await request($, pct(99))
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      await ui.unmount()
+    }
+    await request($, pct(100))
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, CRASH))
+      expect((await ui.find({ key: 'context' }))?.text).toContain('100% RED')
+      await ui.unmount()
+    }
+    await $.session.compact({ trigger: 'manual', messages: [SUMMARY] })
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      await ui.unmount()
+    }
+  })
+
+  test('Bolt crashes while a 5-hour or weekly window is OUT, and stands at its reset in a pane left open', async ($, on) => {
+    const w = world(on, { rateLimits: [FIVE_OUT(80)] })
+    await request($, pct(20))
+    const panes = []
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, CRASH))
+      expect((await ui.find({ key: 'limit-five_hour' }))?.text).toContain('used up')
+      panes.push([surface, ui] as const)
+    }
+    await w.clock.advance(81 * MIN) // the reset passes with no reply: the repaint brings Bolt back up
+    for (const [surface, ui] of panes) {
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      await ui.unmount()
+    }
+    w.usage = { ...w.usage, rateLimits: [{ kind: 'seven_day', percentUsed: 100, resetsAt: new Date(T0 + 3 * 24 * 60 * MIN).toISOString() }] }
+    await request($, pct(20))
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, CRASH))
+      await ui.unmount()
+    }
+  })
+
+  test('a window under 100%, or one that is not a 5-hour or weekly window, leaves Bolt idle', async ($, on) => {
+    const w = world(on, { rateLimits: [{ kind: 'five_hour', percentUsed: 99, resetsAt: new Date(T0 + 80 * MIN).toISOString() }] })
+    await request($, pct(20))
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      await ui.unmount()
+    }
+    w.usage = { ...w.usage, rateLimits: [{ kind: 'spend_limit', percentUsed: 100, resetsAt: new Date(T0 + 30 * 24 * 60 * MIN).toISOString() }] }
+    await request($, pct(20))
+    expect(w.status()).toContain('spend OUT')
+    const ui = await pane($, 'terminal')
+    expect(drawnBolt(await ui.find({ key: 'bolt' }))).toEqual(boltAs('terminal', IDLE))
+  })
+
+  test('the status line and the band never draw Bolt', async ($, on) => {
+    const w = world(on)
+    await runCommand($, 'band')
+    await request($, pct(100))
+    expect(w.status()).toMatch(/^ctx 100% ██████████ RED · /)
+    for (const surface of SURFACES) {
+      const band = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect(await band.find({ key: 'gauge' })).toBeDefined()
+      expect(await band.find({ key: 'bolt' })).toBeUndefined()
+      await band.unmount()
+    }
   })
 })
