@@ -41,6 +41,40 @@
       }
     },
     {
+      "name": "fine-print",
+      "title": "Fine Print",
+      "tagline": "A second reader that flags what you would miss in a wall of text.",
+      "category": "insight",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "one small-model check per long turn, capped",
+      "version": "0.1.0",
+      "keywords": [
+        "review",
+        "safety",
+        "cost",
+        "security",
+        "insight",
+        "band"
+      ],
+      "prompt": "Build me a Claude Code mod called \"fine-print\": a second reader that flags what I might miss in long replies.\n\nWhat it does\n- After a turn with a long reply (over about 150 words), ask a small, cheap model to read the reply and a summary of that turn's tool calls, and decide whether there is anything I must know: hidden costs, security or privacy risk, data loss, irreversible actions, impact on customers, or assumptions Claude made without asking.\n- If there is, show a note above my prompt: a bold one-line headline and up to 4 bullets, with buttons Got it, Explain more (sends a follow-up question into the chat) and Dismiss.\n- If there is nothing important, stay silent. Silence is the default.\n\nWhat is new here\n- A watchFor setting to choose the topics: cost, security, data-loss, irreversible, customers, assumptions. Default: all.\n- A spend cap: maxChecksPerSession (default 30). When it is reached, stop and say so once in the status line.\n- /fineprint lists every note flagged this session, newest first, so nothing is lost after a dismiss.\n- Use the cheapest model available and send only the reply plus tool summaries, never whole files.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Fine Print\n\nA second reader that flags what you would miss in a wall of text.\n\nAfter a long reply, a small, cheap model reads it with a summary of the tool calls behind it. If there is something you must know (a hidden cost, a security or privacy risk, data loss, an action that cannot be undone, an effect on customers, or an assumption made without asking), a short note appears above your prompt. Otherwise it stays silent.\n\n## Install\n\n```\n/plugin install fine-print --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nThere is nothing to run. After any reply over 150 words, Fine Print checks it in the background, after the turn has ended.\n\nWhen it finds something, a band appears above the prompt:\n\n- a bold one-line headline and up to 4 bullets\n- **Got it** (`g`): you read it; the band closes\n- **Explain more** (`e`): sends a follow-up question into the chat, so Claude explains the note in plain words. The question is sent as the Fine Print plugin's message, not as yours: the transcript and the model both see that the plugin wrote it, at your press. Claude's answer to it is not checked again.\n- **Dismiss** (`d`): closes the band without marking it read\n\nThe letter keys work once the band has focus (a click, or ctrl+x tab). A newer note replaces the one on screen; the band then says how many older notes are still open.\n\n`/fineprint` lists every note flagged this session, newest first, with what you did with it (open, got it, dismissed, asked to explain), how long ago, its topics, and how many checks were used.\n\n## Settings\n\nChange them in `/config` (or on the install screen).\n\n| Setting | Default | What it does |\n| --- | --- | --- |\n| `watchFor` | `cost, security, data-loss, irreversible, customers, assumptions` | The topics to flag. A list; `all` means every topic, `none` turns checks off. Names that match no topic are ignored, and if none are left every topic is watched, so a typo never switches the reader off. |\n| `maxChecksPerSession` | `30` | The spend cap: model checks allowed per session (0 to 1000). When it is reached, checks stop and the status line says so once. `0` turns checks off. |\n\n## What it can touch\n\n- **Model calls:** one completion on the `haiku` model per reply over 150 words, at low effort, with at most 1,024 output tokens and a 30 second time limit, and never more than `maxChecksPerSession` per session. It goes through your session's own client and provider. A failed call counts toward the cap. Nothing is spent in a run where nothing draws (`claude -p`).\n- **What is sent:** the reply as written (whole up to 12,000 characters, beyond that its first 8,000 and last 4,000), including anything it quotes, and up to 40 lines naming this turn's tool calls and their targets: the first line of each command (up to 160 characters), a file path, a URL, a search pattern, and similar. Before they are sent, secret-shaped strings in those commands and targets (bearer tokens, `PASSWORD=` or `api_key=` values, common API key formats, long hex or base64 strings) are replaced with `[hidden]`; this is best effort, and the reply itself is not masked. All of it is already in your conversation with the same provider. Never tool output, written file contents or edit text.\n- **Reads:** the session transcript, through Claude Code, to find this turn's tool calls. No files, no processes, no network of its own.\n- **Writes:** nothing on disk. Notes and the check count live in the session and end with it.\n- **Explain more** starts one turn of your main model, at its normal cost, and only when you press it.\n- `/fineprint` prints its list into the transcript, where the model can read it too.\n\n## Limits\n\n- A small model's judgment: it can miss things and can flag noise. It is a second reader, not a guarantee.\n- Only main-conversation replies that finished normally are checked: not subagents, not interrupted or failed turns.\n- \"This turn's tool calls\" are the calls since your last prompt. A row Claude Code adds that looks like a prompt can shorten that list.\n- The band draws in the terminal and the desktop app. In other surfaces (VS Code, mobile) a note arrives as a toast instead, and `/fineprint` has the details.\n- The note appears a few seconds after the turn ends, while the small model reads.\n- If the model cannot be reached (for example, an organization policy blocks `haiku`), Fine Print shows one toast per session and otherwise stays quiet.\n- The status line about the cap stays up for the rest of the session, unless you raise the cap or run `/clear`.\n- `/clear` starts fresh: the notes, the band and the check count are reset with the conversation.\n\n## Built from a prompt\n\nThis mod was built from [prompts/fine-print.md](../../prompts/fine-print.md).\n",
+      "reach": [
+        "calls a model"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": true,
+        "sound": false,
+        "hooks": []
+      }
+    },
+    {
       "name": "footprints",
       "title": "Footprints",
       "tagline": "A live file tree beside the chat that shows where Claude has been.",
@@ -75,6 +109,41 @@
         "hooks": [
           "tool.call",
           "prompt.mention"
+        ]
+      }
+    },
+    {
+      "name": "hatchling",
+      "title": "Hatchling",
+      "tagline": "A collectible pixel pet that hatches, reacts and evolves while you code.",
+      "category": "fun",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.1.0",
+      "keywords": [
+        "pet",
+        "pixel-art",
+        "collectible",
+        "fun",
+        "band"
+      ],
+      "prompt": "Build me a Claude Code mod called \"hatchling\": a collectible pixel pet that lives above my prompt and grows as I work.\n\nWhat it does\n- On first run an egg appears in a small band above my prompt. It wobbles as Claude works and hatches after 25 tool calls.\n- It hatches into one of 8 original species (design them yourself: no existing game characters, no mascots of real companies), each with a rarity (common, uncommon, rare, legendary) and a 1 in 64 chance of a shiny colour variant.\n- It reacts to what Claude does: bounces on successful tool calls, sweats when a tool call fails, cheers when a test run passes (Bash output that looks like a passing test run), and falls asleep after 5 minutes idle.\n- It gains XP from tool calls and finished turns and evolves twice (baby, teen, adult) with a short celebration and a toast.\n- The pet persists across sessions and projects.\n\nCommands\n- /pet shows a stat card: name, species, rarity, shiny or not, stage, XP to next stage, days together.\n- /pet name <name> renames it. /pet hide and /pet show toggle the band.\n- /pet card prints a small text card I can copy and share.\n\nHow it works\n- Draw the pet with text cells (block characters) so it works in the terminal and the desktop app. 2 to 3 animation frames per mood, animated with a timer only while something is happening.\n- All randomness (species, rarity, shiny) is decided once at hatch time and saved, so restarting never rerolls.\n- Deterministic, no model calls, no files outside the mod's own store.\n\nBuild rules\n- Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.\n- Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.\n- Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.\n- Load it in this session so I can try it, then take my changes in plain words.\n- When I say it is good, install it so it loads in every session, and tell me where it lives and how to turn it off.",
+      "media": null,
+      "readme": "# Hatchling\n\nA collectible pixel pet that hatches, reacts and evolves while you code.\n\n## Install\n\n```\n/plugin install hatchling --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nAn egg appears in a small band above your prompt. It wobbles while Claude works and hatches after\n25 tool calls into one of 8 original species:\n\n| Species | Rarity | Odds |\n| --- | --- | --- |\n| Pebblet (a mossy river stone), Fluffle (lop-eared fluff), Coilsnail (snail with a thread-spool shell) | common | 56% |\n| Nimbit (a pocket raincloud), Lampwing (a moth with a glowing belly) | uncommon | 28% |\n| Foldling (a folded paper bird), Geobug (a beetle with a geode shell) | rare | 12.5% |\n| Starwhelp (a teacup-sized star dragon) | legendary | 3% |\n\nAny pet has a 1 in 64 chance to be shiny (another palette). The roll happens once, at hatch time, and\nis saved: restarting never rerolls.\n\nWhat it does while you work:\n\n- **Bounces** when a tool call succeeds, **sweats** when one fails, **cheers** when a Bash command\n  prints a passing test run (jest, vitest, pytest, go test, cargo test, node:test, mocha, rspec,\n  bun, deno, phpunit, unittest, dotnet test).\n- **Falls asleep** after 5 minutes with nothing happening, and wakes on the next prompt or tool call.\n- **Grows**: 1 XP per tool call, 5 per finished turn, 5 more for a passing test run. It becomes a\n  teen at 200 XP and an adult at 800 XP, each with a short celebration and a toast.\n\nCommands:\n\n| Command | What it does |\n| --- | --- |\n| `/pet` | Stat card: name, species, rarity, shiny or not, stage, XP to the next stage, days together |\n| `/pet name <name>` | Rename it (up to 16 letters, numbers, spaces, `-` `'` `.` `_`). Works on the egg too. |\n| `/pet hide` / `/pet show` | Hide or bring back the band (remembered across sessions) |\n| `/pet card` | A ~30 x 12 plain-text card with a **Copy card** button, for sharing |\n\nThe pet is one pet for you, across every session and project.\n\n## Settings\n\nNone.\n\n## What it can touch\n\n- **Files**: none directly. The pet is saved in the mod's own store (a JSON file Claude Code keeps\n  for each plugin under your config directory).\n- **Processes, network, model calls**: none. Everything is deterministic except the one hatch roll,\n  which uses the platform's crypto random source.\n- **What the model sees**: the text of `/pet` and `/pet card` (a few short lines), like any command's\n  output. Tool calls are only observed, never changed or refused.\n- **Clipboard**: only when you press Copy card.\n\n## Limits\n\n- The band draws in the terminal and the desktop app's Code tab. VS Code and mobile have no band\n  above the prompt; `/pet` and `/pet card` still work there as text.\n- The desktop app draws the sprite as text cells too. How crisp it looks depends on the app's font and\n  line spacing: generous line spacing can show thin seams between rows of pixels.\n- \"Tests passed\" is read from the runner's summary in the Bash output. A runner with an unusual\n  summary is not recognised (no cheer, no harm). Viewing a log with `cat`, `grep` or similar never counts.\n- Animation runs on a timer only while something happens (a reaction, Claude working, the doze-off);\n  when idle, asleep or hidden no timer runs.\n- Two sessions open at once share the one pet. Each change re-reads the saved pet first, so progress\n  from both sessions adds up and a pet that has hatched is never rolled again. Two writes in the same\n  instant can still lose one tool call's XP.\n- When hidden, the pet still counts tool calls and turns, and still toasts when it hatches or evolves.\n\n## Built from a prompt\n\nThis mod was built from [this prompt](../../prompts/hatchling.md).\n",
+      "reach": [
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "tool.call"
         ]
       }
     },

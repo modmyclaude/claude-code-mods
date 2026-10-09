@@ -13,7 +13,7 @@
 /plugin install last-look --marketplace modmyclaude/claude-code-mods
 ```
 
-<!-- count -->9<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
+<!-- count -->11<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
 
 </div>
 
@@ -63,6 +63,12 @@ On older versions, add the marketplace first:
 |---|---|---|---|
 | [**Play-by-Play**](mods/play-by-play) | Replays every change Claude made in a turn, shell edits included. [Prompt](prompts/play-by-play.md) | `runs commands` `hooks tool calls` | `play-by-play@modmyclaude` |
 
+### Catch what you would miss
+
+| Mod | What it does | Can reach | Install |
+|---|---|---|---|
+| [**Fine Print**](mods/fine-print) | A second reader that flags what you would miss in a wall of text. [Prompt](prompts/fine-print.md) | `calls a model` | `fine-print@modmyclaude` |
+
 ### Memory
 
 | Mod | What it does | Can reach | Install |
@@ -86,6 +92,12 @@ On older versions, add the marketplace first:
 | Mod | What it does | Can reach | Install |
 |---|---|---|---|
 | [**Wardrobe**](mods/wardrobe) | Restyle Claude Code live, including colourblind-safe and high-contrast themes. [Prompt](prompts/wardrobe.md) | `hooks tool calls` | `wardrobe@modmyclaude` |
+
+### Fun
+
+| Mod | What it does | Can reach | Install |
+|---|---|---|---|
+| [**Hatchling**](mods/hatchling) | A collectible pixel pet that hatches, reacts and evolves while you code. [Prompt](prompts/hatchling.md) | `hooks tool calls` | `hatchling@modmyclaude` |
 <!-- catalogue:end -->
 
 ## Build your own
