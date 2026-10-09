@@ -157,6 +157,10 @@ test('an important finding shows the note above the prompt, on both surfaces', a
     for (const bullet of FLAG.bullets) expect(await ui.find({ type: 'Text', text: bullet })).toBeDefined()
     const labels = (await ui.findAll({ type: 'Button' })).map(button => button.text)
     expect(labels).toEqual(['Got it', 'Explain more', 'Dismiss'])
+    // Explain more spends a turn, so no letter key may press it; the others only close the note.
+    expect((await ui.find({ key: 'explain' }))?.props.hotkey).toBeUndefined()
+    expect((await ui.find({ key: 'got-it' }))?.props.hotkey).toBe('g')
+    expect((await ui.find({ key: 'dismiss' }))?.props.hotkey).toBe('d')
     expect(await ui.find({ text: 'engine band' })).toBeUndefined()
     await ui.unmount()
   }
@@ -238,7 +242,10 @@ test('the answer to Explain more is not checked again', async ($, on) => {
   await endTurn($, seen, turn(LONG_REPLY, 'explained'))
 
   expect(seen.calls).toHaveLength(1)
-  expect((await $.command.run(FINEPRINT)).text).toContain('Fine Print: 1 note this session')
+  const listed = (await $.command.run(FINEPRINT)).text
+  expect(listed).toContain('Fine Print: 1 note this session')
+  // Nor does it cost a check.
+  expect(listed).toContain('Checks used this session: 1 of 30.')
 })
 
 test('nothing important: silent', async ($, on) => {

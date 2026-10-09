@@ -172,9 +172,36 @@ describe('maskSecrets hides secret-shaped text', () => {
   ]
   for (const input of untouched) test(`leaves alone: ${input}`, () => expect(maskSecrets(input)).toBe(input))
 
+  // Repetitive input shaped to make a backtracking regex explode. Each must
+  // finish fast: the masker runs inside turn.complete, before the turn ends.
+  const adversarial: [string, string][] = [
+    ['key- runs', 'key-'.repeat(12_500)],
+    ['api-key- runs', 'api-key-'.repeat(6_250)],
+    ['token- runs', 'token-'.repeat(8_334)],
+    ['a= pairs', 'a='.repeat(25_000)],
+    ['token= pairs', 'token='.repeat(8_334)],
+    ['open quotes', 'password="'.repeat(5_000)],
+    ['spaces before no separator', `authorization${' '.repeat(50_000)}`],
+    ['one long name', `${'x'.repeat(50_000)}!`],
+    ['userinfo without @', `//${'a:'.repeat(25_000)}`],
+    ['hex then a letter', `${'a'.repeat(50_000)}g`],
+    ['mixed base64 with no end', `${'aA1'.repeat(16_667)}`],
+    ['sk- runs', 'sk-'.repeat(16_667)],
+  ]
+  for (const [name, input] of adversarial) {
+    test(`stays fast on ${input.length} characters of ${name}`, () => {
+      const started = Date.now()
+      maskSecrets(input)
+      expect(Date.now() - started).toBeLessThan(200)
+    })
+  }
+
   test('describeToolUse masks before it caps', () => {
     const line = describeToolUse(use('s', 'Bash', { command: `${'x'.repeat(150)} API_KEY=abcdefghijklmnop` }))
     expect(line).not.toContain('abcdefghijklmnop')
+    // A secret that straddles the 160-character cap is masked whole, not cut in half.
+    const straddle = describeToolUse(use('t', 'Bash', { command: `${'x'.repeat(145)} ghp_abcdefghijklmnopqrstuvwxyz0123` }))
+    expect(straddle).not.toContain('ghp_abc')
     expect(describeToolUse(use('u', 'WebFetch', { url: 'https://h.io/?token=zzz111' }))).toBe('WebFetch (url: https://h.io/?token=[hidden])')
   })
 })

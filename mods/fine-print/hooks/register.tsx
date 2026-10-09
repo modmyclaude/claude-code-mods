@@ -255,7 +255,8 @@ export const register: Register = (on, options) => {
         )}
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           <Button key="got-it" label="Got it" hotkey="g" variant="primary" onPress={() => settle($, id, 'acknowledged')} />
-          <Button key="explain" label="Explain more" hotkey="e" onPress={() => explain($, id)} />
+          {/* No letter key: a stray keystroke must never send a message or spend a turn. */}
+          <Button key="explain" label="Explain more" onPress={() => explain($, id)} />
           <Button key="dismiss" label="Dismiss" hotkey="d" role="dismiss" onPress={() => settle($, id, 'dismissed')} />
         </Box>
       </Box>
