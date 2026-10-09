@@ -648,3 +648,95 @@ describe('review fixes', () => {
     expect(await header(ui)).toBe('read 0 · edited 1 · new 0')
   })
 })
+
+describe('polish', () => {
+  test('the shimmer stops while the pane is closed, and opening the pane mid-edit starts it again', async ($, on) => {
+    let frames = 0 // registered first, so it sits above the mocked clock
+    on('clock.every', { ms: 120 }, ($, e, next) => {
+      frames++
+      return next(e)
+    })
+    const w = world(on, { tracked: ['src/index.ts'] })
+    await start($)
+    const release = w.hold()
+    const editing = $.tool.call({ tool: 'Edit', file_path: abs('src/index.ts'), old_string: 'a', new_string: 'b' })
+    await w.clock.settle()
+    await w.clock.advance(120 * 10)
+    expect(frames).toBeLessThanOrEqual(1) // one frame found no pane and stopped the timer
+
+    await footprints($)
+    const ui = await mount($, 'terminal')
+    await w.clock.advance(120 * 4)
+    expect(frames).toBeGreaterThanOrEqual(4)
+    const band = (await ui.findAll({ type: 'Text', text: /./ })).find(t => t.props.bold === true && 'index.ts'.includes(t.text))
+    expect(band).toBeDefined()
+    release()
+    await editing
+  })
+
+  test('a file created and then removed through the shell leaves no trace', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts'] })
+    await start($)
+    await $.tool.call({ tool: 'Write', file_path: abs('tmp.txt'), content: 'x' })
+    expect(statusNow(w)).toBe('edited 1')
+    w.onBash(() => w.remove('tmp.txt'))
+    await bash($, 'rm tmp.txt')
+    await footprints($)
+    const ui = await mount($, 'terminal')
+    expect(await header(ui)).toBe('read 0 · edited 0 · new 0')
+    expect(await ui.find({ key: 'f:tmp.txt' })).toBeUndefined()
+    expect(statusNow(w)).toBeUndefined()
+  })
+
+  test('/footprints turns paused shell tracking back on', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts'], statusMs: 2500 })
+    await start($)
+    const first = bash($, 'ls')
+    await w.clock.settle()
+    await w.clock.advance(2500)
+    await first
+    expect(w.rec.logs).toHaveLength(1)
+    const runs = w.rec.argv.filter(argv => argv.includes('status')).length
+    await bash($, 'ls') // paused: no git
+    expect(w.rec.argv.filter(argv => argv.includes('status')).length).toBe(runs)
+    await footprints($)
+    const again = bash($, 'ls')
+    await w.clock.settle()
+    await w.clock.advance(2500)
+    await again
+    expect(w.rec.argv.filter(argv => argv.includes('status')).length).toBeGreaterThan(runs)
+  })
+
+  test('a refused pane still says so in one line, and the command answers {}', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts'], openDenied: 'another mod holds this pane' })
+    await start($)
+    expect(await footprints($)).toEqual({})
+    expect(w.rec.toasts).toEqual(['Footprints could not open its pane here.'])
+  })
+
+  test('git runs with the exact pathspecs proven on real git', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts'] })
+    await start($)
+    await footprints($)
+    await bash($, 'ls')
+    const ls = w.rec.argv.find(argv => argv.includes('ls-files')) ?? []
+    const st = w.rec.argv.find(argv => argv.includes('status')) ?? []
+    expect(ls.slice(ls.indexOf('--'))).toEqual(['--', '.', ':(exclude,glob)**/node_modules/**'])
+    expect(st.slice(st.indexOf('--'))).toEqual(['--', ':/', ':(top,exclude,glob)**/node_modules/**'])
+  })
+
+  test('control characters in the root name and in a refusal reason are cleaned', async ($, on) => {
+    const control = /[\x00-\x1f\x7f-\x9f]/
+    const w = world(on, { tracked: ['a.ts'], root: '/work/pro\x07j', placed: false, reason: 'no\x07room \x1b[31mhere' })
+    await start($)
+    await footprints($)
+    expect(w.rec.toasts).toEqual(['Footprints cannot show its pane here: no\uFFFDroom here'])
+    for (const surface of SURFACES) {
+      const ui = await mount($, surface)
+      const controls = await ui.find({ key: 'controls' })
+      expect(controls?.text, surface).toContain('pro\uFFFDj')
+      expect(control.test(controls?.text ?? ''), surface).toBe(false)
+      await ui.unmount()
+    }
+  })
+})

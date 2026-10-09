@@ -203,7 +203,9 @@ export function endEdit(mark: Mark | undefined, id: string, outcome: 'failed' | 
   return next
 }
 
+/** A shell change on a mark; a file created this session and then deleted leaves no trace (read aside). */
 export function applyShell(mark: Mark | undefined, change: ShellChange): Mark {
+  if (change === 'deleted' && mark?.isNew) return mark.read ? { read: true } : {}
   const next: Mark = { ...mark }
   const isShellOnly = next.edited !== true || next.viaShell === true
   next.edited = true

@@ -9,6 +9,7 @@ import type { On, ProcessRunResult, RenderPropsOf, ToolCallResult, UiOpenResult 
 export const PLUGIN = 'footprints'
 export const PANE = 'footprints'
 export const ROOT = '/work/proj'
+const ROOT_DEFAULT = ROOT
 export const SURFACES = ['terminal', 'desktop'] as const
 export const T0 = 1_700_000_000_000
 const HEAD_A = 'a'.repeat(40)
@@ -34,11 +35,18 @@ export type Setup = {
   statusMs?: number
   /** True: each `git status` fails once its time is up, as a timed-out run does. */
   statusTimesOut?: boolean
+  /** The session's root, when not ROOT (abs() still spells paths under ROOT). */
+  root?: string
+  /** Why a pane is not placed, when `placed` is false. */
+  reason?: string
+  /** A `ui.open` hook refuses the pane with this reason. */
+  openDenied?: string
 }
 
 export type World = ReturnType<typeof world>
 
 export function world(on: On, setup: Setup = {}) {
+  const ROOT = setup.root ?? ROOT_DEFAULT
   const clock = mock.clock(on, { now: T0 })
   const isGit = setup.isGit ?? true
   // The disk: every file's mtime, by path relative to ROOT. Absent = no such file.
@@ -169,9 +177,10 @@ export function world(on: On, setup: Setup = {}) {
   on('ui.log', ($, e) => (rec.logs.push(e.text), { value: undefined }))
   on('ui.status', ($, e) => (rec.statuses.push(e.text), { value: undefined }))
   on('ui.open', ($, e) => {
+    if (setup.openDenied !== undefined) return { deny: setup.openDenied }
     rec.opens.push(e.id)
     rec.panes = [...rec.panes.filter(p => p.id !== e.id), { id: e.id, title: e.title ?? e.id, isShown: placed, isFocused: false, isPlaced: placed }]
-    const value: UiOpenResult = placed ? { isPlaced: true } : { isPlaced: false, reason: 'no surface attached that places panes' }
+    const value: UiOpenResult = placed ? { isPlaced: true } : { isPlaced: false, reason: setup.reason ?? 'no surface attached that places panes' }
     return { value }
   })
   on('ui.panes', () => ({ value: rec.panes }))
