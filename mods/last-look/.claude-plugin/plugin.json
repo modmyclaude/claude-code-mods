@@ -1,0 +1,17 @@
+{
+  "name": "last-look",
+  "version": "0.1.0",
+  "description": "Holds destructive commands and shows exactly what they would destroy.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["safety", "bash", "rm", "git", "guard", "destructive", "review"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "alwaysAllow": {
+      "type": "string",
+      "title": "Always allow",
+      "description": "Comma list of folders that are fine to delete or overwrite without asking (dist, build, node_modules/.cache). A command passes only when every path it touches is inside one of them.",
+      "default": "dist,build,.next,coverage,node_modules/.cache"
+    }
+  }
+}
