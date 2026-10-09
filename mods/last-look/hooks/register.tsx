@@ -146,8 +146,12 @@ async function hold($: EngineInterface, entry: Omit<LastLookHold, 'mode'>, surfa
   try {
     // State first, so the pane's first drawing already has the report.
     await update($, holds, list => [...list.filter(h => h.id !== entry.id), { ...entry, mode: 'pane' as const }])
+    // No `focus`: the pane never takes the keyboard on its own. With it, a
+    // person typing their next prompt as the hold appears would be typing into
+    // the pane (Tab then Enter could reach Proceed). They click or ctrl+x tab
+    // in, and then Cancel holds the focus, so Enter cancels.
     const opened = await $.ui
-      .open({ id: PANE, title: 'Last Look', focus: true, closeOnEscape: true, holdToasts: true, rows: 22, columns: 72 })
+      .open({ id: PANE, title: 'Last Look', closeOnEscape: true, holdToasts: true, rows: 22, columns: 72 })
       .catch(() => ({ isPlaced: false as const, reason: 'refused' }))
     if (!opened.isPlaced) {
       // A pane opened unasked waits on narrow terminals: use the band.

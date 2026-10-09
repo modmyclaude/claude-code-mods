@@ -38,20 +38,15 @@ export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElemen
   const { report } = hold
   const width = Math.max(20, room.columns)
   // Cancel first, so it is the one focused (`autoFocus`, first drawn wins)
-  // and Enter cancels. Letter hotkeys only: a digit typed as an answer to a
-  // numbered question must never press Proceed.
+  // and Enter cancels. Proceed has NO hotkey: no keystroke typed at the site
+  // may ever approve. It takes a click, or Tab onto it and then Enter.
   const buttons = (
     <Box flexDirection="row" gap={2}>
       <Button key="cancel" label="Cancel" hotkey="c" variant="primary" autoFocus onPress={room.onCancel} />
-      <Button key="proceed" label="Proceed" hotkey="p" onPress={room.onProceed} />
+      <Button key="proceed" label="Proceed" onPress={room.onProceed} />
     </Box>
   )
-  const hint =
-    room.surface === 'terminal'
-      ? room.compact
-        ? 'ctrl+x tab to choose here: Enter cancels, p proceeds'
-        : 'Enter or c cancels, p proceeds, Esc closes and cancels'
-      : undefined
+  const hint = room.surface === 'terminal' ? 'Click, or ctrl+x tab: Enter or c cancels; Tab to Proceed, then Enter' : undefined
 
   if (room.compact) {
     // The band: one line per part, so the buttons stay in its rows.

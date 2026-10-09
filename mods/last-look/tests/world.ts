@@ -209,7 +209,7 @@ export function makeWorld(spec: WorldSpec = {}) {
 
   /** Answers every noun last-look reaches, beneath the plugin. */
   const install = (on: On) => {
-    const seen = { opened: [] as string[], closed: [] as string[], status: [] as (string | undefined)[], logs: [] as string[] }
+    const seen = { opened: [] as string[], openArgs: [] as Record<string, unknown>[], closed: [] as string[], status: [] as (string | undefined)[], logs: [] as string[] }
     on('process.run', async (_$, e) => ({ value: await run(e.argv, e.init?.cwd ?? cwd) }))
     on('fs.stat', async (_$, e) => {
       if ((spec.unreadable ?? []).some(p => join(cwd, p) === join('/', e.path))) return { deny: `EACCES: ${e.path}` }
@@ -225,6 +225,7 @@ export function makeWorld(spec: WorldSpec = {}) {
     on('clock.now', () => ({ value: NOW }))
     on('ui.open', (_$, e) => {
       seen.opened.push(e.id)
+      seen.openArgs.push({ ...e })
       return { value: spec.isPanePlaced === false ? { isPlaced: false as const, reason: 'narrow terminal' } : { isPlaced: true as const } }
     })
     on('ui.close', (_$, e) => {
