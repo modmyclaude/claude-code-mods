@@ -167,6 +167,41 @@ async function setAuto($: EngineInterface, auto: boolean) {
   await update($, stats, st => ({ ...st, auto }))
 }
 
+/**
+ * True while a surface that draws the band (the terminal or the desktop app) is
+ * attached. VS Code, mobile and a `-p` run draw none (API-GOTCHAS #28: not isInteractive).
+ */
+async function banded($: EngineInterface): Promise<boolean> {
+  const surfaces = await $.session.surfaces().catch(() => [])
+  return surfaces.some(s => s === 'terminal' || s === 'desktop')
+}
+
+/** Runs `/halftime <args>` and says what happened, in one line for the person. */
+async function command($: EngineInterface, args: string): Promise<string> {
+  const [word = '', extra = ''] = args.trim().toLowerCase().split(/\s+/)
+  if (word === '' || word === 'games' || word === 'pick') {
+    await apply($, openPicker)
+    return scorecard(await read($, stats))
+  }
+  if (isGameId(word)) {
+    await apply($, (s, now) => startGame(s, word, extra === 'practice' || (extra !== 'daily' && s.practice), now))
+    return `halftime: ${word} is above the prompt - click the board to play`
+  }
+  if (word === 'auto') {
+    const current = (await read($, stats)).auto
+    const auto = extra === 'on' ? true : extra === 'off' ? false : !current
+    await setAuto($, auto)
+    return auto
+      ? `halftime auto is on: once a turn has run ${OFFER_AFTER_MS / 1000}s, a line above the prompt offers a game (it never takes your keys)`
+      : 'halftime auto is off'
+  }
+  if (word === 'off' || word === 'close') {
+    await apply($, close)
+    return 'halftime: closed'
+  }
+  return `halftime: /halftime opens the picker; /halftime ${GAME_IDS.join('|')} [practice] starts one; /halftime auto [on|off]; /halftime off closes it`
+}
+
 async function copy($: EngineInterface, text: string, surface: 'terminal' | 'desktop' | 'mobile' | 'vscode') {
   const copied = await $.ui.copy({ text, surface })
   $.ui.toast(copied.isCopied ? 'halftime: result copied' : 'halftime: this surface cannot copy - select the line instead')
@@ -184,7 +219,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'halftime',
       description: 'Play a small game above the prompt while Claude works',
-      argumentHint: '[dash | slither | merge | sweep | auto | off]',
+      argumentHint: '[hurdle | tailchase | merge | sweep | auto | off]',
       immediate: true,
     })
     try {
@@ -199,32 +234,25 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // The answer is for the person, never the model (API-GOTCHAS #18): a command's `text` is
+  // a transcript row the model reads, so where the band draws, a toast says it and the
+  // command answers {}. VS Code and mobile draw no band: there the row is the only place
+  // to show anything, and the CommandOutput hook below draws the scorecard in it.
   on('command.run', { command: 'halftime' }, async ($, e) => {
-    const [word = '', extra = ''] = e.args.trim().toLowerCase().split(/\s+/)
-    if (word === '' || word === 'games' || word === 'pick') {
-      await apply($, openPicker)
-      return { text: scorecard(await read($, stats)) }
+    const said = await command($, e.args)
+    if (await banded($)) {
+      $.ui.toast(said)
+      return {}
     }
-    if (isGameId(word)) {
-      await apply($, (s, now) => startGame(s, word, extra === 'practice' || (extra !== 'daily' && s.practice), now))
-      return { text: `halftime: ${word} is above the prompt - click the board to play` }
+    return { text: scorecard(await read($, stats)) }
+  }).catch($ => {
+    try {
+      $.ui.toast('halftime: that did not work - try /halftime again')
+    } catch {
+      // Nothing left to say it with.
     }
-    if (word === 'auto') {
-      const current = (await read($, stats)).auto
-      const auto = extra === 'on' ? true : extra === 'off' ? false : !current
-      await setAuto($, auto)
-      return {
-        text: auto
-          ? `halftime auto is on: once a turn has run ${OFFER_AFTER_MS / 1000}s, a line above the prompt offers a game (it never takes your keys)`
-          : 'halftime auto is off',
-      }
-    }
-    if (word === 'off' || word === 'close') {
-      await apply($, close)
-      return { text: 'halftime: closed' }
-    }
-    return { text: 'halftime: /halftime opens the picker; /halftime dash|slither|merge|sweep [practice] starts one; /halftime auto [on|off]; /halftime off closes it' }
-  }).catch(() => ({ text: 'halftime: that did not work - try /halftime again' }))
+    return {}
+  })
 
   // The band: picker, offer, board or whistle line.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -303,7 +331,7 @@ export const register: Register = on => {
     if (s.phase === 'whistle') {
       const run = s.run
       const over = run?.status === 'over' && run.result ? run.result : null
-      return stack(
+      const line = (
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           <Text bold color="warning">whistle: Claude needs you</Text>
           <Text dimColor>- {REASON_TEXT[s.whistle ?? 'turn']}</Text>
@@ -311,6 +339,18 @@ export const register: Register = on => {
           {over ? <Button key="copy" label="copy result" onPress={press => copy($, over.share, press.surface)} /> : null}
           {closeButton}
         </Box>
+      )
+      // The result stays on screen, so where copy has no clipboard (the desktop app,
+      // API-GOTCHAS #22) the person can select it instead.
+      return stack(
+        over ? (
+          <Box flexDirection="column">
+            {line}
+            <Text dimColor wrap="truncate-end">{over.share}</Text>
+          </Box>
+        ) : (
+          line
+        ),
       )
     }
 

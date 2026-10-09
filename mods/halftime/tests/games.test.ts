@@ -4,16 +4,28 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { HalftimeDash, HalftimeSlither } from '../types'
-import { DASH, airDistance, hits, initDash, jumpDash, speedAt, stepDash } from '../hooks/games/dash'
+import type { HalftimeHurdle, HalftimeTailchase } from '../types'
+import { HURDLE, airDistance, hits, initHurdle, jumpHurdle, speedAt, stepHurdle } from '../hooks/games/hurdle'
 import { GAME_IDS, beats, gameOf, scoreText } from '../hooks/games'
 import { isForbiddenKey, normalizeKey } from '../hooks/games/kit'
 import { canMove, initMerge, moveMerge, slide, slideLine, spawn } from '../hooks/games/merge'
-import { SLITHER, initSlither, moveSlither, stepMs, stepSlither, turnSlither } from '../hooks/games/slither'
+import { TAILCHASE, initTailchase, moveTailchase, stepMs, stepTailchase, turnTailchase } from '../hooks/games/tailchase'
 import { countAdjacent, flagAt, flood, initSweep, neighbors, revealAt } from '../hooks/games/sweep'
 import { SHARED_KEYS } from '../hooks/engine'
 import { dailySeed, dayKey, fnv1a, rand, randInt } from '../hooks/rng'
 import { duration, scorecard, shareLine } from '../hooks/share'
+
+describe('names', () => {
+  // Every id is a picker button, a command argument, a store key and a daily seed. A rename is
+  // this one diff (the old snake and runner names were taken by registered game trademarks).
+  test('the four games and nothing else', () => {
+    expect([...GAME_IDS]).toEqual(['hurdle', 'tailchase', 'merge', 'sweep'])
+    for (const id of GAME_IDS) {
+      expect(gameOf(id).id).toBe(id)
+      expect(gameOf(id).title).toBe(id)
+    }
+  })
+})
 
 describe('keys', () => {
   test('no game, and no shared key, uses Enter, y, n or a digit', () => {
@@ -60,40 +72,40 @@ describe('rng and the daily seed', () => {
   for (const [ms, day] of days) test(`dayKey ${day}`, () => expect(dayKey(ms)).toBe(day))
 
   test('same day and game: same seed for everyone; another day or game: another seed', () => {
-    expect(dailySeed('dash', '2026-10-09')).toBe(dailySeed('dash', '2026-10-09'))
-    expect(dailySeed('dash', '2026-10-09')).toBe(fnv1a('halftime/dash/2026-10-09'))
-    expect(dailySeed('dash', '2026-10-09')).not.toBe(dailySeed('dash', '2026-10-10'))
-    expect(dailySeed('dash', '2026-10-09')).not.toBe(dailySeed('merge', '2026-10-09'))
+    expect(dailySeed('hurdle', '2026-10-09')).toBe(dailySeed('hurdle', '2026-10-09'))
+    expect(dailySeed('hurdle', '2026-10-09')).toBe(fnv1a('halftime/hurdle/2026-10-09'))
+    expect(dailySeed('hurdle', '2026-10-09')).not.toBe(dailySeed('hurdle', '2026-10-10'))
+    expect(dailySeed('hurdle', '2026-10-09')).not.toBe(dailySeed('merge', '2026-10-09'))
     // The same seed builds the same board.
     expect(initSweep(dailySeed('sweep', '2026-10-09'))).toEqual(initSweep(dailySeed('sweep', '2026-10-09')))
     expect(initMerge(dailySeed('merge', '2026-10-09'))).toEqual(initMerge(dailySeed('merge', '2026-10-09')))
   })
 })
 
-describe('dash', () => {
-  const flat = (over: Partial<HalftimeDash> = {}): HalftimeDash => ({
+describe('hurdle', () => {
+  const flat = (over: Partial<HalftimeHurdle> = {}): HalftimeHurdle => ({
     rng: 1, x: 0, y: 0, vy: 0, obs: [], nextX: 1e9, dead: false, buffered: false, ...over,
   })
 
   test('speed rises slowly with distance, then holds', () => {
-    expect(speedAt(0)).toBe(DASH.v0)
+    expect(speedAt(0)).toBe(HURDLE.v0)
     expect(speedAt(500)).toBeGreaterThan(speedAt(100))
-    expect(speedAt(1e6)).toBe(DASH.vmax)
+    expect(speedAt(1e6)).toBe(HURDLE.vmax)
   })
 
   test('a jump peaks near v^2/2g and lands after 2v/g', () => {
-    let s = jumpDash(flat())
+    let s = jumpHurdle(flat())
     let peak = 0
     let t = 0
     while (t === 0 || s.y > 0) {
-      s = stepDash(s, 8)
+      s = stepHurdle(s, 8)
       t += 8
       peak = Math.max(peak, s.y)
       if (t > 3000) break
     }
     expect(peak).toBeGreaterThan(2)
-    expect(peak).toBeLessThan((DASH.jump * DASH.jump) / (2 * DASH.gravity) + 0.05)
-    expect(Math.abs(t - (2 * DASH.jump * 1000) / DASH.gravity)).toBeLessThan(40)
+    expect(peak).toBeLessThan((HURDLE.jump * HURDLE.jump) / (2 * HURDLE.gravity) + 0.05)
+    expect(Math.abs(t - (2 * HURDLE.jump * 1000) / HURDLE.gravity)).toBeLessThan(40)
   })
 
   const crash: [string, [number, number, number], boolean][] = [
@@ -103,16 +115,16 @@ describe('dash', () => {
   for (const [name, crate, dies] of crash) {
     test(name, () => {
       let s = flat({ obs: [crate] })
-      for (let i = 0; i < 40 && !s.dead; i += 1) s = stepDash(s, 50)
+      for (let i = 0; i < 40 && !s.dead; i += 1) s = stepHurdle(s, 50)
       expect(s.dead).toBe(dies)
     })
   }
 
   test('a jump at the right moment clears a low crate', () => {
     let s = flat({ obs: [[10, 1, 1]] })
-    while (s.x < 10 - airDistance(speedAt(s.x)) / 2) s = stepDash(s, 8)
-    s = jumpDash(s)
-    for (let i = 0; i < 100; i += 1) s = stepDash(s, 8)
+    while (s.x < 10 - airDistance(speedAt(s.x)) / 2) s = stepHurdle(s, 8)
+    s = jumpHurdle(s)
+    for (let i = 0; i < 100; i += 1) s = stepHurdle(s, 8)
     expect(s.dead).toBe(false)
     expect(s.x).toBeGreaterThan(12)
   })
@@ -125,9 +137,9 @@ describe('dash', () => {
   })
 
   test('the course comes from the seed alone and leaves room to land between crates', () => {
-    const a = initDash(123)
-    expect(a.obs).toEqual(initDash(123).obs)
-    expect(a.obs).not.toEqual(initDash(124).obs)
+    const a = initHurdle(123)
+    expect(a.obs).toEqual(initHurdle(123).obs)
+    expect(a.obs).not.toEqual(initHurdle(124).obs)
     for (let i = 1; i < a.obs.length; i += 1) {
       const [px, pw] = a.obs[i - 1]!
       const gap = a.obs[i]![0] - (px + pw)
@@ -136,29 +148,29 @@ describe('dash', () => {
   })
 
   test('score follows real time, not the frame count', () => {
-    const coarse = Array.from({ length: 10 }, () => 100).reduce((s, dt) => stepDash(s, dt), flat())
-    const fine = Array.from({ length: 100 }, () => 10).reduce((s, dt) => stepDash(s, dt), flat())
+    const coarse = Array.from({ length: 10 }, () => 100).reduce((s, dt) => stepHurdle(s, dt), flat())
+    const fine = Array.from({ length: 100 }, () => 10).reduce((s, dt) => stepHurdle(s, dt), flat())
     expect(Math.abs(coarse.x - fine.x)).toBeLessThan(0.05)
-    expect(Math.floor(fine.x)).toBe(gameOf('dash').score(fine, 1000))
+    expect(Math.floor(fine.x)).toBe(gameOf('hurdle').score(fine, 1000))
     // One stalled frame advances at most its cap.
-    expect(stepDash(flat(), 10_000).x).toBeLessThan(speedAt(0) * (DASH.maxDtMs / 1000) + 0.5)
+    expect(stepHurdle(flat(), 10_000).x).toBeLessThan(speedAt(0) * (HURDLE.maxDtMs / 1000) + 0.5)
   })
 })
 
-describe('slither', () => {
-  const line = (over: Partial<HalftimeSlither> = {}): HalftimeSlither => ({
-    ...initSlither(9), food: null, ...over,
+describe('tailchase', () => {
+  const line = (over: Partial<HalftimeTailchase> = {}): HalftimeTailchase => ({
+    ...initTailchase(9), food: null, ...over,
   })
 
   test('moves one cell per step and wraps at every edge', () => {
     const cases: [string, [number, number], number, [number, number]][] = [
-      ['right edge to the left', [SLITHER.w - 1, 2], 1, [0, 2]],
-      ['left edge to the right', [0, 2], 3, [SLITHER.w - 1, 2]],
-      ['top to bottom', [5, 0], 0, [5, SLITHER.h - 1]],
-      ['bottom to top', [5, SLITHER.h - 1], 2, [5, 0]],
+      ['right edge to the left', [TAILCHASE.w - 1, 2], 1, [0, 2]],
+      ['left edge to the right', [0, 2], 3, [TAILCHASE.w - 1, 2]],
+      ['top to bottom', [5, 0], 0, [5, TAILCHASE.h - 1]],
+      ['bottom to top', [5, TAILCHASE.h - 1], 2, [5, 0]],
     ]
     for (const [name, head, dir, want] of cases) {
-      const s = moveSlither(line({ body: [head], dir }))
+      const s = moveTailchase(line({ body: [head], dir }))
       expect(s.body[0], name).toEqual(want)
       expect(s.dead, name).toBe(false)
     }
@@ -166,36 +178,36 @@ describe('slither', () => {
 
   test('eating a pip scores, then grows by one on the next step', () => {
     let s = line({ body: [[3, 3], [2, 3], [1, 3]], dir: 1, food: [4, 3] })
-    s = moveSlither(s)
+    s = moveTailchase(s)
     expect(s.eaten).toBe(1)
     expect(s.body.length).toBe(3)
     expect(s.food).not.toEqual([4, 3])
     expect(s.body.some(([x, y]) => s.food !== null && x === s.food[0] && y === s.food[1])).toBe(false)
-    s = moveSlither(s)
+    s = moveTailchase(s)
     expect(s.body.length).toBe(4)
   })
 
   test('biting its own body ends the run; the cell the tail just left is free', () => {
     const loop: [number, number][] = [[2, 2], [3, 2], [3, 3], [2, 3], [1, 3], [1, 2]]
-    expect(moveSlither(line({ body: loop, dir: 2 })).dead).toBe(true)
+    expect(moveTailchase(line({ body: loop, dir: 2 })).dead).toBe(true)
     const square: [number, number][] = [[2, 2], [3, 2], [3, 3], [2, 3]]
-    expect(moveSlither(line({ body: square, dir: 2 })).dead).toBe(false)
-    expect(moveSlither(line({ body: square, dir: 2, grow: 1 })).dead).toBe(true)
+    expect(moveTailchase(line({ body: square, dir: 2 })).dead).toBe(false)
+    expect(moveTailchase(line({ body: square, dir: 2, grow: 1 })).dead).toBe(true)
   })
 
   test('a reversal is ignored; turns queue two deep', () => {
     let s = line()
-    expect(turnSlither(s, 3).queue).toEqual([])
-    s = turnSlither(turnSlither(turnSlither(s, 0), 3), 2)
+    expect(turnTailchase(s, 3).queue).toEqual([])
+    s = turnTailchase(turnTailchase(turnTailchase(s, 0), 3), 2)
     expect(s.queue).toEqual([0, 3])
   })
 
   test('steps come from real time and quicken with every pip', () => {
-    const s = stepSlither(stepSlither(line({ body: [[3, 3], [2, 3], [1, 3]] }), stepMs(0)), stepMs(0) + 5)
+    const s = stepTailchase(stepTailchase(line({ body: [[3, 3], [2, 3], [1, 3]] }), stepMs(0)), stepMs(0) + 5)
     expect(s.body[0]).toEqual([5, 3])
     expect(s.acc).toBe(5)
     expect(stepMs(10)).toBeLessThan(stepMs(0))
-    expect(stepMs(1000)).toBe(SLITHER.floorMs)
+    expect(stepMs(1000)).toBe(TAILCHASE.floorMs)
   })
 })
 
@@ -291,8 +303,8 @@ describe('sweep', () => {
 describe('words', () => {
   const lines: [Parameters<typeof shareLine>[0], string][] = [
     [
-      { mode: 'daily', day: '2026-10-09', game: 'dash', score: 412, playedMs: 190_000, waitMs: 420_000, waitPlayedMs: 180_000 },
-      'halftime daily 10-09 · dash 412 · played 3m of a 7m turn',
+      { mode: 'daily', day: '2026-10-09', game: 'hurdle', score: 412, playedMs: 190_000, waitMs: 420_000, waitPlayedMs: 180_000 },
+      'halftime daily 10-09 · hurdle 412 · played 3m of a 7m turn',
     ],
     [
       { mode: 'practice', day: '2026-10-09', game: 'merge', score: 1320, playedMs: 45_000, waitMs: 0, waitPlayedMs: 0 },
@@ -315,15 +327,15 @@ describe('words', () => {
     expect(duration(61_000)).toBe('1m')
     expect(duration(3_900_000)).toBe('1h 5m')
     expect(scoreText('sweep', 47)).toBe('47s')
-    expect(scoreText('dash', null)).toBe('-')
+    expect(scoreText('hurdle', null)).toBe('-')
     expect(beats('sweep', 40, 47)).toBe(true)
-    expect(beats('dash', 40, 47)).toBe(false)
-    expect(beats('dash', 40, undefined)).toBe(true)
+    expect(beats('hurdle', 40, 47)).toBe(false)
+    expect(beats('hurdle', 40, undefined)).toBe(true)
   })
 
   test('the scorecard is one line over every game', () => {
-    const line = scorecard({ auto: false, last: null, best: { dash: 412, sweep: 47 }, daily: {}, playedMs: 0, waitPlayedMs: 2_220_000, runs: 3 })
-    expect(line).toBe('halftime · dash 412 · slither - · merge - · sweep 47s · 37m played while waiting')
+    const line = scorecard({ auto: false, last: null, best: { hurdle: 412, sweep: 47 }, daily: {}, playedMs: 0, waitPlayedMs: 2_220_000, runs: 3 })
+    expect(line).toBe('halftime · hurdle 412 · tailchase - · merge - · sweep 47s · 37m played while waiting')
     expect(line.includes('\n')).toBe(false)
   })
 })

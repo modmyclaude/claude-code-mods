@@ -24,24 +24,24 @@ describe('compare-and-set, two sessions on one store', () => {
     const disk = new Map<string, unknown>()
     const a = sessionOn(disk)
     const b = sessionOn(disk)
-    expect(await saveBest(a, 'dash', 300)).toEqual({ best: 300, isBest: true })
-    expect(await saveBest(b, 'dash', 500)).toEqual({ best: 500, isBest: true })
+    expect(await saveBest(a, 'hurdle', 300)).toEqual({ best: 300, isBest: true })
+    expect(await saveBest(b, 'hurdle', 500)).toEqual({ best: 500, isBest: true })
     // A still remembers 300 as its best; its next save re-reads and finds 500.
-    expect(await saveBest(a, 'dash', 400)).toEqual({ best: 500, isBest: false })
-    expect(disk.get('best:dash')).toBe(500)
-    expect(await saveBest(a, 'dash', 600)).toEqual({ best: 600, isBest: true })
-    expect(await saveBest(b, 'dash', 550)).toEqual({ best: 600, isBest: false })
-    expect(disk.get('best:dash')).toBe(600)
+    expect(await saveBest(a, 'hurdle', 400)).toEqual({ best: 500, isBest: false })
+    expect(disk.get('best:hurdle')).toBe(500)
+    expect(await saveBest(a, 'hurdle', 600)).toEqual({ best: 600, isBest: true })
+    expect(await saveBest(b, 'hurdle', 550)).toEqual({ best: 600, isBest: false })
+    expect(disk.get('best:hurdle')).toBe(600)
   })
 
   test('a lower score written in the gap after our write is repaired', async () => {
-    const disk = new Map<string, unknown>([['best:dash', 100]])
+    const disk = new Map<string, unknown>([['best:hurdle', 100]])
     const hooks: { afterSet?: () => void } = {}
     const a = sessionOn(disk, hooks)
     // B read 100 before A wrote, and writes its 450 just after A's 600 lands.
-    hooks.afterSet = () => disk.set('best:dash', 450)
-    expect(await saveBest(a, 'dash', 600)).toEqual({ best: 600, isBest: true })
-    expect(disk.get('best:dash')).toBe(600)
+    hooks.afterSet = () => disk.set('best:hurdle', 450)
+    expect(await saveBest(a, 'hurdle', 600)).toEqual({ best: 600, isBest: true })
+    expect(disk.get('best:hurdle')).toBe(600)
   })
 
   test('sweep keeps the lower time; the daily best is per day', async () => {
@@ -63,29 +63,29 @@ describe('compare-and-set, two sessions on one store', () => {
 
 describe('through the plugin', () => {
   test('a run ending below a best another session just saved never overwrites it', async ($, on) => {
-    const disk = new Map<string, unknown>([['best:dash', 10]])
+    const disk = new Map<string, unknown>([['best:hurdle', 10]])
     const { clock } = world(on, { store: disk })
     await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true } as never)
-    await $.command.run(halftime('dash'))
+    await $.command.run(halftime('hurdle'))
     const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
     expect(titleText((await boardOf(ui))!)).toContain('best 10')
     // Mid-run, the other session saves a far better run.
-    disk.set('best:dash', 9999)
+    disk.set('best:hurdle', 9999)
     await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
     await play(clock, ui, 5000)
     const over = await boardOf(ui)
     expect(over?.wait).toContain('crashed at')
     expect(over?.wait).toContain('best 9999')
     expect(titleText(over!)).toContain('best 9999')
-    expect(disk.get('best:dash')).toBe(9999)
+    expect(disk.get('best:hurdle')).toBe(9999)
   })
 
   test('a better run is saved, with its daily score and the time played while waiting', async ($, on) => {
-    const disk = new Map<string, unknown>([['best:dash', 5]])
+    const disk = new Map<string, unknown>([['best:hurdle', 5]])
     const { clock } = world(on, { store: disk })
     await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true } as never)
     await $.turn.start({ text: 'build it', turnId: 'main-1' })
-    await $.command.run(halftime('dash'))
+    await $.command.run(halftime('hurdle'))
     const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
     await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
     await play(clock, ui, 5000)
@@ -93,12 +93,12 @@ describe('through the plugin', () => {
     const score = Number(/crashed at (\d+)/.exec(over?.wait ?? '')?.[1])
     expect(score).toBeGreaterThan(5)
     expect(over?.wait).toContain('new personal best')
-    expect(disk.get('best:dash')).toBe(score)
-    expect(disk.get('daily:dash')).toEqual({ day: '2026-10-09', score })
-    expect(disk.get('last')).toBe('dash')
+    expect(disk.get('best:hurdle')).toBe(score)
+    expect(disk.get('daily:hurdle')).toEqual({ day: '2026-10-09', score })
+    expect(disk.get('last')).toBe('hurdle')
     const totals = disk.get('totals') as { playedMs: number; waitPlayedMs: number; runs: number }
     expect(totals.runs).toBe(1)
     expect(totals.waitPlayedMs).toBeGreaterThan(2000)
-    expect(await bandText(ui)).toContain(`halftime daily 10-09 · dash ${score} · played`)
+    expect(await bandText(ui)).toContain(`halftime daily 10-09 · hurdle ${score} · played`)
   })
 })
