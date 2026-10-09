@@ -7,7 +7,7 @@ import type { BoxProps, ElementConstructor, RenderElement, RenderPropsOf, TextPr
 
 import type { WardrobeLook, WardrobeTiming } from '../types'
 import type { DiffCard, DiffLine } from './content'
-import { shortPath } from './content'
+import { clean, shortPath } from './content'
 import { AUTO, clockText, DEFAULT, formatDuration, formatMs, type Settings } from './look'
 import { KIND_ROLE, kindOf, STATUS_ROLE, THEMES, type Role, type Status, type Theme } from './themes'
 
@@ -46,7 +46,9 @@ export function toolRow(
   const { Box } = t
   const kind = kindOf(props.tool)
   const status = statusOf(props)
-  const time = status !== 'running' && timing?.ms != null ? ` ${formatMs(timing.ms)}` : ''
+  // A time only for a call that ran to the end: a refused or failed call's
+  // span is mostly the wait at the approval prompt, not the call.
+  const time = status === 'done' && timing?.ms != null ? ` ${formatMs(timing.ms)}` : ''
   return (
     <Box flexDirection="row" gap={1}>
       <Box key="icon" flexShrink={0}>
@@ -119,7 +121,7 @@ export function diffTree(t: Table, theme: Theme, card: DiffCard, root: string): 
       <Text>{GUTTER}</Text>
       <Box flexDirection="column" flexGrow={1} flexShrink={1}>
         <Box key="summary" flexDirection="row" gap={1}>
-          {chip(t, theme, 'text', ` ${card.verb} ${shortPath(card.path, root)} `)}
+          {chip(t, theme, 'text', ` ${card.verb} ${shortPath(card.path, clean(root))} `)}
           <Text color={diff.addFg} backgroundColor={diff.addBg}>{` +${card.added} `}</Text>
           <Text color={diff.removeFg} backgroundColor={diff.removeBg}>{` -${card.removed} `}</Text>
           {card.userModified && chip(t, theme, 'muted', ' edited by you ')}
@@ -167,14 +169,21 @@ const MODE_LABEL: Record<RenderPropsOf['Spinner']['mode'], string> = {
   'tool-use': 'using tools',
 }
 
-/** The engine's spinner line, then a chip naming what the turn is doing. */
-export function spinnerRow(t: Table, theme: Theme, mode: RenderPropsOf['Spinner']['mode'], engine: RenderElement): RenderElement {
+/** The engine's spinner line, then a chip naming what the turn is doing; narrow, the line alone. */
+export function spinnerRow(
+  t: Table,
+  theme: Theme,
+  mode: RenderPropsOf['Spinner']['mode'],
+  engine: RenderElement,
+  columns: number | undefined,
+): RenderElement {
   const { Box } = t
+  if ((columns ?? 80) < NARROW) return engine
   return (
     <Box flexDirection="row" gap={1}>
       {engine}
       <Box key="mode" flexShrink={0}>
-        {chip(t, theme, 'accent', ` ${theme.mark} ${MODE_LABEL[mode] ?? mode} `)}
+        {chip(t, theme, 'accent', ` ${theme.mark} ${MODE_LABEL[mode] ?? clean(String(mode))} `)}
       </Box>
     </Box>
   )
@@ -183,7 +192,7 @@ export function spinnerRow(t: Table, theme: Theme, mode: RenderPropsOf['Spinner'
 /** The line closing a turn: `<mark> Baked for 3s`. */
 export function turnRow(t: Table, theme: Theme, word: string, durationMs: number): RenderElement {
   const { Box } = t
-  return <Box key="turn">{chip(t, theme, 'muted', ` ${theme.mark} ${word} for ${formatDuration(durationMs)} `)}</Box>
+  return <Box key="turn">{chip(t, theme, 'muted', ` ${theme.mark} ${clean(word)} for ${formatDuration(durationMs)} `)}</Box>
 }
 
 const NAME_WIDTH = Math.max(...THEMES.map(theme => theme.id.length))
@@ -249,7 +258,7 @@ export function listTree(
         {wearing(AUTO)}
       </Box>
       {problems.map(problem => (
-        <Text>Setting: {problem}</Text>
+        <Text>Setting: {clean(problem)}</Text>
       ))}
       <Text>{HELP}</Text>
     </Box>
@@ -264,7 +273,7 @@ export function listText(look: WardrobeLook, settings: Settings, problems: reado
     `- ${DEFAULT}: Claude Code's own drawing${mark(DEFAULT)}`,
     ...THEMES.map(theme => `- ${theme.id} (${theme.tone}) ${theme.icons.shell}${theme.icons.read}${theme.icons.edit}${theme.icons.write}: ${theme.blurb}${mark(theme.id)}`),
     `- ${AUTO}: ${settings.dayTheme} from ${clockText(settings.dayStarts)}, ${settings.nightTheme} from ${clockText(settings.nightStarts)}${mark(AUTO)}`,
-    ...problems.map(problem => `Setting: ${problem}`),
+    ...problems.map(problem => `Setting: ${clean(problem)}`),
     HELP,
   ].join('\n')
 }

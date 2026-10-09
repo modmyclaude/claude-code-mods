@@ -93,3 +93,19 @@ export const EDIT = {
   userModified: false,
   replaceAll: false,
 }
+
+// What the engine refuses in a drawn tree: every C0 control but tab and
+// newline, DEL, and every C1 control.
+const REFUSED = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
+
+/** Every string in a drawn tree (texts and string props) that holds a control character. */
+export function controlsIn(node: unknown, found: string[] = []): string[] {
+  if (typeof node === 'string') {
+    if (REFUSED.test(node)) found.push(JSON.stringify(node))
+  } else if (Array.isArray(node)) {
+    for (const child of node) controlsIn(child, found)
+  } else if (typeof node === 'object' && node !== null) {
+    for (const value of Object.values(node)) controlsIn(value, found)
+  }
+  return found
+}
