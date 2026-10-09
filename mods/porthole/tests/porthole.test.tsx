@@ -24,12 +24,15 @@ type World = {
   surfaces: RenderSurface[]
   isOpen: boolean
   blitDeny: string | undefined
-  chrome: 'writes' | 'exits-silently' | 'fails' | 'lingers'
+  /** writes: the usual. slow: writes 1 s later. hangs: never writes, never ends (for 10 min). */
+  chrome: 'writes' | 'exits-silently' | 'fails' | 'lingers' | 'slow' | 'hangs'
+  tmpdir: string
+  notPlaced: string | undefined
   stderrLine: string
   pulledPastWritten: boolean
   mktempOut: string | undefined
   toastThrows: boolean
-  openDenied: boolean
+  openDenied: string | undefined
   registered: unknown[]
 }
 
@@ -48,14 +51,16 @@ function world(on: On, chromePath: string | null = CHROME): World {
     isOpen: false,
     blitDeny: undefined,
     chrome: 'writes',
+    tmpdir: `${TMP}/`,
+    notPlaced: undefined,
     pulledPastWritten: false,
     stderrLine: '[1:2:1008/1.2:ERROR:ozone.cc:1] Missing X server or $DISPLAY',
     mktempOut: undefined,
     toastThrows: false,
-    openDenied: false,
+    openDenied: undefined,
     registered: [],
   }
-  mock.env(on, { TMPDIR: `${TMP}/`, PATH: '/usr/bin:/bin' })
+  on('env.get', ($, e) => ({ value: e.name === 'TMPDIR' ? w.tmpdir : e.name === 'PATH' ? '/usr/bin:/bin' : undefined }))
   let made = 0
   on('process.run', ($, e) => {
     w.runs.push([...e.argv])
@@ -66,13 +71,20 @@ function world(on: On, chromePath: string | null = CHROME): World {
     }
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('process.spawn', async function* ($, e) {
+  on('process.spawn', async function* ($, e, next) {
     w.spawns.push([...e.argv])
     const screenshot = e.argv.find(arg => arg.startsWith('--screenshot='))?.slice('--screenshot='.length) ?? ''
     if (w.chrome === 'fails') {
       yield { stream: 'stderr' as const, text: `${w.stderrLine}\n` }
       return { value: { code: 1, signal: null } }
     }
+    if (w.chrome === 'hangs') {
+      // Ends early only when porthole closes the stream, as a killed child would.
+      const killed = new Promise<void>(resolve => next.signal.addEventListener('abort', () => resolve(), { once: true }))
+      await Promise.race([w.clock.sleep(600_000), killed])
+      return { value: { code: null, signal: 'SIGTERM' } }
+    }
+    if (w.chrome === 'slow') await w.clock.sleep(1000)
     w.files.add(screenshot)
     if (w.chrome !== 'exits-silently') yield { stream: 'stderr' as const, text: `22337 bytes written to file ${screenshot}\n` }
     // Real Chrome 154 stays alive after its screenshot: porthole must stop reading here.
@@ -82,10 +94,10 @@ function world(on: On, chromePath: string | null = CHROME): World {
   on('fs.exists', ($, e) => ({ value: w.files.has(e.path) }))
   on('session.surfaces', () => ({ value: w.surfaces }))
   on('ui.open', ($, e) => {
-    if (w.openDenied) return { deny: 'no pane for you' }
+    if (w.openDenied !== undefined) return { deny: w.openDenied }
     w.opened.push(e.id)
     w.isOpen = true
-    return { value: { isPlaced: true as const } }
+    return { value: w.notPlaced === undefined ? { isPlaced: true as const } : { isPlaced: false as const, reason: w.notPlaced } }
   })
   on('ui.close', () => {
     w.isOpen = false
@@ -155,6 +167,7 @@ function argvFor(n: number, size: string, url: string): string[] {
     `--user-data-dir=${dir}/profile`,
     `--window-size=${size}`,
     `--screenshot=${dir}/shot.png`,
+    '--',
     url,
   ]
 }
@@ -238,9 +251,10 @@ test('only http(s) pages open; shorthands only ever mean localhost', async ($, o
 
 test('when opening the pane fails, the command says so and Chrome never runs', async ($, on) => {
   const w = world(on)
-  w.openDenied = true
+  w.openDenied = 'no pane for you'
   const answer = await run($, 'http://localhost:5173')
   expect(answer.text ?? '').toMatch(/^porthole: .*no pane for you/)
+  expect(answer.text ?? '').not.toMatch(/^porthole: porthole:/) // one prefix, never two
   await settled(w)
   expect(w.spawns).toEqual([])
 })
@@ -549,7 +563,8 @@ const NOT_PERSON: PromptOrigin[] = [
   { kind: 'plugin', name: 'other' },
   { kind: 'plugin', name: 'other', asUser: true },
 ]
-const REFUSAL = 'Porthole opens a site other than localhost only when you type /porthole <url> yourself.'
+const REFUSAL =
+  'Porthole opens a site other than localhost only when you type /porthole <url> yourself at the terminal or through Remote Control.'
 
 test('a remote URL opens for the person typing: composer and bridge', async ($, on) => {
   const w = world(on)
@@ -691,4 +706,70 @@ test('control characters in a URL or in Chrome stderr never break the pane', asy
     }
     await ui.unmount()
   }
+})
+
+// MM-057 follow-ups.
+test('control characters never reach a command answer or toast', async ($, on) => {
+  const w = world(on)
+  const refused = await run($, 'foo\u0007\u009b31mbar')
+  expect(refused.text ?? '').toMatch(/not a full URL/)
+  expect(CONTROL.test(refused.text ?? '')).toBe(false)
+
+  w.openDenied = 'no \u001b[31mpane\u007f'
+  const thrown = await run($, 'http://localhost:5173')
+  expect(thrown.text ?? '').toMatch(/^porthole: /)
+  expect(CONTROL.test(thrown.text ?? '')).toBe(false)
+
+  w.openDenied = undefined
+  w.notPlaced = 'too narrow\u0000'
+  expect(await shown($, w, 'http://localhost:5173')).toBe('Porthole: http://localhost:5173/ at 1280 px (desktop). The pane is waiting: too narrow�')
+})
+
+test('a remote URL typed in the desktop app (an SDK turn) is told porthole is terminal-only', async ($, on) => {
+  const w = world(on)
+  w.surfaces = ['desktop']
+  const answer = await run($, 'https://example.com/', 'porthole', { kind: 'sdk' })
+  expect(answer.text).toBe(
+    'Porthole draws its preview in a terminal. In the desktop app, open https://example.com/ in the built-in browser pane instead.',
+  )
+  expect(w.opened).toEqual([])
+  expect(w.spawns).toEqual([])
+})
+
+test('rm -rf is refused for a folder outside the current temp root', { plugins: [CLOSER] }, async ($, on) => {
+  const w = world(on)
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  w.tmpdir = '/somewhere/else/' // state and TMPDIR now disagree
+  await run($, '', 'close-porthole')
+  expect(w.runs.filter(argv => argv[0] === 'rm' && argv[2] === `${TMP}/porthole.run001`)).toEqual([])
+})
+
+test('a Chrome that never writes is given up on after exactly 30 seconds', async ($, on) => {
+  const w = world(on)
+  w.chrome = 'hangs'
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  await w.clock.advance(29_999)
+  await settled(w)
+  expect(await paneText($, 'error')).toBeUndefined()
+  await w.clock.advance(1)
+  await settled(w)
+  expect(await paneText($, 'error')).toBe('Chrome did not finish within 30 seconds.')
+  expect(w.runs).toContainEqual(['rm', '-rf', `${TMP}/porthole.run001`])
+})
+
+test('a picture of a page the person has left is dropped, and the new page is shot', async ($, on) => {
+  const w = world(on)
+  w.chrome = 'slow'
+  await run($, 'http://localhost:5173')
+  await settled(w) // Chrome is busy with 5173
+  await run($, 'http://localhost:6006')
+  await w.clock.advance(1000)
+  await settled(w)
+  expect(w.runs).toContainEqual(['rm', '-rf', `${TMP}/porthole.run001`]) // 5173's picture, never shown
+  await w.clock.advance(1000)
+  await settled(w)
+  expect(w.spawns.map(argv => argv.at(-1))).toEqual(['http://localhost:5173/', 'http://localhost:6006/'])
+  expect(await paneText($, 'status')).toBe('localhost:6006 - desktop 1280px - shot 1')
 })

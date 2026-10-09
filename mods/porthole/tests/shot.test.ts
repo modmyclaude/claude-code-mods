@@ -27,6 +27,7 @@ test('chromeArgv: headless, throwaway profile, viewport, screenshot path, URL la
     '--user-data-dir=/tmp/porthole.abc123/profile',
     '--window-size=390,844',
     '--screenshot=/tmp/porthole.abc123/shot.png',
+    '--',
     'http://localhost:5173/',
   ])
 })

@@ -43,7 +43,7 @@ not open, Chrome missing) stays visible as the command's output.
 
 - **Processes.** For each screenshot: `mktemp -d` to make a private run folder in `$TMPDIR`, then the Chrome
   you already have, headless:
-  `--headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check --disable-extensions --disable-background-networking --disable-sync --use-mock-keychain --force-device-scale-factor=1 --timeout=15000 --user-data-dir=<run folder>/profile --window-size=W,H --screenshot=<run folder>/shot.png <url>`.
+  `--headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check --disable-extensions --disable-background-networking --disable-sync --use-mock-keychain --force-device-scale-factor=1 --timeout=15000 --user-data-dir=<run folder>/profile --window-size=W,H --screenshot=<run folder>/shot.png -- <url>`.
   Arguments are passed as a list, never through a shell. Chrome is stopped as soon as it reports the PNG
   written (30 second hard stop). `rm -rf` runs only on porthole's own run folders
   (`$TMPDIR/porthole.XXXXXX` and the profile inside), checked by an allow-list before every call.

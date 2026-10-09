@@ -48,8 +48,8 @@ export function fitBox(px: Size, room: Room): Room {
 /**
  * The whole Chrome command line, as argv (no shell). A fresh profile inside the
  * run folder every time: no cookies, no signed-in accounts, nothing shared with the
- * person's own browser. The URL comes last and is always an http(s) href, so it can
- * never be read as a switch.
+ * person's own browser. The URL comes last, after `--`, and is always an http(s)
+ * href besides, so it can never be read as a switch.
  */
 export function chromeArgv(chrome: string, run: { dir: string; size: Size; url: string }): string[] {
   return [
@@ -68,6 +68,7 @@ export function chromeArgv(chrome: string, run: { dir: string; size: Size; url: 
     `--user-data-dir=${run.dir}/profile`,
     `--window-size=${run.size.width},${run.size.height}`,
     `--screenshot=${run.dir}/shot.png`,
+    '--', // ends the switches: the URL is never read as one
     run.url,
   ]
 }
