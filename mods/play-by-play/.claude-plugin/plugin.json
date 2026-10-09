@@ -1,0 +1,9 @@
+{
+  "name": "play-by-play",
+  "version": "0.1.0",
+  "description": "Replays every change Claude made in a turn, shell edits included.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["review", "diff", "replay", "changes", "git"],
+  "types": "./types/index.d.ts"
+}
