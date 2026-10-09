@@ -68,6 +68,21 @@
       ]
     },
     {
+      "name": "halftime",
+      "source": "./mods/halftime",
+      "description": "Claude works, you play. The whistle blows the moment it needs you.",
+      "version": "0.1.0",
+      "category": "fun",
+      "keywords": [
+        "games",
+        "fun",
+        "waiting",
+        "band",
+        "whistle",
+        "daily"
+      ]
+    },
+    {
       "name": "hatchling",
       "source": "./mods/hatchling",
       "description": "A collectible pixel pet that hatches, reacts and evolves while you code.",
