@@ -40,7 +40,7 @@ This repo is a small, curated collection of <!-- count -->17<!-- /count --> of t
 
 - **Original mods, built here.** Not a list of other people's repos.
 - **Every mod ships its prompt.** Read how it was made, change a line, and Claude builds your version.
-- **Tested where you use it.** <!-- tests -->2,900+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not just a static validate.
+- **Tested where you use it.** <!-- tests -->2,900+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not only a static validate.
 - **Reviewed by a second builder.** No mod is listed on its builder's word alone.
 - **Honest badges.** What each mod can touch comes from Claude Code's own validator, not from our description.
 

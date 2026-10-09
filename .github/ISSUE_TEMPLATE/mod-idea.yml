@@ -27,4 +27,4 @@ body:
     id: build
     attributes:
       label: Do you want to build it?
-      options: ["Yes, I will open a pull request", "No, just the idea"]
+      options: ["Yes, I will open a pull request", "No, only the idea"]
