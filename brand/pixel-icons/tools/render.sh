@@ -4,8 +4,8 @@ set -e
 cd "$(dirname "$0")"
 OUT="$(cd .. && pwd)"
 python3 build.py
-../scripts/shot.sh "$PWD/contact-raw.png" 1300 1400 "file://$PWD/contact-sheet.html"
-../scripts/shot.sh "$PWD/ba-raw.png" 1000 800 "file://$PWD/before-after.html"
+./shot.sh "$PWD/contact-raw.png" 1300 1400 "file://$PWD/contact-sheet.html"
+./shot.sh "$PWD/ba-raw.png" 1000 800 "file://$PWD/before-after.html"
 python3 - "$OUT" <<'PY'
 import sys
 from PIL import Image
@@ -18,3 +18,4 @@ def crop(src,dst):
 crop('contact-raw.png', out+'/contact-sheet.png')
 crop('ba-raw.png', out+'/before-after.png')
 PY
+rm -f contact-raw.png ba-raw.png
