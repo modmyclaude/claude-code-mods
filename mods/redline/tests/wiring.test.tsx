@@ -284,6 +284,52 @@ describe('the 80% toast', () => {
     await request($, pct(81), { turnId: 't2' })
     expect(w.toasts).toHaveLength(2)
   })
+
+  test('an in-session /resume starts it over too: no pace carried across conversations', async ($, on) => {
+    const w = world(on, { context: { window: 1_000_000 } })
+    await request($, 50_000)
+    await $.session.end({ reason: 'resume', sessionId: 'abc', resume: { id: 'abc' } })
+    await w.clock.advance(2 * MIN)
+    await request($, 400_000, { turnId: 't2' })
+    expect(w.status()).toContain('ctx 40%')
+    expect(w.status()).not.toContain('full in')
+  })
+
+  test("a subagent's compaction leaves the session's gauge alone", async ($, on) => {
+    const w = world(on)
+    on('session.compact', () => ({ messages: [SUMMARY], tokensAfter: 1_000 }))
+    await request($, pct(85))
+    await $.session.compact({ trigger: 'auto', agentId: 'sub-1', messages: [SUMMARY] })
+    expect(w.status()).toContain('ctx 85%')
+  })
+
+  test('a measurement with no count after a compaction keeps the compacted size', async ($, on) => {
+    const w = world(on)
+    on('session.compact', () => ({ messages: [SUMMARY], tokensAfter: pct(20) }))
+    await request($, pct(85))
+    await $.session.compact({ trigger: 'manual', messages: [SUMMARY] })
+    await $.session.measure({ context: { window: WINDOW }, rateLimits: [], cost: { usd: 2 }, changed: ['cost'] })
+    expect(w.status()).toContain('ctx 20%')
+  })
+})
+
+describe('idle', () => {
+  test('once the session sits idle past 10 minutes the line repaints once with no pace or rate', async ($, on) => {
+    const w = world(on)
+    await request($, 100_000)
+    await w.clock.advance(4 * MIN)
+    await request($, 120_000)
+    expect(w.status()).toContain('full in ~16m')
+    const painted = w.statuses.length
+    await w.clock.advance(5 * MIN) // still inside the window: nothing repaints
+    expect(w.statuses).toHaveLength(painted)
+    await w.clock.advance(6 * MIN)
+    expect(w.statuses).toHaveLength(painted + 1)
+    expect(w.status()).not.toContain('full in')
+    expect(w.status()).toContain('0 tok/min')
+    await w.clock.advance(60 * MIN) // one shot: nothing ticks while idle
+    expect(w.statuses).toHaveLength(painted + 1)
+  })
 })
 
 describe('/redline', () => {
@@ -313,7 +359,116 @@ describe('/redline', () => {
   })
 })
 
+/** Another mod's band, beneath redline (the append tier sits under user mods). */
+const OTHER_BAND = {
+  name: 'other-band',
+  tier: 'append' as const,
+  register(on: On) {
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box, Text } = $.ui.resolve(e)
+      return (
+        <Box key="other-band">
+          <Text>another mod's band</Text>
+        </Box>
+      )
+    })
+  },
+}
+
+/** Any C0 or C1 control character: the engine refuses a tree that holds one. */
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
+
+describe('outside text is cleaned before it is drawn', () => {
+  test('a model id, a plan window kind and a prompt carrying control characters still draw, clean, on both surfaces', async ($, on) => {
+    const w = world(on, { rateLimits: [{ kind: 'spend\u001b[31m_limit\u0007', percentUsed: 40 }] })
+    await $.turn.start({ text: 'look at \u001b[1mthis\u009b0m now', turnId: 't1' })
+    await request($, pct(85), { model: 'claude-opus-5-5\u001b[2J\u009b31m' })
+    await request($, 10_000, { model: 'claude-nova\u0007-1', turnId: 's1', agentId: 'sub\u001b-1' })
+    expect(w.status()).not.toMatch(CONTROL)
+    expect(w.status()).toContain('ctx 85%')
+    expect(w.status()).toContain('spend limit\ufffd 40%')
+    expect(w.toasts[0]).not.toMatch(CONTROL)
+    await runCommand($, 'band')
+    for (const surface of SURFACES) {
+      const band = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect((await band.find({ key: 'gauge' }))?.text).toContain('spend limit\ufffd 40%')
+      for (const el of await band.findAll({})) expect(el.text).not.toMatch(CONTROL)
+      await band.unmount()
+      const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+      expect((await pane.find({ key: 'context-used' }))?.text).toContain('claude-opus-5-5')
+      expect((await pane.find({ key: 'busiest-1' }))?.text).toContain('look at this now')
+      for (const el of await pane.findAll({})) expect(el.text).not.toMatch(CONTROL)
+      await pane.unmount()
+    }
+    w.isPanePlaced = false
+    expect((await runCommand($, '')).text?.replace(/\n/g, ' ')).not.toMatch(CONTROL)
+  })
+})
+
+describe('band shares the slot', () => {
+  test("draws its gauge on top of another mod's band, never in its place, on both surfaces", { plugins: [OTHER_BAND] }, async ($, on) => {
+    world(on)
+    await request($, pct(85))
+    await runCommand($, 'band')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect((await ui.find({ key: 'gauge' }))?.text).toContain('ctx 85%')
+      expect((await ui.find({ key: 'other-band' }))?.text).toBe("another mod's band")
+      // The other band comes first, so a long gauge never pushes its buttons out of view.
+      const keys = (await ui.findAll({})).map(el => el.key).filter(k => k === 'other-band' || k === 'gauge')
+      expect(keys).toEqual(['other-band', 'gauge'])
+      expect(await ui.drawn()).toMatchObject({ type: 'Box', props: { flexDirection: 'column' } })
+      await ui.unmount()
+    }
+  })
+
+  test('band off: the other band shows alone', { plugins: [OTHER_BAND] }, async ($, on) => {
+    world(on)
+    await request($, pct(85))
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect(await ui.find({ key: 'gauge' })).toBeUndefined()
+      expect(await ui.find({ key: 'other-band' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+})
+
 describe('band above the prompt', () => {
+  test('the toggle persists: off by default, on after /redline band, still on at the next session start', async ($, on) => {
+    world(on)
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>the engine's band</Text>
+    })
+    const START = { cwd: '/tmp', surface: 'terminal' as const, isInteractive: true }
+    await $.session.start(START)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect(await ui.find({ key: 'gauge' })).toBeUndefined()
+      await ui.unmount()
+    }
+    await runCommand($, 'band')
+    await $.session.start(START)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect(await ui.find({ key: 'gauge' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('sizes its bar to the band body, not the terminal', async ($, on) => {
+    world(on)
+    await request($, pct(85))
+    await runCommand($, 'band')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: { ...BAND_PROPS, bodyColumns: 60 } })
+      const texts = await ui.findAll({ type: 'Text' })
+      expect(texts.some(t => t.text === '████░')).toBe(true)
+      await ui.unmount()
+    }
+  })
+
   test('/redline band toggles it, drawn the same on both surfaces, Hide turns it off', async ($, on) => {
     const w = world(on)
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
@@ -385,6 +540,7 @@ describe('detail view', () => {
       expect(await text('session')).toContain('30m')
       expect(await text('limit-five_hour')).toContain('80%')
       expect(await text('limit-five_hour')).toContain('out in ~30m')
+      expect(await ui.find({ key: 'limits-none' })).toBeUndefined()
       expect(await text('busiest-1')).toContain('refactor the auth module')
       expect(await text('busiest-1')).toContain('2 req')
       expect(await text('busiest-2')).toContain('fix the typo')

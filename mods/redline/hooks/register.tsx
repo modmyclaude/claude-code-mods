@@ -12,11 +12,11 @@
 //   `session.compact` and a /clear (`session.end`) to start the gauge over.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, SessionMeasureInput, ThemeKey } from 'claude-code'
+import type { EngineInterface, Register, SessionMeasureInput, ThemeKey, Timer } from 'claude-code'
 
 import { detailLines, detailText } from './detail'
 import type { Tone } from './detail'
-import { bar, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, TOAST_TEXT } from './gauge'
+import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
 import type { Level, Reading } from './gauge'
 
 const PANE = 'redline'
@@ -37,6 +37,9 @@ const fromUsage = (u: Pick<SessionMeasureInput, 'context' | 'rateLimits' | 'cost
  * Folds one reading into the gauge (one write per dispatch), then repaints
  * the status line and raises the 80% toast when this write crossed it.
  */
+/** One repaint after the 10-minute window passes with no reading (see apply). */
+let idleRepaint: Timer | undefined
+
 async function apply($: EngineInterface, reading: Reading): Promise<void> {
   let fire = false
   // `update` may run the change again on a version miss; the last run is the
@@ -48,6 +51,13 @@ async function apply($: EngineInterface, reading: Reading): Promise<void> {
   })
   $.ui.status(gaugeLine(g, reading.now))
   if (fire) $.ui.toast(TOAST_TEXT(percentOf(g) ?? RED_AT), { timeoutMs: 10_000 })
+  // The status line is a fixed string: once the session sits idle past the
+  // 10-minute window, paint it once more so the pace and rate read idle. One
+  // shot, re-armed by each reading: nothing ticks while nothing happens.
+  idleRepaint?.cancel()
+  idleRepaint = $.clock.after(SPAN_MS + 1000, () => {
+    void safely($, 'idle repaint', async () => $.ui.status(gaugeLine(await read($, gauge), await $.clock.now())))
+  })
 }
 
 /** Runs gauge work so a failure is logged and never stands in a turn's way. */
@@ -122,8 +132,8 @@ export const register: Register = on => {
     await safely($, 'measure', async () => {
       await apply($, {
         now: await $.clock.now(),
-        contextTokens: e.context.tokens ?? null,
-        contextPercent: e.context.percent,
+        // No count (just compacted, until the next reply): keep what we hold.
+        ...(e.context.tokens === undefined ? {} : { contextTokens: e.context.tokens, contextPercent: e.context.percent }),
         ...fromUsage(e),
       })
     })
@@ -142,10 +152,11 @@ export const register: Register = on => {
     return compacted
   }).catch(($, e, next) => next(e))
 
-  // A /clear starts a fresh conversation: start the gauge over with it. The
-  // window and the plan windows belong to the model and account, so they stay.
+  // A /clear or an in-session /resume swaps the conversation: start the gauge
+  // over with it (no session.start follows either). The window and the plan
+  // windows belong to the model and account, so they stay.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear') {
+    if (e.reason === 'clear' || e.reason === 'resume') {
       await safely($, 'clear', async () => {
         const now = await $.clock.now()
         const g = await update($, gauge, was => ({
@@ -180,7 +191,9 @@ export const register: Register = on => {
     return { text: detailText(await read($, gauge), await $.clock.now()) }
   }).catch(() => ({ text: 'Redline could not open its detail view (run with --debug for the reason).' }))
 
-  // The band above the prompt: the status line's gauge, in colour.
+  // The band above the prompt: the status line's gauge, in colour, drawn with
+  // whatever other mods draw there (never in their place), after theirs, so a
+  // long gauge never pushes another mod's buttons out of view.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || !(await read($, isBandOn))) return next(e)
     const g = await read($, gauge)
@@ -188,18 +201,24 @@ export const register: Register = on => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const cells = e.props.bodyColumns >= 80 ? 10 : 5
     const word = levelWord(p.level)
-    const rest = [p.cost, p.rate, p.pace, ...p.limits].filter(Boolean).join(' · ')
+    // The plan windows' kinds are the engine's strings: cleaned before drawing.
+    const rest = clean([p.cost, p.rate, p.pace, ...p.limits].filter(Boolean).join(' · '))
+    // What the other mods (and the engine) draw in the band comes first.
+    const below = await next(e).catch(() => null)
     return (
-      <Box flexDirection="row" gap={1}>
-        <Box key="gauge" flexShrink={1}>
-          <Text wrap="truncate-end">
-            <Text bold>redline</Text> {p.context}{' '}
-            <Text color={LEVEL_COLOR[p.level]}>{p.percent === undefined ? '' : bar(p.percent, cells)}</Text>
-            {word ? <Text color={LEVEL_COLOR[p.level]} bold>{` ${word}`}</Text> : null}
-            <Text dimColor>{` · ${rest}`}</Text>
-          </Text>
+      <Box flexDirection="column">
+        {below}
+        <Box flexDirection="row" gap={1}>
+          <Box key="gauge" flexShrink={1}>
+            <Text wrap="truncate-end">
+              <Text bold>redline</Text> {p.context}{' '}
+              <Text color={LEVEL_COLOR[p.level]}>{p.percent === undefined ? '' : bar(p.percent, cells)}</Text>
+              {word ? <Text color={LEVEL_COLOR[p.level]} bold>{` ${word}`}</Text> : null}
+              <Text dimColor>{` · ${rest}`}</Text>
+            </Text>
+          </Box>
+          <Button key="hide" label="Hide" dimColor onPress={() => setBand($, () => false)} />
         </Box>
-        <Button key="hide" label="Hide" dimColor onPress={() => setBand($, () => false)} />
       </Box>
     )
   })

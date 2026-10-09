@@ -6,6 +6,7 @@ import type { RedlineGauge } from '../types'
 import {
   bar,
   busiest,
+  clean,
   contextGrowth,
   fmtDuration,
   fmtPace,
@@ -34,7 +35,9 @@ const more = (text: string): string => `${''.padEnd(LABEL)}${text}`
 
 export function detailLines(g: RedlineGauge, now: number, barCells = 20): DetailLine[] {
   const lines: DetailLine[] = []
-  const add = (key: string, text: string, tone: Tone = 'plain') => lines.push({ key, text, tone })
+  // Model ids, plan window kinds and prompts are outside text: cleaned here,
+  // at the one place every line passes, before the pane or the command draws it.
+  const add = (key: string, text: string, tone: Tone = 'plain') => lines.push({ key, text: clean(text), tone })
 
   add('title', 'Redline - context, cost and pace', 'title')
 
