@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import { checkTypedUrl, displayUrl, findLocalAddresses, isLocalAddress, parseArgs } from '../hooks/url'
+import { checkTypedUrl, clean, displayUrl, findLocalAddresses, isLocalAddress, isLocalHost, parseArgs } from '../hooks/url'
 
 describe('checkTypedUrl', () => {
   const allowed: Array<[string, string]> = [
@@ -66,6 +66,25 @@ describe('isLocalAddress', () => {
   }
 })
 
+describe('isLocalHost (what any origin may open)', () => {
+  const cases: Array<[string, boolean]> = [
+    ['http://localhost:5173/', true],
+    ['http://localhost/', true],
+    ['https://127.0.0.1:8443/x', true],
+    ['https://example.com/', false],
+    ['http://localhost.evil.com/', false],
+    ['http://localhost:3000@evil.com/', false],
+    ['http://user:pw@localhost:3000/', false],
+    ['file://localhost/etc/passwd', false],
+    ['nonsense', false],
+  ]
+  for (const [href, expected] of cases) {
+    test(`${href} -> ${expected}`, () => {
+      expect(isLocalHost(href)).toBe(expected)
+    })
+  }
+})
+
 describe('findLocalAddresses', () => {
   const cases: Array<[string, string, string[]]> = [
     [
@@ -113,4 +132,21 @@ describe('parseArgs', () => {
 test('displayUrl drops the scheme and a lone slash', () => {
   expect(displayUrl('http://localhost:5173/')).toBe('localhost:5173')
   expect(displayUrl('https://example.com/a/b?q=1')).toBe('example.com/a/b?q=1')
+})
+
+describe('clean', () => {
+  const cases: Array<[string, string, string]> = [
+    ['plain text stays', 'localhost:5173 - shot 1', 'localhost:5173 - shot 1'],
+    ['ANSI colour removed', '\u001b[31mfatal\u001b[0m', 'fatal'],
+    ['OSC hyperlink removed', '\u001b]8;;http://x/\u0007link\u001b]8;;\u0007', 'link'],
+    ['lone ESC, BEL, NUL, DEL', 'a\u001b b\u0007c\u0000d\u007f', 'a� b�c�d�'],
+    ['C1 controls', 'x\u0085y\u009bz\u0080', 'x�y�z�'],
+    ['line breaks and tabs become spaces', 'one\ntwo\r\tthree', 'one two  three'],
+    ['other Unicode kept', 'café → ok', 'café → ok'],
+  ]
+  for (const [name, input, expected] of cases) {
+    test(name, () => {
+      expect(clean(input)).toBe(expected)
+    })
+  }
 })

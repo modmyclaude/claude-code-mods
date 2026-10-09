@@ -24,7 +24,7 @@ import {
   WRITTEN,
   type Room,
 } from './shot'
-import { checkTypedUrl, displayUrl, findLocalAddresses, parseArgs } from './url'
+import { checkTypedUrl, clean, displayUrl, findLocalAddresses, isLocalHost, parseArgs } from './url'
 
 type Engine = EngineInterface
 
@@ -37,6 +37,15 @@ const PROBE_MS = 300
 const CHROME_DEADLINE_MS = 30_000
 /** How a blit refusal reads when the Image is showing its alt text instead of pixels. */
 const DRAWS_ALT = /\balt\b|placeholder|cannot read|can't read/i
+
+/**
+ * The command origins that are the person typing: Enter at the terminal, or Remote
+ * Control. Only these may open a site other than localhost (spec: "unless I pass a
+ * full URL myself"). A peer session, channel, notification, schedule, SDK script or
+ * another plugin running /porthole gets localhost only.
+ */
+const PERSON_ORIGINS: ReadonlySet<string> = new Set(['composer', 'bridge'])
+const NOT_TYPED = 'Porthole opens a site other than localhost only when you type /porthole <url> yourself.'
 
 const NO_IMAGES =
   "This terminal cannot draw images here. The desktop app's built-in browser pane can preview the page."
@@ -64,7 +73,7 @@ const message = (error: unknown): string => (error instanceof Error ? error.mess
 
 /** The one line every surface without an Image element draws (desktop, VS Code, mobile). */
 function elsewhereLine(url: string | null): string {
-  const page = url === null ? 'your page' : url
+  const page = url === null ? 'your page' : clean(url)
   return `Porthole draws its preview in a terminal. In the desktop app, open ${page} in the built-in browser pane instead.`
 }
 
@@ -104,6 +113,12 @@ async function findChrome($: Engine): Promise<string | undefined> {
   }
   chromeFound = found
   return found
+}
+
+function chromeMissing(): string {
+  return chromeOption === ''
+    ? 'No Chrome or Chromium found. Install one, or set the chromePath setting in /config.'
+    : `Chrome was not found at "${chromeOption}" (the chromePath setting).`
 }
 
 /** rm -rf, but only ever on a run folder (or its profile) under the temp root. */
@@ -153,15 +168,7 @@ async function runChrome($: Engine, argv: string[]): Promise<ChromeEnd> {
 /** One screenshot into a fresh run folder; the profile inside it is deleted straight after. */
 async function shoot($: Engine, url: string, mode: PortholeMode, seq: number): Promise<Outcome> {
   const chrome = await findChrome($)
-  if (chrome === undefined) {
-    return {
-      ok: false,
-      error:
-        chromeOption === ''
-          ? 'No Chrome or Chromium found. Install one, or set the chromePath setting in /config.'
-          : `Chrome was not found at "${chromeOption}" (the chromePath setting).`,
-    }
-  }
+  if (chrome === undefined) return { ok: false, error: chromeMissing() }
   const root = tempRoot(await $.env.get('TMPDIR'))
   const made = await $.process.run(['mktemp', '-d', runTemplate(root)])
   const dir = made.stdout.trim()
@@ -188,7 +195,10 @@ async function probe($: Engine, shot: PortholeShot): Promise<void> {
   if (answer === undefined) return
   if (answer.deny === undefined) {
     await update($, images, (): PortholeImages => 'yes')
-  } else if (DRAWS_ALT.test(answer.deny)) {
+  } else {
+    $.ui.log(`porthole: blit refused: ${answer.deny}`, { to: 'debug' }) // confirms the regex on a live terminal
+  }
+  if (answer.deny !== undefined && DRAWS_ALT.test(answer.deny)) {
     let isFirst = false
     await update($, images, (was): PortholeImages => {
       isFirst = was !== 'no'
@@ -250,7 +260,8 @@ async function scheduleRefresh($: Engine): Promise<void> {
   isScheduling = true
   try {
     const current = await read($, view)
-    if (current.url === null || current.phase === 'idle') return
+    // A local edit cannot change a remote page, so only local pages refresh.
+    if (current.url === null || current.phase === 'idle' || !isLocalHost(current.url)) return
     if ((await read($, images)) === 'no') return
     if (!(await $.ui.panes()).some(pane => pane.id === PANE)) return
     refreshTimer = $.clock.after(REFRESH_MS, () => {
@@ -287,10 +298,10 @@ async function noticeAddresses($: Engine, output: string): Promise<void> {
   const current = await read($, view)
   const isShowing =
     current.phase !== 'idle' && current.url !== null && new URL(current.url).origin === new URL(address).origin
-  if (!isShowing) $.ui.toast(`Open in porthole: ${address} - type /porthole`, { timeoutMs: 8000 })
+  if (!isShowing) $.ui.toast(clean(`Open in porthole: ${address} - type /porthole`), { timeoutMs: 8000 })
 }
 
-async function runCommand($: Engine, args: string): Promise<string> {
+async function runCommand($: Engine, args: string, isPerson: boolean): Promise<string> {
   const parsed = parseArgs(args)
   if ('error' in parsed) return parsed.error
   const current = await read($, view)
@@ -304,6 +315,7 @@ async function runCommand($: Engine, args: string): Promise<string> {
   } else {
     url = (await read($, lastSeen)) ?? current.url // bare /porthole: the last dev server seen
   }
+  if (url !== null && !isPerson && !isLocalHost(url)) return NOT_TYPED
   const mode = parsed.mode ?? current.mode
   const width = VIEWPORT_WIDTH[mode]
   if (url === null) {
@@ -313,6 +325,8 @@ async function runCommand($: Engine, args: string): Promise<string> {
     await update($, view, (v): PortholeView => ({ ...v, mode }))
     return `Viewport set to ${mode} (${width} px wide). Open a page with /porthole <url>.`
   }
+  const isTerminal = await hasTerminal($)
+  if (isTerminal && (await findChrome($)) === undefined) return chromeMissing()
   const keepsShot = current.url === url && current.mode === mode
   if (!keepsShot && current.shot !== null) await remove($, current.shot.dir)
   await update($, view, (v): PortholeView => ({
@@ -326,7 +340,7 @@ async function runCommand($: Engine, args: string): Promise<string> {
     await update($, view, (v): PortholeView => ({ ...v, phase: 'idle' })) // no pane, so nothing to refresh
     throw error
   })
-  if (!(await hasTerminal($))) return elsewhereLine(url)
+  if (!isTerminal) return elsewhereLine(url)
   void refresh($).catch(() => undefined)
   const waits = opened.isPlaced ? '' : ` The pane is waiting: ${opened.reason}`
   return `Porthole: ${url} at ${width} px (${mode}).${waits}`
@@ -347,9 +361,9 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'porthole' }, async ($, e) => {
     try {
-      return { text: await runCommand($, e.args) }
+      return { text: clean(await runCommand($, e.args, PERSON_ORIGINS.has(e.origin.kind))) }
     } catch (error) {
-      return { text: `porthole: ${message(error)}` }
+      return { text: clean(`porthole: ${message(error)}`) }
     }
   })
 
@@ -413,7 +427,7 @@ export const register: Register = (on, options) => {
     const imageSupport = await read($, images)
     const shot = current.shot
     const status = [
-      displayUrl(current.url),
+      clean(displayUrl(current.url)),
       `${current.mode} ${VIEWPORT_WIDTH[current.mode]}px`,
       ...(current.phase === 'loading' ? ['refreshing...'] : shot !== null ? [`shot ${shot.seq}`] : []),
     ].join(' - ')
@@ -442,13 +456,13 @@ export const register: Register = (on, options) => {
         )}
         {current.phase === 'error' && current.error !== null && (
           <Box key="error">
-            <Text color="error">{current.error}</Text>
+            <Text color="error">{clean(current.error)}</Text>
           </Box>
         )}
         {shot === null || box === null ? (
           current.phase === 'loading' && (
             <Box key="loading">
-              <Text dimColor>Taking a screenshot of {current.url} ...</Text>
+              <Text dimColor>Taking a screenshot of {clean(current.url)} ...</Text>
             </Box>
           )
         ) : (
@@ -457,7 +471,7 @@ export const register: Register = (on, options) => {
             source={{ file: shot.file, format: 'png' }}
             columns={box.columns}
             rows={box.rows}
-            alt={`Screenshot of ${shot.url}. ${NO_IMAGES}`}
+            alt={clean(`Screenshot of ${shot.url}. ${NO_IMAGES}`)}
           />
         )}
       </Box>

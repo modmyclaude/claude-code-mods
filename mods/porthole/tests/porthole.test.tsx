@@ -4,7 +4,7 @@
 
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock, Plugin } from 'claude-code/testing'
-import type { On, RenderSurface } from 'claude-code'
+import type { On, PromptOrigin, RenderSurface } from 'claude-code'
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const TMP = '/tmp/pt'
@@ -22,7 +22,10 @@ type World = {
   surfaces: RenderSurface[]
   isOpen: boolean
   blitDeny: string | undefined
-  chrome: 'writes' | 'exits-silently' | 'fails'
+  chrome: 'writes' | 'exits-silently' | 'fails' | 'lingers'
+  stderrLine: string
+  pulledPastWritten: boolean
+  mktempOut: string | undefined
   toastThrows: boolean
   openDenied: boolean
   registered: string[]
@@ -42,6 +45,9 @@ function world(on: On, chromePath: string | null = CHROME): World {
     isOpen: false,
     blitDeny: undefined,
     chrome: 'writes',
+    pulledPastWritten: false,
+    stderrLine: '[1:2:1008/1.2:ERROR:ozone.cc:1] Missing X server or $DISPLAY',
+    mktempOut: undefined,
     toastThrows: false,
     openDenied: false,
     registered: [],
@@ -53,7 +59,7 @@ function world(on: On, chromePath: string | null = CHROME): World {
     let stdout = ''
     if (e.argv[0] === 'mktemp') {
       made += 1
-      stdout = `${String(e.argv[2]).replace('XXXXXX', `run00${made}`)}\n`
+      stdout = w.mktempOut ?? `${String(e.argv[2]).replace('XXXXXX', `run00${made}`)}\n`
     }
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
@@ -61,11 +67,13 @@ function world(on: On, chromePath: string | null = CHROME): World {
     w.spawns.push([...e.argv])
     const screenshot = e.argv.find(arg => arg.startsWith('--screenshot='))?.slice('--screenshot='.length) ?? ''
     if (w.chrome === 'fails') {
-      yield { stream: 'stderr' as const, text: '[1:2:1008/1.2:ERROR:ozone.cc:1] Missing X server or $DISPLAY\n' }
+      yield { stream: 'stderr' as const, text: `${w.stderrLine}\n` }
       return { value: { code: 1, signal: null } }
     }
     w.files.add(screenshot)
-    if (w.chrome === 'writes') yield { stream: 'stderr' as const, text: `22337 bytes written to file ${screenshot}\n` }
+    if (w.chrome !== 'exits-silently') yield { stream: 'stderr' as const, text: `22337 bytes written to file ${screenshot}\n` }
+    // Real Chrome 154 stays alive after its screenshot: porthole must stop reading here.
+    if (w.chrome === 'lingers') w.pulledPastWritten = true
     return { value: { code: 0, signal: null } }
   })
   on('fs.exists', ($, e) => ({ value: w.files.has(e.path) }))
@@ -92,6 +100,7 @@ function world(on: On, chromePath: string | null = CHROME): World {
     w.blits += 1
     return { value: w.blitDeny === undefined ? {} : { deny: w.blitDeny } }
   })
+  on('ui.log', () => ({ value: undefined }))
   on('command.register', ($, e) => {
     w.registered.push(e.name)
     return { value: { command: e.name } }
@@ -99,8 +108,8 @@ function world(on: On, chromePath: string | null = CHROME): World {
   return w
 }
 
-const run = ($: Engine, args: string, command = 'porthole') =>
-  $.command.run({ command, args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+const run = ($: Engine, args: string, command = 'porthole', origin: PromptOrigin = { kind: 'composer' }) =>
+  $.command.run({ command, args, origin, presentation: { isFullscreen: true, columns: 200 } })
 
 /** Lets the background capture (started by the command, not awaited by it) finish. */
 async function settled(w: World): Promise<void> {
@@ -455,15 +464,12 @@ test('a blit refused for another reason is not mistaken for "no images"', async 
 
 test('no Chrome installed: the pane says so and nothing runs', async ($, on) => {
   const w = world(on, null)
-  await run($, 'http://localhost:5173')
+  const answer = await run($, 'http://localhost:5173')
+  expect(answer.text).toBe('No Chrome or Chromium found. Install one, or set the chromePath setting in /config.')
   await settled(w)
-  expect(await paneText($, 'error')).toBe('No Chrome or Chromium found. Install one, or set the chromePath setting in /config.')
+  expect(w.opened).toEqual([])
   expect(w.spawns).toEqual([])
   expect(w.runs).toEqual([])
-
-  const ui = await $.ui.mount({ plugin: 'porthole', surface: 'terminal', component: 'Pane', requestId: 'porthole', props: PANE, viewport: VIEWPORT })
-  expect((await ui.find({ key: 'error' }))?.text).toMatch(/No Chrome or Chromium found/)
-  await ui.unmount()
 })
 
 test('Chromium found on PATH when there is no macOS app', async ($, on) => {
@@ -483,9 +489,8 @@ test('the chromePath setting wins', { options: { chromePath: '/opt/chrome/chrome
 
 test('a chromePath that does not exist is named in the error', { options: { chromePath: '/nope/chrome' } }, async ($, on) => {
   const w = world(on)
-  await run($, 'http://localhost:5173')
+  expect((await run($, 'http://localhost:5173')).text).toBe('Chrome was not found at "/nope/chrome" (the chromePath setting).')
   await settled(w)
-  expect(await paneText($, 'error')).toBe('Chrome was not found at "/nope/chrome" (the chromePath setting).')
   expect(w.spawns).toEqual([])
 })
 
@@ -505,4 +510,168 @@ test('a Chrome that exits without the "written" line still counts when the file 
   await settled(w)
   expect(await paneText($, 'status')).toBe('localhost:5173 - desktop 1280px - shot 1')
   expect(await paneText($, 'error')).toBeUndefined()
+})
+
+// MM-045: a site other than localhost opens only when the person typed the command.
+const NOT_PERSON: PromptOrigin[] = [
+  { kind: 'sdk' },
+  { kind: 'task-notification' },
+  { kind: 'scheduled-trigger' },
+  { kind: 'peer' },
+  { kind: 'peer-send-message' },
+  { kind: 'projects-relay' },
+  { kind: 'channel', server: 'slack' },
+  { kind: 'coordinator' },
+  { kind: 'observer' },
+  { kind: 'observer-activity' },
+  { kind: 'auto-continuation' },
+  { kind: 'unclassified' },
+  { kind: 'slack-ping' },
+  { kind: 'plugin', name: 'other' },
+  { kind: 'plugin', name: 'other', asUser: true },
+]
+const REFUSAL = 'Porthole opens a site other than localhost only when you type /porthole <url> yourself.'
+
+test('a remote URL opens for the person typing: composer and bridge', async ($, on) => {
+  const w = world(on)
+  for (const origin of [{ kind: 'composer' }, { kind: 'bridge' }] as const) {
+    const answer = await run($, `https://example.com/${origin.kind}`, 'porthole', origin)
+    expect(answer.text).toBe(`Porthole: https://example.com/${origin.kind} at 1280 px (desktop).`)
+    await settled(w)
+  }
+  expect(w.spawns.map(argv => argv.at(-1))).toEqual(['https://example.com/composer', 'https://example.com/bridge'])
+})
+
+test('every other origin gets localhost only', async ($, on) => {
+  const w = world(on)
+  for (const origin of NOT_PERSON) {
+    const before = w.spawns.length
+    const remote = await run($, 'https://attacker.example/?q=secret', 'porthole', origin)
+    expect(remote.text, origin.kind).toBe(REFUSAL)
+    await settled(w)
+    expect(w.spawns.length, origin.kind).toBe(before)
+
+    // The local page still opens from the same origin.
+    const local = await run($, `http://localhost:${5000 + before}`, 'porthole', origin)
+    expect(local.text, origin.kind).toBe(`Porthole: http://localhost:${5000 + before}/ at 1280 px (desktop).`)
+    await settled(w)
+    expect(w.spawns.length, origin.kind).toBe(before + 1)
+  }
+  expect(w.spawns.some(argv => argv.some(arg => arg.includes('attacker')))).toBe(false)
+})
+
+test('another origin cannot re-shoot a remote page the person opened', async ($, on) => {
+  const w = world(on)
+  await run($, 'https://example.com/')
+  await settled(w)
+  for (const args of ['mobile', '']) {
+    expect((await run($, args, 'porthole', { kind: 'plugin', name: 'other' })).text).toBe(REFUSAL)
+  }
+  await settled(w)
+  expect(w.spawns).toHaveLength(1)
+})
+
+test('edits do not re-shoot a remote page (a local edit cannot change it)', async ($, on) => {
+  const w = world(on)
+  on('tool.call', { tool: 'Edit' }, () => editResult)
+  await run($, 'https://example.com/')
+  await settled(w)
+  await $.tool.call(editCall)
+  await w.clock.advance(5000)
+  await settled(w)
+  expect(w.spawns).toHaveLength(1)
+})
+
+test('Chrome that stays alive after its screenshot is stopped at the "written" line', async ($, on) => {
+  const w = world(on)
+  w.chrome = 'lingers'
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  expect(await paneText($, 'status')).toBe('localhost:5173 - desktop 1280px - shot 1')
+  expect(w.pulledPastWritten).toBe(false)
+})
+
+test('a desktop-only session never starts Chrome, even after edits', async ($, on) => {
+  const w = world(on)
+  w.surfaces = ['desktop']
+  on('tool.call', { tool: 'Edit' }, () => editResult)
+  await run($, 'http://localhost:5173')
+  await $.tool.call(editCall)
+  await w.clock.advance(5000)
+  await settled(w)
+  expect(w.spawns).toEqual([])
+})
+
+test('a mktemp answer outside the temp root is refused, nothing runs or is removed', async ($, on) => {
+  const w = world(on)
+  w.mktempOut = '/Users/me/project\n'
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  expect(w.spawns).toEqual([])
+  expect(w.runs.filter(argv => argv[0] === 'rm')).toEqual([])
+  expect(await paneText($, 'error')).toMatch(/^Could not make a temp folder/)
+})
+
+test('session end deletes the picture', async ($, on) => {
+  const w = world(on)
+  on('session.end', ($2, e) => ({ sessionId: e.sessionId }))
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  await $.session.end({ reason: 'prompt_input_exit', sessionId: 's1', resume: { id: 's1' } })
+  expect(w.runs).toContainEqual(['rm', '-rf', `${TMP}/porthole.run001`])
+})
+
+test('bare /porthole prefers the last dev server seen over the page in the pane', async ($, on) => {
+  const w = world(on)
+  on('tool.call', { tool: 'Bash' }, () => ({
+    result: { stdout: '', stderr: '', interrupted: false },
+    text: '  Local: http://localhost:3000/',
+  }))
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  await $.tool.call({ tool: 'Bash', command: 'npm run dev' })
+  expect((await run($, '')).text).toBe('Porthole: http://localhost:3000/ at 1280 px (desktop).')
+})
+
+test('failed or staged edits do not refresh', async ($, on) => {
+  const w = world(on)
+  let answer: 'error' | 'staged' = 'error'
+  on('tool.call', { tool: 'Edit' }, () =>
+    answer === 'error'
+      ? { isError: true as const, result: 'String not found', text: 'String not found' }
+      : { ...editResult, result: { ...editResult.result, staged: true } },
+  )
+  await run($, 'http://localhost:5173')
+  await settled(w)
+  await $.tool.call(editCall)
+  await w.clock.advance(5000)
+  answer = 'staged'
+  await $.tool.call(editCall)
+  await w.clock.advance(5000)
+  await settled(w)
+  expect(w.spawns).toHaveLength(1)
+})
+
+// MM-050: the engine refuses a drawn tree holding control characters, so untrusted text is cleaned.
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
+
+test('control characters in a URL or in Chrome stderr never break the pane', async ($, on) => {
+  const w = world(on)
+  w.chrome = 'fails'
+  w.stderrLine = '\u001b[31mfatal:\u001b[0m bad\u0085thing\u0007 here\u0000'
+  const answer = await run($, 'http://localhost:5173/a\u001bb\u0085c')
+  expect(CONTROL.test(answer.text ?? '')).toBe(false)
+  await settled(w)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'porthole', surface, component: 'Pane', requestId: 'porthole', props: PANE, viewport: VIEWPORT })
+    const drawn = JSON.stringify(await ui.drawn())
+    expect(/\\u00[01][0-9a-f]|\\u007f|[\u0080-\u009f]/i.test(drawn), surface).toBe(false)
+    if (surface === 'terminal') {
+      expect((await ui.find({ key: 'error' }))?.text).toBe('Chrome did not write a screenshot: fatal: bad�thing� here�')
+      expect((await ui.find({ key: 'status' }))?.text).toMatch(/^localhost:5173\/a/)
+    } else {
+      expect((await ui.find({ key: 'elsewhere' }))?.text).toMatch(/localhost:5173\/a/)
+    }
+    await ui.unmount()
+  }
 })
