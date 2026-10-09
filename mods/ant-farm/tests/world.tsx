@@ -31,7 +31,7 @@ export function world(on: On, setup: { placed?: boolean; reason?: string } = {})
     denySpawn: undefined as string | undefined,
     listThrows: false,
     panesThrow: false,
-    /** Claude Code's own cost total, as `$.session.usage()` reports it; undefined: no ledger. */
+    /** Claude Code's own cost estimate, as `$.session.usage()` reports it; undefined: no ledger. */
     engineUsd: undefined as number | undefined,
     usageThrows: false,
     /** The chunks of the last model request, as they reached the test. */

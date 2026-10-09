@@ -4,7 +4,7 @@
 // a subagent (started at `agent.spawn`, finished at its `turn.complete`), the
 // main loop, or another loop the engine runs. Per-subagent costs come from a
 // small price table and are always estimates; the session's total and the
-// budget alarm use Claude Code's own cost total (what /cost shows), with the
+// budget alarm use Claude Code's own cost estimate (what /cost shows), with the
 // table's estimate as the fallback where the engine gives none. While
 // anything runs, one clock ticks to walk the ants and the timers; when
 // everything is idle it stops.
@@ -122,7 +122,7 @@ async function reconcile($: EngineInterface) {
   )
 }
 
-// Claude Code's own cost total for the session, or null where the host keeps
+// Claude Code's own cost estimate for the session, or null where the host keeps
 // no ledger or the call fails: the table's estimate stands in then.
 async function engineTotal($: EngineInterface): Promise<number | null> {
   try {
@@ -430,7 +430,7 @@ export const register: Register = (on, options) => {
 
     const firstStart = list.length > 0 ? Math.min(...list.map(a => a.startedAt)) : now
     const lastEnd = running.length > 0 ? now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
-    const label = spend.isEngine ? 'Claude Code total' : 'Session'
+    const label = spend.isEngine ? "Claude Code's estimate" : 'Session'
     const budgetLine =
       budgetUsd > 0
         ? `${label} ${spend.text} of ${fmtUsd(budgetUsd)} budget${level === 2 ? ' - past 2x' : level === 1 ? ' - over' : ''}`
@@ -530,7 +530,7 @@ export const register: Register = (on, options) => {
         <Box key="budget-mark">
           <Text color={level === 2 ? 'error' : 'warning'}>
             {e.props.modes.length > 0 ? ' · ' : ''}
-            {spend.isEngine ? `Claude Code total ${spend.text}` : spend.text} {level === 2 ? 'past 2x budget' : 'over budget'}
+            {spend.isEngine ? `Claude Code's estimate ${spend.text}` : spend.text} {level === 2 ? 'past 2x budget' : 'over budget'}
           </Text>
         </Box>
       </Box>

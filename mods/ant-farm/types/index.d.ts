@@ -65,7 +65,7 @@ declare module 'claude-code' {
       turn: AntFarmTurn
       /** The budget level announced (0 under, 1 past the budget, 2 past twice it); it only rises until the budget changes or /clear. */
       alarm: AntFarmAlarm
-      /** Claude Code's own cost total for the session (what /cost shows), or null where unavailable. */
+      /** Claude Code's own cost estimate for the session (what /cost shows, at list prices), or null where unavailable. */
       engineUsd: number | null
       view: AntFarmView
     }

@@ -248,35 +248,35 @@ describe('budget alarm', () => {
     expect(w.rec.toasts).toHaveLength(2)
   })
 
-  test('the alarm trips on Claude Code own total even when the table estimate is lower', async ($, on) => {
+  test('the alarm trips on Claude Code own estimate even when the table estimate is lower', async ($, on) => {
     const w = world(on)
     engineBand(on)
     const id = await w.spawn($, 'Cheap by the table', { model: 'claude-haiku-5-5' })
     w.rec.engineUsd = 1.2
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100)) // the table says about $0.0002
     expect(w.rec.toasts).toEqual([])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm $1.20 of $2.00 budget (Claude Code total)')
+    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$1.20 of $2.00 budget (Claude Code\'s estimate)')
     w.rec.engineUsd = 2.5
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
-    expect(w.rec.toasts).toEqual(['Claude Code total $2.50 reached your $2.00 budget.'])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm $2.50 of $2.00 budget (Claude Code total) - over budget')
+    expect(w.rec.toasts).toEqual(['Claude Code\'s estimate ≈$2.50 reached your $2.00 budget.'])
+    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
     for (const surface of SURFACES) {
       const pane = await mountPane($, surface)
-      expect((await pane.find({ key: 'budget' }))?.text).toBe('Claude Code total $2.50 of $2.00 budget - over')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Claude Code\'s estimate ≈$2.50 of $2.00 budget - over')
       expect(await colorIn(pane, 'budget')).toBe('warning')
       // The subagent's own figure stays the table's estimate.
       expect((await texts(pane)).join('\n')).toContain('2 req · 2.2k tok · ≈$0.0003')
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
-      expect((await band.find({ key: 'summary' }))?.text).toContain('· Claude Code total $2.50')
+      expect((await band.find({ key: 'summary' }))?.text).toContain('· Claude Code\'s estimate ≈$2.50')
       await pane.unmount()
       await band.unmount()
     }
     // A turn ending reads the total again: here it moved past twice the budget.
     w.rec.engineUsd = 4.4
     await w.finish($, id)
-    expect(w.rec.toasts.at(-1)).toBe('Claude Code total $4.40 is past 2x your $2.00 budget.')
+    expect(w.rec.toasts.at(-1)).toBe('Claude Code\'s estimate ≈$4.40 is past 2x your $2.00 budget.')
     const modes = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'SessionMode', props: { modes: [] } })
-    expect((await modes.find({ key: 'budget-mark' }))?.text).toBe('Claude Code total $4.40 past 2x budget')
+    expect((await modes.find({ key: 'budget-mark' }))?.text).toBe('Claude Code\'s estimate ≈$4.40 past 2x budget')
   })
 
   for (const broken of ['throws', 'has no ledger'] as const) {
@@ -504,10 +504,10 @@ describe('alarm repeats', () => {
     const id = await w.spawn($, 'Steady')
     w.rec.engineUsd = 2.5
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
-    expect(w.rec.toasts).toEqual(['Claude Code total $2.50 reached your $2.00 budget.'])
+    expect(w.rec.toasts).toEqual(['Claude Code\'s estimate ≈$2.50 reached your $2.00 budget.'])
     w.rec.usageThrows = true
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm $2.50 of $2.00 budget (Claude Code total) - over budget')
+    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
     w.rec.usageThrows = false
     w.rec.engineUsd = 2.6
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
@@ -523,7 +523,7 @@ describe('alarm repeats', () => {
     await w.step($, id, usage('claude-haiku-5-5', 10, 10))
     w.rec.engineUsd = 4.5
     await w.step($, id, usage('claude-haiku-5-5', 10, 10))
-    expect(w.rec.toasts).toEqual(['Claude Code total $4.40 is past 2x your $2.00 budget.'])
+    expect(w.rec.toasts).toEqual(['Claude Code\'s estimate ≈$4.40 is past 2x your $2.00 budget.'])
   })
 })
 

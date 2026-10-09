@@ -36,12 +36,13 @@ Watch your subagents work, and what they cost, live.
   after you closed it by hand. Under 144 columns the engine holds such a pane
   back, so the band lists the subagents instead (one line each, with a
   **Hide** button). `/antfarm` opens it any time.
-- **Two kinds of money.** The session's spend (the band, the pane's budget
-  line, the status line and the alarm) is Claude Code's own total, the figure
-  `/cost` shows, labelled "Claude Code total" and drawn without `≈`. Where
-  Claude Code gives no total, the price-table estimate stands in, marked `≈`.
-  Each subagent's cost is always the price-table estimate (`≈`): Claude Code
-  does not total cost per subagent.
+- **Two estimates.** The session's spend (the band, the pane's budget line,
+  the footer mark, the status line and the alarm) is Claude Code's own
+  estimate, the figure `/cost` shows, labelled "Claude Code's estimate". It is
+  summed at list prices, so it is not your bill (a subscription does not pay
+  it). Where Claude Code gives none, the price-table estimate stands in. Each
+  subagent's cost is always the price-table estimate: Claude Code does not
+  total cost per subagent. Every figure is marked `≈`.
 - **Budget alarm.** The mod's status line under the prompt shows the
   session's spend against your budget. When it reaches the budget you get a
   toast and the budget mark beside the prompt footer turns amber; at twice the
@@ -53,14 +54,14 @@ Watch your subagents work, and what they cost, live.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `budgetUsd` | `2` | Session budget in US dollars for the alarm, checked against Claude Code's own total. `0` turns the alarm off. |
+| `budgetUsd` | `2` | Session budget in US dollars for the alarm, compared against Claude Code's own cost estimate (else the price-table estimate). `0` turns the alarm off. |
 
 ## What it can touch
 
 - **Files:** none. **Processes:** none. **Network:** none.
 - **Model calls:** none. Everything is counted from the usage the engine
   reports for each model request; nothing is sent anywhere.
-- **Engine calls:** reads Claude Code's cost total for the session (after each
+- **Engine calls:** reads Claude Code's cost estimate for the session (after each
   model request and turn end), reads the session's agent list (to pick up a
   subagent that started before the mod loaded, and to settle one that ended
   without saying so), opens and lists its own pane, sets its status line,
@@ -75,13 +76,13 @@ Watch your subagents work, and what they cost, live.
   `≈`. The table cannot see fast mode, batch pricing, partner clouds (Bedrock,
   Vertex) or negotiated rates, and it prices every cache write at the 5-minute
   rate. A model missing from the table shows its tokens and a cost of `?`.
-  The subagents' sum can therefore differ from Claude Code's total.
-- **Claude Code's total is read after each model request and turn end**, so
+  The subagents' sum can therefore differ from Claude Code's estimate.
+- **Claude Code's estimate is read after each model request and turn end**, so
   the alarm can trip one request after the real crossing. A resumed session's
-  total includes its earlier runs, as `/cost` does.
+  estimate includes its earlier runs, as `/cost` does.
 - **The fallback estimate counts only model requests of a turn.** Side
   requests outside a turn (titles, safety checks) do not pass through
-  `turn.step`, so when Claude Code gives no total the estimate misses them.
+  `turn.step`, so when Claude Code gives no estimate the table's misses them.
 - **The status line cannot be coloured.** Claude Code's plugin status line
   takes text only, so the amber and red of the alarm are drawn on the budget
   mark beside the prompt footer, the band and the pane header; the status line
@@ -104,7 +105,7 @@ Watch your subagents work, and what they cost, live.
   reports an interrupt as an aborted turn, not a success.
 - Caps: the pane lists 50 finished subagents one by one and counts the rest;
   past 200 subagents in a session the oldest finished ones leave the farm,
-  and with them the subagents' header totals (Claude Code's session total is
+  and with them the subagents' header totals (Claude Code's session estimate is
   unaffected).
 - Task descriptions, agent types and model names are drawn with escape
   sequences removed and other control characters shown as U+FFFD.

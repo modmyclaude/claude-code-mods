@@ -36,12 +36,16 @@ export function fmtCost(u: AntFarmUsage): string {
   return `≈${fmtDollars(u.costUsd)}${u.unpricedTokens > 0 ? '+?' : ''}`
 }
 
-/** The session's spend: Claude Code's own total where the engine gives one, else the table estimate. */
+/**
+ * The session's spend: Claude Code's own estimate where the engine gives one
+ * (its cost ledger, summed at list prices: not a bill), else the table's.
+ * Either way an estimate, drawn with ≈.
+ */
 export type Spend = { usd: number; text: string; isEngine: boolean; isAny: boolean }
 
 export function spendOf(engineUsd: number | null, estimate: AntFarmUsage): Spend {
   if (engineUsd !== null) {
-    return { usd: engineUsd, text: fmtDollars(engineUsd), isEngine: true, isAny: engineUsd > 0 || estimate.tokens > 0 }
+    return { usd: engineUsd, text: `≈${fmtDollars(engineUsd)}`, isEngine: true, isAny: engineUsd > 0 || estimate.tokens > 0 }
   }
   return { usd: estimate.costUsd, text: fmtCost(estimate), isEngine: false, isAny: estimate.tokens > 0 }
 }
@@ -53,7 +57,7 @@ export function fmtUsd(usd: number): string {
 /** The plugin's status line: the session's spend against the budget, once anything was spent. */
 export function statusText(spend: Spend, budgetUsd: number, level: 0 | 1 | 2): string | undefined {
   if (!spend.isAny) return undefined
-  const source = spend.isEngine ? ' (Claude Code total)' : ''
+  const source = spend.isEngine ? " (Claude Code's estimate)" : ''
   if (!(budgetUsd > 0)) return `ant-farm ${spend.text} this session${source}`
   const over = level === 2 ? ' - past 2x the budget' : level === 1 ? ' - over budget' : ''
   return `ant-farm ${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${over}`
@@ -72,14 +76,14 @@ export function nextAlarm(stored: AntFarmAlarm, level: 0 | 1 | 2, budgetUsd: num
   }
 }
 
-/** The session figure with its source: "Claude Code total $2.50" or "≈$2.50 session". */
+/** The session figure with its source: "Claude Code's estimate ≈$2.50" or "≈$2.50 session". */
 export function spendLabel(spend: Spend): string {
-  return spend.isEngine ? `Claude Code total ${spend.text}` : `${spend.text} session`
+  return spend.isEngine ? `Claude Code's estimate ${spend.text}` : `${spend.text} session`
 }
 
 /** The toast when the spend crosses the budget (level 1) or twice it (level 2). */
 export function alarmText(spend: Spend, budgetUsd: number, level: 1 | 2): string {
-  const what = `${spend.isEngine ? 'Claude Code total' : 'Session estimate'} ${spend.text}`
+  const what = `${spend.isEngine ? "Claude Code's estimate" : 'Session estimate'} ${spend.text}`
   return level === 2
     ? `${what} is past 2x your ${fmtUsd(budgetUsd)} budget.`
     : `${what} reached your ${fmtUsd(budgetUsd)} budget.`

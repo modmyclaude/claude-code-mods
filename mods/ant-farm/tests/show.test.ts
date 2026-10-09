@@ -44,9 +44,9 @@ describe('format', () => {
     expect(shortModel('mystery-1')).toBe('mystery-1')
   })
 
-  test('the spend: the engine total where given, else the table estimate', () => {
+  test('the spend: Claude Code estimate where given, else the table one, both marked ≈', () => {
     const est = { requests: 1, tokens: 10, costUsd: 0.5, unpricedTokens: 0 }
-    expect(spendOf(1.234, est)).toEqual({ usd: 1.234, text: '$1.23', isEngine: true, isAny: true })
+    expect(spendOf(1.234, est)).toEqual({ usd: 1.234, text: '≈$1.23', isEngine: true, isAny: true })
     expect(spendOf(0, { ...est, tokens: 0 }).isAny).toBe(false)
     expect(spendOf(null, est)).toEqual({ usd: 0.5, text: '≈$0.50', isEngine: false, isAny: true })
     expect(spendOf(null, { ...est, unpricedTokens: 4 }).text).toBe('≈$0.50+?')
@@ -60,14 +60,14 @@ describe('format', () => {
     expect(statusText(est(2.5), 2, 1)).toBe('ant-farm ≈$2.50 of $2.00 budget - over budget')
     expect(statusText(est(2.5), 1, 2)).toBe('ant-farm ≈$2.50 of $1.00 budget - past 2x the budget')
     expect(statusText(est(2.5), 0, 0)).toBe('ant-farm ≈$2.50 this session')
-    expect(statusText(real(2.5), 2, 1)).toBe('ant-farm $2.50 of $2.00 budget (Claude Code total) - over budget')
-    expect(statusText(real(2.5), 0, 0)).toBe('ant-farm $2.50 this session (Claude Code total)')
+    expect(statusText(real(2.5), 2, 1)).toBe('ant-farm ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
+    expect(statusText(real(2.5), 0, 0)).toBe('ant-farm ≈$2.50 this session (Claude Code\'s estimate)')
   })
 
   test('alarm text names where the figure came from', () => {
     const real = spendOf(2.1, { requests: 1, tokens: 10, costUsd: 0, unpricedTokens: 0 })
     const est = spendOf(null, { requests: 1, tokens: 10, costUsd: 4.2, unpricedTokens: 0 })
-    expect(alarmText(real, 2, 1)).toBe('Claude Code total $2.10 reached your $2.00 budget.')
+    expect(alarmText(real, 2, 1)).toBe('Claude Code\'s estimate ≈$2.10 reached your $2.00 budget.')
     expect(alarmText(est, 2, 2)).toBe('Session estimate ≈$4.20 is past 2x your $2.00 budget.')
   })
 
@@ -179,7 +179,7 @@ describe('nextAlarm', () => {
 describe('labels and trimming', () => {
   test('the session figure names its source', () => {
     const est = { requests: 1, tokens: 10, costUsd: 0.4, unpricedTokens: 0 }
-    expect(spendLabel(spendOf(2.5, est))).toBe('Claude Code total $2.50')
+    expect(spendLabel(spendOf(2.5, est))).toBe('Claude Code\'s estimate ≈$2.50')
     expect(spendLabel(spendOf(null, est))).toBe('≈$0.40 session')
   })
   test('trimming drops the oldest finished ants before any running one', () => {
