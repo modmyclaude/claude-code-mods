@@ -13,7 +13,7 @@
 /plugin install last-look --marketplace modmyclaude/claude-code-mods
 ```
 
-<!-- count -->13<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
+<!-- count -->14<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
 
 </div>
 
@@ -86,6 +86,7 @@ On older versions, add the marketplace first:
 
 | Mod | What it does | Can reach | Install |
 |---|---|---|---|
+| [**Crossroads**](mods/crossroads) | Three ways forward after every turn, risky ones marked. About $0.0002 a turn. [Prompt](prompts/crossroads.md) | `calls a model` `hooks prompts` | `crossroads@modmyclaude` |
 | [**Porthole**](mods/porthole) | A live preview of the app you are building, right beside the chat. [Prompt](prompts/porthole.md) | `reads files` `runs commands` `hooks tool calls` | `porthole@modmyclaude` |
 
 ### Alerts
