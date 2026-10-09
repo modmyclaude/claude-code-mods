@@ -351,7 +351,7 @@ export const SPECIES: readonly SpeciesArt[] = [
     id: 'geobug',
     name: 'Geobug',
     rarity: 'rare',
-    blurb: 'Plain rock outside. Crack it a grin and it sparkles.',
+    blurb: 'Plain rock outside. Make it grin and the crystals show.',
     face: 'b',
     accent: '#c08cff',
     shinyAccent: '#5fe39a',

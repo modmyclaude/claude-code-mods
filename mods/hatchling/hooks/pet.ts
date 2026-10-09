@@ -55,6 +55,10 @@ export function normalizePet(raw: unknown, now: number): HatchlingPet {
   pet.turns = count(r.turns)
   pet.testsPassed = count(r.testsPassed)
   pet.hidden = r.hidden === true
+  const seed = r.seed
+  if (Array.isArray(seed) && seed.length === 4 && seed.every(n => Number.isInteger(n) && n >= 0 && n < 2 ** 32)) {
+    pet.seed = seed as number[]
+  }
   if (typeof r.name === 'string') {
     const name = cleanName(r.name)
     if ('name' in name) pet.name = name.name
@@ -108,6 +112,11 @@ export function cryptoU32(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0] ?? 0
 }
 
+/** The egg's hatch seed: decided when the egg is laid, read when it hatches. */
+export function newSeed(): number[] {
+  return [cryptoU32(), cryptoU32(), cryptoU32(), cryptoU32()]
+}
+
 /** One finished tool call: the egg counts toward hatching, a pet gains XP. */
 export function applyToolCall(
   pet: HatchlingPet,
@@ -124,7 +133,10 @@ export function applyToolCall(
   if (pet.hatch === undefined) {
     next.eggCalls = Math.min(HATCH_AT, pet.eggCalls + 1)
     if (next.eggCalls < HATCH_AT) return { pet: next, isHatched: false }
-    const roll = rollHatch(u32)
+    // The egg's own seed when it has one, so every session rolls the same pet.
+    const seed = pet.seed
+    let at = 0
+    const roll = rollHatch(seed === undefined ? u32 : () => seed[at++ % seed.length] ?? 0)
     next.hatch = { species: roll.species, shiny: roll.shiny, at: now }
     next.name = pet.name ?? roll.name
     return { pet: next, isHatched: true }
@@ -149,10 +161,24 @@ function withEvolution(before: HatchlingStage, pet: HatchlingPet): Change {
 
 // ---------------------------------------------------------------- test runs
 
-const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g
+// Terminal escape sequences: CSI (colours, cursor), OSC (titles, links), and
+// the two-character escapes.
+const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u001b[@-Z\\-_]/g
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g
+
+/**
+ * Text from outside the mod (a tool's name, a stored name) made safe to draw:
+ * escape sequences removed, any other control character shown as U+FFFD
+ * (the engine refuses a whole tree that holds one), and the length capped.
+ */
+export function safeText(text: string, max = 200): string {
+  const chars = [...text.replace(ANSI, '').replace(CONTROL, '\ufffd')]
+  return chars.length > max ? `${chars.slice(0, max - 1).join('')}.` : chars.join('')
+}
 
 // Commands that only show text (a log, a file): their output is not a run.
-const VIEWER = /^\s*(cat|bat|head|tail|less|more|grep|rg|ag|echo|printf|sed|awk|jq|wc|ls|find|git\s+(log|show|diff|blame))\b/
+const VIEWER =
+  /^\s*(cat|bat|head|tail|less|more|grep|rg|ag|echo|printf|sed|awk|jq|wc|ls|find|cd|pwd|git\s+(log|show|diff|blame)|gh\s+run\s+view|docker\s+(compose\s+)?logs|kubectl\s+logs)\b/
 
 const FAILED: readonly RegExp[] = [
   /\b[1-9]\d* (failed|failing|failures?|errors?)\b/i,
@@ -179,6 +205,8 @@ const PASSED: readonly RegExp[] = [
   /^OK \([1-9]\d* tests?, /m, // phpunit
   /^Ran [1-9]\d* tests? in [\d.]+s\s+OK\b/m, // python unittest
   /Passed!\s+-\s+Failed:\s+0, Passed:\s+[1-9]\d*/, // dotnet test
+  /^\s*[1-9]\d* passed \([\d.]+m?s\)/m, // playwright
+  /\b[1-9]\d* tests? run: [1-9]\d* passed\b/, // cargo nextest
 ]
 
 /**
@@ -186,7 +214,9 @@ const PASSED: readonly RegExp[] = [
  * runner's summary with at least one pass and no failures anywhere.
  */
 export function detectTestPass(command: string, output: string): boolean {
-  if (VIEWER.test(command)) return false
+  // Every step of the chain only shows text (`cd app && cat ci.log`): not a run.
+  const steps = command.split(/&&|\|\||;/).map(step => step.split('|')[0] ?? '')
+  if (steps.every(step => step.trim() === '' || VIEWER.test(step))) return false
   const text = output.replace(ANSI, '')
   if (FAILED.some(pattern => pattern.test(text))) return false
   return PASSED.some(pattern => pattern.test(text))
@@ -198,8 +228,9 @@ export function detectTestPass(command: string, output: string): boolean {
 export function cleanName(raw: string): { name: string } | { error: string } {
   const name = raw
     .normalize('NFC')
+    .replace(ANSI, '')
     .replace(/\s+/g, ' ')
-    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
+    .replace(CONTROL, '')
     .trim()
   if (name === '') return { error: 'Give it a name, for example: /pet name Pip' }
   if ([...name].length > 16) return { error: 'Names are up to 16 characters.' }
@@ -216,7 +247,7 @@ export function daysTogether(pet: HatchlingPet, now: number): number {
 }
 
 export function nameOf(pet: HatchlingPet): string {
-  return pet.name ?? (pet.hatch === undefined ? 'Egg' : 'Pip')
+  return safeText(pet.name ?? (pet.hatch === undefined ? 'Egg' : 'Pip'), 16)
 }
 
 export function speciesName(pet: HatchlingPet): string {
@@ -262,6 +293,7 @@ export function statText(pet: HatchlingPet, now: number): string {
     tagLine(pet, true),
     xpLine(pet),
     `${plural(daysTogether(pet, now), 'day')} together - ${plural(pet.toolCalls, 'tool call')} - ${plural(pet.testsPassed, 'test run')} cheered`,
+    pet.hatch === undefined ? 'Something stirs inside.' : speciesArt(pet.hatch.species).blurb,
   ].join('\n')
 }
 
@@ -324,5 +356,5 @@ export function parseCard(text: string): CardInfo | undefined {
 /** "mcp__server__tool" reads as "tool"; long names are cut. */
 export function toolLabel(tool: string): string {
   const short = tool.startsWith('mcp__') ? (tool.split('__').pop() ?? tool) : tool
-  return short.length > 20 ? `${short.slice(0, 19)}.` : short
+  return safeText(short, 20)
 }

@@ -9,6 +9,7 @@ import type { On, RenderElement, RenderNode, RenderSurface } from 'claude-code'
 
 import type { HatchlingPet } from '../types'
 import { rasterText } from '../hooks/art'
+import { applyToolCall, normalizePet } from '../hooks/pet'
 
 const T0 = Date.UTC(2026, 9, 1, 9)
 const DAY = 86_400_000
@@ -33,6 +34,8 @@ const OUTPUT: Record<string, string> = {
 }
 
 type World = {
+  /** What $.session.surfaces() answers; tests attach and detach by editing it. */
+  surfaces: RenderSurface[]
   store: Map<string, unknown>
   clock: MockClock
   toasts: string[]
@@ -42,8 +45,19 @@ type World = {
 }
 
 /** The engine beneath the plugin. `saved` is what the store held before. */
-function world(on: On, saved?: Record<string, unknown>, options: { brokenStore?: boolean } = {}): World {
+type WorldOptions = {
+  brokenStore?: boolean
+  surfaces?: RenderSurface[]
+  /** Runs inside a store read, after the value is taken: another session writing meanwhile. */
+  race?: (store: Map<string, unknown>) => void
+}
+
+function world(on: On, saved?: Record<string, unknown>, options: WorldOptions = {}): World {
   const store = new Map<string, unknown>(Object.entries(saved ?? {}))
+  const surfaces: RenderSurface[] = [...(options.surfaces ?? ['terminal'])]
+  on('session.surfaces', () => ({ value: [...surfaces] }))
+  on('session.attach', ($, e) => ({ clientId: e.clientId }))
+  on('session.detach', ($, e) => ({ clientId: e.clientId }))
   const timers = { every: 0, after: 0 }
   const hatches: string[] = []
   // Counted above the mock clock: every period of a $.clock.every is one
@@ -57,7 +71,11 @@ function world(on: On, saved?: Record<string, unknown>, options: { brokenStore?:
     return next(e)
   })
   const clock = mock.clock(on, { now: T0 })
-  on('store.get', ($, e) => ({ value: store.get(e.key) }))
+  on('store.get', ($, e) => {
+    const value = store.get(e.key)
+    options.race?.(store)
+    return { value }
+  })
   on('store.set', ($, e) => {
     if (options.brokenStore === true) throw new Error('disk full')
     const value = JSON.parse(JSON.stringify(e.value)) as HatchlingPet
@@ -96,7 +114,7 @@ function world(on: On, saved?: Record<string, unknown>, options: { brokenStore?:
     if (e.command.startsWith('fail')) return { isError: true as const, result: 'Exit code 1', text: 'Exit code 1\nTests:  2 failed, 10 passed' }
     return { result: { stdout: OUTPUT[e.command] ?? 'ok', stderr: '', interrupted: false }, text: OUTPUT[e.command] ?? 'ok' }
   })
-  return { store, clock, toasts, copies, timers, hatches }
+  return { surfaces, store, clock, toasts, copies, timers, hatches }
 }
 
 function pet(w: World): HatchlingPet {
@@ -137,6 +155,14 @@ function band($: Engine, surface: RenderSurface, props: Partial<typeof BAND> = {
 
 /** What the helpers read from a mounted drawing, whatever its component. */
 type Drawing = Pick<Mounted, 'drawn' | 'find'>
+
+/** Every element key in a drawn tree, in document order. */
+function keysOf(node: unknown): string[] {
+  if (node === null || typeof node !== 'object') return []
+  const element = node as { props?: { key?: unknown }; key?: unknown; children?: unknown[] }
+  const key = element.props?.key ?? element.key
+  return [...(typeof key === 'string' ? [key] : []), ...(element.children ?? []).flatMap(keysOf)]
+}
 
 /** Every string in a drawn tree, in order. */
 function textOf(node: RenderNode | undefined): string {
@@ -400,6 +426,9 @@ describe('sleep and timers', () => {
     await w.clock.advance(30 * 60_000)
     expect(w.timers.every).toBe(every)
     expect(w.timers.after).toBe(after)
+    ui = await band($, 'terminal')
+    expect(await shown(ui)).toContain('Pip is asleep')
+    await ui.unmount()
 
     // Anything happening wakes it.
     await $.turn.start({ text: 'wake up', turnId: 't3' })
@@ -419,7 +448,8 @@ describe('sleep and timers', () => {
     const w = world(on, { pet: savedPet() })
     await start($)
     const hidden = await petCommand($, 'hide')
-    expect(hidden.text).toBe('Pip is hidden. /pet show brings the band back.')
+    expect(hidden.text).toBeUndefined()
+    expect(w.toasts).toEqual(['Pip is hidden. /pet show brings the band back.'])
     expect(pet(w).hidden).toBe(true)
     const every = w.timers.every
     const after = w.timers.after
@@ -449,17 +479,23 @@ describe('/pet', () => {
     await start($)
     const { text } = await petCommand($, '')
     expect(text).toBe(
-      'Pip the Geobug\nrare - teen - shiny\nXP 320 - 480 more to adult\n3 days together - 512 tool calls - 4 test runs cheered',
+      'Pip the Geobug\nrare - teen - shiny\nXP 320 - 480 more to adult\n3 days together - 512 tool calls - 4 test runs cheered\n' +
+        'Plain rock outside. Make it grin and the crystals show.',
     )
   })
 
   test('name renames, and refuses a bad name', async ($, on) => {
     const w = world(on, { pet: savedPet() })
     await start($)
-    expect((await petCommand($, 'name  Mochi ')).text).toBe('Your pet is now called Mochi.')
+    expect((await petCommand($, 'name  Mochi ')).text).toBeUndefined()
     expect(pet(w).name).toBe('Mochi')
-    expect((await petCommand($, 'name <b>')).text).toMatch(/^Names use letters/)
-    expect((await petCommand($, 'name')).text).toMatch(/^Give it a name/)
+    await petCommand($, 'name <b>')
+    await petCommand($, 'name')
+    expect(w.toasts).toEqual([
+      'Your pet is now called Mochi.',
+      "Names use letters, numbers, spaces and - ' . _",
+      'Give it a name, for example: /pet name Pip',
+    ])
     expect(pet(w).name).toBe('Mochi')
     const ui = await band($, 'desktop')
     expect(await shown(ui)).toContain('Mochi')
@@ -468,10 +504,11 @@ describe('/pet', () => {
   test('an egg can be named before it hatches', async ($, on) => {
     const w = world(on)
     await start($)
-    expect((await petCommand($, 'name Nibbles')).text).toBe('The egg will hatch as Nibbles.')
+    await petCommand($, 'name Nibbles')
+    expect(w.toasts).toEqual(['The egg will hatch as Nibbles.'])
     await bash($, 'ls', 25)
     expect(pet(w).name).toBe('Nibbles')
-    expect(w.toasts[0]).toContain('Meet Nibbles,')
+    expect(w.toasts[1]).toContain('Meet Nibbles,')
   })
 
   test('card prints a small plain-text card', async ($, on) => {
@@ -489,10 +526,11 @@ describe('/pet', () => {
     expect(text).toContain('hatchling')
   })
 
-  test('an unknown word shows the help', async ($, on) => {
-    world(on, { pet: savedPet() })
+  test('an unknown word shows the help, and the model reads none of these', async ($, on) => {
+    const w = world(on, { pet: savedPet() })
     await start($)
-    expect((await petCommand($, 'dance')).text).toContain('/pet name <name>')
+    expect((await petCommand($, 'dance')).text).toBeUndefined()
+    expect(w.toasts).toEqual(['Try /pet, /pet name <name>, /pet hide, /pet show or /pet card.'])
   })
 
   test('the /pet rows draw the pet on every surface, and Copy copies the card', async ($, on) => {
@@ -582,6 +620,9 @@ describe('the band', () => {
         expect(await ui.find({ key: 'neighbour-band' }), `${surface} ${JSON.stringify(props)}`).toBeDefined()
         expect(await ui.find({ key: 'band' })).toBeDefined()
         expect(await shown(ui)).toContain('neighbour safety notice')
+        // The neighbour comes first, so the pet can never scroll it out of view.
+        const order = keysOf(await ui.drawn()).filter(key => key === 'neighbour-band' || key === 'band')
+        expect(order, `${surface} ${JSON.stringify(props)}`).toEqual(['neighbour-band', 'band'])
         await ui.unmount()
       }
       // Hidden: the neighbour alone.
@@ -637,12 +678,241 @@ describe('never in the way', () => {
     expect(pet(w).eggCalls).toBe(0)
   })
 
-  test('a -p run counts but never starts a timer', async ($, on) => {
-    const w = world(on)
+  test('a -p run (nothing drawing) counts but never starts a timer', async ($, on) => {
+    const w = world(on, undefined, { surfaces: [] })
     await $.session.start({ cwd: '/work', surface: null, isInteractive: false })
     await bash($, 'ls', 3)
     await w.clock.advance(SLEEP * 2)
     expect(pet(w).eggCalls).toBe(3)
     expect(w.timers).toEqual({ every: 0, after: 0 })
+  })
+})
+
+describe('the desktop app (an SDK session) and parallel sessions', () => {
+  // The desktop app starts the engine headless: no surface and isInteractive
+  // false at session start; its client attaches afterwards.
+  async function sdkStart($: Engine): Promise<void> {
+    await $.session.start({ cwd: '/work', surface: null, isInteractive: false })
+  }
+
+  test('a desktop-only session animates, settles and sleeps', async ($, on) => {
+    const w = world(on, { pet: savedPet() }, { surfaces: [] })
+    await sdkStart($)
+    w.surfaces.push('desktop')
+    await $.session.attach({ surface: 'desktop', clientId: 'app' })
+
+    // The client joining is enough to start the countdown to sleep.
+    await w.clock.advance(SLEEP + 10 * FRAME)
+    let ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Pip is asleep')
+    await ui.unmount()
+
+    await bash($, 'npm test')
+    ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Pip is cheering - tests passed')
+    await ui.unmount()
+    await w.clock.advance(20 * FRAME)
+    expect(w.timers.every).toBeGreaterThan(0)
+    ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Pip is hanging out')
+    await ui.unmount()
+
+    await bash($, 'fail now')
+    ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Pip is sweating - Bash failed')
+    await ui.unmount()
+
+    await w.clock.advance(SLEEP + 10 * FRAME)
+    ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Pip is asleep')
+    await ui.unmount()
+  })
+
+  test('timers stop when the last drawing surface detaches', async ($, on) => {
+    const w = world(on, { pet: savedPet() }, { surfaces: [] })
+    await sdkStart($)
+    w.surfaces.push('desktop')
+    await $.session.attach({ surface: 'desktop', clientId: 'app' })
+    await $.turn.start({ text: 'go', turnId: 't5' })
+    await w.clock.advance(5 * FRAME)
+    expect(w.timers.every).toBeGreaterThan(0)
+    w.surfaces.length = 0
+    await $.session.detach({ surface: 'desktop', clientId: 'app', reason: 'detach' })
+    const every = w.timers.every
+    const after = w.timers.after
+    await w.clock.advance(30 * 60_000)
+    expect(w.timers.every).toBe(every)
+    expect(w.timers.after).toBe(after)
+  })
+
+  test('detaching cancels the countdown to sleep', async ($, on) => {
+    const w = world(on, { pet: savedPet() }, { surfaces: [] })
+    await sdkStart($)
+    w.surfaces.push('desktop')
+    await $.session.attach({ surface: 'desktop', clientId: 'app' })
+    await w.clock.advance(60_000)
+    w.surfaces.length = 0
+    await $.session.detach({ surface: 'desktop', clientId: 'app', reason: 'detach' })
+    await w.clock.advance(2 * SLEEP)
+    // No timer ran while nothing drew: the pet did not doze off unseen.
+    const ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Pip is hanging out')
+  })
+
+  test('a mood set while nothing draws never freezes the band later', async ($, on) => {
+    const w = world(on, { pet: savedPet() }, { surfaces: [] })
+    await sdkStart($)
+    await bash($, 'npm test')
+    await bash($, 'fail now')
+    expect(w.timers.every).toBe(0)
+    const ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Pip is sweating - Bash failed')
+  })
+
+  test('two sessions hatching at the same moment end with one pet', async ($, on) => {
+    let other: HatchlingPet | undefined
+    const w = world(on, undefined, {
+      race: store => {
+        // The other session reads the same egg at call 24 and hatches it with
+        // random numbers of its own, between our read and our write.
+        const egg = normalizePet(store.get('pet'), T0)
+        if (other !== undefined || egg.eggCalls !== 24) return
+        other = applyToolCall(egg, { hasPassedTests: false }, T0, () => 0x9e3779b9).pet
+        store.set('pet', other)
+      },
+    })
+    await start($)
+    expect(pet(w).seed).toHaveLength(4)
+    await bash($, 'ls', 25)
+    expect(other?.hatch).toBeDefined()
+    expect(pet(w).hatch?.species).toBe(other?.hatch?.species)
+    expect(pet(w).hatch?.shiny).toBe(other?.hatch?.shiny)
+    expect(pet(w).name).toBe(other?.name)
+    // And the toast this session showed names that same pet.
+    expect(w.toasts.some(text => text.startsWith(`Your egg hatched! Meet ${other?.name ?? '?'},`))).toBe(true)
+  })
+
+  test('the egg keeps its seed across restarts', async ($, on) => {
+    const w = world(on)
+    await start($)
+    const seed = pet(w).seed
+    expect(seed).toHaveLength(4)
+    await start($)
+    await bash($, 'ls', 3)
+    expect(pet(w).seed).toEqual(seed)
+  })
+})
+
+describe('timing details', () => {
+  test('activity pushes sleep back: a tool call at minute 4 means asleep at minute 9', async ($, on) => {
+    const w = world(on, { pet: savedPet() })
+    await start($)
+    await w.clock.advance(4 * 60_000)
+    await bash($, 'ls')
+    await w.clock.advance(4 * 60_000 + 30_000)
+    let ui = await band($, 'terminal')
+    expect(await shown(ui)).not.toContain('asleep')
+    expect(await shown(ui)).not.toContain('dozed')
+    await ui.unmount()
+    await w.clock.advance(30_000)
+    ui = await band($, 'terminal')
+    expect(await shown(ui)).toContain('Pip dozed off')
+  })
+
+  test('an interrupted or failed turn stops the working loop too', async ($, on) => {
+    const w = world(on, { pet: savedPet() })
+    await start($)
+    for (const reason of ['aborted', 'answer'] as const) {
+      await $.turn.start({ text: 'go', turnId: 't6' })
+      await w.clock.advance(5 * FRAME)
+      await turn($, { reason })
+      const every = w.timers.every
+      await w.clock.advance(60_000)
+      expect(w.timers.every, reason).toBe(every)
+    }
+    await $.turn.start({ text: 'go', turnId: 't7' })
+    await $.turn.complete({ answer: '', durationMs: 5, isAborted: false, turnId: 't7', reason: 'error' })
+    const every = w.timers.every
+    await w.clock.advance(60_000)
+    expect(w.timers.every).toBe(every)
+  })
+
+  test('ten tool calls at once all count', async ($, on) => {
+    const w = world(on, { pet: savedPet({ xp: 0, toolCalls: 0 }) })
+    await start($)
+    await Promise.all(Array.from({ length: 10 }, () => $.tool.call({ tool: 'Bash', command: 'ls' })))
+    expect(pet(w).xp).toBe(10)
+    expect(pet(w).toolCalls).toBe(10)
+  })
+
+  test('the band sizes to its own body, not the whole terminal', async ($, on) => {
+    world(on, { pet: savedPet() })
+    await start($)
+    const ui = await $.ui.mount({
+      plugin: 'hatchling', surface: 'terminal', component: 'AbovePrompt',
+      props: { ...BAND, bodyColumns: 24 }, viewport: { columns: 200, rows: 50 },
+    })
+    expect(await ui.find({ key: 'sprite' })).toBeUndefined()
+  })
+})
+
+describe('control characters', () => {
+  const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
+
+  /** Every string anywhere in a drawn tree: children, labels, props. */
+  function strings(value: unknown): string[] {
+    if (typeof value === 'string') return [value]
+    if (Array.isArray(value)) return value.flatMap(strings)
+    if (value !== null && typeof value === 'object') return Object.values(value).flatMap(strings)
+    return []
+  }
+
+  async function expectClean(ui: Drawing, label: string): Promise<void> {
+    const found = strings(await ui.drawn()).filter(text => CONTROL.test(text))
+    expect(found, label).toEqual([])
+  }
+
+  test('a name typed with ESC, BEL and U+0085 is cleaned, and band and card still draw', async ($, on) => {
+    const w = world(on, { pet: savedPet({ name: 'Bean' }) })
+    await start($)
+    await petCommand($, 'name \u001b[31mPip\u0007\u0085')
+    expect(pet(w).name).toBe('Pip')
+    const card = (await petCommand($, 'card')).text ?? ''
+    expect(card.split('\n').filter(line => CONTROL.test(line))).toEqual([])
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(await ui.find({ key: 'sprite' })).toBeDefined()
+      expect(await shown(ui)).toContain('Pip')
+      await expectClean(ui, `${surface} band`)
+      await ui.unmount()
+      const row = await $.ui.mount({
+        plugin: 'hatchling', surface, component: 'CommandOutput',
+        props: { command: 'pet', args: 'card', text: card, isErrored: false },
+      })
+      expect(await row.find({ key: 'card' })).toBeDefined()
+      await expectClean(row, `${surface} card`)
+      await row.unmount()
+    }
+  })
+
+  test("a tool's name with control characters is drawn safe", async ($, on) => {
+    world(on, { pet: savedPet() })
+    await start($)
+    await $.tool.call({ tool: 'mcp__evil__run\u001b]0;title\u0007\u0007\u0085' })
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(await ui.find({ key: 'sprite' })).toBeDefined()
+      expect(await shown(ui)).toContain('Pip bounces - run\ufffd\ufffd worked')
+      await expectClean(ui, surface)
+      await ui.unmount()
+    }
+  })
+
+  test('a stored name damaged by hand is cleaned on load', async ($, on) => {
+    world(on, { pet: savedPet({ name: 'Mo\u001b[2Jchi\u009b' }) })
+    await start($)
+    const ui = await band($, 'desktop')
+    expect(await shown(ui)).toContain('Mochi')
+    await expectClean(ui, 'desktop')
   })
 })
