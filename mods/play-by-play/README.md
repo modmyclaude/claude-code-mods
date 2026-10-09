@@ -55,7 +55,8 @@ None.
 - **Cost**: 3 or 4 git calls before each command and 2 or 3 after it (none after one Claude Code marks
   read-only, such as `ls`), plus one or two per changed file. Each diffs the whole uncommitted tree against
   HEAD, and `hash-object` reads every untracked, unignored file. In a 100,000-file repository that is about
-  half a second per command; see the pause below.
+  half a second per command, and slower after many files were touched (a checkout, a formatter) until
+  your own `git status` refreshes the index; see the pause below.
 - **Writes**: nothing. It never reverts or edits a file. What it records lives in the session's memory
   and is gone when the session ends.
 - **Network**: none. **Model calls**: none.
@@ -66,13 +67,14 @@ None.
 - Files git ignores (`node_modules`, build output) are not tracked, by design.
 - An untracked file a command changes or deletes shows as a step without lines, since git kept no
   earlier copy, unless a file tool wrote that file earlier in the session.
-- A file you save in your editor while a command runs shows as a change "via shell".
+- A file you save in your editor while a command waits for approval or runs shows as a change "via shell".
 - A command run in the background is compared when it starts running in the background, not when it ends.
 - Shell tracking pauses for the rest of the session, saying so once in the transcript, when a git snapshot
   takes over 2 seconds, when git does not answer within 3 seconds, or when the uncommitted changes are over
   4 MiB. File tools are still tracked.
 - Up to 25 changed files are compared per command; the rest are counted in one "more files" step.
   A step draws at most 400 diff lines; a turn keeps at most 300,000 characters of diff and 500 steps.
+  A step of very long lines (minified code) past 100,000 characters is cut by the pane and drawn without colour.
   Counts always cover the whole change.
 - Arrow keys need a click on the "Keys" line first; without it, up and down step only on a step taller than
   the pane (the engine sends them as scroll keys only then). VS Code and the mobile app have no key line:

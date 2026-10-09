@@ -138,7 +138,9 @@ export async function shellSteps(
   const baseTexts = new Map<string, Promise<Base>>()
   const readBase = async (path: string): Promise<Base> => {
     const spec = `${before.base}:${path}`
-    const shown = await git(run, before.root, ['show', spec])
+    // `--` makes git read `spec` as a revision only, never a glob pathspec
+    // (`app/[slug]/page.tsx` would otherwise answer an empty file).
+    const shown = await git(run, before.root, ['show', spec, '--'])
     if (shown.exitCode !== 0) return null
     if (shown.isStdoutTruncated || isBinary(shown.stdout)) {
       if (!isBinary(shown.stdout)) return undefined

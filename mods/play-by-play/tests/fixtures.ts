@@ -132,7 +132,7 @@ export function fakeGit(on: On, state: Repo, clock?: MockClock) {
       const paths = (e.init?.stdin ?? '').split('\n').filter(Boolean)
       return ok(paths.map(path => `${state.untracked[path] ?? ''}\n`).join(''))
     }
-    const spec = (args[args.length - 1] ?? '').replace(`${HEAD_SHA}:`, '')
+    const spec = (args.find(arg => arg.startsWith(`${HEAD_SHA}:`)) ?? '').replace(`${HEAD_SHA}:`, '')
     if (command === 'show') {
       const text = state.base[spec]
       return text === undefined ? ok('', 128) : ok(text)
