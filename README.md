@@ -48,7 +48,7 @@ On older versions, add the marketplace first:
 | Mod | What it does | Can reach | Install |
 |---|---|---|---|
 | [**Cloakroom**](mods/cloakroom) | Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it. [Prompt](prompts/cloakroom.md) | `writes files` `reads files` `hooks tool calls` `hooks prompts` | `cloakroom@modmyclaude` |
-| [**Last Look**](mods/last-look) | Holds destructive commands and shows exactly what they would destroy. [Prompt](prompts/last-look.md) | `reads files` `runs commands` `hooks tool calls` | `last-look@modmyclaude` |
+| [**Last Look**](mods/last-look) | Holds destructive commands until you approve, and shows what they would destroy. [Prompt](prompts/last-look.md) | `reads files` `runs commands` `hooks tool calls` | `last-look@modmyclaude` |
 
 ### Cost and limits
 
