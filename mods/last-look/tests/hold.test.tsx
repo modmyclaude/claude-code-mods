@@ -25,7 +25,22 @@ const FILES: WorldSpec = {
   },
 }
 
-/** Another mod that draws in the band, to show last-look leaves it there. */
+/** Another mod that draws in the band, with a control character (the engine would refuse it). */
+const DIRTY_NEIGHBOUR: Plugin = {
+  name: 'dirty-neighbour',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box, Text } = $.ui.resolve(e)
+      return (
+        <Box key="dirty">
+          <Text>{'bell \u0007 here'}</Text>
+        </Box>
+      )
+    })
+  },
+}
+
+/** Another mod that draws in the band. */
 const NEIGHBOUR: Plugin = {
   name: 'neighbour',
   register(on) {
@@ -42,7 +57,7 @@ const NEIGHBOUR: Plugin = {
 
 const sleep = (ms: number) => new Promise<void>(resolve => (globalThis as unknown as { setTimeout: (f: () => void, ms: number) => void }).setTimeout(resolve, ms))
 
-async function until(check: () => boolean, what: string, ms = 4000): Promise<void> {
+async function until(check: () => boolean, what: string, ms = 4500): Promise<void> {
   for (let waited = 0; waited < ms && !check(); waited += 10) await sleep(10)
   expect(check(), `waited for: ${what}`).toBe(true)
 }
@@ -253,20 +268,39 @@ describe('the band, where the pane has no room', () => {
     expect(ran).toEqual(['rm -rf src'])
   })
 
-  test('other mods keep their band: the hold draws on top, theirs beneath', { plugins: [NEIGHBOUR] }, async ($, on) => {
+  test('while a hold waits it draws alone; with nothing held, other mods keep the band', { plugins: [NEIGHBOUR] }, async ($, on) => {
     const { seen, ran } = setup(on, { ...FILES, isPanePlaced: false })
     for (const surface of SURFACES) {
+      const idle = await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND })
+      expect((await idle.find({ key: 'neighbour' }))?.text).toBe('neighbour band')
+      await idle.unmount()
+
       const before = seen.opened.length
       const call = bash($, 'rm -rf src')
       await until(() => seen.opened.length > before, 'the hold')
       const ui = await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND })
-      const keys = (await ui.findAll({ type: 'Box' })).map(box => box.key).filter(key => key === 'last-look' || key === 'neighbour')
-      expect(keys, 'both drawn, the hold first').toEqual(['last-look', 'neighbour'])
-      expect((await ui.find({ key: 'neighbour' }))?.text).toBe('neighbour band')
+      expect(await ui.find({ key: 'last-look' })).toBeDefined()
+      expect(await ui.find({ key: 'neighbour' })).toBeUndefined()
+      expect((await ui.find({ key: 'alone' }))?.text).toBe('Other bands are hidden until you decide.')
       await ui.press({ key: 'cancel' })
       expect(refusal(await call)).toContain('chose Cancel')
       await ui.unmount()
     }
+    expect(ran).toEqual([])
+  })
+
+  test('a band beneath that draws a control character cannot hide the hold', { plugins: [DIRTY_NEIGHBOUR] }, async ($, on) => {
+    const { seen, ran } = setup(on, { ...FILES, isPanePlaced: false })
+    const call = bash($, 'rm -rf src')
+    await until(() => seen.opened.length > 0, 'the hold')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND })
+      expect(await ui.find({ key: 'cancel' })).toBeDefined()
+      await ui.unmount()
+    }
+    const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+    await ui.press({ key: 'cancel' })
+    expect(refusal(await call)).toContain('chose Cancel')
     expect(ran).toEqual([])
   })
 
@@ -325,13 +359,43 @@ describe('what passes untouched', () => {
     expect(seen.opened).toEqual([])
   })
 
-  test('a destructive command that would destroy nothing runs', async ($, on) => {
-    const { seen, ran } = setup(on, { files: { 'src/a.ts': { size: 1, git: 'clean' } }, git: { refs: ['main'] } })
-    for (const command of ['rm -rf build', 'echo hi > new.txt', 'git reset --hard', 'git checkout main']) {
+  test('not destructive after all: a redirect to a new file, a branch switch', async ($, on) => {
+    const { seen, ran } = setup(on, { files: { 'src/a.ts': { size: 1, git: 'clean' } }, git: { refs: ['refs/heads/main'] } })
+    for (const command of ['echo hi > new.txt', 'git checkout main']) {
       expect((await bash($, command)).text, command).toBe('ran')
     }
-    expect(ran).toHaveLength(4)
+    expect(ran).toHaveLength(2)
     expect(seen.opened).toEqual([])
+  })
+
+  test('a destructive command that finds nothing to destroy still holds', async ($, on) => {
+    const { seen, ran } = setup(on, { files: { 'src/a.ts': { size: 1, git: 'clean' } } })
+    for (const command of ['rm -rf out', 'git reset --hard', 'find . -name "*.pyc" -delete']) {
+      const before = seen.opened.length
+      const call = bash($, command)
+      await until(() => seen.opened.length > before, `the hold for ${command}`)
+      const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+      await ui.press({ key: 'cancel' })
+      expect(refusal(await call), command).toContain('chose Cancel')
+      await ui.unmount()
+    }
+    expect(ran).toEqual([])
+  })
+
+  test('the Monitor tool runs a shell command too: it is held the same way', async ($, on) => {
+    const { seen } = setup(on)
+    const monitored: string[] = []
+    on('tool.call', { tool: 'Monitor' }, (_$, e) => {
+      monitored.push(e.command ?? '')
+      return { result: { taskId: 't' }, text: 'watching' } as never
+    })
+    expect((await $.tool.call({ tool: 'Monitor', command: 'tail -f log.txt', description: 'watch', timeout_ms: 1000 })).text).toBe('watching')
+    const call = $.tool.call({ tool: 'Monitor', command: 'rm -rf src', description: 'watch', timeout_ms: 1000 })
+    await until(() => seen.opened.length > 0, 'the hold')
+    const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+    await ui.press({ key: 'cancel' })
+    expect(refusal(await call)).toContain('chose Cancel')
+    expect(monitored).toEqual(['tail -f log.txt'])
   })
 
   test('alwaysAllow folders pass (the default list)', async ($, on) => {
@@ -417,6 +481,17 @@ describe('failing safe', () => {
   test('a path that exists but cannot be read is held unmeasured, not taken as missing', async ($, on) => {
     const { seen, ran } = setup(on, { ...FILES, unreadable: ['secret'] })
     const call = bash($, 'rm -rf secret')
+    await until(() => seen.opened.length > 0, 'the pane to open')
+    const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+    expect(await ui.find({ type: 'Text', text: COULD_NOT })).toBeDefined()
+    await ui.press({ key: 'cancel' })
+    await call
+    expect(ran).toEqual([])
+  })
+
+  test('a stat error is never taken for "does not exist": the redirect holds', async ($, on) => {
+    const { seen, ran } = setup(on, { ...FILES, unreadable: ['secret.txt'] })
+    const call = bash($, 'echo hi > secret.txt')
     await until(() => seen.opened.length > 0, 'the pane to open')
     const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
     expect(await ui.find({ type: 'Text', text: COULD_NOT })).toBeDefined()

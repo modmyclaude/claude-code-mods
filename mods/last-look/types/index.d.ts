@@ -12,7 +12,7 @@ export type LastLookItem = {
   title: string
   /** Where it runs, relative to the session's directory, when not there. */
   where?: string
-  /** `nothing`: measured, it would destroy nothing; `unknown`: not measured. */
+  /** `nothing`: measured and found nothing (still held); `unknown`: could not measure. */
   effect: 'nothing' | 'some' | 'unknown'
   summary: string
   summaryTone: LastLookTone
@@ -26,8 +26,17 @@ export type LastLookItem = {
   unsaved: number
   /** Commits that would leave every branch. */
   commits: number
-  /** Every target lies inside the alwaysAllow folders. */
+  /** Every target is a plain literal path whose real path lies inside the alwaysAllow folders. */
   isAllowed: boolean
+  /**
+   * Not destructive after all, decided only where the classifier cannot know
+   * alone: a redirect to a plain path that does not exist yet (or is a
+   * folder), and `git checkout <name>` that git confirms is a branch. An empty
+   * or failed measurement never sets it: a destructive command always holds.
+   */
+  isHarmless: boolean
+  /** It deletes your home folder, `/`, or a top-level system folder. */
+  isCatastrophic: boolean
 }
 
 export type LastLookReport = {

@@ -1,14 +1,21 @@
-// Measures what each finding would destroy, with read-only commands only:
-// `find` without -delete, `du`, and git's status, log, rev-list, rev-parse,
-// ls-files, diff --numstat and clean -n (a dry run). Every git call runs with
-// optional locks off, so even git status writes nothing.
+// Measures what a held command would destroy, to show the person. It never
+// decides WHETHER to hold: once the classifier calls a command destructive it
+// is held, and an empty or failed measurement only means the hold says
+// "could not measure: review it yourself". The two exceptions, both
+// classification the text alone cannot finish, are marked `isHarmless`: a
+// redirect to a plain path that does not exist yet, and `git checkout <name>`
+// that git confirms is a branch. alwaysAllow (plain literal paths only) is
+// the one skip the person configures.
 //
-// A finding that cannot be measured is reported as such ("could not measure:
-// review it yourself") and still held; it is never waved through.
+// Read-only commands only: `find` without -delete (no write or exec predicate
+// is ever copied), `du`, and git's rev-parse, for-each-ref, status, ls-files,
+// diff-index, diff-files, rev-list, log and clean -n (a dry run), all with optional locks
+// off, so git writes nothing either.
 
 import type { FsEntry, FsStat, ProcessRunResult } from 'claude-code'
 
 import type { LastLookItem, LastLookReport, LastLookRow, LastLookTone } from '../types'
+import { FIND_WRITES } from './classify'
 import type { CdStep, Finding, Word } from './classify'
 import { globSegment, hasGlob, isAbsolute, isAllowed, join, rebase, show, within } from './paths'
 
@@ -63,19 +70,18 @@ export async function measureAll(ctx: Ctx, command: string, findings: readonly F
   }
   const extra = findings.length - MAX_ITEMS
   if (extra > 0) {
-    items.push({
-      ...blank(`${extra} more destructive ${extra === 1 ? 'step' : 'steps'}`),
-      effect: 'unknown',
-      summary: COULD_NOT,
-      summaryTone: 'warning',
-    })
+    items.push({ ...blank(`${extra} more destructive ${extra === 1 ? 'step' : 'steps'}`), effect: 'unknown', summary: COULD_NOT, summaryTone: 'warning' })
   }
   return { command: clip(command, 2000), items, ...headline(items) }
 }
 
-/** Hold unless every part is measured harmless or inside alwaysAllow. */
+/**
+ * Every destructive command holds. Only alwaysAllow, or a part that turned out
+ * not to be destructive at all (`isHarmless`), lets it through; what the
+ * measurement found or failed to find never does.
+ */
 export function shouldHold(report: LastLookReport): boolean {
-  return report.items.some(item => item.effect !== 'nothing' && !item.isAllowed)
+  return report.items.some(item => !item.isAllowed && !item.isHarmless)
 }
 
 async function measureOne(ctx: Ctx, f: Finding): Promise<LastLookItem> {
@@ -89,7 +95,7 @@ async function measureOne(ctx: Ctx, f: Finding): Promise<LastLookItem> {
   switch (f.kind) {
     case 'rm': {
       const paths = await expand(ctx, at.dir, f.targets)
-      return typeof paths === 'string' ? unmeasured(f, where, paths, notes) : remove(ctx, f, where, notes, at.dir, paths)
+      return typeof paths === 'string' ? unmeasured(f, where, paths, notes) : remove(ctx, f, where, notes, at.dir, paths, 'words')
     }
     case 'find-delete':
       return findDelete(ctx, f, where, notes, at.dir)
@@ -126,21 +132,31 @@ async function whereItRuns(ctx: Ctx, steps: readonly CdStep[]): Promise<{ dir: s
   return { dir, notes }
 }
 
-type Path = { abs: string; slash: boolean }
+/** A literal path as written, with no `..` (the kernel resolves `..` after links, not by spelling). */
+function isPlainPath(w: Word): boolean {
+  return w.plain && !w.text.split('/').includes('..')
+}
 
-/** Words to absolute paths, expanding globs as the shell would. */
+function plainSteps(steps: readonly CdStep[]): boolean {
+  return steps.every(step => isPlainPath(step.dir))
+}
+
+type Path = { abs: string; slash: boolean; plain: boolean }
+
+/** Words to absolute paths, expanding globs as the shell would where it can. */
 async function expand(ctx: Ctx, dir: string, words: readonly Word[]): Promise<Path[] | string> {
   const out: Path[] = []
   for (const w of words) {
     if (!w.known) return `it acts on ${w.raw}, which is only known when it runs`
     const slash = w.text.endsWith('/')
     if (!w.glob) {
-      out.push({ abs: join(dir, w.text), slash })
+      out.push({ abs: join(dir, w.text), slash, plain: isPlainPath(w) })
       continue
     }
+    // zsh and bash differ on `**`; no single answer to measure against.
+    if (w.text.includes('**')) return `it uses a recursive ** pattern (${w.raw}), which shells expand differently`
     const matches = await glob(ctx, dir, w.text)
-    // No match: the shell hands over the pattern itself, which names nothing.
-    out.push(...(matches.length > 0 ? matches.map(abs => ({ abs, slash })) : [{ abs: join(dir, w.text), slash }]))
+    out.push(...(matches.length > 0 ? matches.map(abs => ({ abs, slash, plain: false })) : [{ abs: join(dir, w.text), slash, plain: false }]))
   }
   return out
 }
@@ -190,26 +206,36 @@ function isCatastrophic(path: string, home?: string): boolean {
   return path.split('/').filter(Boolean).length === 1
 }
 
-function allowed(ctx: Ctx, targets: readonly { abs: string; real: string }[]): boolean {
-  if (ctx.allow.length === 0 || targets.length === 0) return false
-  return targets.every(t => isAllowed(t.abs, ctx.root, ctx.allow) && isAllowed(t.real, ctx.rootReal, ctx.allow))
+/**
+ * alwaysAllow: every target a plain literal path that exists, reached through
+ * plain `cd`s, and both its spelling and its real path inside an allowed
+ * folder. A real path another hook withheld is never allowed.
+ */
+function allowed(ctx: Ctx, f: Finding, paths: readonly Path[], found: readonly Target[]): boolean {
+  if (ctx.allow.length === 0 || paths.length === 0 || found.length !== paths.length) return false
+  if (!plainSteps(f.cd) || paths.some(p => !p.plain)) return false
+  return found.every(t => t.stat.realPath !== undefined && isAllowed(t.abs, ctx.root, ctx.allow) && isAllowed(t.stat.realPath, ctx.rootReal, ctx.allow))
 }
 
 // ---------------------------------------------------------------- deletions
 
 /** rm -r, and git clean once its dry run has named what it removes. */
-async function remove(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string, paths: readonly Path[]): Promise<LastLookItem> {
+async function remove(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string, paths: readonly Path[], from: 'words' | 'git-clean'): Promise<LastLookItem> {
   const found = await existing(ctx, paths)
+  const name = (abs: string) => show(abs, ctx.cwd, ctx.home)
   if (found.length === 0) {
-    const names = paths.map(p => show(p.abs, ctx.cwd, ctx.home))
-    return item(f, where, { effect: 'nothing', summary: `Nothing to delete: ${list(names)} ${names.length === 1 ? 'does' : 'do'} not exist`, rows: notes })
+    const names = list(paths.map(p => name(p.abs)))
+    if (from === 'words' && paths.every(p => p.plain) && plainSteps(f.cd)) {
+      return item(f, where, { effect: 'nothing', summary: `Nothing found at these paths: ${names}`, tone: 'warning', rows: [...notes, { text: 'Held anyway: check these are the paths you mean.', tone: 'subtle' }] })
+    }
+    const why = from === 'git-clean' ? `its dry run named ${names}, which were not found where expected` : `nothing was found at ${names}, but the shell may read these paths differently`
+    return unmeasured(f, where, why, notes)
   }
   const doomed = found.find(t => isCatastrophic(t.abs, ctx.home) || isCatastrophic(t.real, ctx.home))
   if (doomed) {
-    const name = show(doomed.abs, ctx.cwd, ctx.home)
-    return item(f, where, { summary: `It deletes ${name}: your home folder or a system folder. Too large to measure.`, tone: 'error', rows: notes })
+    return item(f, where, { summary: `It deletes ${name(doomed.abs)}: your home folder or a system folder. Too large to measure.`, tone: 'error', rows: notes, isCatastrophic: true })
   }
-  if (allowed(ctx, found)) return allowedItem(f, where, notes)
+  if (from === 'words' && allowed(ctx, f, paths, found)) return allowedItem(f, where, notes)
 
   const [tree, view] = await Promise.all([measureTree(ctx, dir, found), gitView(ctx, dir, found.map(t => t.real), true)])
   const display = (real: string) => {
@@ -217,16 +243,18 @@ async function remove(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[],
     return show(owner ? rebase(real, owner.real, owner.abs) : fromReal(ctx, real), ctx.cwd, ctx.home)
   }
   const rows = [...notes]
+  const missing = paths.filter(p => !found.some(t => t.abs === p.abs))
+  if (missing.length > 0) rows.push({ text: `Not found: ${list(missing.map(p => name(p.abs)))}`, tone: 'warning' })
   if (found.length > 1 && found.length <= 12) {
     for (const t of found) {
       const counted = tree.perTarget.get(t.real)
       const files = counted?.files ?? (t.stat.kind === 'dir' ? 0 : 1)
       const bytes = counted?.bytes ?? (t.stat.isLink ? 0 : t.stat.size)
-      rows.push({ text: `${show(t.abs, ctx.cwd, ctx.home)}${t.stat.kind === 'dir' ? '/' : ''}  ${count(files, 'file')}, ${size(bytes)}`, tone: 'subtle' })
+      rows.push({ text: `${name(t.abs)}${t.stat.kind === 'dir' ? '/' : ''}  ${count(files, 'file')}, ${size(bytes)}`, tone: 'subtle' })
     }
   }
   const links = found.filter(t => t.stat.isLink && !t.slash)
-  if (links.length > 0) rows.push({ text: `${list(links.map(t => show(t.abs, ctx.cwd, ctx.home)))}: a link, so only the link goes`, tone: 'subtle' })
+  if (links.length > 0) rows.push({ text: `${list(links.map(t => name(t.abs)))}: a link, so only the link goes`, tone: 'subtle' })
 
   const lost = typeof view === 'object' ? [...view.changed].filter(([path, xy]) => !xy.includes('D') && found.some(t => within(t.real, path))) : []
   rows.push(...gitRows(view, lost, display, 'any of this'))
@@ -280,7 +308,7 @@ async function measureTree(ctx: Ctx, dir: string, targets: readonly Target[]): P
   if (listing) {
     const files = nulList(listing)
     tree.files += files.length
-    tree.isLowerBound = listing.isStdoutTruncated
+    tree.isLowerBound = listing.isStdoutTruncated || listing.exitCode !== 0
     tree.sample.push(...files.slice(0, MAX_ARGS))
     if (reals.length <= 20) {
       for (const real of reals) tree.perTarget.set(real, { files: files.filter(path => within(real, path)).length, bytes: 0 })
@@ -301,28 +329,37 @@ async function measureTree(ctx: Ctx, dir: string, targets: readonly Target[]): P
 async function findDelete(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string): Promise<LastLookItem> {
   const listing = f.findListing
   if (!listing) return unmeasured(f, where, 'its find expression could not be re-run safely', notes)
-  const starts = f.targets.map(w => join(dir, w.text))
-  if (starts.some(path => isCatastrophic(path, ctx.home))) {
-    return unmeasured(f, where, `it searches ${list(starts.map(p => show(p, ctx.cwd, ctx.home)))}, too much to measure`, notes)
+  // Never run a find that could write or execute, whatever built the listing.
+  if (listing.some(t => FIND_WRITES.has(t))) return unmeasured(f, where, 'its find expression writes or runs commands', notes)
+  const starts = f.targets.map(w => ({ abs: join(dir, w.text), slash: false, plain: isPlainPath(w) }))
+  const names = list(starts.map(p => show(p.abs, ctx.cwd, ctx.home)))
+  if (starts.some(p => isCatastrophic(p.abs, ctx.home))) {
+    return unmeasured(f, where, `it searches ${names}, too much to measure`, notes)
   }
-  const dirStat = await stat(ctx, dir)
-  if (!dirStat) return item(f, where, { effect: 'nothing', summary: `Nothing to delete: ${where} does not exist`, rows: notes })
-  const dirReal = dirStat.realPath ?? dir
-  const startReals = await Promise.all(starts.map(async path => ({ abs: path, real: (await stat(ctx, path))?.realPath ?? path })))
-  if (allowed(ctx, startReals)) return allowedItem(f, where, notes)
+  const found = await existing(ctx, starts)
+  if (found.length === 0) {
+    if (starts.every(p => p.plain) && plainSteps(f.cd)) {
+      return item(f, where, { effect: 'nothing', summary: `Nothing found at these paths: ${names}`, tone: 'warning', rows: [...notes, { text: 'Held anyway: check these are the paths you mean.', tone: 'subtle' }] })
+    }
+    return unmeasured(f, where, `nothing was found at ${names}, but the shell may read these paths differently`, notes)
+  }
+  if (allowed(ctx, f, starts, found)) return allowedItem(f, where, notes)
 
+  const dirReal = (await stat(ctx, dir))?.realPath ?? dir
   const out = await run(ctx, ['find', ...listing], dirReal, LIST_MS).catch(() => undefined)
   if (!out) return unmeasured(f, where, 'the find listing did not finish', notes)
   const matched = nulList(out).map(path => join(dirReal, path))
-  if (matched.length === 0) {
-    const why = out.exitCode !== 0 ? `: find says ${clip(firstLine(out.stderr), 120)}` : ''
-    return item(f, where, { effect: 'nothing', summary: `Nothing matches, so nothing would be deleted${why}`, rows: notes })
+  // The shell's find (bfs, GNU) and the system find can disagree: an error or an
+  // empty listing says nothing about what the real command deletes.
+  if (out.exitCode !== 0) {
+    return unmeasured(f, where, `the system find stopped with an error (${clip(firstLine(out.stderr), 100)}); the shell's find may read it differently`, notes)
   }
+  if (matched.length === 0) return unmeasured(f, where, "the system find lists nothing for it, but the shell's find may match differently", notes)
   const display = (real: string) => show(fromReal(ctx, real), ctx.cwd, ctx.home)
   const topmost = matched.filter(path => !matched.some(other => other !== path && within(other, path)))
   const [sizes, view] = await Promise.all([
     run(ctx, ['du', '-sk', ...topmost.slice(0, MAX_ARGS)], dirReal, LIST_MS).catch(() => undefined),
-    gitView(ctx, dirReal, startReals.map(s => s.real), false),
+    gitView(ctx, dirReal, found.map(s => s.real), false),
   ])
   const bytes = sizes ? duLines(sizes.stdout).reduce((sum, [, kib]) => sum + kib * 1024, 0) : 0
   const matchedSet = new Set(matched)
@@ -332,7 +369,7 @@ async function findDelete(ctx: Ctx, f: Finding, where: string, notes: LastLookRo
   const sample = matched.filter(path => !lostPaths.has(path)).slice(0, MAX_ROWS)
   for (const path of sample) rows.push({ text: display(path), tone: 'subtle' })
   if (!sizes) rows.push({ text: 'Could not add up the size.', tone: 'warning' })
-  if (out.exitCode !== 0) rows.push({ text: 'find could not read everything, so it may delete more than this.', tone: 'warning' })
+  rows.push({ text: "Listed with the system find; the shell's find may match a little differently.", tone: 'subtle' })
   const lower = out.isStdoutTruncated ? 'at least ' : ''
   return item(f, where, {
     summary: `Deletes ${lower}${count(matched.length, 'path')}${sizes ? `, ${size(bytes)}` : ''}`,
@@ -344,19 +381,49 @@ async function findDelete(ctx: Ctx, f: Finding, where: string, notes: LastLookRo
   })
 }
 
-async function clean(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string, git: { flags: string[]; excludes: string[]; paths: Word[] }): Promise<LastLookItem> {
+async function clean(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string, git: { flags: string[]; forces: number; excludes: string[]; paths: Word[] }): Promise<LastLookItem> {
   const unknownPath = git.paths.find(w => !w.known)
   if (unknownPath) return unmeasured(f, where, `it names ${unknownPath.raw}, which is only known when it runs`, notes)
-  // The same clean as a dry run: -n lists, it never removes.
-  const args = ['clean', '-n', ...git.flags.map(flag => `-${flag}`), ...git.excludes.flatMap(e => ['-e', e]), '--', ...git.paths.map(w => w.text)]
+  // The same clean as a dry run: -n lists and never removes, even beside -f.
+  // The forces are passed too: -ff also removes nested git repositories.
+  const forces = Array.from({ length: Math.min(git.forces, 2) }, () => '-f')
+  const args = ['clean', '-n', ...forces, ...git.flags.map(flag => `-${flag}`), ...git.excludes.flatMap(e => ['-e', e]), '--', ...git.paths.map(w => w.text)]
   const out = await gitRun(ctx, dir, args)
   if (out.exitCode !== 0) {
-    if (/not a git repository/i.test(out.stderr)) return item(f, where, { effect: 'nothing', summary: 'Not in a git repository, so git clean would fail', rows: notes })
-    return unmeasured(f, where, `git clean -n failed: ${clip(firstLine(out.stderr), 120)}`, notes)
+    const why = /not a git repository/i.test(out.stderr) ? 'it is not in a git repository' : `git clean -n failed: ${clip(firstLine(out.stderr), 120)}`
+    return unmeasured(f, where, why, notes)
   }
-  const names = out.stdout.split('\n').flatMap(line => (line.startsWith('Would remove ') ? [line.slice('Would remove '.length)] : []))
-  if (names.length === 0) return item(f, where, { effect: 'nothing', summary: 'Nothing to clean', rows: notes })
-  return remove(ctx, f, where, notes, dir, names.map(name => ({ abs: join(dir, name), slash: false })))
+  const lines = out.stdout.split('\n')
+  const names = lines.flatMap(line => (line.startsWith('Would remove ') ? [unquote(line.slice('Would remove '.length))] : []))
+  const skipped = lines.flatMap(line => (line.startsWith('Would skip repository ') ? [unquote(line.slice('Would skip repository '.length))] : []))
+  const rows = [...notes, ...skipped.map(name => ({ text: `It skips the nested repository ${name}.`, tone: 'subtle' as const }))]
+  if (names.length === 0) return unmeasured(f, where, 'its dry run (git clean -n) lists nothing to remove', rows)
+  return remove(ctx, f, where, rows, dir, names.map(name => ({ abs: join(dir, name), slash: false, plain: false })), 'git-clean')
+}
+
+/** git's C-style quoting of an odd name: `"notes \"v2\".md"`. */
+export function unquote(name: string): string {
+  if (!(name.length >= 2 && name.startsWith('"') && name.endsWith('"'))) return name
+  const escapes: Record<string, string> = { n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', f: '\f', v: '\v', '"': '"', '\\': '\\' }
+  const bytes: number[] = []
+  const body = name.slice(1, -1)
+  for (let k = 0; k < body.length; k++) {
+    const c = body[k] ?? ''
+    if (c !== '\\') {
+      for (const byte of new TextEncoder().encode(c)) bytes.push(byte)
+      continue
+    }
+    const octal = /^[0-7]{3}/.exec(body.slice(k + 1))
+    if (octal) {
+      bytes.push(Number.parseInt(octal[0], 8))
+      k += 3
+    } else {
+      const next = body[k + 1] ?? ''
+      for (const byte of new TextEncoder().encode(escapes[next] ?? next)) bytes.push(byte)
+      k += 1
+    }
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes))
 }
 
 async function overwrite(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string): Promise<LastLookItem> {
@@ -364,24 +431,38 @@ async function overwrite(ctx: Ctx, f: Finding, where: string, notes: LastLookRow
   if (typeof paths === 'string') return unmeasured(f, where, paths, notes)
   const path = paths[0]
   if (!path) return unmeasured(f, where, 'it names no file', notes)
+  const isPlain = path.plain && plainSteps(f.cd)
+  // `stat` answers undefined only when the path positively does not exist; any
+  // other failure throws, and the part is held unmeasured.
   const found = await stat(ctx, path.abs)
   const name = show(path.abs, ctx.cwd, ctx.home)
-  if (!found) return item(f, where, { effect: 'nothing', summary: `Creates ${name}; nothing is overwritten`, rows: notes })
-  if (found.kind !== 'file') return item(f, where, { effect: 'nothing', summary: `${name} is not a plain file, so nothing is overwritten`, rows: notes })
-  const real = found.realPath ?? path.abs
-  if (allowed(ctx, [{ abs: path.abs, real }])) return allowedItem(f, where, notes)
+  // The one proof that lets a redirect through: a plain path that does not exist.
+  if (!found) {
+    return isPlain
+      ? harmless(f, where, `Creates ${name}; nothing is overwritten`, notes)
+      : unmeasured(f, where, `nothing was found at ${name}, but the shell may read the path differently`, notes)
+  }
+  // A folder, a link (even to nowhere), a device: no proof either way, so held.
+  if (found.kind !== 'file' || found.isLink) {
+    if (found.kind !== 'file') return unmeasured(f, where, `${name} is not a plain file`, notes)
+    notes = [...notes, { text: `${name} is a link: the file it leads to is overwritten.`, tone: 'warning' }]
+  }
+  const real = found.realPath
+  if (isPlain && real !== undefined && ctx.allow.length > 0 && isAllowed(path.abs, ctx.root, ctx.allow) && isAllowed(real, ctx.rootReal, ctx.allow)) {
+    return allowedItem(f, where, notes)
+  }
 
-  const view = await gitView(ctx, dir, [real], true)
+  const view = await gitView(ctx, dir, [real ?? path.abs], true)
   const rows = [...notes]
   let unsaved = 0
   if (view === 'none') rows.push({ text: 'Not in a git repository: its old contents would be gone for good.', tone: 'warning' })
   else if (view === 'failed') rows.push({ text: 'git status failed, so unsaved work could not be checked.', tone: 'warning' })
   else {
-    const xy = view.changed.get(real)
+    const xy = view.changed.get(real ?? path.abs)
     if (xy !== undefined && !xy.includes('D')) {
       unsaved = 1
       rows.push({ text: `It has unsaved work git cannot bring back (${describe(xy)}).`, tone: 'error' })
-    } else if (view.tracked?.has(real)) rows.push({ text: 'git can restore it as last committed.', tone: 'subtle' })
+    } else if (view.tracked?.has(real ?? path.abs)) rows.push({ text: 'git can restore it as last committed.', tone: 'subtle' })
     else rows.push({ text: 'git ignores it: its old contents would be gone for good.', tone: 'warning' })
   }
   return item(f, where, { summary: `Overwrites ${name} (${size(found.size)})`, rows, files: 1, bytes: found.size, unsaved })
@@ -392,7 +473,7 @@ async function overwrite(ctx: Ctx, f: Finding, where: string, notes: LastLookRow
 async function discard(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string): Promise<LastLookItem> {
   const git = f.git
   const top = await gitRun(ctx, dir, ['rev-parse', '--show-toplevel'])
-  if (top.exitCode !== 0) return item(f, where, { effect: 'nothing', summary: 'Not in a git repository, so git would refuse it', rows: notes })
+  if (top.exitCode !== 0) return unmeasured(f, where, 'it is not in a git repository', notes)
   const root = top.stdout.trim()
   const display = (real: string) => show(fromReal(ctx, real), ctx.cwd, ctx.home)
 
@@ -406,9 +487,10 @@ async function discard(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[]
     const unknownPath = git.paths.find(w => !w.known)
     if (unknownPath) return unmeasured(f, where, `it names ${unknownPath.raw}, which is only known when it runs`, notes)
     if (git.mode === 'maybe-ref') {
+      // `git checkout x` passes only as a proven branch switch (git refuses a
+      // switch that would lose changes); every doubt is held as paths.
       const name = git.paths[0]?.text ?? ''
-      const isRef = (await gitRun(ctx, dir, ['rev-parse', '--verify', '--quiet', `${name}^{commit}`])).exitCode === 0
-      if (isRef) return item(f, where, { effect: 'nothing', summary: `Switches to ${name}; git refuses a switch that would lose changes`, rows: notes })
+      if (await isBranchSwitch(ctx, dir, name)) return harmless(f, where, `Switches to branch ${name}; git refuses a switch that would lose changes`, notes)
     }
     if (git.mode !== 'all') specs = ['--', ...git.paths.map(w => w.text)]
     fromIndex = git.fromIndex && git.mode !== 'all'
@@ -416,22 +498,25 @@ async function discard(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[]
 
   if (ref !== undefined && ref !== 'HEAD') {
     const known = await gitRun(ctx, dir, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
-    if (known.exitCode !== 0) return item(f, where, { effect: 'nothing', summary: `git cannot find ${ref}, so the reset would fail`, rows: notes })
+    if (known.exitCode !== 0) return unmeasured(f, where, `git cannot find ${ref}`, notes)
   }
   const dropsCommits = ref !== undefined && ref !== 'HEAD'
+  // diff-files and diff-index read the index without refreshing it: `git diff` would rewrite it.
+  const numstatArgs = fromIndex ? ['diff-files', '--numstat', ...specs] : ['diff-index', '--numstat', 'HEAD', ...specs]
   const [status, numstat, branch, dropped, log] = await Promise.all([
     gitRun(ctx, dir, ['status', '--porcelain=v1', '-z', '--untracked-files=no', ...specs]),
-    gitRun(ctx, dir, ['diff', '--numstat', '--no-ext-diff', '--no-textconv', ...(fromIndex ? [] : ['HEAD']), ...specs]),
+    gitRun(ctx, dir, numstatArgs),
     gitRun(ctx, dir, ['rev-parse', '--abbrev-ref', 'HEAD']),
-    dropsCommits ? gitRun(ctx, dir, ['rev-list', '--count', `${ref}..HEAD`]) : undefined,
-    dropsCommits ? gitRun(ctx, dir, ['log', '--format=%h %s', '-n', '8', `${ref}..HEAD`]) : undefined,
+    dropsCommits ? gitRun(ctx, dir, ['rev-list', '--count', '--end-of-options', `${ref}..HEAD`]) : undefined,
+    dropsCommits ? gitRun(ctx, dir, ['log', '--format=%h %s', '-n', '8', '--end-of-options', `${ref}..HEAD`]) : undefined,
   ])
   if (status.exitCode !== 0) return unmeasured(f, where, `git status failed: ${clip(firstLine(status.stderr), 120)}`, notes)
+  if (dropped && dropped.exitCode !== 0) return unmeasured(f, where, `git could not count the commits it drops: ${clip(firstLine(dropped.stderr), 120)}`, notes)
   const changes = [...porcelain(status.stdout, root)].filter(([, xy]) => (fromIndex ? xy[1] !== ' ' : true))
   const lines = numstatLines(numstat.stdout, root)
   const commits = dropped ? Number.parseInt(dropped.stdout.trim(), 10) || 0 : 0
   if (changes.length === 0 && commits === 0) {
-    return item(f, where, { effect: 'nothing', summary: 'Nothing to lose: no uncommitted changes there', rows: notes })
+    return item(f, where, { effect: 'nothing', summary: 'Nothing to lose as far as git can tell: no uncommitted changes there', tone: 'warning', rows: notes })
   }
   const rows = [...notes]
   let added = 0
@@ -458,13 +543,32 @@ async function discard(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[]
   return item(f, where, { summary: capitalize(parts.join(' and ')), tone: 'error', rows, files: changes.length, unsaved: changes.length, commits })
 }
 
+/**
+ * True only when git positively says `name` is a branch: a local branch, a
+ * remote-tracking branch, or exactly one remote branch git would set up for
+ * it; and no file or folder of that name makes the checkout ambiguous. A git
+ * error answers false; a stat error throws (held).
+ */
+async function isBranchSwitch(ctx: Ctx, dir: string, name: string): Promise<boolean> {
+  if (!/^[A-Za-z0-9._/-]+$/.test(name) || name.startsWith('-') || name.includes('..')) return false
+  const local = await gitRun(ctx, dir, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`])
+  let isBranch = local.exitCode === 0
+  if (!isBranch) isBranch = (await gitRun(ctx, dir, ['rev-parse', '--verify', '--quiet', `refs/remotes/${name}`])).exitCode === 0
+  if (!isBranch) {
+    const guess = await gitRun(ctx, dir, ['for-each-ref', '--format=%(refname)', `refs/remotes/*/${name}`])
+    isBranch = guess.exitCode === 0 && guess.stdout.split('\n').filter(Boolean).length === 1
+  }
+  if (!isBranch) return false
+  return (await stat(ctx, join(dir, name))) === undefined
+}
+
 async function push(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], dir: string): Promise<LastLookItem> {
   const git = f.git
   if (git?.sub !== 'push') return unmeasured(f, where, 'unexpected git form', notes)
   if (git.isWholeRepo) return unmeasured(f, where, 'it force-pushes many branches at once', notes)
   if (git.remote && !git.remote.known) return unmeasured(f, where, `it pushes to ${git.remote.raw}, which is only known when it runs`, notes)
   const top = await gitRun(ctx, dir, ['rev-parse', '--show-toplevel'])
-  if (top.exitCode !== 0) return item(f, where, { effect: 'nothing', summary: 'Not in a git repository, so the push would fail', rows: notes })
+  if (top.exitCode !== 0) return unmeasured(f, where, 'it is not in a git repository', notes)
 
   type Pair = { local: string; name: string; isDelete: boolean }
   const pairs: Pair[] = []
@@ -504,7 +608,15 @@ async function push(ctx: Ctx, f: Finding, where: string, notes: LastLookRow[], d
       continue
     }
     const range = `${pair.local}..${remoteRef}`
-    const [counted, log] = await Promise.all([gitRun(ctx, dir, ['rev-list', '--count', range]), gitRun(ctx, dir, ['log', '--format=%h %an: %s', '-n', '8', range])])
+    const [counted, log] = await Promise.all([
+      gitRun(ctx, dir, ['rev-list', '--count', '--end-of-options', range]),
+      gitRun(ctx, dir, ['log', '--format=%h %an: %s', '-n', '8', '--end-of-options', range]),
+    ])
+    if (counted.exitCode !== 0) {
+      isBlind = true
+      rows.push({ text: `git could not compare with ${pair.name}.`, tone: 'warning' })
+      continue
+    }
     const n = Number.parseInt(counted.stdout.trim(), 10) || 0
     total += n
     if (n > 0) {
@@ -524,11 +636,12 @@ async function branchDelete(ctx: Ctx, f: Finding, where: string, notes: LastLook
   const unknownName = git.names.find(w => !w.known)
   if (unknownName) return unmeasured(f, where, `it deletes ${unknownName.raw}, which is only known when it runs`, notes)
   const top = await gitRun(ctx, dir, ['rev-parse', '--show-toplevel'])
-  if (top.exitCode !== 0) return item(f, where, { effect: 'nothing', summary: 'Not in a git repository, so git would refuse it', rows: notes })
+  if (top.exitCode !== 0) return unmeasured(f, where, 'it is not in a git repository', notes)
   const current = (await gitRun(ctx, dir, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()
   const rows = [...notes]
   const deleted: string[] = []
   let total = 0
+  let isBlind = false
   for (const w of git.names.slice(0, 10)) {
     const name = w.text
     const exists = (await gitRun(ctx, dir, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`])).exitCode === 0
@@ -541,6 +654,10 @@ async function branchDelete(ctx: Ctx, f: Finding, where: string, notes: LastLook
     // Commits on this branch and on no other branch, remote or tag.
     const only = [`refs/heads/${name}`, '--not', `--exclude=${name}`, '--branches', '--remotes', '--tags']
     const [counted, log] = await Promise.all([gitRun(ctx, dir, ['rev-list', '--count', ...only]), gitRun(ctx, dir, ['log', '--format=%h %s', '-n', '8', ...only])])
+    if (counted.exitCode !== 0) {
+      isBlind = true
+      continue
+    }
     const n = Number.parseInt(counted.stdout.trim(), 10) || 0
     total += n
     if (n > 0) {
@@ -548,10 +665,10 @@ async function branchDelete(ctx: Ctx, f: Finding, where: string, notes: LastLook
       for (const line of log.stdout.split('\n').filter(Boolean)) rows.push({ text: `  ${line}`, tone: 'subtle' })
     }
   }
-  if (deleted.length === 0) return item(f, where, { effect: 'nothing', summary: 'No such branch, so nothing is deleted', rows })
+  if (deleted.length === 0) return item(f, where, { effect: 'nothing', summary: 'No such branch found', tone: 'warning', rows })
   if (total > 0) rows.push({ text: 'git reflog can still find them for a while.', tone: 'subtle' })
   const summary = total > 0 ? `Deletes ${list(deleted)}: ${count(total, 'commit')} exist nowhere else` : `Deletes ${list(deleted)}; every commit is also on another branch`
-  return item(f, where, { summary, tone: total > 0 ? 'error' : 'warning', rows, commits: total })
+  return item(f, where, { effect: isBlind ? 'unknown' : 'some', summary, tone: total > 0 ? 'error' : 'warning', rows, commits: total })
 }
 
 type GitView = { changed: Map<string, string>; tracked?: Set<string> } | 'none' | 'failed'
@@ -589,15 +706,17 @@ function gitRows(view: GitView, lost: [string, string][], display: (real: string
 // ---------------------------------------------------------------- headline
 
 function headline(items: readonly LastLookItem[]): Pick<LastLookReport, 'headline' | 'headlineTone'> {
-  const live = items.filter(i => i.effect !== 'nothing' && !i.isAllowed)
+  const live = items.filter(i => !i.isAllowed && !i.isHarmless)
   const total = (key: 'unsaved' | 'commits' | 'files' | 'bytes') => live.reduce((sum, i) => sum + i[key], 0)
   const unsaved = total('unsaved')
   const commits = total('commits')
+  if (live.some(i => i.isCatastrophic)) return { headline: 'It deletes your home folder or a system folder', headlineTone: 'error' }
   if (unsaved > 0) return { headline: `${count(unsaved, 'file')} ${unsaved === 1 ? 'has' : 'have'} unsaved work you would lose`, headlineTone: 'error' }
   if (commits > 0) return { headline: `${count(commits, 'commit')} would be lost`, headlineTone: 'error' }
   if (live.some(i => i.effect === 'unknown')) return { headline: 'Could not measure all of it: review it yourself', headlineTone: 'warning' }
   const files = total('files')
   if (files > 0) return { headline: `It would delete or overwrite ${count(files, 'file')} (${size(total('bytes'))})`, headlineTone: 'warning' }
+  if (live.length > 0 && live.every(i => i.effect === 'nothing')) return { headline: 'Nothing found to destroy as far as it can tell: review it yourself', headlineTone: 'warning' }
   return { headline: 'Check what it would change before it runs', headlineTone: 'warning' }
 }
 
@@ -614,10 +733,12 @@ type Draft = {
   unsaved?: number
   commits?: number
   isAllowed?: boolean
+  isHarmless?: boolean
+  isCatastrophic?: boolean
 }
 
 function blank(title: string): LastLookItem {
-  return { title, effect: 'some', summary: '', summaryTone: 'normal', rows: [], moreRows: 0, files: 0, bytes: 0, unsaved: 0, commits: 0, isAllowed: false }
+  return { title, effect: 'some', summary: '', summaryTone: 'normal', rows: [], moreRows: 0, files: 0, bytes: 0, unsaved: 0, commits: 0, isAllowed: false, isHarmless: false, isCatastrophic: false }
 }
 
 function item(f: Finding, where: string | undefined, d: Draft): LastLookItem {
@@ -635,6 +756,8 @@ function item(f: Finding, where: string | undefined, d: Draft): LastLookItem {
     unsaved: d.unsaved ?? 0,
     commits: d.commits ?? 0,
     isAllowed: d.isAllowed ?? false,
+    isHarmless: d.isHarmless ?? false,
+    isCatastrophic: d.isCatastrophic ?? false,
   }
 }
 
@@ -644,6 +767,11 @@ function unmeasured(f: Finding, where: string | undefined, why: string, rows: La
 
 function allowedItem(f: Finding, where: string, notes: LastLookRow[]): LastLookItem {
   return item(f, where, { summary: 'Inside your alwaysAllow folders', rows: notes, isAllowed: true })
+}
+
+/** Not destructive after all; see `isHarmless`. */
+function harmless(f: Finding, where: string, summary: string, notes: LastLookRow[]): LastLookItem {
+  return item(f, where, { effect: 'nothing', summary, rows: notes, isHarmless: true })
 }
 
 async function run(ctx: Ctx, argv: string[], cwd: string, timeoutMs: number): Promise<ProcessRunResult> {

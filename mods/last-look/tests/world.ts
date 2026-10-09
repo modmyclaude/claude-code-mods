@@ -33,6 +33,10 @@ export type WorldSpec = {
   surfaces?: RenderSurface[]
   /** What `$.ui.open` answers: the pane placed, or left waiting. */
   isPanePlaced?: boolean
+  /** Symbolic links: the link's path (relative to cwd, or absolute) to where it leads (absolute). */
+  links?: Record<string, string>
+  /** Untracked folders that are git repositories of their own (git clean skips them without -ff). */
+  nestedRepos?: string[]
   /** Paths that exist but cannot be stat'ed (permission denied). */
   unreadable?: string[]
   /** `$.session.cwd()` is refused: the mod itself fails mid-hook. */
@@ -61,21 +65,44 @@ export function makeWorld(spec: WorldSpec = {}) {
   addDir(home)
   if (repo) addDir(repo)
 
+  const links = new Map<string, string>()
+  for (const [path, target] of Object.entries(spec.links ?? {})) {
+    links.set(join(cwd, path), join('/', target))
+    addDir(join('/', target))
+  }
+  /** Where a path lands: every link on the way followed, then `..` folded, as the kernel does. */
+  const resolveLinks = (path: string): string => {
+    let at = '/'
+    for (const part of path.split('/')) {
+      if (part === '' || part === '.') continue
+      if (part === '..') {
+        at = at.slice(0, at.lastIndexOf('/')) || '/'
+        continue
+      }
+      at = at === '/' ? `/${part}` : `${at}/${part}`
+      for (let hops = 0; links.has(at) && hops < 8; hops++) at = links.get(at) ?? at
+    }
+    return at
+  }
   const calls: string[][] = []
   const git = spec.git ?? {}
   const refs = new Set(['HEAD', ...(git.refs ?? [])])
   const ranges = git.ranges ?? {}
 
   const stat = (path: string): FsStat | undefined => {
-    const p = join('/', path)
+    const spelled = path.startsWith('/') ? path : `/${path}`
+    const p = resolveLinks(spelled)
+    const isLink = links.has(join('/', spelled.replace(/\/+$/, '')))
     const file = files.get(p)
-    if (file) return { kind: 'file', size: file.size, mtimeMs: 0, isLink: false, realPath: p }
-    if (dirs.has(p)) return { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: p }
+    if (file) return { kind: 'file', size: file.size, mtimeMs: 0, isLink, realPath: p }
+    if (dirs.has(p)) return { kind: 'dir', size: 0, mtimeMs: 0, isLink, realPath: p }
     if (repo && p === `${repo}/.git/FETCH_HEAD` && git.fetchedAt !== undefined) return { kind: 'file', size: 10, mtimeMs: git.fetchedAt, isLink: false, realPath: p }
+    // A link that leads nowhere is still there: `other`, as the engine reports it.
+    if (isLink) return { kind: 'other', size: 0, mtimeMs: 0, isLink: true }
     return undefined
   }
   const list = (path: string): FsEntry[] => {
-    const p = join('/', path)
+    const p = resolveLinks(path)
     const names = new Map<string, FsEntry>()
     const prefix = p === '/' ? '/' : `${p}/`
     for (const f of files.keys()) {
@@ -120,6 +147,11 @@ export function makeWorld(spec: WorldSpec = {}) {
         return refs.has(ref) ? ok('0123456789abcdef\n') : ok('', 1)
       }
     }
+    if (sub === 'for-each-ref') {
+      const pattern = args[args.length - 1] ?? ''
+      const wanted = new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`)
+      return ok([...refs].filter(ref => wanted.test(ref)).map(ref => `${ref}\n`).join(''))
+    }
     if (sub === 'status') {
       const withUntracked = args.includes('--untracked-files=all')
       const changed = gitFiles(dir, specs, f => status(f) !== '' && (withUntracked || f.git !== 'untracked'))
@@ -129,7 +161,7 @@ export function makeWorld(spec: WorldSpec = {}) {
       const tracked = gitFiles(dir, specs, f => f.git === 'clean' || f.git === 'modified' || f.git === 'staged')
       return ok(tracked.map(path => `${rel(path, repo)}\0`).join(''))
     }
-    if (sub === 'diff') {
+    if (sub === 'diff-index' || sub === 'diff-files') {
       const changed = gitFiles(dir, specs, f => f.git === 'modified' || f.git === 'staged')
       return ok(changed.map(path => `3\t1\t${rel(path, repo)}\n`).join(''))
     }
@@ -141,8 +173,15 @@ export function makeWorld(spec: WorldSpec = {}) {
     if (sub === 'clean') {
       if (!args.includes('-n')) throw new Error(`fake world: git clean without -n would delete: ${argv.join(' ')}`)
       const withIgnored = args.includes('-x') || args.includes('-X')
-      const doomed = gitFiles(dir, specs, f => f.git === 'untracked' || (withIgnored && f.git === 'ignored'))
-      return ok(doomed.map(path => `Would remove ${rel(path, dir)}\n`).join(''))
+      const forces = args.filter(a => a === '-f').length
+      const nested = (spec.nestedRepos ?? []).map(d => join(cwd, d))
+      const inNested = (path: string) => nested.some(d => within(d, path))
+      const doomed = gitFiles(dir, specs, f => f.git === 'untracked' || (withIgnored && f.git === 'ignored')).filter(path => !inNested(path))
+      // git C-quotes a name holding a quote or a backslash, even with quotePath off.
+      const quote = (name: string) => (/["\\]/.test(name) ? `"${name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : name)
+      const lines = doomed.map(path => `Would remove ${quote(rel(path, dir))}\n`)
+      for (const d of nested) lines.push(`${forces >= 2 ? 'Would remove' : 'Would skip repository'} ${rel(d, dir)}/\n`)
+      return ok(lines.join(''))
     }
     return ok('', 1, `fake world: unknown git ${sub}`)
   }
@@ -160,15 +199,15 @@ export function makeWorld(spec: WorldSpec = {}) {
     const out: string[] = []
     let exitCode = 0
     for (const start of starts.length > 0 ? starts : ['.']) {
-      const abs = join(dir, start)
-      if (!stat(abs)) {
+      if (!stat(join(dir, start))) {
         exitCode = 1
         continue
       }
-      const found = [...(onlyFiles ? [] : [...dirs].filter(d => within(abs, d))), ...under(abs)]
+      const real = resolveLinks(join(dir, start))
+      const found = [...(onlyFiles ? [] : [...dirs].filter(d => within(real, d))), ...under(real)]
       for (const path of found) {
         if (name && !name.test(path.slice(path.lastIndexOf('/') + 1))) continue
-        out.push(path === abs ? start : `${start.replace(/\/$/, '')}/${path.slice(abs.length + 1)}`)
+        out.push(path === real ? start : `${start.replace(/\/$/, '')}/${path.slice(real.length + 1)}`)
       }
     }
     return ok(out.map(p => `${p}\0`).join(''), exitCode, exitCode ? 'find: No such file or directory' : '')
@@ -178,7 +217,7 @@ export function makeWorld(spec: WorldSpec = {}) {
     const lines = argv.slice(2).flatMap(path => {
       const abs = join(dir, path)
       if (!stat(abs)) return []
-      const bytes = under(abs).reduce((sum, f) => sum + (files.get(f)?.size ?? 0), 0)
+      const bytes = under(resolveLinks(abs)).reduce((sum, f) => sum + (files.get(f)?.size ?? 0), 0)
       return [`${Math.ceil(bytes / 1024)}\t${path}\n`]
     })
     return ok(lines.join(''))
@@ -198,9 +237,13 @@ export function makeWorld(spec: WorldSpec = {}) {
     throw new Error(`fake world: no such command ${program}`)
   }
 
+  const isUnreadable = (path: string) => (spec.unreadable ?? []).some(p => join(cwd, p) === join('/', path))
   const probe: Probe = {
     run: (argv, dir) => run(argv, dir),
-    stat: async path => stat(path),
+    stat: async path => {
+      if (isUnreadable(path)) throw new Error(`EACCES: ${path}`)
+      return stat(path)
+    },
     list: async path => {
       if (!stat(path)) throw new Error('ENOENT')
       return list(path)
@@ -248,6 +291,9 @@ export function makeWorld(spec: WorldSpec = {}) {
   return { cwd, home, repo, calls, probe, install, stat }
 }
 
+/** find predicates that write files or run commands: never in a measuring argv. */
+export const FIND_WRITERS = ['-delete', '-exec', '-execdir', '-ok', '-okdir', '-fprint', '-fprint0', '-fprintf', '-fls']
+
 /**
  * The commands last-look may run: nothing here writes. find never with
  * -delete or -exec, git only its reading subcommands, clean only with -n.
@@ -256,13 +302,15 @@ export function isReadOnly(argv: readonly string[]): boolean {
   const [program, ...rest] = argv
   if (program === 'sleep' || program === 'du') return true
   if (program === 'powershell') return rest.join(' ').includes('Start-Sleep')
-  if (program === 'find') return !rest.some(a => ['-delete', '-exec', '-execdir', '-ok', '-okdir', '-fprint', '-fprint0', '-fprintf', '-fls'].includes(a))
+  if (program === 'find') return !rest.some(a => FIND_WRITERS.includes(a))
   if (program === 'git') {
     let k = 0
     while (rest[k] === '-c' || rest[k] === '--literal-pathspecs') k += rest[k] === '-c' ? 2 : 1
     const sub = rest[k] ?? ''
-    if (sub === 'clean') return rest.includes('-n') && !rest.some(a => /^-[a-zA-Z]*f/.test(a) || a === '--force')
-    return ['rev-parse', 'status', 'ls-files', 'diff', 'rev-list', 'log'].includes(sub)
+    // A dry run stays a dry run beside -f: `git clean -n -f -f` lists, never removes.
+    if (sub === 'clean') return rest.includes('-n')
+    // `git diff` refreshes (rewrites) the index; diff-index and diff-files do not.
+    return ['rev-parse', 'for-each-ref', 'status', 'ls-files', 'diff-index', 'diff-files', 'rev-list', 'log'].includes(sub)
   }
   return false
 }

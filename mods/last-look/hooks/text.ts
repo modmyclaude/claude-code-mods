@@ -5,6 +5,8 @@
 
 const ANSI = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b\[[0-?]*[ -/]*[@-~]|\x9b[0-?]*[ -/]*[@-~]|\x1b[ -/]*[0-~]?/g
 const CONTROL = /[\x00-\x1f\x7f-\x9f]/g
+/** Bidi overrides and zero-width marks: they can make a command read differently from what runs. */
+const INVISIBLE = /[​-‏‪-‮⁦-⁩﻿]/g
 
 /** One drawable line: ANSI sequences gone, line breaks and tabs as spaces, other controls as U+FFFD. */
 export function clean(text: string): string {
@@ -12,4 +14,5 @@ export function clean(text: string): string {
     .replace(ANSI, '')
     .replace(/[\r\n\t]/g, ' ')
     .replace(CONTROL, '�')
+    .replace(INVISIBLE, '�')
 }

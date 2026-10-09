@@ -58,10 +58,18 @@ describe('deleting files', () => {
     expect(rows).toContain('Not in a git repository: git cannot bring back any of this.')
   })
 
-  test('a target that is not there is nothing to hold', async () => {
-    const { item, hold } = await measure('rm -rf build', { files: { 'src/a.ts': { size: 1, git: 'clean' } } })
+  test('a plain path that is not there still holds, saying nothing was found', async () => {
+    const { item, hold, report } = await measure('rm -rf build', { files: { 'src/a.ts': { size: 1, git: 'clean' } } })
     expect(item.effect).toBe('nothing')
-    expect(hold).toBe(false)
+    expect(item.summary).toBe('Nothing found at these paths: build')
+    expect(hold).toBe(true)
+    expect(report.headline).toBe('Nothing found to destroy as far as it can tell: review it yourself')
+  })
+
+  test('a pattern that matches nothing could not be measured, and holds', async () => {
+    const { item, hold } = await measure('rm -rf gen/*', { files: { 'src/a.ts': { size: 1, git: 'clean' } } })
+    expect(item.summary).toBe(COULD_NOT)
+    expect(hold).toBe(true)
   })
 
   test('measures relative to the cd target', async () => {
@@ -104,10 +112,29 @@ describe('deleting files', () => {
     expect(listing).toEqual(['find', '.', '-depth', '-name', '*.pyc', '-print0'])
   })
 
-  test('find that matches nothing passes', async () => {
+  test('the run site refuses a find listing that writes, whatever built it', async () => {
+    const world = makeWorld({ files: { 'a.md': { size: 1, git: 'clean' } } })
+    const ctx: Ctx = { probe: world.probe, cwd: world.cwd, cwdReal: world.cwd, root: world.cwd, rootReal: world.cwd, home: world.home, allow: [], now: NOW }
+    const dot = { text: '.', known: true, glob: false, raw: '.', plain: true }
+    for (const writer of ['-fprint', '-fls', '-exec', '-delete']) {
+      const report = await measureAll(ctx, 'find', [{ kind: 'find-delete', label: 'find', cd: [], targets: [dot], isSudo: false, findListing: ['.', writer, 'x'] }])
+      expect(report.items[0]?.summary, writer).toBe(COULD_NOT)
+    }
+    expect(world.calls.filter(argv => argv[0] === 'find')).toHaveLength(0)
+  })
+
+  test('find that lists nothing could not be measured, and holds (the shell may run another find)', async () => {
     const { item, hold } = await measure('find . -name "*.pyc" -delete', { files: { 'c.py': { size: 1, git: 'clean' } } })
-    expect(item.effect).toBe('nothing')
-    expect(hold).toBe(false)
+    expect(item.effect).toBe('unknown')
+    expect(item.summary).toBe(COULD_NOT)
+    expect(hold).toBe(true)
+  })
+
+  test('a find that writes (-fprint) is never re-run: held unmeasured', async () => {
+    const { item, hold, world } = await measure('find . -name "*.md" -fprint notes.txt -delete', { files: { 'a.md': { size: 1, git: 'clean' } } })
+    expect(item.summary).toBe(COULD_NOT)
+    expect(hold).toBe(true)
+    expect(world.calls.filter(argv => argv[0] === 'find')).toHaveLength(0)
   })
 
   test('git clean is measured from its own dry run', async () => {
@@ -120,7 +147,25 @@ describe('deleting files', () => {
     expect(all.item.files).toBe(2)
     expect(all.item.unsaved).toBe(1)
     const none = await measure('git clean -fd', { files: { 'src/a.ts': { size: 1, git: 'clean' } } })
-    expect(none.item.effect).toBe('nothing')
+    expect(none.item.effect).toBe('unknown')
+    expect(none.hold).toBe(true)
+  })
+
+  test('git clean -ffdx dry-runs with both forces, so nested repositories show', async () => {
+    const spec: WorldSpec = { files: { 'experiments/spike/a.py': { size: 2048, git: 'untracked' }, 'src/a.ts': { size: 1, git: 'clean' } }, nestedRepos: ['experiments/spike'] }
+    const twice = await measure('git clean -ffdx', spec)
+    expect(twice.hold).toBe(true)
+    expect(twice.world.calls.some(argv => argv.join(' ').includes('clean -n -f -f -d -x'))).toBe(true)
+    expect(twice.item.summary).toBe('Deletes 1 file, 2.0 KB')
+    const once = await measure('git clean -fdx', spec)
+    expect(once.hold).toBe(true)
+    expect(once.rows).toContain('It skips the nested repository experiments/spike/.')
+  })
+
+  test('git clean names git quotes are read back as the files they are', async () => {
+    const { item, hold } = await measure('git clean -f', { files: { 'notes "v2".md': { size: 1024, git: 'untracked' }, 'back\\slash.txt': { size: 1024, git: 'untracked' } } })
+    expect(hold).toBe(true)
+    expect(item.summary).toBe('Deletes 2 files, 2.0 KB')
   })
 })
 
@@ -157,9 +202,17 @@ describe('git history', () => {
     expect(report.headline).toBe('2 files have unsaved work you would lose')
   })
 
-  test('reset --hard on a clean tree passes', async () => {
-    const { hold } = await measure('git reset --hard', { files: { 'a.ts': { size: 1, git: 'clean' } } })
-    expect(hold).toBe(false)
+  test('reset --hard on a clean tree still holds, saying nothing was found to lose', async () => {
+    const { hold, item } = await measure('git reset --hard', { files: { 'a.ts': { size: 1, git: 'clean' } } })
+    expect(hold).toBe(true)
+    expect(item.effect).toBe('nothing')
+  })
+
+  test('line counts never come from git diff, which rewrites the index', async () => {
+    const { world } = await measure('git reset --hard', { files: { 'a.ts': { size: 1, git: 'modified' } } })
+    const sub = (argv: string[]) => argv[argv.indexOf('core.fsmonitor=false') + 1]
+    expect(world.calls.some(argv => sub(argv) === 'diff-index')).toBe(true)
+    expect(world.calls.some(argv => sub(argv) === 'diff')).toBe(false)
   })
 
   test('reset --hard to an older commit names the commits it drops', async () => {
@@ -173,13 +226,14 @@ describe('git history', () => {
     expect(item.summary).toBe('Drops 2 commits from main')
   })
 
-  test('a ref git cannot find means the reset would fail', async () => {
-    const { hold } = await measure('git reset --hard nope', { files: { 'a.ts': { size: 1, git: 'modified' } } })
-    expect(hold).toBe(false)
+  test('a ref git cannot find could not be measured, and holds', async () => {
+    const { hold, item } = await measure('git reset --hard nope', { files: { 'a.ts': { size: 1, git: 'modified' } } })
+    expect(hold).toBe(true)
+    expect(item.summary).toBe(COULD_NOT)
   })
 
   test('checkout of a branch passes; of a path, discards', async () => {
-    const spec: WorldSpec = { files: { 'src/a.ts': { size: 1, git: 'modified' } }, git: { refs: ['main'] } }
+    const spec: WorldSpec = { files: { 'src/a.ts': { size: 1, git: 'modified' } }, git: { refs: ['refs/heads/main'] } }
     expect((await measure('git checkout main', spec)).hold).toBe(false)
     const path = await measure('git checkout src/a.ts', spec)
     expect(path.hold).toBe(true)
@@ -188,10 +242,13 @@ describe('git history', () => {
     expect(all.item.summary).toBe('Discards uncommitted changes in 1 file (+3 -1 lines)')
   })
 
-  test('restore from the index keeps staged work', async () => {
+  test('restore from the index keeps staged work: nothing to lose, still held', async () => {
     const spec: WorldSpec = { files: { 'a.ts': { size: 1, git: 'staged' } } }
-    expect((await measure('git restore .', spec)).hold).toBe(false)
-    expect((await measure('git restore -SW .', spec)).hold).toBe(true)
+    const index = await measure('git restore .', spec)
+    expect(index.item.effect).toBe('nothing')
+    expect(index.hold).toBe(true)
+    const both = await measure('git restore -SW .', spec)
+    expect(both.item.unsaved).toBe(1)
   })
 
   test('push --force names the commits it would overwrite, as of the last fetch', async () => {
@@ -228,12 +285,66 @@ describe('git history', () => {
     expect(item.commits).toBe(3)
     expect(item.summary).toBe('Deletes feature: 3 commits exist nowhere else')
     expect(report.headline).toBe('3 commits would be lost')
-    expect((await measure('git branch -D ghost', { files: { 'a.ts': { size: 1, git: 'clean' } } })).hold).toBe(false)
+    expect((await measure('git branch -D ghost', { files: { 'a.ts': { size: 1, git: 'clean' } } })).hold).toBe(true)
   })
 
-  test('outside a repo git commands would fail, so nothing is held', async () => {
-    expect((await measure('git reset --hard', { repo: null })).hold).toBe(false)
-    expect((await measure('git push --force', { repo: null })).hold).toBe(false)
+  test('outside a repo git commands could not be measured, and hold', async () => {
+    expect((await measure('git reset --hard', { repo: null })).hold).toBe(true)
+    expect((await measure('git push --force', { repo: null })).hold).toBe(true)
+  })
+})
+
+describe('the two proven exceptions, and only on proof', () => {
+  const files: WorldSpec['files'] = { 'src/a.ts': { size: 1, git: 'clean' } }
+
+  test('a redirect to a plain path that does not exist passes', async () => {
+    const { item, hold } = await measure('echo hi > new.txt', { files })
+    expect(item.isHarmless).toBe(true)
+    expect(hold).toBe(false)
+    expect((await measure('cd src && echo hi > new.txt', { files })).hold).toBe(false)
+  })
+
+  test('a redirect holds without that proof', async () => {
+    const cases: [string, WorldSpec][] = [
+      ['echo hi > secret.txt', { files, unreadable: ['secret.txt'] }],
+      ['echo hi > link.txt', { files, links: { 'link.txt': '/nowhere/x' } }],
+      ['echo hi > linked.txt', { files: { ...files, 'real.txt': { size: 5, git: 'clean' } }, links: { 'linked.txt': '/work/app/real.txt' } }],
+      ['echo hi > src', { files }],
+      ['echo hi > ~/new.txt', { files }],
+      ['echo hi > new{1,2}.txt', { files }],
+      ['echo hi > ../new.txt', { files }],
+      ['echo hi > new*.txt', { files }],
+      ['echo hi > "$OUT"', { files }],
+      ['echo hi > $(date).log', { files }],
+      ['cd "$D" && echo hi > new.txt', { files }],
+    ]
+    for (const [command, spec] of cases) expect((await measure(command, spec)).hold, command).toBe(true)
+  })
+
+  const branches: WorldSpec = { files, git: { refs: ['refs/heads/main', 'refs/remotes/origin/feature', 'v1'] } }
+
+  test('git checkout of a branch git confirms passes', async () => {
+    for (const command of ['git checkout main', 'git checkout feature', 'git checkout origin/feature', 'git checkout -q main', 'git checkout --track origin/feature']) {
+      expect((await measure(command, branches)).hold, command).toBe(false)
+    }
+  })
+
+  test('git checkout holds without that proof', async () => {
+    const cases: [string, WorldSpec][] = [
+      ['git checkout -f main', branches],
+      ['git checkout --force main', branches],
+      ['git checkout main -- src/a.ts', branches],
+      ['git checkout -m main', branches],
+      ['git checkout v1', branches],
+      ['git checkout ghost', branches],
+      ['git checkout "$B"', branches],
+      ['git checkout main', { ...branches, fail: /^git\b/ }],
+      ['git checkout main', { ...branches, repo: null }],
+      ['git checkout main', { ...branches, files: { ...files, main: { size: 1, git: 'clean' } } }],
+      ['git checkout main', { ...branches, unreadable: ['main'] }],
+      ['git checkout feature', { files, git: { refs: ['refs/remotes/origin/feature', 'refs/remotes/upstream/feature'] } }],
+    ]
+    for (const [command, spec] of cases) expect((await measure(command, spec)).hold, command).toBe(true)
   })
 })
 
@@ -255,6 +366,27 @@ describe('alwaysAllow', () => {
 
   test('without the setting the same command holds', async () => {
     expect((await measure('rm -rf dist', spec, '')).hold).toBe(true)
+  })
+
+  test('only plain literal paths are allowed: quotes and ./ yes; globs, braces, ~, $VAR no', async () => {
+    expect((await measure('rm -rf "dist"', spec, DEFAULT_ALLOW)).hold).toBe(false)
+    expect((await measure('rm -rf ./dist', spec, DEFAULT_ALLOW)).hold).toBe(false)
+    expect((await measure('rm -rf dist/*', spec, DEFAULT_ALLOW)).hold).toBe(true)
+    expect((await measure('rm -rf {dist,packages/web/dist}', spec, DEFAULT_ALLOW)).hold).toBe(true)
+    expect((await measure('D=dist; rm -rf "$D"', spec, DEFAULT_ALLOW)).hold).toBe(true)
+    expect((await measure('rm -rf packages/../dist', spec, DEFAULT_ALLOW)).hold).toBe(true)
+    expect((await measure('rm -rf ~/app/dist', { ...spec, cwd: '/Users/me/app' }, DEFAULT_ALLOW)).hold).toBe(true)
+  })
+
+  test('an allowed folder that is not there holds (nothing to judge its real path by)', async () => {
+    expect((await measure('rm -rf coverage', spec, DEFAULT_ALLOW)).hold).toBe(true)
+  })
+
+  test('an allowed name that is a link out of the project holds', async () => {
+    const linked: WorldSpec = { files: { '/Users/me/Documents/taxes.pdf': { size: 1024 } }, links: { dist: '/Users/me/Documents' } }
+    const { hold, item } = await measure('rm -rf dist/', linked, DEFAULT_ALLOW)
+    expect(item.isAllowed).toBe(false)
+    expect(hold).toBe(true)
   })
 
   test('the match is by folder name beneath the project, never the root or outside', () => {
