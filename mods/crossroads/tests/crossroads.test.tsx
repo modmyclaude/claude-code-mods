@@ -22,7 +22,8 @@ import type {
   UiCopyArgs,
 } from 'claude-code'
 
-import { ENGINE_WAIT_MS, REDACTED } from '../hooks/logic'
+import { AGENT_WAIT_MS, ENGINE_WAIT_MS, REDACTED } from '../hooks/logic'
+import { REVIEW_RISKY, REVIEW_SAFE } from './phrasings'
 
 const PLUGIN = 'crossroads'
 const SURFACES = ['terminal', 'desktop'] as const
@@ -207,6 +208,20 @@ const TYPED = { kind: 'composer' } as const
 
 async function labels(ui: { findAll: (q: { type: string }) => Promise<{ key: string | undefined; text: string }[]> }) {
   return (await ui.findAll({ type: 'Button' })).filter(b => b.key?.startsWith('pick-')).map(b => b.text)
+}
+
+/**
+ * Runs `/crossroads <args>` and returns what it showed. The answer is always
+ * `{}` (nothing for the model to read, API-GOTCHAS #18): what the person sees
+ * is the toast it raised.
+ */
+async function crossroads($: Engine, seen: World, args = ''): Promise<string> {
+  const before = seen.toasts.length
+  const result = await $.command.run({ command: PLUGIN, args, origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })
+  expect(result.text).toBeUndefined()
+  expect(seen.toasts).toHaveLength(before + 1)
+
+  return seen.toasts.at(-1) ?? ''
 }
 
 test("the engine's guess becomes option 1, passed through untouched, and only two more are made", async ($, on) => {
@@ -410,8 +425,7 @@ test('submitting while the call runs discards its result', async ($, on) => {
   }
   // The discarded list was never shown, so the next prompt cannot count it as ignored.
   await $.prompt.submit({ text: 'and run the build', wait: false, origin: TYPED })
-  const status = await $.command.run({ command: PLUGIN, args: '', origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })
-  expect(status.text).toContain('taken 0, edited 0, ignored 0')
+  expect(await crossroads($, seen)).toContain('taken 0, edited 0, ignored 0')
 })
 
 test('the list clears as soon as anything is submitted', async ($, on) => {
@@ -493,6 +507,12 @@ test('both surfaces: a press drafts on the terminal, copies with an explicit Sen
       expect(send?.props.variant).toBe('secondary')
       expect(send?.props.autoFocus).toBeUndefined()
       expect(send?.props.hotkey).toBeUndefined()
+      // Close is drawn first and is where the focus ring starts (API-GOTCHAS #24).
+      const buttons = await ui.findAll({ type: 'Button' })
+      expect(buttons.map(button => [button.key, button.props.hotkey, button.props.autoFocus])).toEqual([
+        ['dismiss', undefined, true],
+        ['send', undefined, undefined],
+      ])
       const before = seen.submitted.length
       await ui.press({ key: 'send' })
       expect(seen.submitted).toHaveLength(before + 1)
@@ -505,8 +525,7 @@ test('both surfaces: a press drafts on the terminal, copies with an explicit Sen
     await ui.unmount()
   }
 
-  const status = (await $.command.run({ command: PLUGIN, args: '', origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })).text
-  expect(status).toContain('taken 2, edited 0, ignored 0')
+  expect(await crossroads($, seen)).toContain('taken 2, edited 0, ignored 0')
 })
 
 test('desktop: when the copy fails it says so, and Send still waits for a press', async ($, on) => {
@@ -537,8 +556,7 @@ test('desktop: a refused Send says why and keeps the suggestion to try again', a
   expect(seen.submitted).toHaveLength(1)
   expect(seen.toasts).toEqual(['Crossroads: the prompt was not sent (a policy hook refused it).'])
   expect(await ui.find({ key: 'send' })).toBeDefined()
-  const status = await $.command.run({ command: PLUGIN, args: '', origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })
-  expect(status.text).toContain('taken 0')
+  expect(await crossroads($, seen)).toContain('taken 0')
 })
 
 test('0 dismisses the list and counts it as ignored', async ($, on) => {
@@ -550,8 +568,7 @@ test('0 dismisses the list and counts it as ignored', async ($, on) => {
     expect(await ui.find({ key: 'pick-1' })).toBeUndefined()
     await ui.unmount()
   }
-  const status = (await $.command.run({ command: PLUGIN, args: '', origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })).text
-  expect(status).toContain('ignored 3')
+  expect(await crossroads($, seen)).toContain('ignored 3')
 })
 
 test('backs off after 3 ignored lists in a row, and recovers when one is taken', async ($, on) => {
@@ -604,10 +621,9 @@ test('only the digest leaves the machine, secrets replaced', async ($, on) => {
   for (const secret of ['AKIAIOSFODNN7EXAMPLE', 'sk_live_', 'hunter2', '/home/me']) expect(sent).not.toContain(secret)
 })
 
-test('/crossroads shows calls and cost; off, on and forget work', async ($, on) => {
+test('/crossroads shows calls and cost in a toast, never to the model; off, on and forget work', async ($, on) => {
   const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
-  const run = async (args: string) =>
-    (await $.command.run({ command: PLUGIN, args, origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })).text ?? ''
+  const run = (args: string) => crossroads($, seen, args)
 
   await finishTurn($, seen)
   await $.prompt.submit({ text: 'nope', wait: false, origin: TYPED })
@@ -634,8 +650,7 @@ test('/crossroads shows calls and cost; off, on and forget work', async ($, on) 
 test('/crossroads still answers when its store fails', async ($, on) => {
   const seen = world(on)
   seen.isStoreBroken = true
-  const result = await $.command.run({ command: PLUGIN, args: '', origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })
-  expect(result.text).toBe('Crossroads could not read its counts.')
+  expect(await crossroads($, seen)).toBe('Crossroads could not read its counts.')
 })
 
 test('a prompt always goes in, even when learning from it fails', async ($, on) => {
@@ -824,4 +839,178 @@ describe('control characters never take the band down (API-GOTCHAS #31)', () => 
       await ui.unmount()
     }
   })
+})
+
+// ---------------------------------------------------------------- risky phrasings (R-crossroads-1)
+
+const SAFE_TWO = ['run the auth tests', 'add the guard to signup.ts']
+
+test("the engine's \"ship it to production\" is never the ghost text, never option 1, never digit-armed", async ($, on) => {
+  const seen = world(on, [reply(['git reset --hard origin/main', 'run the auth tests'])])
+  await finishTurn($, seen)
+
+  expect((await $.prompt.suggest({ text: 'ship it to production', origin: ENGINE })).isShown).toBe(false)
+  expect(seen.ghosts).toEqual([])
+  await seen.clock.settle()
+
+  expect(seen.calls[0]?.prompt).toContain('2 different next prompts')
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    expect(await labels(ui)).toEqual(['run the auth tests', 'ship it to production', 'git reset --hard origin/main'])
+    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
+    expect((await ui.find({ key: 'pick-2' }))?.props.hotkey).toBeUndefined()
+    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
+    expect((await ui.find({ type: 'Text', text: '(deploys)' }))?.props.color).toBe('warning')
+    expect((await ui.find({ type: 'Text', text: '(discards work)' }))?.props.color).toBe('warning')
+    await ui.unmount()
+  }
+})
+
+test('the review probe: three risky suggestions are all marked and none is digit-armed', async ($, on) => {
+  const seen = world(on, [reply(['redeploy the auth service', 'git reset --hard origin/main'])])
+  await finishTurn($, seen)
+  expect((await $.prompt.suggest({ text: 'ship it to production', origin: ENGINE })).isShown).toBe(false)
+  await seen.clock.settle()
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    const picks = (await ui.findAll({ type: 'Button' })).filter(button => button.key?.startsWith('pick-'))
+    expect(picks).toHaveLength(3)
+    for (const pick of picks) expect(pick.props.hotkey, pick.text).toBeUndefined()
+    const notes = (await ui.findAll({ type: 'Text' })).filter(text => text.props.color === 'warning').map(text => text.text.trim())
+    expect(notes).toEqual(['(deploys)', '(deploys)', '(discards work)'])
+    await ui.unmount()
+  }
+})
+
+test("every risky phrasing in the review's table, as the engine's guess: kept from the ghost, marked, click-only", async ($, on) => {
+  const seen = world(on, REVIEW_RISKY.map(() => reply(SAFE_TWO)))
+  for (const [text, note] of REVIEW_RISKY) {
+    await finishTurn($, seen)
+    expect((await $.prompt.suggest({ text, origin: ENGINE })).isShown, text).toBe(false)
+    await seen.clock.settle()
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+    expect(await labels(ui), text).toHaveLength(3)
+    expect((await labels(ui))[0], text).toBe(SAFE_TWO[0])
+    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey, text).toBeUndefined()
+    expect((await ui.find({ type: 'Text', text: `(${note})` }))?.props.color, text).toBe('warning')
+    await ui.unmount()
+  }
+  // Not one of them reached the prompt box as ghost text.
+  expect(seen.ghosts).toEqual([])
+  // The safe ones still do, untouched.
+  for (const text of REVIEW_SAFE) expect((await $.prompt.suggest({ text, origin: ENGINE })).isShown, text).toBe(true)
+  expect(seen.ghosts).toHaveLength(REVIEW_SAFE.length)
+})
+
+test("every risky phrasing in the review's table, written by the model: moved last, marked, click-only", async ($, on) => {
+  const seen = world(on, REVIEW_RISKY.map(([text]) => reply([text, ...SAFE_TWO])), { surfaces: ['desktop'] })
+  for (const [text, note] of REVIEW_RISKY) {
+    await finishTurn($, seen)
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+    expect((await labels(ui)).slice(0, 2), text).toEqual(SAFE_TWO)
+    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey, text).toBe('1')
+    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey, text).toBeUndefined()
+    expect((await ui.find({ type: 'Text', text: `(${note})` }))?.props.color, text).toBe('warning')
+    await ui.unmount()
+  }
+  expect(seen.calls).toHaveLength(REVIEW_RISKY.length)
+})
+
+// ---------------------------------------------------------------- surfaces that draw no band (R-crossroads-5)
+
+for (const surfaces of [[], ['vscode'], ['mobile'], ['vscode', 'mobile']] as const) {
+  test(`surfaces ${JSON.stringify(surfaces)} draw no band, so no call is spent`, async ($, on) => {
+    const seen = world(on, [reply(THREE)], { surfaces })
+    await finishTurn($, seen)
+    await seen.clock.advance(ENGINE_WAIT_MS)
+    await seen.clock.advance(60_000)
+    expect(seen.calls).toHaveLength(0)
+  })
+}
+
+test('a drawing surface beside one that draws nothing still gets its list', async ($, on) => {
+  const seen = world(on, [reply(THREE)], { surfaces: ['vscode', 'desktop'] })
+  await finishTurn($, seen)
+  expect(seen.calls).toHaveLength(1)
+})
+
+// ---------------------------------------------------------------- the cross-review's seven (mutants M1..M7)
+
+test('a risky guess that lands during the call displaces nothing', async ($, on) => {
+  const seen = world(on, [reply(THREE)], { modelDelayMs: 3000 })
+  await finishTurn($, seen)
+  await seen.clock.advance(ENGINE_WAIT_MS)
+  expect(seen.calls).toHaveLength(1)
+  expect((await $.prompt.suggest({ text: 'deploy it to production', origin: ENGINE })).isShown).toBe(false)
+  await seen.clock.advance(3000)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  expect(await labels(ui)).toEqual(THREE)
+})
+
+test('prompts from other plugins and task notifications are never learned from', async ($, on) => {
+  const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
+  await finishTurn($, seen)
+  await $.prompt.submit({ text: 'a background task finished', wait: false, origin: { kind: 'task-notification' } })
+  await finishTurn($, seen)
+  await $.prompt.submit({ text: 'from another mod', wait: false, origin: { kind: 'plugin', name: 'other' } })
+  expect(await crossroads($, seen)).toContain('taken 0, edited 0, ignored 0')
+})
+
+test('error and refusal turns never call the model', async ($, on) => {
+  const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
+  await finishTurn($, seen, ANSWER, { reason: 'error' })
+  await finishTurn($, seen, ANSWER, { reason: 'refusal', refusal: { category: null, explanation: null } } as Partial<TurnCompleteInput>)
+  await seen.clock.advance(60_000)
+  expect(seen.calls).toHaveLength(0)
+})
+
+test('a background agent that never ends stops the wait at the cap', async ($, on) => {
+  const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
+  seen.agents = [{ id: 'bg', description: 'hangs', type: 'general-purpose', status: 'running' }]
+  await finishTurn($, seen)
+  await seen.clock.advance(AGENT_WAIT_MS + 4_000)
+  seen.agents = [{ id: 'bg', description: 'hangs', type: 'general-purpose', status: 'completed' }]
+  await seen.clock.advance(4_000)
+  expect(seen.calls).toHaveLength(0)
+})
+
+test('a secret cut at the command clip edge never leaks a prefix', async ($, on) => {
+  const pad = 'x'.repeat(80)
+  const messages: SessionMessage[] = [
+    { role: 'user', text: 'print the key', toolUses: [] },
+    {
+      role: 'assistant',
+      text: '',
+      toolUses: [{ tool_use_id: 'b', tool: 'Bash', input: { command: `echo ${pad} sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz012345` }, text: 'ok' }],
+    },
+  ]
+  const seen = world(on, [reply(THREE)], { surfaces: ['desktop'], messages })
+  await finishTurn($, seen)
+  expect(seen.calls).toHaveLength(1)
+  expect(seen.calls[0]?.prompt).not.toContain('sk-proj')
+})
+
+test('/clear wipes the list', async ($, on) => {
+  on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
+  await finishTurn($, seen)
+  const before = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  expect(await before.find({ key: 'pick-1' })).toBeDefined()
+  await before.unmount()
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  expect(await ui.find({ key: 'pick-1' })).toBeUndefined()
+  expect(await ui.find({ text: 'engine band' })).toBeDefined()
+})
+
+test("the band yields while an agent's transcript is on screen", async ($, on) => {
+  const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
+  await finishTurn($, seen)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND, props: { ...BAND.props, view: { agentId: 'a1' } } })
+    expect(await ui.find({ key: 'pick-1' })).toBeUndefined()
+    expect(await ui.find({ text: 'engine band' })).toBeDefined()
+    await ui.unmount()
+  }
 })

@@ -19,6 +19,7 @@ import {
   pickSlashCommands,
   redact,
   riskOf,
+  riskText,
   sanitize,
 } from '../hooks/logic'
 import {
@@ -34,6 +35,7 @@ import {
   recordOutcome,
   topKinds,
 } from '../hooks/learn'
+import { DISGUISED_RISKY, NARROWED_SAFE, REVIEW_RISKY, REVIEW_SAFE } from './phrasings'
 
 const ZERO = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 
@@ -80,6 +82,47 @@ describe('redact', () => {
   ]
   for (const text of harmless) {
     test(`leaves "${text}" alone`, () => {
+      expect(redact(text)).toBe(text)
+    })
+  }
+
+  // The cross-review's 14 command-line and natural forms (R-crossroads-4), plus
+  // a Twilio key: each secret value is gone from the output.
+  const forms: [string, string][] = [
+    ['mysql -u root -phunter2 shop', 'hunter2'],
+    ['docker login -u alex --password hunter2 registry.io', 'hunter2'],
+    ['npx vercel --token abc123SECRETxyz deploy', 'abc123SECRETxyz'],
+    ['curl -u admin:s3cretPass https://api.example.com/v1', 's3cretPass'],
+    ['curl -X POST https://hooks.slack.com/services/T0AAAAAAA/B0BBBBBBB/abcdefghijklmnopqrstuvwx -d @m.json', 'abcdefghijklmnopqrstuvwx'],
+    ['curl https://discord.com/api/webhooks/123456789012345678/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789', 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789'],
+    ['export SECRET_KEY_BASE=9f8e7d6c5b4a39281706f5e4d3c2b1a0', '9f8e7d6c5b4a39281706f5e4d3c2b1a0'],
+    ['dbpass=Tr0ub4dor psql', 'Tr0ub4dor'],
+    ['my password is hunter2 please log in', 'hunter2'],
+    ['-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOYBF0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'lQOYBF0'],
+    ['echo npm_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789 > ~/.npmrc', 'npm_AbC'],
+    ['glpat-AbCdEfGhIjKlMnOpQrSt', 'glpat-'],
+    ['hf_AbCdEfGhIjKlMnOpQrStUvWxYz01234567', 'hf_'],
+    ['Authorization: token 0123456789abcdef0123456789abcdef01234567', '0123456789abcdef'],
+    ['twilio key SK0123456789abcdef0123456789abcdef', 'SK0123456789abcdef'],
+  ]
+  for (const [text, secret] of forms) {
+    test(`hides the secret in ${JSON.stringify(text.slice(0, 40))}`, () => {
+      const out = redact(text)
+      expect(out).not.toContain(secret)
+      expect(out).toContain(REDACTED)
+    })
+  }
+
+  const lookalikes = [
+    'mkdir -p build/out',
+    'docker run -p 8080:80 app',
+    'npm test -- --passWithNoTests',
+    'git log -p -3',
+    'bypass the cache',
+    'add token authentication to the API',
+  ]
+  for (const text of lookalikes) {
+    test(`leaves the lookalike "${text}" alone`, () => {
       expect(redact(text)).toBe(text)
     })
   }
@@ -172,6 +215,30 @@ describe('riskOf', () => {
       expect(riskOf(text)).toBe(null)
     })
   }
+
+  // The cross-review's table (R-crossroads-1): 26 risky phrasings of the
+  // spec's own categories, each missed before, each with the note it gets.
+  for (const [text, note] of REVIEW_RISKY) {
+    test(`review: ${JSON.stringify(text)} is risky (${note})`, () => {
+      expect(riskOf(text)).toBe(note)
+    })
+  }
+  for (const [text, note] of DISGUISED_RISKY) {
+    test(`disguised: ${JSON.stringify(text)} is risky (${note})`, () => {
+      expect(riskOf(text)).toBe(note)
+    })
+  }
+  for (const text of [...REVIEW_SAFE, ...NARROWED_SAFE]) {
+    test(`review: ${JSON.stringify(text)} stays safe`, () => {
+      expect(riskOf(text)).toBe(null)
+    })
+  }
+
+  test('the text the rules read is folded to plain Latin letters', () => {
+    expect(riskText(`d${String.fromCodePoint(0x0435)}pl${String.fromCodePoint(0x043e)}y`)).toBe('deploy')
+    expect(riskText(String.fromCodePoint(0xff53, 0xff48, 0xff49, 0xff50))).toBe('ship')
+    expect(riskText(`caf${String.fromCodePoint(0x00e9)}`)).toBe('cafe')
+  })
 })
 
 describe('guessKind', () => {
@@ -215,6 +282,38 @@ describe('endsWithNumberedOptions', () => {
   ]
   for (const text of no) {
     test(`not numbered: ${JSON.stringify(text.slice(0, 30))}`, () => {
+      expect(endsWithNumberedOptions(text)).toBe(false)
+    })
+  }
+
+  // The cross-review's 9 formats Claude uses that were missed (R-crossroads-3).
+  const keycap = (n: number) => `${n}${String.fromCodePoint(0xfe0f, 0x20e3)}`
+  const formats: [string, string][] = [
+    ['four lines after the options, then a question', 'Two ways:\n1. Refresh silently\n2. Send to login\n\nThe first keeps the session.\nThe second is safer.\nBoth need a test.\nWhich do you prefer?'],
+    ['heading options', '### Option 1: Refresh silently\nKeeps the user in.\n\n### Option 2: Send to login\nSafer.\n\nWhich do you prefer?'],
+    ['a dash after the number', 'Pick one:\n1 - Refresh silently\n2 - Send to login\nWhich?'],
+    ['keycap digits', `Pick one:\n${keycap(1)} Refresh\n${keycap(2)} Login\nWhich?`],
+    ['table rows', 'Options:\n\n| # | Option |\n|---|---|\n| 1 | Refresh |\n| 2 | Login |\n\nWhich one?'],
+    ['inline with no parentheses', 'Should I 1) patch it or 2) roll it back?'],
+    ['inline option words', 'Want option 1 (refresh) or option 2 (login)?'],
+    ['unindented sub-bullets', 'Two ways:\n1. Refresh\n- keeps session\n2. Login\n- safer\nWhich?'],
+    ['bold options with a line under each', '**Option 1: Refresh**\nKeeps the user in.\n\n**Option 2: Login**\nSafer.\n\nWhich?'],
+  ]
+  for (const [name, text] of formats) {
+    test(`numbered: ${name}`, () => {
+      expect(endsWithNumberedOptions(text)).toBe(true)
+    })
+  }
+  const notOptions: [string, string][] = [
+    ['lettered options', 'Pick one:\nA) Refresh\nB) Login\nWhich?'],
+    ['a version number and a question', 'Version 2.1 is out. Want me to bump the changelog?'],
+    [
+      'a list of steps far above a closing question',
+      ['Steps I took:', '1. Read the file', '2. Fixed the bug', ...Array.from({ length: 12 }, (_, i) => `Note ${i + 1} about the change.`), 'Want me to add a test?'].join('\n'),
+    ],
+  ]
+  for (const [name, text] of notOptions) {
+    test(`not numbered: ${name}`, () => {
       expect(endsWithNumberedOptions(text)).toBe(false)
     })
   }
@@ -363,6 +462,20 @@ describe('arrange', () => {
     expect(items[0]?.risk).toBe(null)
     expect(items[2]?.text).toBe('git push origin main')
     expect(items[2]?.fromEngine).toBe(true)
+  })
+  test('no risky phrasing from the review table is ever option 1, from the engine or the model', () => {
+    const safe = [
+      { text: 'run the auth tests', kind: 'test' as const },
+      { text: 'add a guard to signup.ts', kind: 'feature' as const },
+    ]
+    for (const [text, note] of REVIEW_RISKY) {
+      const asGuess = arrange({ text, risky: riskOf(text) !== null }, safe)
+      expect(asGuess[0]?.risk, text).toBe(null)
+      expect(asGuess[2]?.risk, text).toBe(note)
+      const asModel = arrange(null, [{ text, kind: 'other' }, ...safe])
+      expect(asModel[0]?.risk, text).toBe(null)
+      expect(asModel[2]?.risk, text).toBe(note)
+    }
   })
   test('duplicates of the guess are dropped', () => {
     const items = arrange({ text: 'Run the auth tests.', risky: false }, [

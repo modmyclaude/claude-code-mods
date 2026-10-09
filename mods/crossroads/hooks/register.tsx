@@ -44,6 +44,8 @@ import {
 import type { Outcome, ProjectRecord } from './learn'
 
 const PLUGIN = 'crossroads'
+/** The status runs to four or five lines: long enough on screen to read them. */
+const STATUS_TOAST_MS = 15_000
 const IDLE: CrossroadsView = { phase: 'idle' }
 const view = atom({ plugin: 'crossroads', key: 'view' } as const, IDLE)
 
@@ -111,6 +113,16 @@ function pause($: EngineInterface, ms: number): Promise<void> {
 
 function engineGuessFor(at: number): EngineGuess | null {
   return live.engine?.epoch === at ? live.engine.guess : null
+}
+
+// Only the terminal and the desktop app draw the band above the prompt. With
+// neither attached (a headless `-p` run, an SDK host, VS Code, mobile), a list
+// is a model call nobody would see, so none is made (API-GOTCHAS #28: the
+// attached surfaces decide, never `isInteractive`).
+async function drawsBand($: EngineInterface): Promise<boolean> {
+  const surfaces = await $.session.surfaces()
+
+  return surfaces.some(surface => surface === 'terminal' || surface === 'desktop')
 }
 
 // The engine guesses only where a terminal draws the prompt (not on desktop),
@@ -225,6 +237,7 @@ async function suggestAfterTurn($: EngineInterface, at: number, answer: string) 
   live.startedFor = at
   try {
     if (live.isModelRefused || !(await isEnabled($))) return
+    if (!(await drawsBand($))) return debug($, 'no surface draws the band: no call')
     const messages = await $.session.messages()
     const listed = await $.command.list().catch(() => [])
     const digest = buildDigest(messages, answer, pickSlashCommands(messages, listed, PLUGIN))
@@ -483,6 +496,8 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // Every answer is a toast and the command returns {}: none of it is for the
+  // model, which would otherwise read the output (API-GOTCHAS #18).
   on('command.run', { command: PLUGIN }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off') {
@@ -490,26 +505,38 @@ export const register: Register = on => {
       moveOn()
       live.shown = undefined
       await clearView($)
+      $.ui.toast('Crossroads is off. /crossroads on turns it back on.')
 
-      return { text: 'Crossroads is off. /crossroads on turns it back on.' }
+      return {}
     }
     if (arg === 'on') {
       await $.store.set('enabled', true)
+      $.ui.toast('Crossroads is on. Suggestions appear after your next turn.')
 
-      return { text: 'Crossroads is on. Suggestions appear after your next turn.' }
+      return {}
     }
     if (arg === 'forget') {
       await $.store.delete(await projectStoreKey($))
+      $.ui.toast('Crossroads forgot what it had counted for this project.')
 
-      return { text: 'Crossroads forgot what it had counted for this project.' }
+      return {}
     }
-    if (arg !== '') return { text: 'Usage: /crossroads (calls and cost today), /crossroads on, /crossroads off, /crossroads forget' }
+    if (arg !== '') {
+      $.ui.toast('Usage: /crossroads (calls and cost today), /crossroads on, /crossroads off, /crossroads forget')
+
+      return {}
+    }
     const day = dayOf(await $.clock.now())
     const usage = coerceUsage(await $.store.get('usage'), day)
     const record = coerceRecord(await $.store.get(await projectStoreKey($)))
+    $.ui.toast(formatStatus(await isEnabled($), usage, record), { timeoutMs: STATUS_TOAST_MS })
 
-    return { text: formatStatus(await isEnabled($), usage, record) }
-  }).catch(() => ({ text: 'Crossroads could not read its counts.' }))
+    return {}
+  }).catch($ => {
+    $.ui.toast('Crossroads could not read its counts.')
+
+    return {}
+  })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || e.props.view.agentId !== undefined) return next(e)
@@ -540,9 +567,13 @@ export const register: Register = on => {
             <Text>{clip(clean(item.text), width)}</Text>
             {item.risk !== null && <Text color="warning">{` (${item.risk})`}</Text>}
           </Box>
+          {/* Close is drawn first and holds the focus ring whenever the band
+              takes the keyboard (the click that copied, for one), so a stray
+              Enter closes; Send has no hotkey and no focus, only a press
+              (API-GOTCHAS #24). */}
           <Box columnGap={2}>
+            <Button key="dismiss" label="Close" plain dimColor role="dismiss" autoFocus onPress={() => void dismiss($)} />
             <Button key="send" label="Send this prompt now" variant="secondary" onPress={() => void send($)} />
-            <Button key="dismiss" label="Close" plain dimColor role="dismiss" onPress={() => void dismiss($)} />
           </Box>
         </Box>,
       )

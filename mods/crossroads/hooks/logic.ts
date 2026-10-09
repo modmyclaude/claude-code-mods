@@ -70,7 +70,7 @@ export const REDACTED = '[REDACTED]'
 // Token shapes with a fixed, recognisable prefix. Deliberately no "long hex"
 // or "long base64" rule: git SHAs, UUIDs and hashes would all match it.
 const TOKEN_SHAPES: readonly RegExp[] = [
-  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g,
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|$)/g,
   /\b(?:AKIA|ASIA|ABIA|ACCA|AGPA|AIDA|AIPA|ANPA|ANVA|AROA|APKA)[A-Z0-9]{16}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{30,255}\b/g,
   /\bgithub_pat_[A-Za-z0-9_]{20,255}\b/g,
@@ -81,14 +81,30 @@ const TOKEN_SHAPES: readonly RegExp[] = [
   /\bxox[abposr]-[A-Za-z0-9-]{10,}/g,
   /\bAIza[0-9A-Za-z_-]{35}\b/g,
   /\beyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/g,
+  /\bglpat-[A-Za-z0-9_-]{20,}/g,
+  /\bhf_[A-Za-z0-9]{30,}\b/g,
+  /\bnpm_[A-Za-z0-9]{36}\b/g,
+  /\bSK[0-9a-f]{32}\b/g,
+  // A Slack or Discord webhook URL is itself the credential.
+  /\bhttps:\/\/(?:hooks\.slack\.com\/services|discord(?:app)?\.com\/api\/webhooks)\/\S+/g,
 ]
 
 // `password=...`, `API_KEY: "..."`, `"client_secret": "..."`: the name must END
 // in the keyword, so `max_tokens=5` and `author: Alex` are left alone.
 const ASSIGNMENT =
-  /\b([A-Za-z0-9_.-]*?(?:password|passwd|pwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|credentials?))(["']?\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s"',;&]+)/gi
+  /\b([A-Za-z0-9_.-]*?(?:password|passwd|pwd|pass|passphrase|secret|secret_key_base|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|credentials?))(["']?\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s"',;&]+)/gi
 const AUTH_HEADER = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}/g
+// GitHub's `Authorization: token ...`: only after the header name, so "token authentication" stays.
+const TOKEN_HEADER = /(\bAuthorization\s*:\s*token\s+)[A-Za-z0-9._~+/=-]{12,}/gi
 const URL_PASSWORD = /\b([a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:)[^\s@/]+@/gi
+// `--password hunter2`, `--token=abc`: a secret-named flag and its value.
+const FLAG_SECRET =
+  /(\s--?(?:password|passwd|pass|pwd|token|secret|api[-_]?key|access[-_]?key|auth[-_]?token)[=\s]+)("[^"]*"|'[^']*'|\S+)/gi
+// `mysql -phunter2` (the value glued to -p), and `curl -u user:pass`.
+const MYSQL_P = /(\b(?:mysql|mysqldump|mariadb)\b[^\n]*?\s-p)(\S+)/g
+const USER_PASS = /((?:\s-u\s+|\s--user[=\s]+)[^\s:]+:)(\S+)/g
+// "my password is hunter2"
+const SAID_PASSWORD = /\b(password|passphrase|passwd)(\s+(?:is|was)\s+)(\S+)/gi
 
 /** Replaces anything that looks like a secret with a placeholder. */
 export function redact(text: string): string {
@@ -97,7 +113,10 @@ export function redact(text: string): string {
   out = out.replace(ASSIGNMENT, (whole, name: string, sep: string, value: string) =>
     value.includes(REDACTED) ? whole : `${name}${sep}${REDACTED}`,
   )
-  out = out.replace(AUTH_HEADER, `$1 ${REDACTED}`)
+  out = out.replace(AUTH_HEADER, `$1 ${REDACTED}`).replace(TOKEN_HEADER, `$1${REDACTED}`)
+  out = out.replace(FLAG_SECRET, (whole, flag: string, value: string) => (value.includes(REDACTED) ? whole : `${flag}${REDACTED}`))
+  out = out.replace(MYSQL_P, `$1${REDACTED}`).replace(USER_PASS, `$1${REDACTED}`)
+  out = out.replace(SAID_PASSWORD, `$1$2${REDACTED}`)
 
   return out.replace(URL_PASSWORD, `$1${REDACTED}@`)
 }
@@ -154,24 +173,69 @@ export function sanitize(raw: string, max = MAX_TEXT): string {
 
 // First match wins, so the most specific note leads. Each note reads after the
 // suggestion as "(deploys)". Broad on purpose: a safe prompt marked amber
-// costs a glance, a risky one left plain could cost a production push.
+// costs a glance, a risky one left plain could cost a production push. Each
+// rule takes the word inside its family too ("redeploy", "unpublish").
 const RISKS: readonly (readonly [RegExp, string])[] = [
   [/\bforce[- ]?push|\bpush\b.*(?:--force|\s-f\b)|(?:--force|\s-f\b).*\bpush\b/i, 'force-pushes'],
+  [/\breset\s+--hard\b|\bclean\s+-\w*f/i, 'discards work'],
   [/--force\b|\bforce(?:s|d|fully)?\b|\bforcibly\b/i, 'forces'],
-  [/\bdeploy(?:s|ed|ing|ment)?\b/i, 'deploys'],
-  [/\bpublish(?:es|ed|ing)?\b/i, 'publishes'],
+  [
+    /\b(?:re|pre)?deploy(?:s|ed|ing|ment)?\b|\bship(?:s|ped)?\b|\bshipping\s+(?:it|this|that|to)\b|\broll(?:s|ed|ing)?[- ]out\b|\bgo(?:es)?\s+live\b|\bpromot(?:e|es|ed|ing)\b.*\bprod|\b(?:terraform|kubectl|helm|pulumi)\s+(?:apply|up|upgrade|install)\b/i,
+    'deploys',
+  ],
+  [/\b(?:re|un)?publish(?:es|ed|ing)?\b/i, 'publishes'],
   [/\breleas(?:e|es|ed|ing)\b/i, 'releases'],
-  [/\bpush(?:es|ed|ing)?\b/i, 'pushes'],
-  [/\bmerg(?:e|es|ed|ing)\b/i, 'merges'],
-  [/\bdelet(?:e|es|ed|ing|ion)\b/i, 'deletes'],
-  [/\brm\b/i, 'removes files'],
+  [/\b(?:re)?push(?:es|ed|ing)?\b/i, 'pushes'],
+  [/\bmerg(?:e|es|ed|ing)\b|\bland\s+(?:the|this|that|my)\s+(?:pr|pull request|branch)\b/i, 'merges'],
+  [
+    /\bdelet(?:e|es|ed|ing|ion)\b|\bdestroy(?:s|ed|ing)?\b|\bwip(?:e|es|ed|ing)\b|\bpurg(?:e|es|ed|ing)\b|\btruncate\s+(?:table\b|(?:the\s+)?[\w.-]+\s+tables?\b|(?:the\s+)?(?:database|db)\b)/i,
+    'deletes',
+  ],
+  [/\brm(?:dir)?\b/i, 'removes files'],
   [/\bdrop(?:s|ped|ping)?\b/i, 'drops'],
-  [/\b(?:send|sends|sending|sent|email|e-mail|notify|tweet)\b|\b(?:open|create|submit|raise)s?\s+(?:a\s+|the\s+)?(?:pr|pull request)\b|\bpost\b.*\b(?:slack|channel|issue|comment|twitter)\b/i, 'sends'],
+  [
+    /\b(?:send|sends|sending|sent|email|e-mail|notify|tweet)\b|\bgh\s+(?:pr|issue|release)\s+(?:create|merge|comment|close)\b|\b(?:open|create|submit|raise|file)s?\s+(?:a\s+|an\s+|the\s+)?(?:pr|pull request|issue)\b|\b(?:post|reply|respond|comment\s+on)\b.*(?:\b(?:slack|channel|issue|pr|pull request|reviewer|twitter)\b|#[a-z][\w-]*)|(?:^\s*|[,;]\s*|\b(?:and|then|please)\s+)(?:message|dm)\s+(?:the|my|our|@)|\bping\s+@/i,
+    'sends',
+  ],
 ]
+
+// Lookalike letters from other scripts, folded to the Latin letter they
+// imitate before matching, so "d\u0435ploy" (a Cyrillic e) still reads "deploy".
+const CONFUSABLES: Readonly<Record<string, string>> = {
+  // Cyrillic, lower then upper case
+  '\u0430': 'a', '\u0435': 'e', '\u043e': 'o', '\u0440': 'p', '\u0441': 'c', '\u0443': 'y', '\u0445': 'x',
+  '\u0455': 's', '\u0456': 'i', '\u0458': 'j', '\u04bb': 'h', '\u04cf': 'l', '\u0501': 'd', '\u051b': 'q', '\u051d': 'w',
+  '\u0410': 'A', '\u0412': 'B', '\u0415': 'E', '\u041a': 'K', '\u041c': 'M', '\u041d': 'H', '\u041e': 'O',
+  '\u0420': 'P', '\u0421': 'C', '\u0422': 'T', '\u0423': 'Y', '\u0425': 'X', '\u0405': 'S', '\u0406': 'I', '\u0408': 'J',
+  // Greek
+  '\u03b1': 'a', '\u03b9': 'i', '\u03ba': 'k', '\u03bd': 'v', '\u03bf': 'o', '\u03c1': 'p',
+  '\u0391': 'A', '\u0392': 'B', '\u0395': 'E', '\u0396': 'Z', '\u0397': 'H', '\u0399': 'I', '\u039a': 'K',
+  '\u039c': 'M', '\u039d': 'N', '\u039f': 'O', '\u03a1': 'P', '\u03a4': 'T', '\u03a5': 'Y', '\u03a7': 'X',
+}
+const CONFUSABLE = new RegExp(`[${Object.keys(CONFUSABLES).join('')}]`, 'g')
+// A letter from another script still touching a Latin one after folding is a
+// lookalike the table above does not know: marked rather than trusted.
+const MIXED_SCRIPT = /[a-z][\u0370-\u03ff\u0400-\u052f]|[\u0370-\u03ff\u0400-\u052f][a-z]/i
+
+/**
+ * The text the risk rules read: drawable (no controls or invisible
+ * characters), compatibility forms folded (NFKD: fullwidth and styled
+ * letters become plain ones), accents and combining marks dropped, and
+ * lookalike letters folded to Latin.
+ */
+export function riskText(text: string): string {
+  return clean(text, ' ')
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(CONFUSABLE, letter => CONFUSABLES[letter] ?? letter)
+    .normalize('NFKC')
+}
 
 /** A short note when the prompt would push, deploy, publish, merge, delete, force or send; else null. */
 export function riskOf(text: string): string | null {
-  for (const [pattern, note] of RISKS) if (pattern.test(text)) return note
+  const plain = riskText(text)
+  for (const [pattern, note] of RISKS) if (pattern.test(plain)) return note
+  if (MIXED_SCRIPT.test(plain)) return 'unusual letters'
 
   return null
 }
@@ -204,37 +268,46 @@ function asKind(value: unknown, text: string): CrossroadsKind {
 
 // ---------------------------------------------------------------- reading Claude's reply
 
-// "1. Fix it", "2) Leave it", "**Option 3:** Ship it", "- 1: ..."
-const OPTION_LINE = /^(?:[-*]\s+)?(?:\*\*|__)?(?:option\s+)?\(?([1-9])[.):\]]/i
+// "1. Fix it", "2) Leave it", "**Option 3:** Ship it", "- 1: ...", "### Option 1: ...",
+// "| 1 | Fix it |", "1 - Fix it" (any dash), and a keycap digit.
+const OPTION_LINE =
+  /^(?:[-*]\s+|#{1,6}\s+|\|\s*)?(?:\*\*|__)?(?:option\s+)?\(?([1-9])(?:[.):\]]|\s*\||\s+[-\u2013\u2014]\s|\ufe0f?\u20e3)/i
+// How far the options may sit above the end: three lines as a rule, more
+// when the reply ends by asking (a description under each option, a recap).
+const PLAIN_TAIL = 3
+const ASKING_TAIL = 12
 
 /**
  * True when the reply ends by offering numbered options for the person to
- * pick by typing a digit, so the band must leave the digit keys alone.
+ * pick by typing a digit, so the band must leave the digit keys alone. Leans
+ * to true: a wrong true only costs the digits for one turn (items stay clickable).
  */
 export function endsWithNumberedOptions(answer: string): boolean {
   const lines = answer
     .split(/\r?\n/)
-    .map(line => line.replace(/\s+$/, ''))
-    .filter(line => line.trim() !== '')
-  let index = lines.length - 1
-  // At most three lines after the options ("Which would you like?").
-  for (let trailing = 0; index >= 0 && !OPTION_LINE.test((lines[index] ?? '').trim()); index--) {
-    if (++trailing > 3) return inlineOptions(lines.slice(-2).join(' '))
-  }
+    .map(line => line.trim())
+    .filter(line => line !== '')
+    .slice(-40)
   const numbers = new Set<number>()
-  for (; index >= 0; index--) {
-    const line = lines[index] ?? ''
-    const option = OPTION_LINE.exec(line.trim())
-    if (option) numbers.add(Number(option[1]))
-    else if (!/^\s{2,}\S/.test(line)) break // an indented continuation stays in the block
-  }
+  let last = -1
+  lines.forEach((line, index) => {
+    const option = OPTION_LINE.exec(line)
+    if (option) {
+      numbers.add(Number(option[1]))
+      last = index
+    }
+  })
+  const tail = lines.slice(-2).join(' ')
+  const after = lines.length - 1 - last
+  const asks = /\?\s*\**\s*$/.test(tail) || /\?/.test(lines.at(-1) ?? '')
+  if (numbers.has(1) && numbers.has(2) && (after <= PLAIN_TAIL || (asks && after <= ASKING_TAIL))) return true
 
-  return (numbers.has(1) && numbers.has(2)) || inlineOptions(lines.slice(-2).join(' '))
+  return inlineOptions(tail)
 }
 
-// "Should I (1) patch it or (2) roll back?"
+// "Should I (1) patch it or (2) roll back?", "1) patch or 2) roll back?", "option 1 or option 2?"
 function inlineOptions(text: string): boolean {
-  return /\(1\)[^]*\(2\)/.test(text) && /\?\s*\**\s*$/.test(text)
+  return /(?:\(1\)|\b1\)|\boption\s*1\b)[^]*(?:\(2\)|\b2\)|\boption\s*2\b)/i.test(text) && /\?\s*\**\s*$/.test(text)
 }
 
 /** Claude's closing question, when one of the last two lines asks one. */
