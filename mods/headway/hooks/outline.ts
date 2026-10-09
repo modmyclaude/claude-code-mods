@@ -2,6 +2,7 @@
 // headings become stages, top-level list items become steps.
 
 import type { HeadwayOutline } from '../types'
+import { clean } from './clean'
 import { isSameStep, words } from './match'
 
 export const MAX_STAGES = 20
@@ -16,9 +17,13 @@ const FENCE = /^\s*(```|~~~)/
 const NOT_WORK =
   /^(context|background|overview|summary|goals?|non[- ]?goals?|notes?|risks?|open questions|questions|assumptions|references|out of scope|alternatives( considered)?|(critical |key |relevant )?files( to (change|modify|touch|edit))?|dependencies)\b/i
 
-/** Strips markdown emphasis, code ticks and link targets, and caps the length. */
+/**
+ * Every title and stage name Headway draws passes through here, from every
+ * source: controls and escapes go first (clean), then markdown emphasis,
+ * code ticks and link targets; the length is capped.
+ */
 export function cleanText(text: string): string {
-  const plain = text
+  const plain = clean(text)
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/[*_`~]+/g, '')
     .replace(/\s+/g, ' ')

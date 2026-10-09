@@ -4,7 +4,7 @@
 
 import { mock } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import type { On, RenderSurface } from 'claude-code'
 
 export const PLUGIN = 'headway'
 export const ROOT = '/work/app'
@@ -27,9 +27,11 @@ export type World = {
   stored: Record<string, unknown>
   /** Makes `$.session.root()` reject, to show a failure inside Headway never reaches the tool call. */
   root: { deny?: string }
+  /** What `$.session.surfaces()` answers; tests attach and detach by editing it. */
+  surfaces: RenderSurface[]
 }
 
-export function world(on: On, store: Record<string, unknown> = {}): World {
+export function world(on: On, store: Record<string, unknown> = {}, surfaces: RenderSurface[] = ['terminal']): World {
   const toasts: string[] = []
   const opened: string[] = []
   const plan = { text: null as string | null }
@@ -52,6 +54,8 @@ export function world(on: On, store: Record<string, unknown> = {}): World {
   mock.store(on, store)
 
   on('session.root', () => (root.deny === undefined ? { value: ROOT } : { deny: root.deny }))
+  on('session.surfaces', () => ({ value: [...surfaces] }))
+  on('session.attach', ($, e) => ({ clientId: e.clientId }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('ui.toast', ($, e) => {
@@ -71,7 +75,9 @@ export function world(on: On, store: Record<string, unknown> = {}): World {
   on('tool.call', { tool: 'TodoWrite' }, ($, e) => {
     if (todo.deny !== undefined) return { deny: todo.deny }
     if (todo.fail === true) return { isError: true, result: undefined, text: 'TodoWrite failed' }
-    return { result: { oldTodos: [], newTodos: e.todos }, text: 'Todos updated' }
+    // As core may: a list that is all done comes back cleared in the result, so Headway must read the input.
+    const isAllDone = Array.isArray(e.todos) && e.todos.every(item => item.status === 'completed')
+    return { result: { oldTodos: [], newTodos: isAllDone ? [] : e.todos }, text: 'Todos updated' }
   })
   on('tool.call', { tool: 'TaskList' }, () => ({ result: { tasks: [...tasks] }, text: `${tasks.length} tasks` }))
   on('tool.call', { tool: 'TaskCreate' }, ($, e) => {
@@ -87,7 +93,7 @@ export function world(on: On, store: Record<string, unknown> = {}): World {
     text: 'User has approved your plan.',
   }))
 
-  return { clock, toasts, opened, periods: () => periods, plan, tasks, todo, root, stored }
+  return { clock, toasts, opened, periods: () => periods, plan, tasks, todo, root, stored, surfaces }
 }
 
 export type Todo = { content: string; status: 'pending' | 'in_progress' | 'completed' }

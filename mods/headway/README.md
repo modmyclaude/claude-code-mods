@@ -23,7 +23,7 @@ Nothing to set up. Headway reads the plan Claude already keeps and draws one lin
 - **Plans that change:** when Claude rewrites its list, reworded steps that were done stay done, and the line flashes `plan revised +2 −1` for a few seconds.
 - **Done:** the bar turns green for a few seconds, then a toast gives the receipt (`Plan done in 4m 12s, 18s ahead of estimate. Build 2m 1s · Verify 2m 11s`) and the line leaves.
 - **Subagents:** while any run, a small `3 agents` chip sits at the end of the line. No agent details.
-- **Other mods:** Headway draws its one line on top of whatever other mods draw above the prompt and passes theirs through. It steps aside while a survey holds that space.
+- **Other mods:** Headway adds its line beneath what other mods draw above the prompt and passes theirs through, so when the band runs out of rows it is Headway's line that gets cut, never another mod's buttons. A mod that takes the whole band hides Headway's line until that mod is done. Headway steps aside while a survey holds that space.
 
 | Command | What it does |
 | --- | --- |
@@ -53,21 +53,24 @@ None.
 
 - **Files:** none directly. Per-project pace history goes in the mod's own store (`$.store`, a JSON file Claude Code keeps for the mod): step durations and plan counts only, never step titles. Projects are keyed by a hash of the project root, not the path. Capped at the last 40 step times for each of the 30 most recent projects.
 - **Processes, network, model calls:** none. No tokens: it adds nothing to the prompt or the system prompt, never refuses a tool call and never holds up the end of a turn. `/headway` answers with no text for the model; the pane and toasts never reach it.
-- **Timer:** one, once a second, only while a plan is in progress, the line is shown and Claude (or a subagent) is working. It stops when Claude is idle, when you hide the line and when the plan is done.
+- **Timer:** one, once a second, only while a plan is in progress and Claude (or a subagent) is working, on a surface that draws the band (the terminal or the desktop app). It stops when Claude is idle, when you hide the line, when the plan is done and when nothing draws the band.
 - **Sounds:** none.
 
 ## Limits
 
 - Time counts only while Claude or a subagent is working, so a pause between turns never makes a step look slow. A step's time is the span since the previous step finished; steps finished together share it.
-- Time left hides (`estimating...`) while the sample coefficient of variation of this session's step times is above 1.0, roughly when one step took ten times another.
+- Time left hides (`estimating...`) while the sample coefficient of variation of the last 8 step times is above 1.0, roughly when one step took six times another. One long step (a full test run among quick edits) stops hiding it once eight newer steps have finished; the per-step median still uses the whole session.
 - A plan-mode plan with no todo or task list after it has no progress to read. Headway shows `Plan approved · 2 stages, 6 steps` until that turn ends, then clears it.
+- A plan Claude stops updating (you interrupted, changed topic, or the last items were never marked done) leaves on its own once two of Claude's turns pass with no update to it: no receipt and no history for it. An approved plan-mode outline no list followed expires the same way. A `/clear` or resuming another conversation clears the plan at once.
 - Plan-mode parsing is a heuristic: the shallowest heading level used at least twice is the stage level, top-level list items are steps, and sections such as Context, Risks or Files to change are left out.
-- Matching a reworded step is fuzzy (letter-pair overlap of 75% or word overlap of 60%). Very different wording reads as one step removed and one added.
+- Matching a reworded step is fuzzy (letter-pair overlap of 75% or word overlap of 60%). Very different wording reads as one step removed and one added. A done step keeps its done only while the new wording keeps 60% of its words, so a sibling such as "Write tests for the UI" never inherits the done of "Write tests for the API".
 - Todo lists and plans kept by subagents are not shown; only the main conversation's plan is. Task updates from subagents do count for tasks Headway already knows.
 - The agents chip counts subagents from start to finish. Teammates are left out, since they idle between turns.
 - The "plan done" signal is a `$.state` value, not a telemetry mark: marks feed Claude Code's own analytics, which a display-only mod should not touch.
 - After a plugin reload the countdown resumes at Claude's next tool call or turn.
 - Drawn on the terminal and the desktop app, the two surfaces with a band above the prompt. The `/headway` pane opens on any surface that places panes.
+- On builds without TodoWrite (reportedly the desktop app) Headway follows the task tools, which need `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`, and plan-mode plans; with neither, it shows nothing.
+- Titles are drawn without escape sequences, control characters or invisible marks (bidi overrides, zero-width characters), and the line is laid out in terminal cells, so wide (CJK) titles and emoji are cut to fit rather than wrapping.
 
 ## Built from a prompt
 

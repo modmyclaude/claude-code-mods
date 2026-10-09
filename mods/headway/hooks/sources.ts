@@ -10,6 +10,7 @@ function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null
 }
 
+/** A title from a tool, made safe to draw (cleanText, as the plan-mode outline uses too), or null. */
 function text(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const clean = cleanText(value)

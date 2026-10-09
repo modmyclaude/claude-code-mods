@@ -67,6 +67,8 @@ export type HeadwayRun = {
   hidden: boolean
   /** The last plan id handed out. */
   seq: number
+  /** Claude's turns begun since it last updated its plan; at QUIET_TURNS an unfinished plan leaves. */
+  quiet: number
 }
 
 /**

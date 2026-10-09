@@ -5,13 +5,16 @@ import {
   COALESCE_MS,
   EMPTY_RUN,
   FLASH_MS,
+  QUIET_TURNS,
   REVISE_MS,
   bandView,
   barCells,
+  fit,
   layoutBand,
   planNow,
   reduce,
   wantsTimer,
+  width,
   type BandView,
   type Effect,
   type HeadwayEvent,
@@ -146,6 +149,25 @@ describe('plans that change', () => {
     expect(run.plan?.steps[1]?.ms).toBeUndefined()
   })
 
+  // Siblings read alike letter by letter (0.88 and 0.81) but share too few words (0.5).
+  const siblings: [string, string][] = [
+    ['Write tests for the API', 'Write tests for the UI'],
+    ['Migrate users table', 'Migrate orders table'],
+  ]
+  for (const [finished, sibling] of siblings) {
+    test(`a sibling ("${sibling}") does not inherit the done of "${finished}"`, () => {
+      const { run } = play([
+        [T0, todo([finished, 'Ship it'], 0)],
+        [T0 + M, todo([finished, 'Ship it'], 1)],
+        [T0 + 2 * M, { kind: 'todos', items: [{ title: sibling, status: 'active' }, { title: 'Ship it', status: 'pending' }] }],
+      ])
+      expect(run.plan?.steps.map(step => [step.title, step.status])).toEqual([
+        [sibling, 'active'],
+        ['Ship it', 'pending'],
+      ])
+    })
+  }
+
   test('changes before any work begins are not a revision', () => {
     const { run } = play([
       [T0, { kind: 'todos', items: SIX.map(title => ({ title, status: 'pending' })) }],
@@ -172,6 +194,36 @@ describe('plans that change', () => {
     ])
     expect(run.plan).toBeNull()
     expect(effects.filter(effect => effect.kind === 'receipt')).toEqual([])
+  })
+})
+
+describe('a plan Claude stops updating', () => {
+  const turn = (wall: number): [number, HeadwayEvent][] => [
+    [wall, { kind: 'turn', isRunning: true }],
+    [wall + M, { kind: 'turn', isRunning: false }],
+  ]
+  const started = play([[T0, { kind: 'turn', isRunning: true }], [T0, todo(SIX, 2)], [T0 + M, { kind: 'turn', isRunning: false }]])
+
+  test(`leaves quietly after ${QUIET_TURNS} turns with no plan update`, () => {
+    const once = play(turn(T0 + 2 * M), started.run)
+    expect(once.run.plan?.steps).toHaveLength(6)
+    const twice = play(turn(T0 + 4 * M), once.run)
+    expect(twice.run.plan).toBeNull()
+    expect(twice.run.quiet).toBe(0)
+    expect(twice.effects).toEqual([])
+  })
+
+  test('any plan update in between starts the count again', () => {
+    const { run } = play([...turn(T0 + 2 * M).slice(0, 1), [T0 + 2.5 * M, todo(SIX, 3)], ...turn(T0 + 2 * M).slice(1), ...turn(T0 + 4 * M)], started.run)
+    expect(run.plan?.steps.filter(step => step.status === 'done')).toHaveLength(3)
+    expect(run.quiet).toBe(1)
+  })
+
+  test('nothing to leave behind, nothing counted (no state write per turn)', () => {
+    const idle = reduce(EMPTY_RUN, { kind: 'turn', isRunning: true }, T0).run
+    expect(idle.quiet).toBe(0)
+    const busy = reduce(idle, { kind: 'turn', isRunning: false }, T0 + M).run
+    expect(reduce(busy, { kind: 'turn', isRunning: true }, T0 + 2 * M).run.quiet).toBe(0)
   })
 })
 
@@ -288,6 +340,21 @@ describe('the band line', () => {
     })
   }
 
+  // A very narrow band gives up the time left, then the count, before the title shrinks to nothing.
+  const narrow: [number, string][] = [
+    [20, 'Wire the rout… (2/6)'],
+    [12, 'Wire … (2/6)'],
+    [8, 'Wire th…'],
+  ]
+  for (const [columns, line] of narrow) {
+    test(`a ${columns}-column band still fits`, () => {
+      const view: BandView = { kind: 'progress', title: 'Wire the routes', done: 2, total: 6, tone: 'normal', right: '~3m left', agents: 0 }
+      const text = layoutBand(view, columns).map(part => part.text).join('')
+      expect(text).toBe(line)
+      expect([...text].length).toBeLessThanOrEqual(columns)
+    })
+  }
+
   const bars: [number, number, { on: number; off: number }][] = [
     [0, 6, { on: 0, off: 6 }],
     [2, 6, { on: 2, off: 4 }],
@@ -296,6 +363,39 @@ describe('the band line', () => {
     [0, 0, { on: 0, off: 1 }],
   ]
   for (const [done, total, cells] of bars) test(`bar ${done}/${total}`, () => expect(barCells(done, total)).toEqual(cells))
+})
+
+describe('terminal cells, not code points', () => {
+  const ch = (code: number) => String.fromCodePoint(code)
+  // Counted here on their own: kana and CJK ideographs take two cells, everything else in these titles one.
+  const cellsOf = (text: string) => [...text].reduce((sum, char) => sum + (/[\u3040-\u30ff\u4e00-\u9fff]/u.test(char) ? 2 : 1), 0)
+
+  const widths: [string, string, number][] = [
+    ['ASCII', 'Wire the routes', 15],
+    ['kana', '\u30eb\u30fc\u30c8', 6],
+    ['Hangul', '\ud55c\uad6d', 4],
+    ['fullwidth', '\uff21\uff22', 4],
+    ['an emoji', `${ch(0x1f680)} ship`, 7],
+    ['a combining accent', `e${ch(0x301)}`, 1],
+    ['the line marks', '\u25b0\u25b1\u00b7\u2026\u2212', 5],
+  ]
+  for (const [name, text, cells] of widths) test(`${name} takes ${cells} cells`, () => expect(width(text)).toBe(cells))
+
+  test('fit cuts wide text by cells, never past the room', () => {
+    expect(fit('\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0', 7)).toBe('\u30eb\u30fc\u30c6\u2026')
+    expect(fit('\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0', 6)).toBe('\u30eb\u30fc\u2026')
+    expect(fit('\u30eb\u30fc', 4)).toBe('\u30eb\u30fc')
+  })
+
+  for (const columns of [60, 40, 24, 12]) {
+    test(`a CJK title stays one line in ${columns} columns`, () => {
+      const title = '\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u3092\u914d\u7dda\u3057\u3066\u30c6\u30b9\u30c8\u3092\u8ffd\u52a0\u3057\u3001\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3092\u66f4\u65b0\u3059\u308b'
+      const view: BandView = { kind: 'progress', stage: '\u30d3\u30eb\u30c9', title, done: 2, total: 6, tone: 'normal', right: '~3m left', agents: 2 }
+      const text = layoutBand(view, columns).map(part => part.text).join('')
+      expect(cellsOf(text)).toBeLessThanOrEqual(columns)
+      expect(text).toContain('\u30eb\u30fc')
+    })
+  }
 })
 
 describe('subagents and tasks', () => {
@@ -352,6 +452,9 @@ describe('eventFromTool reads each source on its own', () => {
     expect(eventFromTool('ExitPlanMode', {}, { plan: '## A\n- one\n## B\n- two', isAgent: false }, true)).toMatchObject({ kind: 'outline', outline: { stages: ['A', 'B'] } })
   })
 
+  // The subagent cases live here and not in the flow tests: the test kit drops `agentId` from
+  // `$.tool.call`, so it cannot raise a subagent's tool call, and register.tsx's
+  // `e.agentId === undefined` wiring is checked only through this table (a kit limit, not a choice).
   const ignored: [string, string, unknown, unknown, boolean][] = [
     ['a subagent’s todo list', 'TodoWrite', { todos: [] }, {}, false],
     ['a subagent’s plan', 'ExitPlanMode', {}, { plan: '- one' }, false],

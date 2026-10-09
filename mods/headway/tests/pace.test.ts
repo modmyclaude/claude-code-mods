@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { accuracy, estimate, formatDuration, formatLeft, isRunningLong, median, receiptText, spread, timeLeft } from '../hooks/pace'
+import { STEADY_WINDOW, accuracy, estimate, formatDuration, formatLeft, isRunningLong, median, receiptText, spread, timeLeft } from '../hooks/pace'
 
 const S = 1000
 const M = 60 * S
@@ -46,14 +46,30 @@ describe('estimate', () => {
 
   const steadiness: [number[], boolean][] = [
     [[M, M], true],
-    [[20 * S, 100 * S], true], // spread 0.94
-    [[10 * S, 100 * S], false], // spread 1.16: about ten times apart
+    [[20 * S, 100 * S], true], // five times apart: spread 0.94
+    [[10 * S, 100 * S], false], // ten times apart: spread 1.16 (two steps cross 1.0 near six times)
     [[5 * S, 300 * S], false],
     [[M, M, M, M, 30 * M], false],
   ]
   for (const [session, isSteady] of steadiness) {
     test(`steady ${JSON.stringify(session.map(v => v / S))}s -> ${isSteady}`, () => expect(estimate(session)?.isSteady).toBe(isSteady))
   }
+
+  test('a spread of exactly 1.0 still shows time left; just above hides it', () => {
+    expect(spread([0, M, 2 * M])).toBe(1)
+    expect(estimate([0, M, 2 * M])?.isSteady).toBe(true)
+    expect(estimate([0, M, 2 * M + 1])?.isSteady).toBe(false)
+  })
+
+  test(`steadiness reads the last ${STEADY_WINDOW} step times; the median reads them all`, () => {
+    const quick = Array.from({ length: STEADY_WINDOW }, () => 20 * S)
+    const session = [20 * S, 20 * S, 300 * S, ...quick]
+    expect(estimate(session)).toEqual({ perStepMs: 20 * S, isSteady: true })
+    // One step fewer and the long one is still inside the window.
+    expect(estimate(session.slice(0, -1))?.isSteady).toBe(false)
+    // Over the whole session the long step would still hide time left.
+    expect(spread(session)).toBeGreaterThan(1)
+  })
 })
 
 describe('timeLeft and the running-long rule', () => {
