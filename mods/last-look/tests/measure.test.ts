@@ -301,7 +301,20 @@ describe('the two proven exceptions, and only on proof', () => {
     const { item, hold } = await measure('echo hi > new.txt', { files })
     expect(item.isHarmless).toBe(true)
     expect(hold).toBe(false)
-    expect((await measure('cd src && echo hi > new.txt', { files })).hold).toBe(false)
+    // Any other part in the command, even a cd, and it is held.
+    expect((await measure('cd src && echo hi > new.txt', { files })).hold).toBe(true)
+  })
+
+  test('a lone redirect into a quoted here-doc passes', async () => {
+    expect((await measure("cat > new.md <<'EOF'\nhello\nEOF", { files })).hold).toBe(false)
+  })
+
+  test('V-1: an earlier part can create the target, so the redirect is judged too early: held', async () => {
+    const spec: WorldSpec = { files: { 'a.ts': { size: 100, git: 'modified' } } }
+    expect((await measure('mv a.ts tmp && echo x > tmp', spec)).hold).toBe(true)
+    expect((await measure('ln a.ts hard.txt; : > hard.txt', spec)).hold).toBe(true)
+    expect((await measure('cat > new.md <<EOF\n$(rm -rf src)\nEOF', spec)).hold).toBe(true)
+    expect((await measure('echo $(cp a.ts n.txt) > n.txt', spec)).hold).toBe(true)
   })
 
   test('a redirect holds without that proof', async () => {
@@ -362,6 +375,13 @@ describe('alwaysAllow', () => {
   test('one target outside is enough to hold', async () => {
     expect((await measure('rm -rf dist src', spec, DEFAULT_ALLOW)).hold).toBe(true)
     expect((await measure('rm -rf dist && rm -rf src', spec, DEFAULT_ALLOW)).hold).toBe(true)
+  })
+
+  test('V-2: alwaysAllow never covers find (links may lead out), nor redirects', async () => {
+    const linked: WorldSpec = { ...spec, files: { ...spec.files, 'dist/b.js': { size: 1, git: 'ignored' } } }
+    for (const command of ['find dist -delete', 'find -L dist -delete', 'find dist -follow -delete', 'find -H dist -name "*.js" -delete', 'echo x > dist/a.js']) {
+      expect((await measure(command, linked, DEFAULT_ALLOW)).hold, command).toBe(true)
+    }
   })
 
   test('without the setting the same command holds', async () => {

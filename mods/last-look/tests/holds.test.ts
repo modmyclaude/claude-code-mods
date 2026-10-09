@@ -82,6 +82,20 @@ const DESTRUCTIVE: string[] = [
   'git push --force --force-with-lease',
   'find web -name "*.md" -fprint web/build/notes.md -delete',
   `X=${'{a,b}'.repeat(23)}; rm -rf src`,
+  // review 2 (MM-076): V-1, V-2, V-3, each now held
+  'mv src/a.ts tmp && echo x > tmp',
+  'ln src/a.ts hard.txt; : > hard.txt',
+  'find -L out -delete',
+  'find out -follow -delete',
+  'find -H out -delete',
+  'git branch -D -- feature',
+  'git checkout -- src/a.ts',
+  'git restore -- src/a.ts',
+  'git clean -fd -- src',
+  'git reset --hard --',
+  'git push --force -- origin main',
+  'git worktree remove --force ../wt',
+  'git worktree remove -f ../wt',
 ]
 
 async function measured(command: string, allow = DEFAULT_ALLOW, spec: WorldSpec = WORLD) {

@@ -45,6 +45,7 @@ export type Kind =
   | 'git-discard'
   | 'git-push-force'
   | 'git-branch-delete'
+  | 'git-worktree-remove'
   | 'redirect'
 
 export type GitInfo =
@@ -62,6 +63,7 @@ export type GitInfo =
     }
   | { sub: 'push'; remote?: Word; refspecs: Word[]; isWholeRepo: boolean }
   | { sub: 'branch'; names: Word[] }
+  | { sub: 'worktree'; paths: Word[] }
 
 export type Finding = {
   kind: Kind
@@ -77,6 +79,13 @@ export type Finding = {
   findListing?: string[]
   /** Why it cannot be measured, when that is plain from the text alone. */
   unknown?: string
+  /**
+   * The whole command is this one simple command and this redirect is all it
+   * does that we see: no `&&`, `||`, `;`, `|`, `&`, newline, subshell,
+   * `$(...)` or unquoted here-doc. Only then can "the target does not exist"
+   * be judged before anything runs.
+   */
+  isSole?: boolean
 }
 
 export type ClassifyEnv = { home?: string }
@@ -86,8 +95,21 @@ const MAX_DEPTH = 6
 
 export function classify(command: string, env: ClassifyEnv = {}): Finding[] {
   const out: Finding[] = []
-  walk(parse(command), command, [], new Map(), env, out, 0)
+  const seq = parse(command)
+  walk(seq, command, [], new Map(), env, out, 0)
+  const only = out[0]
+  if (out.length === 1 && only?.kind === 'redirect' && isSoleCommand(seq)) only.isSole = true
   return out
+}
+
+/** One simple command, nothing before or after it, nothing running inside it. */
+function isSoleCommand(seq: Seq): boolean {
+  const item = seq[0]
+  if (seq.length !== 1 || !item || item.kind !== 'simple' || (item.op !== '' && item.op !== ';')) return false
+  const words = [...item.words, ...item.redirs.flatMap(r => (r.target ? [r.target] : []))]
+  if (words.some(w => w.parts.some(p => p.t === 'sub'))) return false
+  if (item.redirs.some(r => (r.op === '<<' || r.op === '<<-') && !r.isQuotedDoc)) return false
+  return item.redirs.filter(r => r.op === '>' || r.op === '>|' || r.op === '&>' || r.op === '>&').length === 1
 }
 
 type Vars = Map<string, string | undefined>
@@ -626,6 +648,12 @@ function gitSub(sub: string, rest: Word[], viaXargs: boolean): Pick<Finding, 'ki
     })
     return { kind: 'git-clean', git: { sub: 'clean', flags: keep, forces, excludes, paths: [...positionals, ...after] } }
   }
+  if (sub === 'worktree') {
+    // `git worktree remove --force` deletes the worktree folder, uncommitted work and all.
+    const [action, ...targets] = [...positionals, ...after]
+    if (action?.text !== 'remove' || !(has('--force') || hasShort('f'))) return undefined
+    return { kind: 'git-worktree-remove', git: { sub: 'worktree', paths: targets } }
+  }
   if (sub === 'reset') {
     if (!has('--hard')) return undefined
     const ref = positionals[0]
@@ -673,7 +701,7 @@ function gitSub(sub: string, rest: Word[], viaXargs: boolean): Pick<Finding, 'ki
     const name = (f: string) => f.split('=')[0] ?? ''
     // git takes a unique prefix of a long option: --force-with is the lease.
     const isMirror = flags.some(f => name(f) === '--mirror')
-    const isForced = has('--force') || hasShort('f') || isMirror || positionals.slice(1).some(w => w.text.startsWith('+'))
+    const isForced = has('--force') || hasShort('f') || isMirror || [...positionals, ...after].slice(1).some(w => w.text.startsWith('+'))
     // A lease guards only a push that is not also forced: `--force` (or -f,
     // a `+refspec`, --mirror) switches the lease off, so it is held.
     if (!isForced || has('--dry-run') || hasShort('n')) return undefined
@@ -685,8 +713,9 @@ function gitSub(sub: string, rest: Word[], viaXargs: boolean): Pick<Finding, 'ki
     const isDelete = hasShort('d') || hasShort('D') || has('--delete')
     const isForced = hasShort('D') || hasShort('f') || has('--force')
     if (!isDelete || !isForced || hasShort('r') || has('--remotes')) return undefined
-    const hasNames = positionals.length > 0 || viaXargs
-    return hasNames ? { kind: 'git-branch-delete', git: { sub: 'branch', names: positionals } } : undefined
+    // Names after `--` are names too: `git branch -D -- feature`.
+    const names = [...positionals, ...after]
+    return names.length > 0 || viaXargs ? { kind: 'git-branch-delete', git: { sub: 'branch', names } } : undefined
   }
   return undefined
 }
