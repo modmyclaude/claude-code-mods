@@ -21,7 +21,7 @@ test('a send that re-reads the conversation cold is booked with what it cost ove
   expect(receipt).toContain('Cold sends paid: 1 (150k tokens re-read, ~$1.17 more than warm)')
   expect(receipt).toContain('Cache: warm, 60m left (60m window, subscription login)')
   expect(receipt).toContain('On a subscription these measure plan usage, not a bill.')
-  expect(receipt).toContain('Session total so far: ~$4.20, as /cost counts it.')
+  expect(receipt).toContain("Session total so far: ≈$4.20 (Claude Code's estimate).")
 })
 
 test('subagent requests do not move the main cache or count as cold sends', SLOW, async ($, on) => {

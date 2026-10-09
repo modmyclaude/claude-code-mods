@@ -209,8 +209,24 @@ test('another plugin cannot start paid pings', SLOW, async ($, on) => {
     origin: { kind: 'plugin', name: 'other' },
     presentation: { isFullscreen: true, columns: 120 },
   })
-  expect(ran.text).toBe('Keep-warm starts only from a /warm you type.')
+  expect(ran.text).toBe('Keep-warm changes only with a /warm you type.')
   expect(await command($, 'warm')).toContain('Keep-warm is off.')
+})
+
+test('another plugin cannot stop keep-warm either; the person can', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  await command($, 'warm', '2h')
+  const ran = await $.command.run({
+    command: 'warm',
+    args: 'off',
+    origin: { kind: 'plugin', name: 'other' },
+    presentation: { isFullscreen: true, columns: 120 },
+  })
+  expect(ran.text).toBe('Keep-warm changes only with a /warm you type.')
+  expect(await command($, 'warm')).toContain('Keeping the cache warm for 2h more')
+  expect(await command($, 'warm', 'off')).toContain('Keep-warm off.')
 })
 
 test('the ticker stays modest: a few redraws a minute at most', SLOW, async ($, on) => {
