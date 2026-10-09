@@ -48,6 +48,8 @@ const MAX_WARM_MS = 24 * HOUR
 const MAX_PING_FAILURES = 3
 const PING_PROMPT =
   'Keep-alive ping from the thermostat plugin, sent only to keep the prompt cache warm. Reply with the single word ok and nothing else. Do not use tools.'
+/** The pane `/thermostat` opens. */
+const RECEIPT_PANE = 'thermostat-receipt'
 const USAGE = 'Use /warm 90m (or 2h, 1h30m, 45) to keep the cache warm while you are away, and /warm off to stop.'
 
 const EMPTY_CACHE: ThermostatCache = { lastAt: null, lastRealAt: null, tokens: 0, model: null, isOff: false }
@@ -397,30 +399,45 @@ async function onClear($: Dollar): Promise<void> {
   await stopWarm($, 'keep-warm stopped, /clear started a new conversation')
 }
 
-async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promise<string> {
+/**
+ * Where an answer goes (gotcha 18: a command's `text` is read by the model).
+ * A confirmation is a toast, a refusal a transcript note the person can read
+ * back, and only a caller that is not the person gets text, so it learns why.
+ */
+type Answer = { to: 'toast' | 'note' | 'caller'; text: string }
+
+async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promise<Answer> {
   const arg = args.trim().toLowerCase()
   // Pings cost money and stopping them can cost a cold re-read: only a person
   // starts or stops keep-warm, never another plugin's command. Anyone may ask where it stands.
-  if (arg !== '' && !(await isPerson($, origin))) return 'Keep-warm changes only with a /warm you type.'
+  if (arg !== '' && !(await isPerson($, origin))) return { to: 'caller', text: 'Keep-warm changes only with a /warm you type.' }
   if (arg === 'off' || arg === 'stop') {
     const warm = await read($, warmState)
-    if (warm === null) return 'Keep-warm is not on.'
+    if (warm === null) return { to: 'note', text: 'Keep-warm is not on.' }
     await update($, warmState, () => null)
-    return `Keep-warm off. ${pingSummary(warm)}`
+    return { to: 'toast', text: `Keep-warm off. ${pingSummary(warm)}` }
   }
   const s = await snapshot($)
   if (arg === '') {
-    return s.warm === null
-      ? `Keep-warm is off. ${USAGE}`
-      : `Keeping the cache warm for ${formatDuration(s.warm.until - s.now)} more. ${pingSummary(s.warm)} /warm off stops it.`
+    const text =
+      s.warm === null
+        ? `Keep-warm is off. ${USAGE}`
+        : `Keeping the cache warm for ${formatDuration(s.warm.until - s.now)} more. ${pingSummary(s.warm)} /warm off stops it.`
+    return { to: 'toast', text }
   }
   const ms = parseDuration(arg)
   if (ms === null || ms < MINUTE || ms > MAX_WARM_MS) {
-    return `Could not read "${clean(args.trim())}" as a duration from 1m to 24h. ${USAGE}`
+    return { to: 'note', text: `Could not read "${clean(args.trim())}" as a duration from 1m to 24h. ${USAGE}` }
   }
-  if (s.temp.kind === 'empty' || s.cache.lastAt === null) return 'Nothing is cached yet: send a prompt first, then /warm.'
-  if (s.temp.kind === 'off') return 'Prompt caching looks switched off for this session, so there is nothing to keep warm.'
-  if (s.temp.kind === 'cold') return 'The cache is already cold, so your next prompt re-reads it either way. Run /warm after that.'
+  if (s.temp.kind === 'empty' || s.cache.lastAt === null) {
+    return { to: 'note', text: 'Nothing is cached yet: send a prompt first, then /warm.' }
+  }
+  if (s.temp.kind === 'off') {
+    return { to: 'note', text: 'Prompt caching looks switched off for this session, so there is nothing to keep warm.' }
+  }
+  if (s.temp.kind === 'cold') {
+    return { to: 'note', text: 'The cache is already cold, so your next prompt re-reads it either way. Run /warm after that.' }
+  }
   const span = formatDuration(ms)
   const pingUsd = s.warm?.lastPingUsd ?? estimatePingUsd(s.cache.tokens, s.prices)
   const plan = planKeepWarm({
@@ -433,22 +450,29 @@ async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promi
     extraUsd: s.send.extraUsd,
   })
   if (plan.kind === 'covered') {
-    return `No pings needed: the cache stays warm ${formatDuration(s.temp.msLeft)} on its own, past the ${span} you asked for.`
+    return {
+      to: 'note',
+      text: `No pings needed: the cache stays warm ${formatDuration(s.temp.msLeft)} on its own, past the ${span} you asked for.`,
+    }
   }
   if (plan.kind === 'stop') {
-    return (
-      `Not started: keeping ${formatTokens(s.cache.tokens)} tokens warm for ${span} takes about ${plan.pingsLeft} pings ` +
-      `(~${formatUsd(plan.costUsd)}), more than the one cold re-read it would save (~${formatUsd(s.send.extraUsd)}).`
-    )
+    return {
+      to: 'note',
+      text:
+        `Not started: keeping ${formatTokens(s.cache.tokens)} tokens warm for ${span} takes about ${plan.pingsLeft} pings ` +
+        `(~${formatUsd(plan.costUsd)}), more than the one cold re-read it would save (~${formatUsd(s.send.extraUsd)}).`,
+    }
   }
   const pings = plan.kind === 'ping' || plan.kind === 'wait' ? plan.pingsLeft : 0
   await update($, warmState, () => ({ until: s.now + ms, startedAt: s.now, pings: 0, usd: 0, lastPingUsd: s.warm?.lastPingUsd ?? null }))
   live.pingFailures = 0
   startTicker($, s.now)
-  return (
-    `Keeping the cache warm for ${span}: about ${pings} ping${pings === 1 ? '' : 's'} at ~${formatUsd(pingUsd)} each, ` +
-    `sent just before it would go cold. Going cold would add ~${formatUsd(s.send.extraUsd)} to your next send. /warm off stops it.`
-  )
+  return {
+    to: 'toast',
+    text:
+      `Keeping the cache warm for ${span}: about ${pings} ping${pings === 1 ? '' : 's'} at ~${formatUsd(pingUsd)} each, ` +
+      `sent just before it would go cold. Going cold would add ~${formatUsd(s.send.extraUsd)} to your next send. /warm off stops it.`,
+  }
 }
 
 /** Claude Code's own estimate of the session's cost (list or managed prices, as /cost sums them), when it keeps one. */
@@ -458,6 +482,27 @@ async function sessionTotalUsd($: Dollar): Promise<number | undefined> {
   } catch {
     return undefined
   }
+}
+
+/** Shows a `/warm` answer where it belongs; text only for a caller that is not the person. */
+function deliver($: Dollar, answer: Answer): { text?: string } {
+  if (answer.to === 'caller') return { text: answer.text }
+  if (answer.to === 'toast') $.ui.toast(answer.text, { timeoutMs: 8_000 })
+  else $.ui.log(`thermostat: ${answer.text}`)
+  return {}
+}
+
+/**
+ * Opens the receipt in a pane, which redraws as the numbers move. With no
+ * surface to place one on (a `-p` run), or a pane that is not placed, the
+ * receipt is a transcript note instead. Neither reaches the model.
+ */
+async function showReceipt($: Dollar): Promise<void> {
+  if ((await $.session.surfaces()).length > 0) {
+    const opened = await $.ui.open({ id: RECEIPT_PANE, title: 'Thermostat' })
+    if (opened.isPlaced) return
+  }
+  $.ui.log(await receiptText($))
 }
 
 async function receiptText($: Dollar): Promise<string> {
@@ -633,13 +678,30 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'warm' }, async ($, e) => ({ text: await warmCommand($, e.args, e.origin) })).catch(() => ({
+  on('command.run', { command: 'warm' }, async ($, e) => deliver($, await warmCommand($, e.args, e.origin))).catch(() => ({
     text: 'thermostat: /warm hit an error. Run /thermostat to see where keep-warm stands.',
   }))
 
-  on('command.run', { command: 'thermostat' }, async $ => ({ text: await receiptText($) })).catch(() => ({
-    text: 'thermostat: could not build the receipt this time.',
+  on('command.run', { command: 'thermostat' }, async $ => {
+    await showReceipt($)
+    return {}
+  }).catch(() => ({
+    text: 'thermostat: could not show the receipt this time.',
   }))
+
+  // The receipt pane: one line each, live, since the state reads subscribe it.
+  on('ui.render', { component: 'Pane', requestId: RECEIPT_PANE }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const [title, ...lines] = (await receiptText($)).split('\n')
+    return (
+      <Box flexDirection="column">
+        <Text bold>{title}</Text>
+        {lines.map(line => (
+          <Text>{line}</Text>
+        ))}
+      </Box>
+    )
+  })
 
   // The countdown, at the end of the prompt footer's mode labels: quiet while
   // warm, amber near the end, cold-coloured once the cache has lapsed.

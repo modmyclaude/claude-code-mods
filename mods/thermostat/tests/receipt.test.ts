@@ -3,7 +3,7 @@
 
 import { expect, test } from 'claude-code/testing'
 
-import { API_KEY, MIN, SLOW, command, start, step, submit, usage, world } from './world'
+import { API_KEY, MIN, SLOW, command, paneText, start, step, submit, usage, world } from './world'
 
 test('a send that re-reads the conversation cold is booked with what it cost over warm', { ...SLOW, options: { guard: 'off' } }, async ($, on) => {
   const w = world(on)
@@ -16,7 +16,7 @@ test('a send that re-reads the conversation cold is booked with what it cost ove
   // The next request in the same turn reads it again: warm, not counted.
   await step($, w, usage(150_000, 3_000))
 
-  const receipt = await command($, 'thermostat')
+  const receipt = await command($, w, 'thermostat')
   // 150k x ($8 write - $0.20 read) per MTok at Opus 5.5's 1-hour rates.
   expect(receipt).toContain('Cold sends paid: 1 (150k tokens re-read, ~$1.17 more than warm)')
   expect(receipt).toContain('Cache: warm, 60m left (60m window, subscription login)')
@@ -30,7 +30,7 @@ test('subagent requests do not move the main cache or count as cold sends', SLOW
   await step($, w, usage(140_000, 9_000))
   await w.clock.advance(65 * MIN)
   await step($, w, usage(0, 40_000), 'agent-1')
-  const receipt = await command($, 'thermostat')
+  const receipt = await command($, w, 'thermostat')
   expect(receipt).toContain('Cache: cold for 5m')
   expect(receipt).toContain('Cold sends paid: 0')
 })
@@ -46,7 +46,7 @@ test('a resume picks up how long ago the last reply was, and pins the window fro
     context_tokens: 120_000,
     prompt_cache_likely_expired: true,
   })
-  const receipt = await command($, 'thermostat')
+  const receipt = await command($, w, 'thermostat')
   expect(receipt).toContain('Cache: cold for 25m (5m window, as Claude Code reported it)')
   // Sonnet 5.5: 120k x $2.50 (5-minute write) cold, x $0.20 warm.
   expect(receipt).toContain('120k tokens at Sonnet 5 and 5.5 prices: the next send costs ~$0.30 instead of ~$0.02')
@@ -63,16 +63,58 @@ test('compaction starts the cache over, so the next send is neither held nor boo
   await $.classic.SessionStart({ source: 'compact' })
   expect((await submit($, 'continue')).drop).toBeUndefined()
   await step($, w, usage(15_000, 20_000))
-  expect(await command($, 'thermostat')).toContain('Cold sends paid: 0')
+  expect(await command($, w, 'thermostat')).toContain('Cold sends paid: 0')
 })
 
 test('a session without prompt caching shows "cache off" and is never held', SLOW, async ($, on) => {
   const w = world(on, API_KEY)
   await start($)
   await step($, w, usage(0, 0, { input_tokens: 60_000 }))
-  expect(await command($, 'thermostat')).toContain('caching looks switched off')
+  expect(await command($, w, 'thermostat')).toContain('caching looks switched off')
   await w.clock.advance(30 * MIN)
   expect((await submit($, 'hello')).drop).toBeUndefined()
   await step($, w, usage(0, 0, { input_tokens: 62_000 }))
-  expect(await command($, 'thermostat')).toContain('Cold sends paid: 0')
+  expect(await command($, w, 'thermostat')).toContain('Cold sends paid: 0')
+})
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on ${surface} /thermostat opens a live receipt pane and tells the model nothing`, SLOW, async ($, on) => {
+    const w = world(on)
+    w.surfaces = [surface]
+    await start($)
+    await step($, w, usage(140_000, 9_000))
+    await command($, w, 'thermostat')
+    expect(w.panes).toEqual(['thermostat-receipt'])
+    expect(w.logs).toEqual([])
+    const first = await paneText($, surface)
+    expect(first).toContain('Thermostat receipt for this session')
+    expect(first).toContain('Cache: warm, 60m left')
+    await w.clock.advance(10 * MIN)
+    expect(await paneText($, surface)).toContain('Cache: warm, 50m left')
+  })
+}
+
+test('with no surface to draw a pane, the receipt is a transcript note', SLOW, async ($, on) => {
+  const w = world(on)
+  w.surfaces = []
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  expect(await command($, w, 'thermostat')).toContain('Thermostat receipt for this session')
+  expect(w.panes).toEqual([])
+})
+
+test('a receipt pane that is not placed falls back to a transcript note', SLOW, async ($, on) => {
+  const w = world(on)
+  w.isPanePlaced = false
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  await command($, w, 'thermostat')
+  expect(w.logs.at(-1)).toContain('Cache: warm, 60m left')
+})
+
+test('both commands run at once, even while a turn is in flight', async ($, on) => {
+  const w = world(on)
+  await start($)
+  expect(w.registered).toContainEqual(expect.objectContaining({ name: 'warm', immediate: true }))
+  expect(w.registered).toContainEqual(expect.objectContaining({ name: 'thermostat', immediate: true }))
 })

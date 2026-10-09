@@ -3,8 +3,8 @@
 // records of everything the mod shows. Nothing here decides an outcome; each
 // test sets the inputs and reads what the mod did.
 
-import type { ModelForkResult, On, PromptOrigin, RenderSurface, SessionAuthorization, TurnUsage } from 'claude-code'
-import { mock } from 'claude-code/testing'
+import type { CommandSpec, ModelForkResult, On, PromptOrigin, RenderSurface, SessionAuthorization, TurnUsage } from 'claude-code'
+import { expect, mock } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 
 export const MIN = 60_000
@@ -33,6 +33,12 @@ export type World = {
   usage: TurnUsage | null
   /** The surfaces the session draws on, as `$.session.surfaces()` answers. */
   surfaces: RenderSurface[]
+  /** The commands the mod registered, as it registered them. */
+  registered: CommandSpec[]
+  /** The panes the mod asked to open, by id. */
+  panes: string[]
+  /** Whether a surface places the panes it is asked for. */
+  isPanePlaced: boolean
   /** How many times the mod asked for a redraw. */
   invalidates: number
   /** The session's total as /cost would show it. */
@@ -73,12 +79,22 @@ export function world(on: On, auth: SessionAuthorization = SUBSCRIPTION): World 
     fork: forkAnswer(0),
     usage: null,
     surfaces: ['terminal'],
+    registered: [],
+    panes: [],
+    isPanePlaced: true,
     invalidates: 0,
     sessionUsd: 4.2,
     isStateBroken: false,
   }
   on('session.start', ($, e) => ({ cwd: e.cwd }))
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('command.register', ($, e) => {
+    w.registered.push(e)
+    return { value: { command: e.name } }
+  })
+  on('ui.open', ($, e) => {
+    w.panes.push(e.id)
+    return { value: w.isPanePlaced ? { isPlaced: true } : { isPlaced: false, reason: 'the terminal is too narrow' } }
+  })
   on('session.authorize', () => ({ value: auth }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('session.surfaces', () => ({ value: w.surfaces }))
@@ -146,7 +162,34 @@ export function submit($: Engine, text: string, origin: PromptOrigin = PERSON) {
   return $.prompt.submit({ text, wait: false, origin })
 }
 
-export async function command($: Engine, name: string, args = ''): Promise<string> {
+/** The props a docked pane is drawn with. */
+export const PANE_PROPS = {
+  title: 'Thermostat',
+  isFocused: false,
+  bodyColumns: 100,
+  placement: 'dock' as const,
+  scroll: { offset: 0, bodyRows: 30 },
+  view: {},
+}
+
+/** The receipt pane's lines, as drawn on `surface`. */
+export async function paneText($: Engine, surface: RenderSurface = 'terminal'): Promise<string> {
+  const ui = await $.ui.mount({ plugin: 'thermostat', surface, component: 'Pane', requestId: 'thermostat-receipt', props: PANE_PROPS })
+  const lines = (await ui.findAll({ type: 'Text' })).map(one => one.text)
+  await ui.unmount()
+  return lines.join('\n')
+}
+
+/**
+ * Runs a slash command as the person typing it and returns what they see: the
+ * toasts and transcript notes it raised, and the receipt pane if it opened
+ * one. The model never reads any of it, so the command answers no text.
+ */
+export async function command($: Engine, w: World, name: string, args = ''): Promise<string> {
+  const [toasts, logs, panes] = [w.toasts.length, w.logs.length, w.panes.length]
   const ran = await $.command.run({ command: name, args, origin: PERSON, presentation: { isFullscreen: true, columns: 120 } })
-  return ran.text ?? ''
+  expect(ran.text, `/${name} ${args} answered the model with text`).toBeUndefined()
+  const shown = [...w.toasts.slice(toasts), ...w.logs.slice(logs)]
+  if (w.panes.length > panes) shown.push(await paneText($))
+  return shown.join('\n')
 }
