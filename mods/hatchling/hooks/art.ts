@@ -55,7 +55,7 @@ export function poseAt(art: MoodArt, tick: number): Pose {
   return art.frames[index] ?? {}
 }
 
-/** The canvas a view draws into; an evolution uses the bigger stage's. */
+/** The canvas a view draws into: its stage's (the evolve flash draws the old stage inside the new one's). */
 export function canvasOf(view: View): { w: number; h: number } {
   return CANVAS[view.stage]
 }

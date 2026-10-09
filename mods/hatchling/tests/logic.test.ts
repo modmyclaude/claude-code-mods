@@ -18,6 +18,7 @@ import {
   parseCard,
   rarityOf,
   rollHatch,
+  safeText,
   stageOf,
   statText,
   TEEN_XP,
@@ -82,6 +83,42 @@ describe('the hatch roll', () => {
     }
     expect(seen.size).toBe(8)
     expect(SPECIES.map(one => one.rarity)).toEqual(['common', 'common', 'common', 'uncommon', 'uncommon', 'rare', 'rare', 'legendary'])
+  })
+
+  test('with ordinary random numbers the odds come out right (seeded, 256,000 rolls)', () => {
+    // mulberry32: a small deterministic generator, so this test never flakes.
+    let state = 0x2545f491
+    const next = () => {
+      state = (state + 0x6d2b79f5) >>> 0
+      let t = state
+      t = Math.imul(t ^ (t >>> 15), t | 1)
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+      return (t ^ (t >>> 14)) >>> 0
+    }
+    const n = 256_000
+    const rarity: Record<string, number> = { common: 0, uncommon: 0, rare: 0, legendary: 0 }
+    let shiny = 0
+    for (let i = 0; i < n; i += 1) {
+      const roll = rollHatch(next)
+      rarity[rarityOf(roll.species)] = (rarity[rarityOf(roll.species)] ?? 0) + 1
+      if (roll.shiny) shiny += 1
+    }
+    // Within 5 standard deviations of 1 in 64, and of 36/18/8/2 in 64.
+    const near = (count: number, p: number) => Math.abs(count - n * p) < 5 * Math.sqrt(n * p * (1 - p))
+    expect(near(shiny, 1 / 64), `shiny ${shiny}`).toBe(true)
+    expect(near(rarity.common ?? 0, 36 / 64) && near(rarity.uncommon ?? 0, 18 / 64)).toBe(true)
+    expect(near(rarity.rare ?? 0, 8 / 64) && near(rarity.legendary ?? 0, 2 / 64)).toBe(true)
+  })
+
+  test('an egg with a seed always hatches the same pet, whatever else is random', () => {
+    const egg = { ...freshPet(T0), eggCalls: 24, seed: [1 << 30, 7, 123456, 99] }
+    const a = applyToolCall(egg, { hasPassedTests: false }, T0, () => 0)
+    const b = applyToolCall(egg, { hasPassedTests: false }, T0, () => 0xffffffff)
+    expect(a.pet.hatch).toEqual(b.pet.hatch)
+    expect(a.pet.name).toBe(b.pet.name)
+    expect(normalizePet({ seed: [1, 2, 3] }, T0).seed).toBeUndefined()
+    expect(normalizePet({ seed: [1, 2, 3, 2 ** 32] }, T0).seed).toBeUndefined()
+    expect(normalizePet({ seed: [1, 2, 3, 4] }, T0).seed).toEqual([1, 2, 3, 4])
   })
 
   test('the same random values give the same pet', () => {
@@ -179,6 +216,11 @@ describe('the test-run detector', () => {
     ['unittest', 'python -m unittest', 'Ran 12 tests in 0.003s\n\nOK'],
     ['dotnet', 'dotnet test', 'Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12'],
     ['coloured jest', 'npm test', '\u001b[1mTests:\u001b[22m       \u001b[1m\u001b[32m5 passed\u001b[39m\u001b[22m, 5 total'],
+    ['playwright', 'npx playwright test', 'Running 12 tests using 4 workers\n  12 passed (3.2s)'],
+    ['cargo nextest', 'cargo nextest run', '     Summary [   1.204s] 31 tests run: 31 passed, 0 skipped'],
+    ['after a cd', 'cd app && npm test', 'Tests:       12 passed, 12 total'],
+    ['after an echo', 'echo start && npm test', 'Tests:       12 passed, 12 total'],
+    ['piped to tail', 'npm test 2>&1 | tail -5', 'Tests:       12 passed, 12 total'],
   ]
   const fails: [string, string, string][] = [
     ['jest failure', 'npx jest', 'Tests:       1 failed, 11 passed, 12 total'],
@@ -196,6 +238,13 @@ describe('the test-run detector', () => {
     ['a build', 'npm run build', 'built in 1.2s'],
     ['reading a log', 'cat ci.log', 'Tests:       12 passed, 12 total'],
     ['grepping a log', 'grep passed ci.log', '============ 12 passed in 0.34s ============'],
+    ['a log after a cd', 'cd app && cat ci.log', 'Tests:       12 passed, 12 total'],
+    ['a CI log', 'gh run view 123 --log', 'Tests:       12 passed, 12 total'],
+    ['container logs', 'docker logs api', '============ 12 passed in 0.34s ============'],
+    ['compose logs', 'docker compose logs web', 'Tests:       12 passed, 12 total'],
+    ['kubectl logs', 'kubectl logs pod/api', 'test result: ok. 7 passed; 0 failed'],
+    ['a log piped along', 'cat ci.log | grep Tests', 'Tests:       12 passed, 12 total'],
+    ['nextest failure', 'cargo nextest run', 'Summary [ 1.2s] 10 tests run: 9 passed, 1 failed'],
   ]
   for (const [name, command, output] of passes) {
     test(`passes: ${name}`, () => expect(detectTestPass(command, output), name).toBe(true))
@@ -225,6 +274,27 @@ describe('names', () => {
       expect('name' in result ? result.name : undefined).toBe(want)
     })
   }
+})
+
+describe('drawing outside text safely', () => {
+  const table: [string, string][] = [
+    ['plain', 'plain'],
+    ['\u001b[31mred\u001b[0m', 'red'],
+    ['title\u001b]0;hi\u0007done', 'titledone'],
+    ['bell\u0007', 'bell\ufffd'],
+    ['nul\u0000del\u007f', 'nul\ufffddel\ufffd'],
+    ['next line\u0085csi\u009b', 'next line\ufffdcsi\ufffd'],
+    ['tab\there', 'tab\ufffdhere'],
+  ]
+  for (const [raw, want] of table) {
+    test(`safeText ${JSON.stringify(raw)}`, () => expect(safeText(raw)).toBe(want))
+  }
+  test('safeText caps the length', () => {
+    expect(safeText('x'.repeat(50), 10)).toBe(`${'x'.repeat(9)}.`)
+  })
+  test('a name keeps its letters when escapes are pasted in', () => {
+    expect(cleanName('\u001b[1mPip\u001b[0m\u0007')).toEqual({ name: 'Pip' })
+  })
 })
 
 describe('cards', () => {
@@ -258,7 +328,8 @@ describe('cards', () => {
   test('the stat card says everything /pet promises', () => {
     const text = statText({ ...hatched(320, 'foldling', false), toolCalls: 512, testsPassed: 4 }, T0 + 86_400_000)
     expect(text).toBe(
-      'Pip the Foldling\nrare - teen - not shiny\nXP 320 - 480 more to adult\n2 days together - 512 tool calls - 4 test runs cheered',
+      'Pip the Foldling\nrare - teen - not shiny\nXP 320 - 480 more to adult\n2 days together - 512 tool calls - 4 test runs cheered\n' +
+        "Folded from a page of someone else's notes.",
     )
   })
 })

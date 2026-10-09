@@ -30,6 +30,11 @@ export type HatchlingPet = {
   bornAt: number
   /** Tool calls seen while still an egg; it hatches at 25. */
   eggCalls: number
+  /**
+   * Four random u32s saved with the egg. The hatch roll reads these, so two
+   * sessions that hatch the egg at the same moment hatch the same pet.
+   */
+  seed?: number[]
   /** Chosen with /pet name, or picked at hatch. */
   name?: string
   hatch?: HatchlingRoll

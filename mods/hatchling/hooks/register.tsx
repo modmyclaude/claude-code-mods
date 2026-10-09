@@ -20,12 +20,14 @@ import {
   cleanName,
   cryptoU32,
   detectTestPass,
+  newSeed,
   HATCH_AT,
   nameOf,
   normalizePet,
   parseCard,
   progressOf,
   rarityOf,
+  safeText,
   stageOf,
   statText,
   TEEN_XP,
@@ -37,8 +39,8 @@ import { RARITY_COLOR } from './sprites'
 const STORE_KEY = 'pet'
 const FRAME_MS = 300
 const SLEEP_MS = 5 * 60_000
-/** A turn that never reported its end stops the working loop after 10 min. */
-const STALL_TICKS = Math.round((10 * 60_000) / FRAME_MS)
+/** A turn that never reported its end stops the working loop after an hour. */
+const STALL_TICKS = Math.round((60 * 60_000) / FRAME_MS)
 
 /** Ticks each mood plays before settling (sleep: the doze-off, then still). */
 const DURATION: Readonly<Record<HatchlingMood, number>> = {
@@ -59,18 +61,12 @@ const workingState = atom({ plugin: 'hatchling', key: 'working' } as const, fals
 type $ = EngineInterface
 type Tags = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
-const HELP = [
-  '/pet             stat card',
-  '/pet name <name> rename your pet (or the egg, before it hatches)',
-  '/pet hide        hide the band   /pet show  bring it back',
-  '/pet card        a small text card to copy and share',
-].join('\n')
+const HELP = 'Try /pet, /pet name <name>, /pet hide, /pet show or /pet card.'
 
 // The only module state: the two timers and what schedules them. A reload
 // drops them with the old environment, which is what we want.
 let ticker: Timer | undefined
 let sleeper: Timer | undefined
-let isInteractive = true
 let quietTicks = 0
 let tickerSeq = 0
 let sleepSeq = 0
@@ -102,6 +98,15 @@ function same(pet: HatchlingPet): Change {
 
 // ------------------------------------------------------------ timers
 
+/**
+ * True while a surface that draws the band is attached. Not isInteractive:
+ * that is false under the SDK, which is how the desktop app runs a session.
+ */
+async function isDrawn($: $): Promise<boolean> {
+  const surfaces = await $.session.surfaces().catch(() => [])
+  return surfaces.some(surface => surface === 'terminal' || surface === 'desktop')
+}
+
 function stopTimers(): void {
   tickerSeq += 1
   sleepSeq += 1
@@ -117,9 +122,9 @@ async function syncTicker($: $) {
   const pet = await read($, petState)
   const anim = await read($, animState)
   const isWorking = await read($, workingState)
+  const drawn = await isDrawn($)
   if (seq !== tickerSeq) return // a newer call decides
-  const isOn =
-    isInteractive && pet !== null && !pet.hidden && (anim.left > 0 || (isWorking && anim.mood !== 'sleep'))
+  const isOn = drawn && pet !== null && !pet.hidden && (anim.left > 0 || (isWorking && anim.mood !== 'sleep'))
   if (isOn && ticker === undefined) ticker = $.clock.every(FRAME_MS, () => void step($))
   if (!isOn && ticker !== undefined) {
     ticker.cancel()
@@ -130,10 +135,16 @@ async function syncTicker($: $) {
 async function step($: $) {
   try {
     quietTicks += 1
-    if (quietTicks > STALL_TICKS) await update($, workingState, () => false)
+    if (quietTicks === STALL_TICKS) {
+      await update($, workingState, () => false)
+      await armSleep($)
+    }
     await update($, animState, anim => {
       const left = Math.max(0, anim.left - 1)
-      if (anim.left > 0 && left === 0 && anim.mood !== 'sleep') return { ...IDLE, tick: anim.tick + 1 }
+      const isSettling = anim.left > 0 && left === 0
+      // A mood settles to idle; the doze-off settles into plain sleep.
+      if (isSettling && anim.mood !== 'sleep') return { ...IDLE, tick: anim.tick + 1 }
+      if (isSettling) return { ...anim, tick: anim.tick + 1, left, line: '' }
       return { ...anim, tick: anim.tick + 1, left }
     })
     await syncTicker($)
@@ -149,7 +160,8 @@ async function armSleep($: $) {
   sleeper = undefined
   const pet = await read($, petState)
   const isWorking = await read($, workingState)
-  if (seq !== sleepSeq || !isInteractive || pet === null || pet.hidden || isWorking) return
+  const drawn = await isDrawn($)
+  if (seq !== sleepSeq || !drawn || pet === null || pet.hidden || isWorking) return
   sleeper = $.clock.after(SLEEP_MS, () => {
     sleeper = undefined
     void fallAsleep($)
@@ -178,8 +190,10 @@ async function touch($: $) {
 // ------------------------------------------------------------ moods
 
 async function setMood($: $, mood: HatchlingMood, line: string, from?: HatchlingStage) {
+  // Only a mood that is really playing (its timer running) holds its place,
+  // so a mood set where nothing draws can never freeze the band later.
   await update($, animState, anim =>
-    anim.left > 0 && PRIORITY[mood] < PRIORITY[anim.mood]
+    anim.left > 0 && ticker !== undefined && PRIORITY[mood] < PRIORITY[anim.mood]
       ? anim
       : { mood, tick: 0, left: DURATION[mood], line, ...(from === undefined ? {} : { from }) },
   )
@@ -215,7 +229,6 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     stopTimers()
-    isInteractive = e.isInteractive
     await $.command.register({
       name: 'pet',
       description: 'Your pixel pet: stats, name, hide, show, share card',
@@ -223,8 +236,9 @@ export const register: Register = on => {
       immediate: true,
     })
     try {
-      // First run: this saves a fresh egg. Later runs: this loads the saved pet.
-      await commit($, same)
+      // First run: this saves a fresh egg with its hatch seed, so every open
+      // session rolls the same pet. Later runs: this loads the saved pet.
+      await commit($, pet => same(pet.hatch !== undefined || pet.seed !== undefined ? pet : { ...pet, seed: newSeed() }))
       await update($, animState, () => IDLE)
       await update($, workingState, () => false)
       await touch($)
@@ -237,6 +251,30 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     if (e.reason !== 'clear') stopTimers()
     return next(e)
+  })
+
+  // The desktop app attaches its client after the session starts, and may
+  // come and go: timers follow whether anything draws the band.
+  on('session.attach', async ($, e, next) => {
+    const attached = await next(e)
+    try {
+      await touch($)
+      await syncTicker($)
+    } catch {
+      // The next event starts them instead.
+    }
+    return attached
+  })
+
+  on('session.detach', async ($, e, next) => {
+    const detached = await next(e)
+    try {
+      await syncTicker($)
+      await armSleep($)
+    } catch {
+      // The next event stops them instead.
+    }
+    return detached
   })
 
   on('turn.start', async ($, e, next) => {
@@ -282,6 +320,8 @@ export const register: Register = on => {
 
   // ------------------------------------------------------------ /pet
 
+  // /pet and /pet card answer with text (their rows draw the pet). The rest
+  // answer with a toast and no text, so the model never reads them.
   on('command.run', { command: 'pet' }, async ($, e) => {
     const args = e.args.trim()
     const verb = (args.split(/\s+/)[0] ?? '').toLowerCase()
@@ -296,23 +336,30 @@ export const register: Register = on => {
     }
     if (verb === 'name') {
       const result = cleanName(args.slice(verb.length))
-      if ('error' in result) return { text: result.error }
+      if ('error' in result) {
+        $.ui.toast(result.error)
+        return {}
+      }
       const { pet } = await commit($, pet => same({ ...pet, name: result.name }))
-      return { text: pet.hatch === undefined ? `The egg will hatch as ${result.name}.` : `Your pet is now called ${result.name}.` }
+      $.ui.toast(pet.hatch === undefined ? `The egg will hatch as ${result.name}.` : `Your pet is now called ${result.name}.`)
+      return {}
     }
     if (verb === 'hide') {
       const { pet } = await commit($, pet => same({ ...pet, hidden: true }))
       stopTimers()
-      return { text: `${nameOf(pet)} is hidden. /pet show brings the band back.` }
+      $.ui.toast(`${nameOf(pet)} is hidden. /pet show brings the band back.`)
+      return {}
     }
     if (verb === 'show') {
       const { pet } = await commit($, pet => same({ ...pet, hidden: false }))
       await update($, animState, () => IDLE)
       await touch($)
       await syncTicker($)
-      return { text: `${nameOf(pet)} is back above your prompt.` }
+      $.ui.toast(`${nameOf(pet)} is back above your prompt.`)
+      return {}
     }
-    return { text: HELP }
+    $.ui.toast(HELP)
+    return {}
   })
 
   // ------------------------------------------------------------ drawing
@@ -328,8 +375,9 @@ export const register: Register = on => {
     const accent = accentOf(pet)
     const line = anim.line !== '' ? anim.line : idleLine(pet, anim.mood, isWorking)
     const { Box, Text } = $.ui.resolve(e)
-    // Other mods share this band: the pet draws on top of what they draw,
-    // never in place of it.
+    // Other mods share this band. Their part comes first and the pet after:
+    // a band taller than its rows scrolls its end out of view, and a
+    // decorative pet must never push another mod's buttons out of sight.
     const below = await next(e)
 
     // Too narrow or too short for the sprite: one line instead.
@@ -337,13 +385,13 @@ export const register: Register = on => {
     if (width < frame.w + 20 || e.props.maxRows < cells.length) {
       return (
         <Box flexDirection="column">
+          {below}
           <Box key="band">
             <Text wrap="truncate-end">
               <Text color={accent}>{bar(progressOf(pet), 5)}</Text>
               {` ${line}`}
             </Text>
           </Box>
-          {below}
         </Box>
       )
     }
@@ -357,6 +405,7 @@ export const register: Register = on => {
     const barWidth = Math.max(6, Math.min(16, width - frame.w - 16))
     return (
       <Box flexDirection="column">
+        {below}
         <Box key="band" flexDirection="row" gap={2} alignItems="center">
           {sprite}
           <Box key="info" flexDirection="column">
@@ -378,7 +427,6 @@ export const register: Register = on => {
             </Text>
           </Box>
         </Box>
-        {below}
       </Box>
     )
   })
@@ -390,7 +438,13 @@ export const register: Register = on => {
     if (info === undefined || e.props.isErrored) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
     const blank = e.surface === 'terminal' ? ' ' : '\u00a0'
-    const body = e.props.text.replace(/^```\n?/, '').replace(/\n?```\s*$/, '')
+    // The row's text is ours, but it is drawn, so it is drawn safe.
+    const body = e.props.text
+      .replace(/^```\n?/, '')
+      .replace(/\n?```\s*$/, '')
+      .split('\n')
+      .map(line => safeText(line, 400))
+      .join('\n')
 
     if (e.props.args.trim().toLowerCase() === 'card') {
       // Draw exactly what Copy puts on the clipboard, in the theme's own text
