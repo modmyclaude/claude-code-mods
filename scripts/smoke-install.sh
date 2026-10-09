@@ -6,6 +6,13 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 CC="${CLAUDE_BIN:-claude}"
+# Mods need Claude Code 2.1.287+: say so plainly instead of failing on an unknown option.
+min=2.1.287
+ver="$("$CC" --version 2>/dev/null | awk '{print $1}')"
+if [ -z "$ver" ] || [ "$(printf '%s\n%s\n' "$min" "$ver" | sort -V | head -1)" != "$min" ]; then
+  echo "!! $CC is Claude Code ${ver:-not found}; mods need $min or newer. Run claude update, or set CLAUDE_BIN."
+  exit 1
+fi
 REPO="$PWD"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/mod-smoke.XXXXXX")" || { echo "!! mktemp failed"; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
