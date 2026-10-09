@@ -102,6 +102,29 @@ export function shareCard(stats: Stats, day: string): string {
 /** The two movement cards. */
 export const CARD_TEXT: Readonly<Record<'stand' | 'squats', string>> = { stand: 'Stand up and stretch', squats: '10 squats' }
 
+// OSC (ESC ] or C1 U+009D, to BEL or ST), CSI (ESC [ or C1 U+009B), then any other escape.
+const ANSI =
+  /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u009d[^\u0007\u001b\u009c]*(?:\u0007|\u009c|\u001b\\)?|\u001b\[[0-?]*[ -/]*[@-~]|\u009b[0-?]*[ -/]*[@-~]|\u001b[ -/]*[0-~]?/g
+const BREAKS = /\r\n?|[\n\t\u2028\u2029]/g
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g
+// Zero-width, bidi overrides and isolates, invisible fillers, tag characters, variation selectors.
+const INVISIBLE =
+  /[\u00ad\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu
+
+/**
+ * Untrusted text made safe to show on one line (API-GOTCHAS #31). Everything
+ * the band, spinner and status line draw is Second Wind's own words and
+ * numbers; the one thing it repeats from outside is a word typed after
+ * /breathe. ANSI sequences go, line breaks and tabs become spaces, any other
+ * C0, DEL or C1 becomes U+FFFD, invisible or bidi characters go.
+ */
+export function clean(text: string): string {
+  return text.replace(ANSI, '').replace(BREAKS, ' ').replace(CONTROL, '\uFFFD').replace(INVISIBLE, '')
+}
+
+/** What /breathe answers to a word it does not know. */
+export const unknownWord = (word: string): string => `Second Wind does not know "${clean(word)}". ${USAGE}`
+
 /** The prompt box's text after one edit, from the splice `prompt.edit` carries. */
 export const draftAfter = (e: { text: string; start: number; end: number; inputText: string }): string =>
   e.text.slice(0, e.start) + e.inputText + e.text.slice(e.end)
