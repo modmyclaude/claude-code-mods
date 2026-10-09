@@ -3,13 +3,14 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { HatchlingPet } from '../types'
+import type { HatchlingKind, HatchlingPet } from '../types'
 import { drawFrame, monoLines, moodArt, rasterCells, rasterText, toCells } from '../hooks/art'
 import { BOLT_PALETTE, boltCells } from '../hooks/bolt'
 import {
   ADULT_XP,
   applyToolCall,
   applyTurn,
+  BOLT_ODDS,
   cardText,
   cleanName,
   detectTestPass,
@@ -24,7 +25,7 @@ import {
   statText,
   TEEN_XP,
 } from '../hooks/pet'
-import { CANVAS, MOODS, SPECIES } from '../hooks/sprites'
+import { BOLT_MOODS, CANVAS, MOODS, SPECIES } from '../hooks/sprites'
 
 const T0 = Date.UTC(2026, 9, 1)
 const STAGES = ['baby', 'teen', 'adult'] as const
@@ -39,12 +40,27 @@ function replay(values: readonly number[]): () => number {
   }
 }
 
+/** mulberry32: a small deterministic generator, so the statistical tests never flake. */
+function seeded(start: number): () => number {
+  let state = start >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return (t ^ (t >>> 14)) >>> 0
+  }
+}
+
+/** A first seed number whose low 26 bits land in their top hundredth: the secret Bolt. */
+const BOLT_FIRST = 0x3ffffff
+
 /** A random source that must never be asked: proves no roll happens. */
 function forbidden(): number {
   throw new Error('rolled again')
 }
 
-function hatched(xp: number, species = SPECIES[0]!.id, shiny = false): HatchlingPet {
+function hatched(xp: number, species: HatchlingKind = SPECIES[0]!.id, shiny = false): HatchlingPet {
   return { ...freshPet(T0), eggCalls: HATCH_AT, hatch: { species, shiny, at: T0 }, name: 'Pip', xp }
 }
 
@@ -87,28 +103,56 @@ describe('the hatch roll', () => {
   })
 
   test('with ordinary random numbers the odds come out right (seeded, 256,000 rolls)', () => {
-    // mulberry32: a small deterministic generator, so this test never flakes.
-    let state = 0x2545f491
-    const next = () => {
-      state = (state + 0x6d2b79f5) >>> 0
-      let t = state
-      t = Math.imul(t ^ (t >>> 15), t | 1)
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-      return (t ^ (t >>> 14)) >>> 0
-    }
+    const next = seeded(0x2545f491)
     const n = 256_000
-    const rarity: Record<string, number> = { common: 0, uncommon: 0, rare: 0, legendary: 0 }
+    const rarity: Record<string, number> = { common: 0, uncommon: 0, rare: 0, legendary: 0, secret: 0 }
     let shiny = 0
     for (let i = 0; i < n; i += 1) {
       const roll = rollHatch(next)
       rarity[rarityOf(roll.species)] = (rarity[rarityOf(roll.species)] ?? 0) + 1
       if (roll.shiny) shiny += 1
     }
-    // Within 5 standard deviations of 1 in 64, and of 36/18/8/2 in 64.
-    const near = (count: number, p: number) => Math.abs(count - n * p) < 5 * Math.sqrt(n * p * (1 - p))
-    expect(near(shiny, 1 / 64), `shiny ${shiny}`).toBe(true)
-    expect(near(rarity.common ?? 0, 36 / 64) && near(rarity.uncommon ?? 0, 18 / 64)).toBe(true)
-    expect(near(rarity.rare ?? 0, 8 / 64) && near(rarity.legendary ?? 0, 2 / 64)).toBe(true)
+    // Within 5 standard deviations: Bolt 1 in 100; the species odds (36/18/8/2 in 64)
+    // and shiny (1 in 64) apply to the other 99 eggs in 100.
+    const near = (count: number, p: number, of = n) => Math.abs(count - of * p) < 5 * Math.sqrt(of * p * (1 - p))
+    const species = n - (rarity.secret ?? 0)
+    expect(near(rarity.secret ?? 0, 1 / BOLT_ODDS), `bolt ${rarity.secret}`).toBe(true)
+    expect(near(shiny, 1 / 64, species), `shiny ${shiny}`).toBe(true)
+    expect(near(rarity.common ?? 0, 36 / 64, species) && near(rarity.uncommon ?? 0, 18 / 64, species)).toBe(true)
+    expect(near(rarity.rare ?? 0, 8 / 64, species) && near(rarity.legendary ?? 0, 2 / 64, species)).toBe(true)
+  })
+
+  test('1 egg in 100 hatches the secret Bolt, read from its seed: the same every time, saved, never shiny', () => {
+    const hatch = (seed: number[], u32: () => number = forbidden) =>
+      applyToolCall({ ...freshPet(T0), eggCalls: 24, seed }, { hasPassedTests: false }, T0, u32).pet
+    // The seed decides, whatever else is random: the same egg hatches the same way in every session.
+    const bolt = hatch([BOLT_FIRST, 0, 0xffffffff, 0])
+    expect(bolt.hatch).toEqual({ species: 'bolt', shiny: false, at: T0 })
+    expect(bolt.name).toBe('Pip')
+    expect(hatch([BOLT_FIRST, 7, 99, 5], () => 0).hatch?.species).toBe('bolt')
+    expect(hatch([BOLT_FIRST - 671_088, 0, 0xffffffff, 0]).hatch?.species).toBe('pebblet')
+    // Saved, it loads as Bolt and never rolls again.
+    let pet = normalizePet(JSON.parse(JSON.stringify(bolt)), T0)
+    for (let call = 0; call < 300; call += 1) pet = applyToolCall(pet, { hasPassedTests: false }, T0, forbidden).pet
+    expect(pet.hatch).toEqual({ species: 'bolt', shiny: false, at: T0 })
+    // Never shiny: not when the seed's shiny draw hits, not when a store says so.
+    expect(hatch([BOLT_FIRST, 0, 0, 0]).hatch?.shiny).toBe(false)
+    expect(hatch([0, 0, 0, 0]).hatch).toEqual({ species: 'pebblet', shiny: true, at: T0 })
+    expect(normalizePet({ hatch: { species: 'bolt', shiny: true, at: 5 } }, T0).hatch).toEqual({ species: 'bolt', shiny: false, at: 5 })
+    // Over many seeds about 1 in 100 (within 5 standard deviations), each the same on a second hatch.
+    const next = seeded(0x51ed270b)
+    const n = 20_000
+    let bolts = 0
+    for (let i = 0; i < n; i += 1) {
+      const seed = [next(), next(), next(), next()]
+      const once = hatch(seed)
+      expect(hatch(seed, next).hatch).toEqual(once.hatch)
+      if (once.hatch?.species === 'bolt') {
+        bolts += 1
+        expect(once.hatch.shiny).toBe(false)
+      }
+    }
+    expect(Math.abs(bolts - n / BOLT_ODDS), `bolts ${bolts}`).toBeLessThan(5 * Math.sqrt((n / BOLT_ODDS) * (1 - 1 / BOLT_ODDS)))
   })
 
   test('an egg with a seed always hatches the same pet, whatever else is random', () => {
@@ -334,6 +378,19 @@ describe('cards', () => {
     expect(parseCard('Your pet is now called Pip.')).toBeUndefined()
   })
 
+  test('the secret Bolt has its own cards: rarity "secret", never shiny, the stage still grows', () => {
+    for (const [stage, xp] of [['baby', 0], ['teen', 300], ['adult', 900]] as const) {
+      const pet = hatched(xp, 'bolt')
+      const want = { stage, species: 'bolt', shiny: false, eggCalls: HATCH_AT }
+      expect(parseCard(statText(pet, T0)), stage).toEqual(want)
+      expect(parseCard(cardText(pet, T0)), stage).toEqual(want)
+      for (const line of cardText(pet, T0).split('\n')) expect([...line].length).toBe(30)
+    }
+    expect(statText(hatched(320, 'bolt'), T0)).toBe(
+      "Pip the Bolt\nsecret - teen - not shiny\nXP 320 - 480 more to adult\n1 day together - 0 tool calls - 0 test runs cheered\nIt was Bolt's egg all along.",
+    )
+  })
+
   test('the share card fits about 30 x 12 and is plain characters', () => {
     for (const art of SPECIES) {
       for (const pet of [hatched(0, art.id), hatched(900, art.id, true), { ...hatched(900, art.id), name: 'Sixteen Letters!'.slice(0, 16) }]) {
@@ -374,6 +431,74 @@ describe('the art', () => {
     }
   })
 
+  test('every species reads clean at every stage: eyes inside the body, no stray pixels, a top-left highlight', () => {
+    for (const art of SPECIES) {
+      for (const stage of STAGES) {
+        const rows = art[stage]
+        const at = (x: number, y: number) => rows[y]?.[x] ?? '.'
+        const drawn = (x: number, y: number) => at(x, y) !== '.'
+        rows.forEach((row, y) => [...row].forEach((letter, x) => {
+          const label = `${art.id} ${stage} ${letter} at ${x},${y}`
+          if (letter === '.') return
+          // No pixel stands alone: each touches another, at least on a corner.
+          const around = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+          expect(around.some(([dx, dy]) => drawn(x + dx!, y + dy!)), label).toBe(true)
+          // An eye is two pixels, upper over lower, with body on every side.
+          if (letter === 'E') expect(at(x, y + 1), label).toBe('e')
+          if (letter === 'E' || letter === 'e') {
+            expect([[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => drawn(x + dx!, y + dy!)), label).toBe(true)
+          }
+        }))
+        // The 1-2 px highlight (c or w) sits in the upper left of the drawing.
+        const lit = rows.flatMap((row, y) => [...row].flatMap((letter, x) => ('cw'.includes(letter) ? [[x, y]] : [])))
+        const width = rows[0]?.length ?? 0
+        expect(lit.some(([x, y]) => x! < width / 2 && y! < rows.length / 2), `${art.id} ${stage} highlight`).toBe(true)
+      }
+    }
+  })
+
+  test('the secret Bolt is drawn in its own poses, the same at every stage and never in another palette', () => {
+    const bolt = (stage: 'baby' | 'teen' | 'adult', mood: Parameters<typeof drawFrame>[1], tick = 0, isWorking = false, shiny = false) =>
+      toCells(drawFrame({ stage, species: 'bolt', shiny, eggCalls: HATCH_AT }, mood, tick, isWorking))
+    // Teen and adult canvases are wider and taller: the same Bolt, framed in blank cells.
+    const trimmed = (cells: ReturnType<typeof toCells>) => {
+      const used = cells.filter(line => line.some(cell => cell.ch !== ' '))
+      const cols = [...Array(used[0]?.length ?? 0).keys()].filter(c => used.some(line => line[c]?.ch !== ' '))
+      return used.map(line => line.slice(cols[0], (cols[cols.length - 1] ?? 0) + 1))
+    }
+    const moods: [Parameters<typeof drawFrame>[1], boolean, number, 'idle' | 'jump' | 'sweat' | 'cheer' | 'sleep'][] = [
+      ['idle', false, 0, 'idle'], // at rest
+      ['idle', true, 3, 'idle'], // watching Claude work
+      ['happy', false, 0, 'jump'], // the bounce on a good tool call
+      ['happy', false, 1, 'idle'],
+      ['sweat', false, 0, 'sweat'], // a failed tool call
+      ['sweat', false, 2, 'sweat'],
+      ['cheer', false, 0, 'cheer'], // passing tests
+      ['evolve', false, 0, 'cheer'], // a stage-up
+      ['sleep', false, 0, 'sleep'], // 5 quiet minutes
+      ['sleep', false, 3, 'sleep'],
+    ]
+    for (const [mood, isWorking, tick, pose] of moods) {
+      for (const stage of STAGES) {
+        const want = boltCells('small', pose)
+        const got = bolt(stage, mood, tick, isWorking)
+        expect(stage === 'baby' ? got : trimmed(got), `${stage} ${mood} ${tick}`).toEqual(want)
+        expect(bolt(stage, mood, tick, isWorking, true), `${stage} ${mood} shiny`).toEqual(got)
+      }
+    }
+    // Every pose Bolt's moods use is one of those five.
+    for (const art of Object.values(BOLT_MOODS)) {
+      for (const pose of art.frames) expect(['idle', 'jump', 'sweat', 'cheer', 'sleep']).toContain(pose)
+    }
+    // Hatching: the egg, the lid lifting, then Bolt cheering among its shell.
+    const hatching = (tick: number) => toCells(drawFrame({ stage: 'baby', species: 'bolt', shiny: false, eggCalls: HATCH_AT }, 'hatch', tick, false))
+    expect(hatching(0)).toEqual(boltCells('small', 'egg-crack-3'))
+    expect(hatching(4)).toEqual(boltCells('small', 'egg-hatch'))
+    const hatched = hatching(6)
+    expect(hatched.map(line => line.slice(2, 8))).toEqual(boltCells('small', 'cheer').map(line => line.slice(2, 8)))
+    expect(hatched[4]?.[0]?.fg).toBe(BOLT_PALETTE.B)
+  })
+
   test('each mood has 2 or 3 frames, and the frames really differ', () => {
     for (const mood of ['working', 'happy', 'sweat', 'cheer', 'sleep'] as const) {
       expect(MOODS[mood].frames.length >= 2 && MOODS[mood].frames.length <= 3, mood).toBe(true)
@@ -410,20 +535,23 @@ describe('the art', () => {
     expect(monoLines(frame).every(line => line.length === CANVAS.adult.w)).toBe(true)
   })
 
-  test("the egg is Bolt's egg: it leans with the wobble, cracks at 15 and 21 calls, and lifts its lid to hatch", () => {
+  test("the egg is Bolt's egg: it leans with the wobble, cracks at 25, 50 and 75%, and lifts its lid to hatch", () => {
     const egg = (calls: number, isWorking = false, tick = 0) =>
       toCells(drawFrame({ stage: 'egg', shiny: false, eggCalls: calls }, 'idle', tick, isWorking))
-    expect(egg(0)).toEqual(boltCells('small', 'egg'))
-    expect(egg(14)).toEqual(boltCells('small', 'egg'))
-    expect(egg(15)).toEqual(boltCells('small', 'egg-crack-1'))
-    expect(egg(20)).toEqual(boltCells('small', 'egg-crack-1'))
-    expect(egg(21)).toEqual(boltCells('small', 'egg-crack-2'))
-    expect(egg(24)).toEqual(boltCells('small', 'egg-crack-2'))
+    // Each crack from its fraction of the 25 calls: 7 (25%), 13 (50%) and 19 (75%).
+    const stages: [number, 'egg' | 'egg-crack-1' | 'egg-crack-2' | 'egg-crack-3'][] = [
+      [0, 'egg'], [6, 'egg'], [7, 'egg-crack-1'], [12, 'egg-crack-1'],
+      [13, 'egg-crack-2'], [18, 'egg-crack-2'], [19, 'egg-crack-3'], [24, 'egg-crack-3'],
+    ]
+    for (const [calls, pose] of stages) expect(egg(calls), `${calls} calls`).toEqual(boltCells('small', pose))
+    expect(HATCH_AT).toBe(25)
     // The wobble keeps its frames and cadence (2 ticks each): upright, lean left, upright, lean right.
     const wobble = ['egg', 'egg', 'egg-wobble-l', 'egg-wobble-l', 'egg', 'egg', 'egg-wobble-r', 'egg-wobble-r'] as const
     wobble.forEach((pose, tick) => expect(egg(3, true, tick), `tick ${tick}`).toEqual(boltCells('small', pose)))
     // Bolt has no cracked lean: a cracked egg keeps its crack on every frame.
-    for (let tick = 0; tick < 8; tick += 1) expect(egg(20, true, tick), `tick ${tick}`).toEqual(boltCells('small', 'egg-crack-1'))
+    for (const [calls, pose] of [[7, 'egg-crack-1'], [13, 'egg-crack-2'], [19, 'egg-crack-3']] as const) {
+      for (let tick = 0; tick < 8; tick += 1) expect(egg(calls, true, tick), `${calls} calls, tick ${tick}`).toEqual(boltCells('small', pose))
+    }
     // Hatching: the last crack for two frames, the lid lifting off, then the pet.
     const hatching = (tick: number) => toCells(drawFrame({ stage: 'baby', species: 'geobug', shiny: false, eggCalls: HATCH_AT }, 'hatch', tick, false))
     const hatch = ['egg-crack-3', 'egg-crack-3', 'egg-crack-3', 'egg-crack-3', 'egg-hatch', 'egg-hatch'] as const

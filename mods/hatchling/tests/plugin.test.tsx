@@ -230,10 +230,11 @@ describe('first run and hatching', () => {
     await bash($, 'ls')
     const hatch = pet(w).hatch
     expect(hatch).toBeDefined()
-    expect(['pebblet', 'fluffle', 'coilsnail', 'nimbit', 'lampwing', 'foldling', 'geobug', 'starwhelp']).toContain(hatch?.species)
+    // The egg's seed is random here, so this may be the 1-in-100 secret Bolt.
+    expect(['pebblet', 'fluffle', 'coilsnail', 'nimbit', 'lampwing', 'foldling', 'geobug', 'starwhelp', 'bolt']).toContain(hatch?.species)
     expect(pet(w).xp).toBe(0)
     expect(w.toasts).toHaveLength(1)
-    expect(w.toasts[0]).toMatch(/^Your egg hatched! Meet \S+, an? (shiny )?(common|uncommon|rare|legendary) \w+\.$/)
+    expect(w.toasts[0]).toMatch(/^Your egg hatched! Meet \S+, an? (shiny )?(common|uncommon|rare|legendary|secret) \w+\.$/)
     for (const surface of SURFACES) {
       const ui = await band($, surface)
       expect(await shown(ui)).toMatch(/Crack! \S+ hatched/)
@@ -1028,9 +1029,10 @@ describe('verify follow-ups', () => {
   })
 })
 
-describe("Bolt's egg, and the desktop's cell grid", () => {
+describe("Bolt's egg, the secret Bolt, and the desktop's cell grid", () => {
   // The egg is Bolt's (MM-091): `egg`, leaning with the wobble while Claude works,
-  // cracked from 15 calls, and lifting its lid as it hatches. A Raster on the terminal;
+  // cracking at a quarter, half and three quarters of the way (MM-093), and lifting its
+  // lid as it hatches. 1 egg in 100 hatches Bolt itself. A Raster on the terminal;
   // on the desktop, like every hatchling sprite, one code-font cell per character so
   // rows never drift (MM-084).
   type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
@@ -1056,7 +1058,8 @@ describe("Bolt's egg, and the desktop's cell grid", () => {
   }
   const EGG: BoltPick = { size: 'small', pose: 'egg' }
   const CRACK: BoltPick = { size: 'small', pose: 'egg-crack-1' }
-  const pick = (pose: 'egg-wobble-l' | 'egg-wobble-r' | 'egg-crack-3' | 'egg-hatch'): BoltPick => ({ size: 'small', pose })
+  type Pose = 'egg-wobble-l' | 'egg-wobble-r' | 'egg-crack-2' | 'egg-crack-3' | 'egg-hatch' | 'idle' | 'jump' | 'sweat' | 'cheer' | 'sleep'
+  const pick = (pose: Pose): BoltPick => ({ size: 'small', pose })
   /** Every desktop sprite row: a no-wrap row of Boxes one cell wide, each holding at most one character. */
   const gridOf = (found: Drawn | undefined) =>
     ((found?.children ?? []) as Drawn[]).map(row => {
@@ -1067,7 +1070,7 @@ describe("Bolt's egg, and the desktop's cell grid", () => {
       return isGrid ? cells.length : -1
     })
 
-  test("the egg is Bolt's egg on both surfaces, cracked from 15 calls, and the info beside it is unchanged", async ($, on) => {
+  test("the egg is Bolt's egg on both surfaces, cracked from 7 calls (a quarter), and the info beside it is unchanged", async ($, on) => {
     const w = world(on)
     await start($)
     for (const surface of SURFACES) {
@@ -1077,18 +1080,152 @@ describe("Bolt's egg, and the desktop's cell grid", () => {
       expect(await shown(ui)).toContain('Something stirs inside the egg')
       await ui.unmount()
     }
-    await bash($, 'ls', 14)
+    await bash($, 'ls', 6)
     const still = await band($, 'desktop')
     expect(drawnBolt(await still.find({ key: 'sprite' }))).toEqual(boltAs('desktop', EGG))
     await still.unmount()
     await bash($, 'ls')
-    expect(pet(w).eggCalls).toBe(15)
+    expect(pet(w).eggCalls).toBe(7)
     for (const surface of SURFACES) {
       const ui = await band($, surface)
       expect(drawnBolt(await ui.find({ key: 'sprite' })), surface).toEqual(boltAs(surface, CRACK))
-      expect(await shown(ui)).toContain('15/25 to hatch')
+      expect(await shown(ui)).toContain('7/25 to hatch')
       await ui.unmount()
     }
+    // Half way (13 calls) the second crack, three quarters (19) the third.
+    for (const [calls, crack] of [[13, 'egg-crack-2'], [19, 'egg-crack-3']] as const) {
+      await bash($, 'ls', calls - 1 - pet(w).eggCalls)
+      expect(drawnBolt(await (await band($, 'desktop')).find({ key: 'sprite' })), `${calls - 1} calls`).not.toEqual(boltAs('desktop', pick(crack)))
+      await bash($, 'ls')
+      for (const surface of SURFACES) {
+        const ui = await band($, surface)
+        expect(drawnBolt(await ui.find({ key: 'sprite' })), `${surface} ${calls} calls`).toEqual(boltAs(surface, pick(crack)))
+        await ui.unmount()
+      }
+    }
+  })
+
+  // An egg whose seed hatches the secret: the first number's low 26 bits in their top hundredth.
+  const BOLT_EGG = { v: 1, bornAt: T0 - DAY, eggCalls: 24, seed: [0x3ffffff, 0, 0, 0], xp: 0, hidden: false, toolCalls: 24, turns: 2, testsPassed: 0 }
+
+  test('1 egg in 100 hatches Bolt: the toast, the band and the /pet rows say so, and it is never shiny', async ($, on) => {
+    const w = world(on, { pet: BOLT_EGG })
+    await start($)
+    await bash($, 'ls')
+    // The seed's shiny draw would make a species shiny; Bolt never is.
+    expect(pet(w).hatch).toEqual({ species: 'bolt', shiny: false, at: T0 })
+    expect(w.toasts).toEqual(['Your egg hatched! Meet Pip, a secret Bolt.'])
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(await shown(ui)).toContain('Crack! Pip hatched - a secret Bolt')
+      await ui.unmount()
+    }
+    await w.clock.advance(20 * FRAME)
+    for (const surface of SURFACES) {
+      const ui = await band($, surface)
+      expect(drawnBolt(await ui.find({ key: 'sprite' })), surface).toEqual(boltAs(surface, pick('idle')))
+      expect(await shown(ui)).toContain('Pip  secret - baby')
+      expect(await shown(ui)).not.toContain('shiny')
+      await ui.unmount()
+    }
+    // /pet and /pet card show it, and their rows draw Bolt as it was.
+    const stats = (await petCommand($, '')).text ?? ''
+    expect(stats).toBe(
+      "Pip the Bolt\nsecret - baby - not shiny\nXP 0 - 200 more to teen\n2 days together - 25 tool calls - 0 test runs cheered\nIt was Bolt's egg all along.",
+    )
+    const card = (await petCommand($, 'card')).text ?? ''
+    expect(card).toContain('Pip the Bolt')
+    expect(card).toContain('secret - baby')
+    for (const surface of SURFACES) {
+      const row = await $.ui.mount({
+        plugin: 'hatchling', surface, component: 'CommandOutput',
+        props: { command: 'pet', args: '', text: stats, isErrored: false },
+      })
+      const portrait = (await row.find({ key: 'portrait' })) as Drawn | undefined
+      if (surface === 'desktop') expect(drawnBolt(portrait)).toEqual(boltAs('desktop', pick('idle')))
+      expect(await shown(row)).toContain('Pip the Bolt')
+      await row.unmount()
+    }
+  })
+
+  test("the secret Bolt reacts in Bolt's own poses, and keeps them as its stage text grows", async ($, on) => {
+    const w = world(on, { pet: savedPet({ hatch: { species: 'bolt', shiny: false, at: T0 - DAY } }) })
+    await start($)
+    const poses: [string, Pose, string][] = [
+      ['ls', 'jump', 'Pip bounces - Bash worked'],
+      ['fail now', 'sweat', 'Pip is sweating - Bash failed'],
+      ['npm test', 'cheer', 'Pip is cheering - tests passed'],
+    ]
+    for (const [command, pose, line] of poses) {
+      await bash($, command)
+      for (const surface of SURFACES) {
+        const ui = await band($, surface)
+        expect(drawnBolt(await ui.find({ key: 'sprite' })), `${surface} ${command}`).toEqual(boltAs(surface, pick(pose)))
+        expect(await shown(ui)).toContain(line)
+        await ui.unmount()
+      }
+      await w.clock.advance(20 * FRAME)
+    }
+    // A stage-up cheers too: a teen now, in text only; the art stays Bolt, framed in the wider canvas.
+    w.store.set('pet', { ...pet(w), xp: 199 })
+    await bash($, 'ls')
+    expect(w.toasts).toEqual(['Pip evolved into a teen!'])
+    const chars = (pose: Pose) => boltOf(pick(pose)).map(line => line.map(cell => cell.ch).join(''))
+    for (const [pose, wait] of [['cheer', 0], ['idle', 20 * FRAME]] as const) {
+      await w.clock.advance(wait)
+      const terminal = await band($, 'terminal')
+      expect(await shown(terminal)).toContain('secret - teen')
+      const rows = rasterText(String((await terminal.find({ key: 'sprite' }))?.props.cells), 12)
+      expect(rows.map(row => row.slice(1, 11)), pose).toEqual(chars(pose))
+      await terminal.unmount()
+      const desktop = await band($, 'desktop')
+      expect((drawnBolt(await desktop.find({ key: 'sprite' })) as string[][]).map(line => line.slice(1, 11)), pose).toEqual(boltAs('desktop', pick(pose)))
+      await desktop.unmount()
+    }
+    // 5 quiet minutes: asleep, in Bolt's own sleep pose (its light off, its own z).
+    await w.clock.advance(SLEEP + 10 * FRAME)
+    const asleep = await band($, 'desktop')
+    expect(await shown(asleep)).toContain('Pip is asleep')
+    expect((drawnBolt(await asleep.find({ key: 'sprite' })) as string[][]).map(line => line.slice(1, 11))).toEqual(boltAs('desktop', pick('sleep')))
+  })
+
+  /** Every Text in a drawn tree, with all the text beneath it and whether it sits in a one-cell Box. */
+  const texts = (node: unknown, inCell = false, out: { text: string; inCell: boolean }[] = []) => {
+    if (node === null || typeof node !== 'object') return out
+    const n = node as Drawn
+    const cell = inCell || (n.type === 'Box' && n.props?.width === 1)
+    if (n.type === 'Text') out.push({ text: textOf(n as RenderNode), inCell: cell })
+    for (const child of n.children ?? []) texts(child, cell, out)
+    return out
+  }
+  const GLYPH = /[\u2580-\u259f]/u
+
+  test('desktop: the progress bar is one-cell glyphs apart from the words, in every layout (MM-096)', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await bash($, 'ls', 16)
+    for (const saved of [undefined, savedPet({ xp: 120 })]) {
+      if (saved !== undefined) {
+        w.store.set('pet', saved)
+        await start($)
+      }
+      for (const props of [{}, { bodyColumns: 24 }]) {
+        const label = `${saved === undefined ? 'egg' : 'pet'} ${JSON.stringify(props)}`
+        const ui = await band($, 'desktop', props)
+        const all = texts(await ui.drawn())
+        // No desktop Text mixes glyphs with words: each glyph is alone in a one-cell Box.
+        for (const t of all.filter(one => GLYPH.test(one.text))) {
+          expect([...t.text].length, `${label}: ${t.text}`).toBe(1)
+          expect(t.inCell, `${label}: ${t.text}`).toBe(true)
+        }
+        expect(all.filter(one => /^[\u2588\u2591]$/.test(one.text)).length, label).toBeGreaterThanOrEqual(5)
+        expect(await shown(ui), label).toMatch(saved === undefined ? /[\u2588\u2591]+ (16\/25 to hatch|Something stirs inside the egg)/ : /[\u2588\u2591]+ (120\/200 XP|Pip is hanging out)/)
+        await ui.unmount()
+      }
+    }
+    // The terminal is unchanged: one Text holds the bar and its words.
+    const terminal = await band($, 'terminal')
+    expect(texts(await terminal.drawn()).some(t => /[\u2588\u2591]{6,} 120\/200 XP/.test(t.text))).toBe(true)
   })
 
   test("while Claude works the egg wobbles on its own timer through Bolt's upright and leaning poses", async ($, on) => {

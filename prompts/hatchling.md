@@ -19,8 +19,9 @@ Paste this into Claude Code to build it yourself, or install the finished mod fr
 Build me a Claude Code mod called "hatchling": a collectible pixel pet that lives above my prompt and grows as I work.
 
 What it does
-- On first run an egg appears in a small band above my prompt. It wobbles as Claude works and hatches after 25 tool calls.
+- On first run Bolt's egg appears in a small band above my prompt: the modmyclaude mascot's lime egg (copy its sprites from this repo's brand/bolt-sprites/bolt.ts). It wobbles as Claude works, shows a growing crack at 25%, 50% and 75% of the way, and hatches after 25 tool calls.
 - It hatches into one of 8 original species (design them yourself: no existing game characters, no mascots of real companies), each with a rarity (common, uncommon, rare, legendary) and a 1 in 64 chance of a shiny colour variant.
+- 1 egg in 100 hatches Bolt itself instead, a secret. Its rarity is "secret", it is never shiny, and it keeps Bolt's own poses at every stage (only the stage text grows). The species odds apply to the other 99 eggs in 100.
 - It reacts to what Claude does: bounces on successful tool calls, sweats when a tool call fails, cheers when a test run passes (Bash output that looks like a passing test run), and falls asleep after 5 minutes idle.
 - It gains XP from tool calls and finished turns and evolves twice (baby, teen, adult) with a short celebration and a toast.
 - The pet persists across sessions and projects.
@@ -32,7 +33,7 @@ Commands
 
 How it works
 - Draw the pet with text cells (block characters) so it works in the terminal and the desktop app. 2 to 3 animation frames per mood, animated with a timer only while something is happening.
-- All randomness (species, rarity, shiny) is decided once at hatch time and saved, so restarting never rerolls.
+- All randomness (species, rarity, shiny, the secret Bolt) comes from a seed saved with the egg and is decided once at hatch time, so restarting never rerolls and two sessions hatch the same pet.
 - Deterministic, no model calls, no files outside the mod's own store.
 
 Build rules

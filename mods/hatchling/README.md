@@ -13,8 +13,8 @@ A collectible pixel pet that hatches, reacts and evolves while you code.
 ## Use it
 
 An egg appears in a small band above your prompt: Bolt's egg, in the modmyclaude mascot's lime with
-its antenna light on. It wobbles while Claude works, cracks as it nears hatching and hatches after
-25 tool calls into one of 8 original species:
+its antenna light on. It wobbles while Claude works, cracks a little more at a quarter, half and three
+quarters of the way, and hatches after 25 tool calls into one of 8 original species, or something rarer:
 
 | Species | Rarity | Odds |
 | --- | --- | --- |
@@ -22,10 +22,11 @@ its antenna light on. It wobbles while Claude works, cracks as it nears hatching
 | Nimbit (a pocket raincloud), Lampwing (a moth with a glowing belly) | uncommon | 18 in 64 (28%) |
 | Foldling (a folded paper bird), Geobug (a beetle with a geode shell) | rare | 8 in 64 (12.5%) |
 | Starwhelp (a teacup-sized star dragon) | legendary | 2 in 64 (3%) |
+| ??? | secret | 1 in 100 |
 
-Any pet has a 1 in 64 chance to be shiny (another palette). The roll happens once, at hatch time, and
-is saved: restarting never rerolls. The egg carries its own random seed, so two sessions that hatch it
-at the same moment hatch the same pet.
+The species odds apply to the other 99 eggs in 100. Each species has a 1 in 64 chance to be shiny
+(another palette). The roll happens once, at hatch time, and is saved: restarting never rerolls. The
+egg carries its own random seed, so two sessions that hatch it at the same moment hatch the same pet.
 
 What it does while you work:
 

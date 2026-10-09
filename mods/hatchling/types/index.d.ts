@@ -11,13 +11,17 @@ export type HatchlingSpecies =
   | 'geobug'
   | 'starwhelp'
 
-export type HatchlingRarity = 'common' | 'uncommon' | 'rare' | 'legendary'
+/** What an egg hatches into: one of the 8 species, or (1 egg in 100) Bolt, the secret. */
+export type HatchlingKind = HatchlingSpecies | 'bolt'
+
+export type HatchlingRarity = 'common' | 'uncommon' | 'rare' | 'legendary' | 'secret'
 
 export type HatchlingStage = 'egg' | 'baby' | 'teen' | 'adult'
 
 /** The one-time roll, made when the egg hatches and never again. */
 export type HatchlingRoll = {
-  species: HatchlingSpecies
+  species: HatchlingKind
+  /** Never true for Bolt. */
   shiny: boolean
   /** When it hatched, ms since the epoch. */
   at: number

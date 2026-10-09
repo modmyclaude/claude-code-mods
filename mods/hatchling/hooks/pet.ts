@@ -2,11 +2,12 @@
 // the one-time roll, experience and evolution, the test-run detector, names,
 // and the text of the stat card and the share card.
 
-import type { HatchlingPet, HatchlingRarity, HatchlingSpecies, HatchlingStage } from '../types'
-import { drawFrame, monoLines, speciesArt } from './art'
-import { SPECIES } from './sprites'
+import type { HatchlingKind, HatchlingPet, HatchlingRarity, HatchlingStage } from '../types'
+import { drawFrame, HATCH_AT, monoLines, petInfo } from './art'
+import { BOLT_PET, SPECIES } from './sprites'
 
-export const HATCH_AT = 25
+// The hatch count lives with the art, which cracks the egg at fractions of it.
+export { HATCH_AT }
 export const TEEN_XP = 200
 export const ADULT_XP = 800
 export const XP = { tool: 1, turn: 5, tests: 5 } as const
@@ -19,6 +20,9 @@ export const RARITY_ODDS: readonly (readonly [HatchlingRarity, number])[] = [
   ['rare', 8],
   ['legendary', 2],
 ]
+
+/** One egg in this many hatches the secret Bolt instead of a species (MM-093). */
+export const BOLT_ODDS = 100
 
 /** Names a pet can hatch with when you have not chosen one. */
 export const NAMES: readonly string[] = [
@@ -64,10 +68,12 @@ export function normalizePet(raw: unknown, now: number): HatchlingPet {
     if ('name' in name) pet.name = name.name
   }
   const hatch = r.hatch as Record<string, unknown> | undefined
-  if (hatch !== null && typeof hatch === 'object' && SPECIES.some(one => one.id === hatch.species)) {
+  const kind = hatch?.species
+  if (hatch !== null && typeof hatch === 'object' && (kind === BOLT_PET.id || SPECIES.some(one => one.id === kind))) {
     pet.hatch = {
-      species: hatch.species as HatchlingSpecies,
-      shiny: hatch.shiny === true,
+      species: kind as HatchlingKind,
+      // Bolt is never shiny, whatever was saved (BRAND.md: never recolour Bolt).
+      shiny: kind !== BOLT_PET.id && hatch.shiny === true,
       at: typeof hatch.at === 'number' && Number.isFinite(hatch.at) ? hatch.at : now,
     }
     pet.eggCalls = HATCH_AT
@@ -80,17 +86,20 @@ export function stageOf(pet: HatchlingPet): HatchlingStage {
   return pet.xp >= ADULT_XP ? 'adult' : pet.xp >= TEEN_XP ? 'teen' : 'baby'
 }
 
-export function rarityOf(species: HatchlingSpecies): HatchlingRarity {
-  return speciesArt(species).rarity
+export function rarityOf(kind: HatchlingKind): HatchlingRarity {
+  return petInfo(kind).rarity
 }
 
 /**
  * The hatch roll. `u32` returns uniform 32-bit integers (crypto in the mod,
  * a fixed list in tests). Rarity first (top 6 bits, out of 64), then a
- * species of that rarity, then shiny at 1 in 64, then a name.
+ * species of that rarity, then shiny at 1 in 64, then a name. The secret Bolt
+ * reads the bits the rarity leaves: the top hundredth of the first number's
+ * low 26 bits, so 1 egg in 100 (rarest at the top, as legendary is).
  */
-export function rollHatch(u32: () => number): { species: HatchlingSpecies; shiny: boolean; name: string } {
-  const pick = u32() >>> 26
+export function rollHatch(u32: () => number): { species: HatchlingKind; shiny: boolean; name: string } {
+  const first = u32() >>> 0
+  const pick = first >>> 26
   let rarity: HatchlingRarity = 'common'
   let floor = 0
   for (const [one, odds] of RARITY_ODDS) {
@@ -104,6 +113,9 @@ export function rollHatch(u32: () => number): { species: HatchlingSpecies; shiny
   const species = pool[Math.floor(((u32() >>> 0) / 2 ** 32) * pool.length)] ?? pool[0] ?? SPECIES[0]
   const shiny = u32() >>> 26 === 0
   const name = NAMES[Math.floor(((u32() >>> 0) / 2 ** 32) * NAMES.length)] ?? 'Pip'
+  // The secret Bolt is never shiny (BRAND.md: never recolour Bolt).
+  const isBolt = Math.floor(((first & 0x3ffffff) / 2 ** 26) * BOLT_ODDS) === BOLT_ODDS - 1
+  if (isBolt) return { species: BOLT_PET.id, shiny: false, name }
   return { species: (species ?? SPECIES[0])!.id, shiny, name }
 }
 
@@ -271,7 +283,7 @@ export function nameOf(pet: HatchlingPet): string {
 }
 
 export function speciesName(pet: HatchlingPet): string {
-  return pet.hatch === undefined ? 'egg' : speciesArt(pet.hatch.species).name
+  return pet.hatch === undefined ? 'egg' : petInfo(pet.hatch.species).name
 }
 
 /** "Pip the Foldling" (or "Egg the egg" before a name is chosen). */
@@ -313,7 +325,7 @@ export function statText(pet: HatchlingPet, now: number): string {
     tagLine(pet, true),
     xpLine(pet),
     `${plural(daysTogether(pet, now), 'day')} together - ${plural(pet.toolCalls, 'tool call')} - ${plural(pet.testsPassed, 'test run')} cheered`,
-    pet.hatch === undefined ? 'Something stirs inside.' : speciesArt(pet.hatch.species).blurb,
+    pet.hatch === undefined ? 'Something stirs inside.' : petInfo(pet.hatch.species).blurb,
   ].join('\n')
 }
 
@@ -353,7 +365,7 @@ export function cardText(pet: HatchlingPet, now: number): string {
   ].join('\n')
 }
 
-export type CardInfo = { stage: HatchlingStage; species?: HatchlingSpecies; shiny: boolean; eggCalls: number }
+export type CardInfo = { stage: HatchlingStage; species?: HatchlingKind; shiny: boolean; eggCalls: number }
 
 /**
  * Reads the pet's look back out of a /pet or /pet card text, so a transcript
@@ -361,13 +373,13 @@ export type CardInfo = { stage: HatchlingStage; species?: HatchlingSpecies; shin
  */
 export function parseCard(text: string): CardInfo | undefined {
   const lines = text.split('\n').map(line => line.replace(/^│\s?|\s*│$/g, '').trim())
-  const tagAt = lines.findIndex(line => /^(egg - \d+\/\d+ to hatch|(common|uncommon|rare|legendary) - (baby|teen|adult)( - (shiny|not shiny))?)$/.test(line))
+  const tagAt = lines.findIndex(line => /^(egg - \d+\/\d+ to hatch|(common|uncommon|rare|legendary|secret) - (baby|teen|adult)( - (shiny|not shiny))?)$/.test(line))
   const tag = lines[tagAt]
   if (tag === undefined) return undefined
   const egg = /^egg - (\d+)\//.exec(tag)
   if (egg !== null) return { stage: 'egg', shiny: false, eggCalls: Number(egg[1]) }
   const above = lines.slice(0, tagAt)
-  const species = SPECIES.find(one => above.some(line => line === `the ${one.name}` || line.endsWith(` the ${one.name}`)))
+  const species = [...SPECIES, BOLT_PET].find(one => above.some(line => line === `the ${one.name}` || line.endsWith(` the ${one.name}`)))
   const stage = /- (baby|teen|adult)\b/.exec(tag)?.[1] as HatchlingStage | undefined
   if (species === undefined || stage === undefined) return undefined
   return { stage, species: species.id, shiny: / - shiny$/.test(tag), eggCalls: HATCH_AT }

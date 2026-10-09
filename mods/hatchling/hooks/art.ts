@@ -1,11 +1,11 @@
-// Turns the art in sprites.ts (and Bolt's egg, from bolt.ts) into pixels for one
-// mood and frame, then into text cells (half-blocks: two pixels per cell) for
-// every surface. Pure.
+// Turns the art in sprites.ts (and Bolt's egg and the secret Bolt pet, from bolt.ts)
+// into pixels for one mood and frame, then into text cells (half-blocks: two pixels
+// per cell) for every surface. Pure.
 
-import type { HatchlingMood, HatchlingSpecies, HatchlingStage } from '../types'
-import { BOLT_PALETTE, BOLT_SPRITES } from './bolt'
+import type { HatchlingKind, HatchlingMood, HatchlingRarity, HatchlingSpecies, HatchlingStage } from '../types'
+import { BOLT_PALETTE, BOLT_SPRITES, boltCells } from './bolt'
 import type { BoltSmallPose } from './bolt'
-import { CANVAS, CONFETTI, EGG_WORKING, FX, MOODS, SPECIES } from './sprites'
+import { BOLT_MOODS, BOLT_PET, CANVAS, CONFETTI, EGG_WORKING, FX, MOODS, SPECIES } from './sprites'
 import type { MoodArt, Pose, SpeciesArt } from './sprites'
 
 /** A pixel: a #rrggbb colour, or null where nothing is drawn. */
@@ -26,15 +26,18 @@ export type Cell = { ch: string; fg?: string; bg?: string }
 /** Just what the art needs to know about the pet. */
 export type View = {
   stage: HatchlingStage
-  species?: HatchlingSpecies
+  species?: HatchlingKind
   shiny: boolean
   eggCalls: number
   /** The stage before an evolution (the evolve flash shows both). */
   from?: HatchlingStage
 }
 
-/** Tool calls from which the egg shows its first crack, and its second, before it hatches at 25. */
-const CRACKS_AT = [15, 21] as const
+/** Tool calls an egg takes to hatch (pet.ts's rules read it from here, as the cracks do). */
+export const HATCH_AT = 25
+
+/** The egg shows crack 1, 2 and 3 from a quarter, half and three quarters of the way to hatching. */
+export const CRACKS = [0.25, 0.5, 0.75] as const
 
 const UPPER = '▀' // ▀
 const LOWER = '▄' // ▄
@@ -44,6 +47,11 @@ export function speciesArt(id: HatchlingSpecies): SpeciesArt {
   const art = SPECIES.find(one => one.id === id)
   if (art === undefined) throw new Error(`unknown species ${id}`)
   return art
+}
+
+/** What the band, cards and toasts say about a hatched pet: a species, or the secret Bolt. */
+export function petInfo(kind: HatchlingKind): { name: string; rarity: HatchlingRarity; blurb: string; accent: string; shinyAccent: string } {
+  return kind === 'bolt' ? BOLT_PET : speciesArt(kind)
 }
 
 /** Which frames play: a mood's own, or the working loop while idle. */
@@ -79,8 +87,16 @@ export function drawFrame(view: View, mood: HatchlingMood, tick: number, isWorki
   const pose = poseAt(moodArt(mood, isWorking, view.stage), tick)
 
   if (view.stage === 'egg' || pose.egg === true || view.species === undefined) {
-    drawEgg(frame, view, mood, pose)
+    drawBolt(frame, eggPose(view, mood, pose))
     drawZ(frame, pose)
+    return frame
+  }
+
+  if (view.species === 'bolt') {
+    // The secret pet keeps Bolt's own poses at every stage, never shiny (MM-093).
+    const art = BOLT_MOODS[mood === 'idle' && isWorking ? 'working' : mood]
+    drawBolt(frame, art.frames[Math.floor(Math.max(0, tick) / art.hold) % art.frames.length] ?? 'idle')
+    if (pose.shell === true) drawShell(frame)
     return frame
   }
 
@@ -155,33 +171,44 @@ function put(frame: Frame, x: number, y: number, color: string, isInk: boolean):
 
 /**
  * Which of Bolt's egg poses a frame shows: the lid lifting off as it hatches, the
- * cracks as it nears 25 calls, else upright or leaning with the wobble. Bolt has no
- * cracked lean, so a cracked egg keeps its crack on every frame of the wobble.
+ * cracks from a quarter, half and three quarters of the way, else upright or leaning
+ * with the wobble. Bolt has no cracked lean, so a cracked egg keeps its crack on
+ * every frame of the wobble.
  */
 function eggPose(view: View, mood: HatchlingMood, pose: Pose): BoltSmallPose {
   if (pose.split === true) return 'egg-hatch'
   if (mood === 'hatch') return 'egg-crack-3'
-  if (view.eggCalls >= CRACKS_AT[1]) return 'egg-crack-2'
-  if (view.eggCalls >= CRACKS_AT[0]) return 'egg-crack-1'
+  if (view.eggCalls >= CRACKS[2] * HATCH_AT) return 'egg-crack-3'
+  if (view.eggCalls >= CRACKS[1] * HATCH_AT) return 'egg-crack-2'
+  if (view.eggCalls >= CRACKS[0] * HATCH_AT) return 'egg-crack-1'
   const lean = pose.skew ?? 0
   return lean < 0 ? 'egg-wobble-l' : lean > 0 ? 'egg-wobble-r' : 'egg'
 }
 
 /**
- * The egg is Bolt's (MM-091, brand/bolt-sprites), drawn exactly as Bolt is drawn:
- * never tilted, split or recoloured here; its own poses lean, crack and hatch.
+ * One of Bolt's small poses (MM-091, brand/bolt-sprites): the egg, or the secret pet.
+ * Drawn exactly as Bolt is drawn, bottom-centred: never tilted, split or recoloured
+ * here; its own poses lean, crack, hatch and move. Its letters (the sleep z) come
+ * from bolt.ts's own cells, so they sit where Bolt puts them.
  */
-function drawEgg(frame: Frame, view: View, mood: HatchlingMood, pose: Pose): void {
-  const rows: readonly string[] = BOLT_SPRITES.small[eggPose(view, mood, pose)]
+function drawBolt(frame: Frame, pose: BoltSmallPose): void {
+  const rows: readonly string[] = BOLT_SPRITES.small[pose]
   const x0 = Math.floor((frame.w - (rows[0]?.length ?? 0)) / 2)
   const y0 = frame.h - rows.length
   rows.forEach((row, y) => {
     for (let x = 0; x < row.length; x += 1) {
       const letter = row[x] ?? '.'
-      // The crack's ink is a hole in the one-colour copy, as eyes are.
+      // The crack's and the eyes' ink is a hole in the one-colour copy.
       if (letter !== '.') put(frame, x0 + x, y0 + y, BOLT_PALETTE[letter as keyof typeof BOLT_PALETTE], letter !== 'E')
     }
   })
+  boltCells('small', pose).forEach((line, row) =>
+    line.forEach((cell, col) => {
+      if (![' ', UPPER, LOWER, FULL].includes(cell.ch)) {
+        frame.glyphs.push({ col: x0 + col, row: Math.floor(y0 / 2) + row, ch: cell.ch, color: cell.fg ?? FX.zzz })
+      }
+    }),
+  )
 }
 
 /** Bits of Bolt's eggshell around the newly hatched pet. */

@@ -7,11 +7,12 @@
 //   module variables     only the two timers, which a reload drops anyway
 
 import { atom, read, update } from 'claude-code'
-import type { BoxProps, ElementConstructor, EngineInterface, Register, TextProps, Timer } from 'claude-code'
+import type { BoxProps, ElementConstructor, EngineInterface, Register, RenderNode, TextProps, Timer } from 'claude-code'
 
-import type { HatchlingAnim, HatchlingMood, HatchlingPet, HatchlingStage } from '../types'
-import { drawFrame, rasterCells, speciesArt, toCells, toRuns } from './art'
+import type { HatchlingAnim, HatchlingKind, HatchlingMood, HatchlingPet, HatchlingStage } from '../types'
+import { drawFrame, petInfo, rasterCells, toCells, toRuns } from './art'
 import type { Cell, View } from './art'
+import { glyphRow } from './cells'
 import {
   ADULT_XP,
   applyToolCall,
@@ -205,7 +206,7 @@ async function react($: $, change: Change, mood?: 'happy' | 'sweat' | 'cheer', t
   const pet = change.pet
   const name = nameOf(pet)
   if (change.isHatched && pet.hatch !== undefined) {
-    const kind = `${pet.hatch.shiny ? 'shiny ' : ''}${rarityOf(pet.hatch.species)} ${speciesArt(pet.hatch.species).name}`
+    const kind = `${pet.hatch.shiny ? 'shiny ' : ''}${rarityOf(pet.hatch.species)} ${petInfo(pet.hatch.species).name}`
     const article = /^[aeiou]/.test(kind) ? 'an' : 'a'
     $.ui.toast(`Your egg hatched! Meet ${name}, ${article} ${kind}.`, { timeoutMs: 8000 })
     await setMood($, 'hatch', `Crack! ${name} hatched - ${article} ${kind}`)
@@ -385,12 +386,7 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           {below}
-          <Box key="band">
-            <Text wrap="truncate-end">
-              <Text color={accent}>{bar(progressOf(pet), 5)}</Text>
-              {` ${line}`}
-            </Text>
-          </Box>
+          <Box key="band">{barLine({ Box, Text }, e.surface, bar(progressOf(pet), 5), accent, ` ${line}`)}</Box>
         </Box>
       )
     }
@@ -421,10 +417,7 @@ export const register: Register = on => {
               {pet.hatch?.shiny === true ? <Text color={RARITY_COLOR.legendary}>{' - shiny'}</Text> : null}
             </Text>
             <Text wrap="truncate-end">{line}</Text>
-            <Text wrap="truncate-end">
-              <Text color={accent}>{bar(progressOf(pet), barWidth)}</Text>
-              <Text dimColor>{` ${shortProgress(pet)}`}</Text>
-            </Text>
+            {barLine({ Box, Text }, e.surface, bar(progressOf(pet), barWidth), accent, <Text dimColor>{` ${shortProgress(pet)}`}</Text>)}
           </Box>
         </Box>
       </Box>
@@ -497,9 +490,9 @@ function viewOf(pet: HatchlingPet, anim: HatchlingAnim): View {
   return view
 }
 
-function speciesAccent(species: NonNullable<HatchlingPet['hatch']>['species'], shiny: boolean): string {
-  const art = speciesArt(species)
-  return shiny ? art.shinyAccent : art.accent
+function speciesAccent(kind: HatchlingKind, shiny: boolean): string {
+  const info = petInfo(kind)
+  return shiny ? info.shinyAccent : info.accent
 }
 
 function accentOf(pet: HatchlingPet): string {
@@ -519,6 +512,30 @@ function idleLine(pet: HatchlingPet, mood: HatchlingMood, isWorking: boolean): s
 function bar(progress: number, width: number): string {
   const filled = Math.round(Math.max(0, Math.min(1, progress)) * width)
   return '█'.repeat(filled) + '░'.repeat(width - filled)
+}
+
+/**
+ * A progress bar and the words after it. The terminal keeps one Text. On the desktop
+ * a Text holding block characters is drawn in the code font, words and all, and
+ * overflows (MM-096, API-GOTCHAS #40): there the bar is one code-font cell per glyph,
+ * apart from the words.
+ */
+function barLine(tags: Tags, surface: string, glyphs: string, color: string, words: RenderNode) {
+  const { Box, Text } = tags
+  if (surface !== 'desktop') {
+    return (
+      <Text wrap="truncate-end">
+        <Text color={color}>{glyphs}</Text>
+        {words}
+      </Text>
+    )
+  }
+  return (
+    <Box flexDirection="row">
+      {glyphRow(tags, surface, glyphs, { color })}
+      <Text wrap="truncate-end">{words}</Text>
+    </Box>
+  )
 }
 
 /** The egg's countdown, after its name. */
