@@ -10,6 +10,11 @@
 Every mod ships with the prompt that built it, so you can remix it.
 
 <!-- badges:start -->
+[![check](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml/badge.svg)](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml)
+[![mods](https://img.shields.io/badge/mods-17-C8F53C?labelColor=101114)](#the-mods)
+[![tests](https://img.shields.io/badge/tests-2%2C900%2B-C8F53C?labelColor=101114)](CONTRIBUTING.md#the-bar)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.287%2B-3A3F4A?labelColor=101114)](#install)
+[![license](https://img.shields.io/badge/license-MIT-3A3F4A?labelColor=101114)](LICENSE)
 <!-- badges:end -->
 
 <!-- hero: a 6-10 second clip goes here (MM-030) -->
@@ -35,7 +40,7 @@ This repo is a small, curated collection of <!-- count -->17<!-- /count --> of t
 
 - **Original mods, built here.** Not a list of other people's repos.
 - **Every mod ships its prompt.** Read how it was made, change a line, and Claude builds your version.
-- **Tested where you use it.** <!-- tests -->3,100+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not just a static validate.
+- **Tested where you use it.** <!-- tests -->2,900+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not just a static validate.
 - **Reviewed by a second builder.** No mod is listed on its builder's word alone.
 - **Honest badges.** What each mod can touch comes from Claude Code's own validator, not from our description.
 
@@ -61,75 +66,75 @@ A mod is active as soon as it installs, with no restart. Installs at user scope 
 <!-- catalogue:start -->
 ### Safety
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Cloakroom**](mods/cloakroom) | Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it. [Prompt](prompts/cloakroom.md) | `writes files` `reads files` `hooks tool calls` `hooks prompts` | `cloakroom@modmyclaude` |
-| [**Last Look**](mods/last-look) | Holds destructive commands until you approve, and shows what they would destroy. [Prompt](prompts/last-look.md) | `reads files` `runs commands` `hooks tool calls` | `last-look@modmyclaude` |
+| <img src="brand/pixel-icons/svg/cloakroom.svg" width="32" height="32" alt=""> | [**Cloakroom**](mods/cloakroom)<br>`cloakroom@modmyclaude` | Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it. [Prompt](prompts/cloakroom.md) | `writes files` `reads files` `hooks tool calls` `hooks prompts` |
+| <img src="brand/pixel-icons/svg/last-look.svg" width="32" height="32" alt=""> | [**Last Look**](mods/last-look)<br>`last-look@modmyclaude` | Holds destructive commands until you approve, and shows what they would destroy. [Prompt](prompts/last-look.md) | `reads files` `runs commands` `hooks tool calls` |
 
 ### Cost and limits
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Redline**](mods/redline) | Context fill, session cost and pace on one line, with a warning before the red line. [Prompt](prompts/redline.md) | `display only` | `redline@modmyclaude` |
-| [**Thermostat**](mods/thermostat) | Shows when your prompt cache goes cold, and stops the expensive send. [Prompt](prompts/thermostat.md) | `calls a model` `hooks prompts` | `thermostat@modmyclaude` |
+| <img src="brand/pixel-icons/svg/redline.svg" width="32" height="32" alt=""> | [**Redline**](mods/redline)<br>`redline@modmyclaude` | Context fill, session cost and pace on one line, with a warning before the red line. [Prompt](prompts/redline.md) | `display only` |
+| <img src="brand/pixel-icons/svg/thermostat.svg" width="32" height="32" alt=""> | [**Thermostat**](mods/thermostat)<br>`thermostat@modmyclaude` | Shows when your prompt cache goes cold, and stops the expensive send. [Prompt](prompts/thermostat.md) | `calls a model` `hooks prompts` |
 
 ### See what Claude is doing
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Ant Farm**](mods/ant-farm) | Watch your subagents work, and what they cost, live. [Prompt](prompts/ant-farm.md) | `display only` | `ant-farm@modmyclaude` |
-| [**Footprints**](mods/footprints) | A live file tree beside the chat that shows where Claude has been. [Prompt](prompts/footprints.md) | `reads files` `runs commands` `hooks tool calls` | `footprints@modmyclaude` |
-| [**Headway**](mods/headway) | See how far along Claude is, and when it will land. Zero tokens. [Prompt](prompts/headway.md) | `hooks tool calls` | `headway@modmyclaude` |
+| <img src="brand/pixel-icons/svg/ant-farm.svg" width="32" height="32" alt=""> | [**Ant Farm**](mods/ant-farm)<br>`ant-farm@modmyclaude` | Watch your subagents work, and what they cost, live. [Prompt](prompts/ant-farm.md) | `display only` |
+| <img src="brand/pixel-icons/svg/footprints.svg" width="32" height="32" alt=""> | [**Footprints**](mods/footprints)<br>`footprints@modmyclaude` | A live file tree beside the chat that shows where Claude has been. [Prompt](prompts/footprints.md) | `reads files` `runs commands` `hooks tool calls` |
+| <img src="brand/pixel-icons/svg/headway.svg" width="32" height="32" alt=""> | [**Headway**](mods/headway)<br>`headway@modmyclaude` | See how far along Claude is, and when it will land. Zero tokens. [Prompt](prompts/headway.md) | `hooks tool calls` |
 
 ### Review changes
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Play-by-Play**](mods/play-by-play) | Replays every change Claude made in a turn, shell edits included. [Prompt](prompts/play-by-play.md) | `runs commands` `hooks tool calls` | `play-by-play@modmyclaude` |
+| <img src="brand/pixel-icons/svg/play-by-play.svg" width="32" height="32" alt=""> | [**Play-by-Play**](mods/play-by-play)<br>`play-by-play@modmyclaude` | Replays every change Claude made in a turn, shell edits included. [Prompt](prompts/play-by-play.md) | `runs commands` `hooks tool calls` |
 
 ### Catch what you would miss
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Fine Print**](mods/fine-print) | A second reader that flags what you would miss in a wall of text. [Prompt](prompts/fine-print.md) | `calls a model` | `fine-print@modmyclaude` |
+| <img src="brand/pixel-icons/svg/fine-print.svg" width="32" height="32" alt=""> | [**Fine Print**](mods/fine-print)<br>`fine-print@modmyclaude` | A second reader that flags what you would miss in a wall of text. [Prompt](prompts/fine-print.md) | `calls a model` |
 
 ### Memory
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Noted**](mods/noted) | Turns your corrections into permanent rules, without duplicates. [Prompt](prompts/noted.md) | `writes files` `reads files` `calls a model` `hooks prompts` | `noted@modmyclaude` |
+| <img src="brand/pixel-icons/svg/noted.svg" width="32" height="32" alt=""> | [**Noted**](mods/noted)<br>`noted@modmyclaude` | Turns your corrections into permanent rules, without duplicates. [Prompt](prompts/noted.md) | `writes files` `reads files` `calls a model` `hooks prompts` |
 
 ### Workflow
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Crossroads**](mods/crossroads) | Three ways forward after every turn, risky ones marked. About $0.0002 a turn. [Prompt](prompts/crossroads.md) | `calls a model` `hooks prompts` | `crossroads@modmyclaude` |
-| [**Porthole**](mods/porthole) | A live preview of the app you are building, right beside the chat. [Prompt](prompts/porthole.md) | `reads files` `runs commands` `hooks tool calls` | `porthole@modmyclaude` |
+| <img src="brand/pixel-icons/svg/crossroads.svg" width="32" height="32" alt=""> | [**Crossroads**](mods/crossroads)<br>`crossroads@modmyclaude` | Three ways forward after every turn, risky ones marked. About $0.0002 a turn. [Prompt](prompts/crossroads.md) | `calls a model` `hooks prompts` |
+| <img src="brand/pixel-icons/svg/porthole.svg" width="32" height="32" alt=""> | [**Porthole**](mods/porthole)<br>`porthole@modmyclaude` | A live preview of the app you are building, right beside the chat. [Prompt](prompts/porthole.md) | `reads files` `runs commands` `hooks tool calls` |
 
 ### Alerts
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Pager**](mods/pager) | Plays a sound when Claude finishes, needs you or hits an error. [Prompt](prompts/pager.md) | `network` `plays sound` | `pager@modmyclaude` |
+| <img src="brand/pixel-icons/svg/pager.svg" width="32" height="32" alt=""> | [**Pager**](mods/pager)<br>`pager@modmyclaude` | Plays a sound when Claude finishes, needs you or hits an error. [Prompt](prompts/pager.md) | `network` `plays sound` |
 
 ### Looks
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Wardrobe**](mods/wardrobe) | Restyle Claude Code live, including colourblind-safe and high-contrast themes. [Prompt](prompts/wardrobe.md) | `hooks tool calls` | `wardrobe@modmyclaude` |
+| <img src="brand/pixel-icons/svg/wardrobe.svg" width="32" height="32" alt=""> | [**Wardrobe**](mods/wardrobe)<br>`wardrobe@modmyclaude` | Restyle Claude Code live, including colourblind-safe and high-contrast themes. [Prompt](prompts/wardrobe.md) | `hooks tool calls` |
 
 ### Fun
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Halftime**](mods/halftime) | Claude works, you play. The whistle blows the moment it needs you. [Prompt](prompts/halftime.md) | `hooks tool calls` | `halftime@modmyclaude` |
-| [**Hatchling**](mods/hatchling) | A collectible pixel pet that hatches, reacts and evolves while you code. [Prompt](prompts/hatchling.md) | `hooks tool calls` | `hatchling@modmyclaude` |
+| <img src="brand/pixel-icons/svg/halftime.svg" width="32" height="32" alt=""> | [**Halftime**](mods/halftime)<br>`halftime@modmyclaude` | Claude works, you play. The whistle blows the moment it needs you. [Prompt](prompts/halftime.md) | `hooks tool calls` |
+| <img src="brand/pixel-icons/svg/hatchling.svg" width="32" height="32" alt=""> | [**Hatchling**](mods/hatchling)<br>`hatchling@modmyclaude` | A collectible pixel pet that hatches, reacts and evolves while you code. [Prompt](prompts/hatchling.md) | `hooks tool calls` |
 
 ### Wellness
 
-| Mod | What it does | Can reach | Install |
+| | Mod | What it does | Can reach |
 |---|---|---|---|
-| [**Second Wind**](mods/second-wind) | A breath, an eye rest or a stretch while Claude works, sized to the wait. [Prompt](prompts/second-wind.md) | `hooks prompts` | `second-wind@modmyclaude` |
+| <img src="brand/pixel-icons/svg/second-wind.svg" width="32" height="32" alt=""> | [**Second Wind**](mods/second-wind)<br>`second-wind@modmyclaude` | A breath, an eye rest or a stretch while Claude works, sized to the wait. [Prompt](prompts/second-wind.md) | `hooks prompts` |
 <!-- catalogue:end -->
 
 ## Build your own
