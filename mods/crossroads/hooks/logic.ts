@@ -102,20 +102,38 @@ export function redact(text: string): string {
   return out.replace(URL_PASSWORD, `$1${REDACTED}@`)
 }
 
+// ---------------------------------------------------------------- drawable text
+
+// OSC (titles, links, clipboard; ESC ] or C1 U+009D, to BEL or ST), CSI
+// (colours, cursor moves; ESC [ or C1 U+009B), then any other escape.
+const ANSI =
+  /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u009d[^\u0007\u001b\u009c]*(?:\u0007|\u009c|\u001b\\)?|\u001b\[[0-?]*[ -/]*[@-~]|\u009b[0-?]*[ -/]*[@-~]|\u001b[ -/]*[0-~]?/g
+const BREAKS = /\r\n?|[\n\t\u2028\u2029]/g
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g
+// Zero-width, bidi overrides and isolates, invisible fillers, tag characters, variation selectors.
+const INVISIBLE =
+  /[\u00ad\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu
+
+/**
+ * Untrusted text made safe to draw on one line (API-GOTCHAS #31): the engine
+ * refuses a whole tree holding one control character, and this band composes
+ * every band beneath it, so one stray byte would take them all down. ANSI
+ * sequences go, line breaks and tabs become spaces, any other C0, DEL or C1
+ * becomes `replacement`, and invisible or bidi characters go.
+ */
+export function clean(text: string, replacement = '\ufffd'): string {
+  return text.replace(ANSI, '').replace(BREAKS, ' ').replace(CONTROL, replacement).replace(INVISIBLE, '')
+}
+
 // ---------------------------------------------------------------- model output sanitizing
 
 /**
- * Makes one model-written line safe to draw and to draft: no escape
- * sequences, control, invisible, bidi or tag characters; one line; capped.
+ * Makes one model-written line safe to draw and to draft: clean (controls as
+ * spaces, since the line may be sent as a prompt), one line, no list marker
+ * or wrapping quotes, capped.
  */
 export function sanitize(raw: string, max = MAX_TEXT): string {
-  let text = raw
-    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '') // CSI (colours, cursor moves)
-    .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\|$)/g, '') // OSC (titles, links, clipboard)
-    .replace(/\u001b[@-Z\\-_]?/g, '') // any other escape
-    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ') // C0, DEL, C1, line separators
-    .replace(/[\u00ad\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb]/g, '')
-    .replace(/[\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu, '') // tag characters, variation selectors
+  let text = clean(raw, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   // A list marker or wrapping quotes the model added are not part of the prompt.

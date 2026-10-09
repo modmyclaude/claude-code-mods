@@ -10,6 +10,7 @@ import {
   buildDigest,
   buildRequest,
   busyAgents,
+  clean,
   closingQuestion,
   endsWithNumberedOptions,
   guessKind,
@@ -82,6 +83,33 @@ describe('redact', () => {
       expect(redact(text)).toBe(text)
     })
   }
+})
+
+describe('clean', () => {
+  const cases: [string, string, string][] = [
+    ['BEL', 'run\u0007 tests', 'run\uFFFD tests'],
+    ['ESC with a CSI sequence', '\u001b[2Jrun \u001b[31mtests\u001b[0m', 'run tests'],
+    ['DEL', 'run\u007f tests', 'run\uFFFD tests'],
+    ['NUL', 'run\u0000 tests', 'run\uFFFD tests'],
+    ['a C1 CSI sequence (U+009B)', 'run \u009b31mtests', 'run tests'],
+    ['a lone C1 control (NEL)', 'run\u0085 tests', 'run\uFFFD tests'],
+    ['an OSC title, ESC or C1 introduced', '\u001b]0;x\u0007run \u009d0;y\u009ctests', 'run tests'],
+    ['a bare ESC at the end', 'run tests\u001b', 'run tests'],
+    ['line breaks and tabs', 'run\r\nthe\ttests\u2028now', 'run the tests now'],
+    ['bidi overrides and zero-width', 'run\u202e the\u200b \u2066tests\u2069', 'run the tests'],
+    ['tag characters', 'run tests\u{e0041}', 'run tests'],
+    ['nothing to do', 'git push origin main', 'git push origin main'],
+  ]
+  for (const [name, raw, out] of cases) {
+    test(`handles ${name}`, () => {
+      expect(clean(raw)).toBe(out)
+      expect(clean(raw)).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/)
+    })
+  }
+
+  test('controls can become spaces instead, for text that may be sent', () => {
+    expect(clean('run\u0007tests', ' ')).toBe('run tests')
+  })
 })
 
 describe('sanitize', () => {

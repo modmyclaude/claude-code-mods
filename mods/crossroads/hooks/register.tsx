@@ -20,6 +20,7 @@ import {
   buildDigest,
   buildRequest,
   busyAgents,
+  clean,
   clip,
   endsWithNumberedOptions,
   isTrivial,
@@ -170,7 +171,7 @@ async function refuseModel($: EngineInterface, why: string) {
   if (live.isModelRefused) return
   live.isModelRefused = true
   debug($, `model refused: ${why}`)
-  $.ui.toast(`Crossroads: the small model is not available here (${clip(why, 80)}). No suggestions this session.`)
+  $.ui.toast(`Crossroads: the small model is not available here (${clip(clean(why), 80)}). No suggestions this session.`)
 }
 
 async function readEnv($: EngineInterface): Promise<string | undefined> {
@@ -384,7 +385,7 @@ async function send($: EngineInterface) {
     refusal = String(error)
   }
   if (refusal !== undefined) {
-    $.ui.toast(`Crossroads: the prompt was not sent (${clip(refusal, 80)}).`)
+    $.ui.toast(`Crossroads: the prompt was not sent (${clip(clean(refusal), 80)}).`)
     live.take = { text: item.text, kind: item.kind }
     await update($, view, (): CrossroadsView => ({ phase: 'copied', epoch: taken.epoch, item, isCopied: true }))
 
@@ -454,10 +455,12 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   // The engine's own guess: passed through untouched (it becomes option 1),
-  // unless it is risky, in which case it never becomes the ghost text.
+  // unless it is risky, in which case it never becomes the ghost text. Our
+  // copy of it is cleaned: it is drawn in the band and may be drafted.
   on('prompt.suggest', async ($, e, next) => {
     if (e.origin.kind !== 'suggestion' || !(await isEnabled($))) return next(e)
-    const guess: EngineGuess = { text: e.text, risky: riskOf(e.text) !== null }
+    const text = clean(e.text)
+    const guess: EngineGuess = { text, risky: riskOf(text) !== null }
     // A guess made while a turn runs belongs to no finished turn.
     if (!live.isTurnRunning) {
       const at = live.epoch
@@ -514,6 +517,8 @@ export const register: Register = on => {
     if (current.phase === 'idle' || e.props.isWorking) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     const width = Math.max(24, e.props.bodyColumns)
+    // Every suggestion drawn below is untrusted (the model's, the engine's): it
+    // passes through clean() here even when it was cleaned on the way in.
     // Stack on top of what other mods draw here instead of replacing it (API-GOTCHAS #25).
     const below = await next(e)
     const stack = (mine: JSX.Element) => (
@@ -532,7 +537,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Box>
             <Text dimColor>{isCopied ? 'Copied to your clipboard: ' : 'Could not copy it. The suggestion: '}</Text>
-            <Text>{clip(item.text, width)}</Text>
+            <Text>{clip(clean(item.text), width)}</Text>
             {item.risk !== null && <Text color="warning">{` (${item.risk})`}</Text>}
           </Box>
           <Box columnGap={2}>
@@ -559,7 +564,7 @@ export const register: Register = on => {
             plain
             // A risky suggestion is click-only: one stray digit must never draft a push or deploy.
             {...(digits && item.risk === null ? { hotkey: n } : {})}
-            label={clip(item.text, room)}
+            label={clip(clean(item.text), room)}
             onPress={press => void pick($, press, index)}
           />
           {item.risk !== null && <Text color="warning">{` (${item.risk})`}</Text>}
