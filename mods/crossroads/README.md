@@ -3,21 +3,22 @@
 Three ways forward after every turn, risky ones marked. About $0.0002 a turn.
 
 ```
-1: run the auth tests · 2: add the same guard to signup.ts · push to main (pushes) · 0: dismiss
+1: run the auth tests · add the same guard to signup.ts · push to main (pushes) · 0: dismiss
 ```
 
 ## Install
 
 ```
-/plugin install crossroads --marketplace ORG_TBD/REPO_TBD
+/plugin install crossroads --marketplace modmyclaude/claude-code-mods
 ```
 
 ## Use it
 
 - When Claude finishes a turn with an answer, a small band appears above your prompt with three specific next prompts. A dim row shows while they are being made.
-- In an empty prompt, press **1**, **2** or **3** to put that suggestion in your prompt as an editable draft. It is never sent for you. Press **0** to dismiss the list. Each item is also a button you can click.
-- If Claude Code is already showing its own guess (the dim ghost text you take with Tab), that guess is option 1, so you never see two different "next" ideas. Only the other two are generated.
-- Risky suggestions get an amber note such as `(deploys)`: push, deploy (also redeploy, ship it, roll out, go live, promote to prod, `terraform apply`, `kubectl apply`), publish, release, merge (also land the PR), delete (also wipe, purge, destroy, truncate a table), `rm`, drop, force, discard work (`git reset --hard`, `git clean -f`), and send to others (email, Slack, open or file a PR or issue, `gh pr create`, reply or comment on a PR or issue). Letters dressed up to slip past (lookalikes from other alphabets, fullwidth or styled letters, invisible characters) are read as the plain word first. A risky suggestion is never option 1, never has a number key (click only), and never becomes the ghost text: a risky guess from Claude Code is kept out of the prompt box and shown in the list instead.
+- Each item is a button: click it to put that suggestion in your prompt as an editable draft. It is never sent for you. Press **0** to dismiss the list.
+- **Only clearly safe suggestions get a number key or the top slot.** A suggestion is on the safe set only when it reads, inspects, tests, explains or reviews (run the tests, show, explain, read, check, list, diff, review, add a test, a question) and names no risky target (prod, production, live, main, master, a release; deploy, publish, push, merge; delete, drop, remove, wipe; a migration or database; money; credentials, secrets, tokens, keys; infrastructure such as terraform, kubectl, AWS, DNS; email, Slack, posting or sending to people). Press **1**, **2** or **3** in an empty prompt to draft one of those. Everything else, including ordinary edits such as "fix the login bug", is a plain row: clickable, but with no number key and never above a safe one. When no suggestion is on the safe set, no item has a number key at all.
+- Claude Code's own guess (the dim ghost text you take with Tab) stays in your prompt box only when it is on the safe set; then it is option 1, so you never see two different "next" ideas. Any other guess is kept out of the prompt box and shown in the list as a plain row instead.
+- Risky suggestions also get an amber note such as `(deploys)`. The small model tags each suggestion it writes as risky or not, with a short reason, and keyword rules back that tag up (risky if either says so). Claude Code's own guess has no tag, so the keywords mark it. Letters dressed up to slip past (lookalikes from other alphabets mixed into a Latin word, fullwidth or styled letters, invisible or control characters) are marked `(unusual letters)`. This flags common risky actions; it is not exhaustive, which is why privilege comes from the safe set and not from the notes. Russian, Ukrainian and Greek text is normal text and is never marked for its alphabet.
 - If Claude's reply ends with numbered options, the digit keys are left alone for that turn so typing a number answers Claude. The items stay clickable.
 - The list clears the moment you submit anything. It waits for background subagents to finish before suggesting.
 - **Desktop app:** the desktop prompt box cannot be filled by a mod, so clicking an item copies it to your clipboard and shows a clearly labelled **Send this prompt now** button. **Close** comes first and is where the focus starts, so a stray Enter closes; Send is never the default and has no hotkey.
@@ -52,7 +53,9 @@ None. Use the commands above.
 - If the `haiku` alias is refused and no provider model id is set in the environment, Crossroads says so once and makes no calls for the rest of the session.
 - On the desktop app the copy may not reach your clipboard: this release of the mods API says remote surfaces have no clipboard path yet. The band then says it could not copy and shows the suggestion, and Send still works.
 - The VS Code and mobile surfaces do not draw the band above the prompt, so Crossroads shows nothing there and makes no model call for them.
-- Secret hiding works on shapes, not meaning: a secret with no recognisable prefix or name around it (a bare password repeated in Claude's closing question, say) can still pass through. The risk note is a word list in the same way: broad on purpose, so a safe prompt is sometimes marked, and a risky one phrased in words it does not know is not.
+- Secret hiding works on shapes, not meaning: a secret with no recognisable prefix or name around it (a bare password repeated in Claude's closing question, say) can still pass through.
+- The amber note flags common risky actions; it is not exhaustive. A risky suggestion the model does not tag and no keyword knows is shown with no note, but it is still a plain row: no number key, never the top slot, never the ghost text. That guarantee holds for anything not on the safe set.
+- The safe set is narrow on purpose and English first (plus run, show, explain and check in Russian, Ukrainian and Greek). A harmless suggestion it does not recognise, such as "fix the failing test", gets no number key, and Claude Code's own ghost text is hidden for it.
 
 ## Built from a prompt
 

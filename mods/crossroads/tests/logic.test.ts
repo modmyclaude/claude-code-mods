@@ -14,14 +14,19 @@ import {
   closingQuestion,
   endsWithNumberedOptions,
   guessKind,
+  isSafe,
   isTrivial,
+  judgeGuess,
+  noteFor,
   parseReply,
   pickSlashCommands,
   redact,
   riskOf,
   riskText,
   sanitize,
+  sanitizeWhy,
 } from '../hooks/logic'
+import type { EngineGuess } from '../hooks/logic'
 import {
   addUsage,
   backoffGap,
@@ -35,7 +40,19 @@ import {
   recordOutcome,
   topKinds,
 } from '../hooks/learn'
-import { DISGUISED_RISKY, NARROWED_SAFE, REVIEW_RISKY, REVIEW_SAFE } from './phrasings'
+import {
+  BATTERY_BENIGN,
+  BATTERY_RISKY,
+  DISGUISED_RISKY,
+  NARROWED_SAFE,
+  NON_LATIN_PLAIN,
+  PLAIN_UNSAFE,
+  REVIEW_RISKY,
+  REVIEW_SAFE,
+  RU_EL_SAFE,
+  SAFE_LEAD_RISKY,
+  SAFE_SET,
+} from './phrasings'
 
 const ZERO = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 
@@ -416,14 +433,31 @@ describe('parseReply', () => {
   const good = '{"items":[{"text":"run the auth tests","kind":"test"},{"text":"push to main","kind":"ship"},{"text":"add a guard to signup.ts","kind":"feature"}]}\nEND'
   test('a well-formed reply', () => {
     expect(parseReply(good, 3)).toEqual([
-      { text: 'run the auth tests', kind: 'test' },
-      { text: 'push to main', kind: 'ship' },
-      { text: 'add a guard to signup.ts', kind: 'feature' },
+      { text: 'run the auth tests', kind: 'test', risky: null, why: null },
+      { text: 'push to main', kind: 'ship', risky: null, why: null },
+      { text: 'add a guard to signup.ts', kind: 'feature', risky: null, why: null },
     ])
+  })
+  test("the model's risky tag and why are read strictly", () => {
+    const tagged =
+      '{"items":[{"text":"run the migration on production","kind":"run","risky":true,"why":"Migrates PROD data!"},' +
+      '{"text":"run the auth tests","kind":"test","risky":false,"why":""},' +
+      '{"text":"tidy the imports","kind":"refactor","risky":"yes","why":7}]}\nEND'
+    expect(parseReply(tagged, 3)).toEqual([
+      { text: 'run the migration on production', kind: 'run', risky: true, why: 'migrates prod data' },
+      { text: 'run the auth tests', kind: 'test', risky: false, why: null },
+      { text: 'tidy the imports', kind: 'refactor', risky: null, why: null },
+    ])
+  })
+  test('why is drawn: cleaned, three words, short', () => {
+    expect(sanitizeWhy(`de\u0007letes \u001b[31mall\u001b[0m the data now`)).toBe('de letes all')
+    expect(sanitizeWhy('   ')).toBe(null)
+    expect(sanitizeWhy(undefined)).toBe(null)
+    expect(Array.from(sanitizeWhy('overwrites everything everywhere') ?? '').length).toBeLessThanOrEqual(24)
   })
   test('code fences are tolerated, a bad kind is guessed', () => {
     const fenced = '```json\n{"items":[{"text":"fix the login bug","kind":"vibes"}]}\n```\nEND'
-    expect(parseReply(fenced, 1)).toEqual([{ text: 'fix the login bug', kind: 'fix' }])
+    expect(parseReply(fenced, 1)).toEqual([{ text: 'fix the login bug', kind: 'fix', risky: null, why: null }])
   })
 
   const bad: [string, string][] = [
@@ -443,42 +477,144 @@ describe('parseReply', () => {
   }
 })
 
+describe('the safe set (privilege by allowlist)', () => {
+  // bot-1's 74 fresh risky phrasings (MM-068): the old blocklist missed 53.
+  // Under the allowlist not one may be privileged, on either path.
+  test('the battery has all 74 rows', () => {
+    expect(BATTERY_RISKY).toHaveLength(74)
+  })
+  for (const [category, text] of BATTERY_RISKY) {
+    test(`battery [${category}] ${JSON.stringify(text)} is never privileged`, () => {
+      expect(isSafe(text)).toBe(false)
+      expect(judgeGuess(text).isSafe).toBe(false)
+      const items = arrange(null, [{ text: sanitize(text), kind: 'other' }, { text: 'run the auth tests', kind: 'test' }])
+      expect(items[0]?.text).toBe('run the auth tests')
+      expect(items.find(item => item.text !== 'run the auth tests')?.isSafe).toBe(false)
+    })
+  }
+  test('at least 25 clearly safe phrasings', () => {
+    expect(SAFE_SET.length).toBeGreaterThanOrEqual(25)
+  })
+  for (const text of SAFE_SET) {
+    test(`safe: ${JSON.stringify(text)} is privileged`, () => {
+      expect(isSafe(text)).toBe(true)
+      expect(judgeGuess(text)).toEqual({ text, risk: null, isSafe: true })
+    })
+  }
+  for (const text of SAFE_LEAD_RISKY) {
+    test(`a safe verb is not enough: ${JSON.stringify(text)} is not privileged`, () => {
+      expect(isSafe(text)).toBe(false)
+      expect(judgeGuess(text).isSafe).toBe(false)
+    })
+  }
+  for (const text of [...PLAIN_UNSAFE, ...REVIEW_RISKY.map(row => row[0]), ...DISGUISED_RISKY.map(row => row[0])]) {
+    test(`not on the safe set: ${JSON.stringify(text)}`, () => {
+      expect(isSafe(text)).toBe(false)
+    })
+  }
+  for (const text of PLAIN_UNSAFE) {
+    test(`an ordinary edit is a plain row, not marked: ${JSON.stringify(text)}`, () => {
+      expect(riskOf(text)).toBe(null)
+    })
+  }
+  for (const text of BATTERY_BENIGN) {
+    test(`benign look-alike ${JSON.stringify(text)} is judged without error`, () => {
+      expect(typeof isSafe(text)).toBe('boolean')
+    })
+  }
+  test('a control, escape or invisible character in the raw guess: never privileged, marked', () => {
+    for (const raw of ['run the te\u0007sts', 'run the tests\u202e', 'run the \u001b[31mtests', 'run the te\u00adsts']) {
+      const guess = judgeGuess(raw)
+      expect(guess.isSafe, JSON.stringify(raw)).toBe(false)
+      expect(guess.risk, JSON.stringify(raw)).toBe('unusual letters')
+    }
+  })
+})
+
+describe('MM-069: Russian and Greek are normal text', () => {
+  for (const text of [...RU_EL_SAFE, ...NON_LATIN_PLAIN]) {
+    test(`${JSON.stringify(text)} is not marked`, () => {
+      expect(riskOf(text)).toBe(null)
+    })
+  }
+  test('lookalikes inside a Latin word, and an all-lookalike word, are still caught', () => {
+    const e = String.fromCodePoint(0x0435)
+    expect(riskOf(`d${e}ploy to prod`)).toBe('deploys')
+    expect(riskOf(`show the l${String.fromCodePoint(0x043e)}gs`)).toBe('unusual letters')
+    expect(riskOf(String.fromCodePoint(0x0501, 0x0435, 0x0440, 0x04cf, 0x043e, 0x0443))).toBe('deploys')
+  })
+  test('a Russian word is never half-folded into Latin', () => {
+    const test = String.fromCodePoint(0x0442, 0x0435, 0x0441, 0x0442)
+    expect(riskText(test)).toBe(test)
+  })
+})
+
+describe('the note: model tag first, keywords as the backstop', () => {
+  test('the model alone can mark a phrasing no keyword knows', () => {
+    const text = 'run the migration on production'
+    expect(riskOf(text)).toBe(null)
+    expect(noteFor({ text, kind: 'run', risky: true, why: 'migrates data' })).toBe('migrates data')
+    expect(noteFor({ text, kind: 'run', risky: true, why: null })).toBe('risky')
+  })
+  test('the keywords still mark what the model calls safe, or leaves untagged', () => {
+    expect(noteFor({ text: 'push to main', kind: 'ship', risky: false, why: null })).toBe('pushes')
+    expect(noteFor({ text: 'push to main', kind: 'ship', risky: null, why: null })).toBe('pushes')
+    expect(noteFor({ text: 'run the auth tests', kind: 'test', risky: false, why: null })).toBe(null)
+  })
+  test('a model-tagged item is never privileged, even when its words look safe', () => {
+    const items = arrange(null, [
+      { text: 'run the auth tests', kind: 'test', risky: true, why: 'hits prod' },
+      { text: 'explain the null check', kind: 'explain', risky: false, why: null },
+    ])
+    expect(items.map(item => [item.text, item.isSafe, item.risk])).toEqual([
+      ['explain the null check', true, null],
+      ['run the auth tests', false, 'hits prod'],
+    ])
+  })
+})
+
 describe('arrange', () => {
+  const guess = (text: string): EngineGuess => judgeGuess(text)
   const gen = [
     { text: 'push to main', kind: 'ship' as const },
     { text: 'add a guard to signup.ts', kind: 'feature' as const },
   ]
-  test('a safe engine guess is option 1', () => {
-    const items = arrange({ text: 'run the auth tests', risky: false }, gen)
+  test('a safe engine guess is option 1; plain rows next; marked rows last', () => {
+    const items = arrange(guess('run the auth tests'), gen)
     expect(items.map(item => item.text)).toEqual(['run the auth tests', 'add a guard to signup.ts', 'push to main'])
+    expect(items.map(item => item.isSafe)).toEqual([true, false, false])
     expect(items[0]?.fromEngine).toBe(true)
     expect(items[2]?.risk).toBe('pushes')
   })
-  test('a risky engine guess is never option 1', () => {
-    const items = arrange({ text: 'git push origin main', risky: true }, [
+  test("the engine's 'Run the migration on production' is never privileged (MM-068 kit)", () => {
+    const items = arrange(guess('Run the migration on production'), [
       { text: 'run the auth tests', kind: 'test' },
-      { text: 'add a guard to signup.ts', kind: 'feature' },
+      { text: 'explain the null check', kind: 'explain' },
     ])
-    expect(items[0]?.risk).toBe(null)
-    expect(items[2]?.text).toBe('git push origin main')
-    expect(items[2]?.fromEngine).toBe(true)
+    expect(items.map(item => item.text)).toEqual(['run the auth tests', 'explain the null check', 'Run the migration on production'])
+    expect(items[2]?.isSafe).toBe(false)
   })
-  test('no risky phrasing from the review table is ever option 1, from the engine or the model', () => {
+  test('nothing safe: no item is privileged at all', () => {
+    const items = arrange(guess('Run the migration on production'), gen)
+    expect(items.every(item => !item.isSafe)).toBe(true)
+  })
+  test('no risky phrasing from the review table is ever privileged, from the engine or the model', () => {
     const safe = [
       { text: 'run the auth tests', kind: 'test' as const },
-      { text: 'add a guard to signup.ts', kind: 'feature' as const },
+      { text: 'explain the null check', kind: 'explain' as const },
     ]
     for (const [text, note] of REVIEW_RISKY) {
-      const asGuess = arrange({ text, risky: riskOf(text) !== null }, safe)
-      expect(asGuess[0]?.risk, text).toBe(null)
+      const asGuess = arrange(guess(text), safe)
+      expect(asGuess[0]?.isSafe, text).toBe(true)
       expect(asGuess[2]?.risk, text).toBe(note)
+      expect(asGuess[2]?.isSafe, text).toBe(false)
       const asModel = arrange(null, [{ text, kind: 'other' }, ...safe])
-      expect(asModel[0]?.risk, text).toBe(null)
       expect(asModel[2]?.risk, text).toBe(note)
+      expect(asModel[2]?.isSafe, text).toBe(false)
     }
   })
   test('duplicates of the guess are dropped', () => {
-    const items = arrange({ text: 'Run the auth tests.', risky: false }, [
+    const items = arrange(guess('Run the auth tests.'), [
       { text: 'run the auth tests', kind: 'test' },
       { text: 'fix the bug', kind: 'fix' },
     ])
