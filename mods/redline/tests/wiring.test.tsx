@@ -5,7 +5,7 @@
 // usage, the clock, the store, and the status line and toasts it draws.
 
 import { describe, expect, mock, test } from 'claude-code/testing'
-import type { On, SessionRateLimit, SessionUsage, TurnUsage } from 'claude-code'
+import type { CommandSpec, On, SessionRateLimit, SessionUsage, TurnUsage } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 const MIN = 60_000
@@ -20,6 +20,7 @@ type World = {
   opened: string[]
   closed: string[]
   registered: string[]
+  specs: CommandSpec[]
   usage: SessionUsage
   /** Whether a surface places the pane `/redline` opens. */
   isPanePlaced: boolean
@@ -37,6 +38,7 @@ function world(on: On, usage: Partial<SessionUsage> = {}, store: Record<string, 
     opened: [],
     closed: [],
     registered: [],
+    specs: [],
     isPanePlaced: true,
     isUsageDenied: false,
     usage: { startedAt: T0 - 30 * MIN, context: { window: WINDOW }, rateLimits: [], cost: { usd: 1.25 }, ...usage },
@@ -47,7 +49,7 @@ function world(on: On, usage: Partial<SessionUsage> = {}, store: Record<string, 
   on('ui.status', ($, e) => (w.statuses.push(e.text), { value: undefined }))
   on('ui.toast', ($, e) => (w.toasts.push(e.text), { value: undefined }))
   on('ui.log', () => ({ value: undefined }))
-  on('command.register', ($, e) => (w.registered.push(e.name), { value: { command: e.name } }))
+  on('command.register', ($, e) => (w.registered.push(e.name), w.specs.push({ ...e }), { value: { command: e.name } }))
   on('ui.open', ($, e) => {
     w.opened.push(e.id)
     return { value: w.isPanePlaced ? { isPlaced: true } : { isPlaced: false, reason: 'no surface places panes' } }
@@ -337,6 +339,8 @@ describe('/redline', () => {
     const w = world(on, {}, { isBandOn: true })
     await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
     expect(w.registered).toEqual(['redline'])
+    // Runs at once mid-turn: checking the gauge while Claude works is the point.
+    expect(w.specs[0]).toMatchObject({ name: 'redline', argumentHint: '[band]', immediate: true })
     expect(w.status()).toMatch(/^ctx -- /)
     const band = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
     expect(await band.find({ key: 'gauge' })).toBeDefined()
@@ -354,8 +358,10 @@ describe('/redline', () => {
   })
 
   test('answers unknown arguments with its usage', async ($, on) => {
-    world(on)
-    expect((await runCommand($, 'bogus')).text).toContain('Usage: /redline')
+    const w = world(on)
+    // Nothing for the model to read: the usage goes to a toast.
+    expect(await runCommand($, 'bogus')).toEqual({})
+    expect(w.toasts[0]).toContain('/redline band')
   })
 })
 
@@ -482,7 +488,9 @@ describe('band above the prompt', () => {
       expect(await off.find({ text: "the engine's band" })).toBeDefined()
       await off.unmount()
 
-      expect((await runCommand($, 'band')).text).toContain('band is on')
+      // Nothing for the model to read: {} and a toast.
+      expect(await runCommand($, 'band')).toEqual({})
+      expect(w.toasts[w.toasts.length - 1]).toContain('band is on')
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
       const gauge = await ui.find({ key: 'gauge' })
       expect(gauge?.text).toContain('ctx 85%')
@@ -497,7 +505,7 @@ describe('band above the prompt', () => {
       expect(await ui.find({ key: 'gauge' })).toBeUndefined()
       await ui.unmount()
     }
-    expect(w.toasts).toHaveLength(1)
+    expect(w.toasts.filter(t => t.startsWith('Context is'))).toHaveLength(1)
   })
 
   test('yields to a survey', async ($, on) => {
