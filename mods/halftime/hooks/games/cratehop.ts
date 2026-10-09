@@ -18,6 +18,7 @@
 import type { HalftimeCratehop } from '../../types'
 import { rand } from '../rng'
 import { BOLD, DIM, clamp, frame, type Cell, type Drawn, type Game } from './kit'
+import { BOLT_RUN, boltCells } from '../bolt'
 
 export const CRATEHOP = {
   /** The runner's screen column. */
@@ -208,8 +209,10 @@ export function drawCratehop(s: HalftimeCratehop, cols: number): Drawn {
   const width = clamp(cols - 2, 14, 70)
   const cam = Math.floor(s.x) - CRATEHOP.col
   const feet = 3 - clamp(Math.floor(s.y + 0.35), 0, 3)
-  // The courier is two cells tall, a head over a body; its legs swap every couple of cells run.
-  const body = s.y > 0 ? '█' : Math.floor(s.x / 2) % 2 === 0 ? '▟' : '▙'
+  // The courier is Bolt (MM-091): the tiny sprite, 3 cells by 2, centered on the courier's
+  // column, its feet on `feet`. Run frames swap every 1.5 cells run; jump and crash have their own.
+  const pose = s.dead ? 'crash' : s.y > 0 ? 'jump' : BOLT_RUN[Math.floor(s.x / 1.5) % 2]!
+  const bolt = boltCells('tiny', pose)
   const field: Cell[][] = []
   for (let row = 0; row < CRATEHOP.rows; row += 1) {
     const cells: Cell[] = []
@@ -220,12 +223,10 @@ export function drawCratehop(s: HalftimeCratehop, cols: number): Drawn {
         cells.push(wc % 8 === 0 ? ['▀', 'text', undefined, DIM] : ['▀', 'subtle'])
         continue
       }
-      if (s.dead && row === feet && Math.abs(c - CRATEHOP.col) <= 1) {
-        cells.push([['\\', '✶', '/'][c - CRATEHOP.col + 1]!, 'error', undefined, BOLD])
-        continue
-      }
-      if (!s.dead && c === CRATEHOP.col && (row === feet || row === feet - 1)) {
-        cells.push(row === feet ? [body, 'suggestion', undefined, BOLD] : ['▄', 'suggestion', undefined, BOLD])
+      // Bolt's empty cells are see-through: a crate behind them still shows.
+      const sprite = bolt[row - (feet - 1)]?.[c - (CRATEHOP.col - 1)]
+      if (sprite && (sprite.fg !== undefined || sprite.bg !== undefined)) {
+        cells.push([sprite.ch, sprite.fg, sprite.bg])
         continue
       }
       const crate = s.obs.find(([ox, w]) => wc >= ox && wc < ox + w)

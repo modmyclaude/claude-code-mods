@@ -90,3 +90,14 @@ test('#39: the engine band beneath is never under a Box that sizes or hides it',
   await ui.press({ key: 'pad:w' })
   expect(engineNodeConcealers(await ui.drawn())).toEqual([[]])
 })
+
+test('MM-091: Bolt stands beside the game picker, on the terminal and the desktop', async ($, on) => {
+  world(on, { store: new Map() })
+  await $.command.run(halftime(''))
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
+    expect(await ui.find({ key: 'pick:cratehop' }), surface).toBeDefined()
+    expect(await ui.find({ key: 'bolt' }), surface).toBeDefined()
+    await ui.unmount()
+  }
+})

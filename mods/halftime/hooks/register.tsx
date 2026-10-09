@@ -9,6 +9,7 @@
 //   share.ts   the share line and the scorecard
 
 import { atom, read, update } from 'claude-code'
+import { boltSprite } from './bolt-draw'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { HalftimeGameId, HalftimeReason, HalftimeRun, HalftimeSession, HalftimeStats } from '../types'
@@ -309,7 +310,10 @@ export const register: Register = on => {
     if (s.phase === 'picker') {
       const run = s.run
       return stack(
-        <Box flexDirection="column">
+        <Box flexDirection="row" columnGap={1}>
+          {/* Bolt (MM-091) beside the picker: two rows tall, as the picker is. */}
+          {boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'idle' }, 'bolt')}
+          <Box flexDirection="column">
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
             <Text bold>halftime</Text>
             {gameButtons('pick')}
@@ -324,6 +328,7 @@ export const register: Register = on => {
             {closeButton}
           </Box>
           <Text dimColor wrap="truncate-end">{scorecard(st)}</Text>
+          </Box>
         </Box>
       )
     }

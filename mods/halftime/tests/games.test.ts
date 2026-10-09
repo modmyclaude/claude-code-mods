@@ -2,6 +2,7 @@
 // generator, the daily seed, the share line, and the key rule all four games
 // must keep (never Enter, y, n or a digit).
 
+import { BOLT_PALETTE, BOLT_RUN, boltCells } from '../hooks/bolt'
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { HalftimeCratehop, HalftimeSweep, HalftimeTailchase } from '../types'
@@ -507,23 +508,31 @@ describe('drawing', () => {
     /** The courier's runs in each row (the only suggestion-colored thing in this field). */
     const courier = (rows: Seg[][]) => rows.map(row => runs(row).filter(([, seg]) => seg[1] === 'suggestion'))
 
-    test('on the ground the courier is a head over a body, in bold suggestion', () => {
-      const found = courier(drawn(run()))
-      expect(found[2]!.length).toBe(1)
-      expect(found[3]!.length).toBe(1)
-      expect(found[2]![0]![1][0]).toBe('▄')
-      expect(found[3]![0]![1][0]).toMatch(/^[▟▙]$/)
-      expect(found[2]![0]![0]).toBe(found[3]![0]![0])
-      expect(found[2]![0]![1][3]).toBe(1)
-      expect(found[3]![0]![1][3]).toBe(1)
+    /** Bolt's runs in each row: the cells painted in Bolt's own palette (MM-091). */
+    const BOLT_COLORS = new Set<string>(Object.values(BOLT_PALETTE))
+    const boltIn = (rows: Seg[][]) => rows.map(row => runs(row).filter(([, seg]) => BOLT_COLORS.has(seg[1]) || BOLT_COLORS.has(seg[2])))
+    /** A pose's lines as drawn: its see-through cells left out. */
+    const poseText = (pose: Parameters<typeof boltCells>[1]) =>
+      boltCells('tiny', pose as 'idle').map(line => line.filter(c => c.fg !== undefined || c.bg !== undefined).map(c => c.ch).join(''))
+    const used = (found: ReturnType<typeof boltIn>) => found.flatMap((r, i) => (r.length ? [i] : []))
+    const textOf = (found: ReturnType<typeof boltIn>, i: number) => found[i]!.map(([, seg]) => seg[0]).join('')
+
+    test('on the ground the courier is Bolt running, feet on the floor row above the track', () => {
+      const s = run()
+      const found = boltIn(drawn(s))
+      expect(used(found)).toEqual([2, 3])
+      const pose = BOLT_RUN[Math.floor(s.x / 1.5) % 2]!
+      expect([textOf(found, 2), textOf(found, 3)]).toEqual(poseText(pose))
+      // The run frames swap as the courier runs.
+      expect(boltCells('tiny', 'run1')).not.toEqual(boltCells('tiny', 'run2'))
     })
 
-    test('in the air the whole courier rises together, at the same column', () => {
-      const ground = courier(drawn(run()))
-      const air = courier(drawn(run({ y: 1.6, vy: 5 })))
-      const used = air.flatMap((r, i) => (r.length ? [i] : []))
-      expect(used).toEqual([1, 2])
-      for (const i of used) expect(air[i]![0]![0]).toBe(ground[3]![0]![0])
+    test('in the air Bolt rises together in the jump pose, at the same column', () => {
+      const ground = boltIn(drawn(run()))
+      const air = boltIn(drawn(run({ y: 1.6, vy: 5 })))
+      expect(used(air)).toEqual([1, 2])
+      expect([textOf(air, 1), textOf(air, 2)]).toEqual(poseText('jump'))
+      expect(Math.min(...air.flat().map(([at]) => at))).toBe(Math.min(...ground.flat().map(([at]) => at)))
     })
 
     test('crates are solid blocks, tall ones two cells high', () => {
@@ -536,17 +545,15 @@ describe('drawing', () => {
       expect(rowText(rows[1]!)).not.toContain('█')
     })
 
-    test('a crash is a three-cell burst in bold error red where the courier was, and the courier is gone', () => {
-      const bodyCol = courier(drawn(run()))[3]![0]![0]
-      const rows = drawn(run({ dead: true }))
-      const burst = rows.flatMap(row => runs(row).filter(([, seg]) => seg[1] === 'error'))
-      expect(burst.map(([at, seg]) => [at, seg[0], seg[3]])).toEqual([[bodyCol - 1, '\\✶/', 1]])
-      expect(courier(rows).flat().length).toBe(0)
+    test('a crash is Bolt in its crash pose where the courier was', () => {
+      const found = boltIn(drawn(run({ dead: true })))
+      expect(used(found)).toEqual([2, 3])
+      expect([textOf(found, 2), textOf(found, 3)]).toEqual(poseText('crash'))
     })
 
     test('the sky is clear: nothing but the courier and the crates above the floor', () => {
       for (const x of [0, 33.3, 250.7, 1999]) {
-        for (const row of drawn(run({ x, obs: [] })).slice(0, 4)) expect(rowText(row).replace(/[│▄▟▙█]/g, '').trim(), `x=${x}`).toBe('')
+        for (const row of drawn(run({ x, obs: [] })).slice(0, 4)) expect(rowText(row).replace(/[│▀▄█]/g, '').trim(), `x=${x}`).toBe('')
       }
     })
   })
