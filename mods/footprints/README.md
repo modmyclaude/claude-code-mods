@@ -49,6 +49,7 @@ None.
 - Subagents' tool calls count too.
 - Big repos: it keeps up to 20,000 file names and draws up to 400 rows (the rest is one "more" line).
 - An edit still running when the mod reloads is not recorded.
+- A name holding control characters is drawn with color codes dropped and each other control character shown as `�` (git's file lists are read NUL-separated, so its path quoting never applies).
 - Tested with POSIX paths (macOS, Linux). Colors follow your theme's `suggestion`, `warning` and `success`.
 - The pane opens only when you ask. If a surface cannot place panes, a one-line toast says why.
 

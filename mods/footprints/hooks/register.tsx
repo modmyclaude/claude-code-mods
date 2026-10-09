@@ -18,6 +18,7 @@ import {
   SKIP_DIRS,
   applyShell,
   buildRows,
+  clean,
   countMarks,
   endEdit,
   headerParts,
@@ -109,7 +110,7 @@ function refreshStatus($: Engine, marks: Record<string, Mark>): void {
   const text = statusText(countMarks(marks))
   if (text === lastStatus) return
   lastStatus = text
-  $.ui.status(text)
+  $.ui.status(text === undefined ? undefined : clean(text))
 }
 
 async function changeMark($: Engine, path: string, change: (mark: Mark | undefined) => Mark): Promise<void> {
@@ -276,7 +277,7 @@ async function rescan($: Engine): Promise<void> {
 
 async function openPane($: Engine): Promise<boolean> {
   const opened = await $.ui.open({ id: PANE, title: 'Footprints' })
-  if (!opened.isPlaced) $.ui.toast(`Footprints cannot show its pane here: ${opened.reason}`)
+  if (!opened.isPlaced) $.ui.toast(clean(`Footprints cannot show its pane here: ${opened.reason}`))
   await quietly(rescan($))
   return opened.isPlaced
 }
@@ -469,7 +470,9 @@ export const register: Register = on => {
     const view = viewOf(tree, marksRead.value ?? {}, touchedOnly, `${marksRead.version}:${treeRead.version}:${touchedOnly}`)
 
     /** A name styled by what Claude did to it: blue read, amber edited (shimmering while it runs), green committed. */
-    const name = (label: string, mark: Mark | undefined, isUntouched: boolean) => {
+    // Every name and path is cleaned where it is drawn: one control character would blank the pane.
+    const name = (raw: string, mark: Mark | undefined, isUntouched: boolean) => {
+      const label = clean(raw)
       if (isEditing(mark)) {
         const [head, band, tail] = shimmerParts(label, phase)
         return (
@@ -512,7 +515,7 @@ export const register: Register = on => {
       }
       if (row.kind === 'dir') {
         return (
-          <Box key={`d:${row.path}`}>
+          <Box key={`d:${clean(row.path)}`}>
             <Text wrap="truncate-end" bold={row.isTouched} dimColor={!row.isTouched}>
               {`${indent}${row.isOpen ? '▾' : '▸'} `}
               {name(`${row.name}/`, row.mark, !row.isTouched)}
@@ -522,7 +525,7 @@ export const register: Register = on => {
         )
       }
       return (
-        <Box key={`f:${row.path}`}>
+        <Box key={`f:${clean(row.path)}`}>
           <Text wrap="truncate-end">
             {`${indent}  `}
             {name(row.name, row.mark, !isTouched(row.mark))}
@@ -532,7 +535,7 @@ export const register: Register = on => {
       )
     }
 
-    const rootName = tree ? (tree.root.split('/').filter(Boolean).pop() ?? tree.root) : ''
+    const rootName = clean(tree ? (tree.root.split('/').filter(Boolean).pop() ?? tree.root) : '')
 
     return (
       <Box flexDirection="column">
@@ -562,7 +565,7 @@ export const register: Register = on => {
         </Box>
         {tree?.note ? (
           <Box key="note">
-            <Text dimColor wrap="truncate-end">{tree.note}</Text>
+            <Text dimColor wrap="truncate-end">{clean(tree.note)}</Text>
           </Box>
         ) : (
           ''
@@ -579,7 +582,7 @@ export const register: Register = on => {
           <Box key="outside" flexDirection="column" marginTop={1}>
             <Text dimColor>{tree ? `outside ${rootName}` : 'touched so far'}</Text>
             {view.outside.slice(0, MAX_OUTSIDE).map(([abs, mark]) => (
-              <Box key={`o:${abs}`}>
+              <Box key={`o:${clean(abs)}`}>
                 <Text wrap="truncate-start">
                   {name(abs, mark, false)}
                   {tags(mark)}

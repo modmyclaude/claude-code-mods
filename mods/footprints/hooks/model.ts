@@ -41,6 +41,20 @@ export function relativeTo(abs: string, roots: readonly string[]): string | unde
   return undefined
 }
 
+// ---------------------------------------------------------------- drawing
+
+/**
+ * Text safe to draw. A file name may legally hold control characters, and the
+ * engine refuses a whole tree that carries one, so ANSI sequences are dropped
+ * and every other C0, DEL or C1 character is shown as U+FFFD.
+ */
+export function clean(text: string): string {
+  return text
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '') // CSI: colors, cursor moves
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '') // OSC: titles, links
+    .replace(/[\x00-\x1f\x7f-\x9f]/g, '\uFFFD')
+}
+
 // ---------------------------------------------------------------- git output
 
 /** The project root inside a git work tree: git's top and the root's prefix under it. */

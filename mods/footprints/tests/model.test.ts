@@ -6,6 +6,7 @@ import type { FootprintsMark as Mark } from '../types'
 import {
   applyShell,
   buildRows,
+  clean,
   countMarks,
   endEdit,
   headerText,
@@ -251,5 +252,22 @@ describe('shimmer', () => {
       ['', '', 'index'], // span is length 5 + band 3: frame 8 starts over
     ])
     for (const [head, band, tail] of frames) expect(head + band + tail).toBe('index')
+  })
+})
+
+describe('clean', () => {
+  test('drops ANSI sequences and shows every other control character as U+FFFD', () => {
+    const cases: [string, string][] = [
+      ['plain name.ts', 'plain name.ts'],
+      ['\x1b[31mred\x1b[0m.txt', 'red.txt'],
+      ['\x1b]0;title\x07after', 'after'],
+      ['\x1b]8;;https://x\x1b\\link', 'link'],
+      ['bell\x07.txt', 'bell\uFFFD.txt'],
+      ['nul\x00tab\tnl\n', 'nul\uFFFDtab\uFFFDnl\uFFFD'],
+      ['del\x7f c1\u0085 csi8\u009b', 'del\uFFFD c1\uFFFD csi8\uFFFD'],
+      ['lone esc \x1bc', 'lone esc \uFFFDc'],
+      ['ok \u00a0 é ▾', 'ok \u00a0 é ▾'], // printable non-ASCII stays
+    ]
+    for (const [raw, want] of cases) expect(clean(raw), JSON.stringify(raw)).toBe(want)
   })
 })
