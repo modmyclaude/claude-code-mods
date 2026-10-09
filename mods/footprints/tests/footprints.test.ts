@@ -494,3 +494,32 @@ describe('slow git', () => {
     expect(statusNow(w)).toBe('edited 2')
   })
 })
+
+describe('file names with control characters', () => {
+  // ESC, BEL, NEL (U+0085) and a colored name: all legal in a file name, all refused by the engine if drawn.
+  const weird = ['src/esc\x1bname.ts', 'src/bell\x07.ts', 'src/nel\u0085.ts', 'src/\x1b[31mred\x1b[0m.ts']
+  const control = /[\x00-\x1f\x7f-\x9f]/
+
+  test('a repo holding them still draws its tree on both surfaces, names cleaned', async ($, on) => {
+    world(on, { tracked: ['src/a.ts', ...weird] })
+    await start($)
+    await $.tool.call({ tool: 'Read', file_path: abs('src/bell\x07.ts') })
+    await $.tool.call({ tool: 'Write', file_path: abs('src/new\x1b[2Jfile.ts'), content: 'x' })
+    await footprints($)
+    for (const surface of SURFACES) {
+      const ui = await mount($, surface)
+      expect(await header(ui), surface).toBe('read 1 · edited 1 · new 1')
+      expect((await ui.find({ key: 'f:src/a.ts' }))?.text, surface).toContain('a.ts')
+      expect((await ui.find({ key: 'f:src/esc\uFFFDname.ts' }))?.text, surface).toContain('esc\uFFFDname.ts')
+      expect((await ui.find({ key: 'f:src/red.ts' }))?.text, surface).toContain('red.ts')
+      expect((await ui.find({ key: 'f:src/bell\uFFFD.ts' }))?.text, surface).toContain('bell\uFFFD.ts')
+      expect((await ui.find({ key: 'f:src/newfile.ts' }))?.text, surface).toContain('newfile.ts new')
+      const everything = await ui.findAll({})
+      expect(everything.length, surface).toBeGreaterThan(10)
+      for (const element of everything) {
+        expect(control.test(`${element.text}${element.key ?? ''}`), `${surface}: ${JSON.stringify(element.text)}`).toBe(false)
+      }
+      await ui.unmount()
+    }
+  })
+})
