@@ -3,9 +3,11 @@
 // surfaces, and /fineprint runs as a command.
 
 import { expect, mock, test } from 'claude-code/testing'
-import type { MockClock, Plugin } from 'claude-code/testing'
+import type { Engine, MockClock, Plugin } from 'claude-code/testing'
 import type {
   CommandRunInput,
+  CommandSpec,
+  PaneOpenArgs,
   ModelCompleteInput,
   ModelCompleteResult,
   On,
@@ -68,7 +70,9 @@ const BAND = {
 
 type Answer = string | ModelCompleteResult
 type World = {
-  registered: string[]
+  registered: CommandSpec[]
+  opened: PaneOpenArgs[]
+  logs: string[]
   calls: ModelCompleteInput[]
   statuses: (string | undefined)[]
   toasts: string[]
@@ -80,14 +84,17 @@ type World = {
 type Setup = {
   submit?: 'ok' | 'drop'
   dropReason?: string
+  panes?: boolean
   surfaces?: readonly RenderSurface[]
   messages?: SessionMessage[] | 'deny'
 }
 
 function world(on: On, answers: Answer[], setup: Setup = {}): World {
-  const { submit = 'ok', dropReason = 'a hook refused it', surfaces = ['terminal'], messages = MESSAGES } = setup
+  const { submit = 'ok', dropReason = 'a hook refused it', panes = true, surfaces = ['terminal'], messages = MESSAGES } = setup
   const seen: World = {
     registered: [],
+    opened: [],
+    logs: [],
     calls: [],
     statuses: [],
     toasts: [],
@@ -96,7 +103,12 @@ function world(on: On, answers: Answer[], setup: Setup = {}): World {
   }
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
-  on('command.register', ($, e) => ((seen.registered.push(e.name), { value: { command: e.name } })))
+  on('command.register', ($, e) => ((seen.registered.push(e), { value: { command: e.name } })))
+  on('ui.open', ($, e) => {
+    seen.opened.push(e)
+
+    return { value: panes ? { isPlaced: true } : { isPlaced: false, reason: 'no attached surface seats panes' } }
+  })
   on('session.messages', () => (messages === 'deny' ? { deny: 'transcript unavailable' } : { value: messages }))
   on('session.surfaces', () => ({ value: surfaces }))
   on('model.complete', ($, e) => {
@@ -108,7 +120,11 @@ function world(on: On, answers: Answer[], setup: Setup = {}): World {
   on('turn.complete', ($, e) => ({ text: e.answer }))
   on('ui.status', ($, e) => ((seen.statuses.push(e.text), { value: undefined })))
   on('ui.toast', ($, e) => ((seen.toasts.push(e.text), { value: undefined })))
-  on('ui.log', () => ({ value: undefined }))
+  on('ui.log', ($, e) => {
+    if (e.to === 'transcript') seen.logs.push(e.text)
+
+    return { value: undefined }
+  })
   on('prompt.submit', ($, e) => {
     seen.submitted.push(e)
 
@@ -133,6 +149,27 @@ const FINEPRINT: CommandRunInput = {
   args: '',
   origin: { kind: 'composer' },
   presentation: { isFullscreen: false, columns: 100 },
+}
+
+const PANE_PROPS = {
+  title: 'Fine Print',
+  isFocused: true,
+  bodyColumns: 90,
+  placement: 'dock',
+  scroll: { offset: 0, bodyRows: 40 },
+  view: {},
+} as const
+
+// Runs /fineprint as the person does and reads the pane it opens: the
+// command itself answers no text, so the model never reads the list.
+async function fineprint($: Engine, surface: 'terminal' | 'desktop' = 'terminal'): Promise<string> {
+  const result = await $.command.run(FINEPRINT)
+  expect(result).toEqual({})
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: 'fineprint', props: PANE_PROPS })
+  const text = (await ui.findAll({ type: 'Text' })).map(line => line.text).join('\n')
+  await ui.unmount()
+
+  return text
 }
 
 // Ends a turn the way the session does, then lets the background check run.
@@ -231,7 +268,7 @@ test('a run where nothing draws (-p) spends no checks', async ($, on) => {
   const seen = world(on, [JSON.stringify(FLAG)], { surfaces: [] })
   await endTurn($, seen, turn(LONG_REPLY))
   expect(seen.calls).toHaveLength(0)
-  expect((await $.command.run(FINEPRINT)).text).toContain('Checks used this session: 0 of 30.')
+  expect((await fineprint($))).toContain('Checks used this session: 0 of 30.')
 })
 
 test('the answer to Explain more is not checked again', async ($, on) => {
@@ -244,7 +281,7 @@ test('the answer to Explain more is not checked again', async ($, on) => {
   await endTurn($, seen, turn(LONG_REPLY, 'explained'))
 
   expect(seen.calls).toHaveLength(1)
-  const listed = (await $.command.run(FINEPRINT)).text
+  const listed = (await fineprint($))
   expect(listed).toContain('Fine Print: 1 note this session')
   // Nor does it cost a check.
   expect(listed).toContain('Checks used this session: 1 of 30.')
@@ -280,7 +317,7 @@ for (const [name, answer] of [
     expect(seen.calls).toHaveLength(1)
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
     expect(await ui.find({ text: 'engine band' })).toBeDefined()
-    expect((await $.command.run(FINEPRINT)).text).toContain('has flagged nothing')
+    expect((await fineprint($))).toContain('has flagged nothing')
   })
 }
 
@@ -291,7 +328,7 @@ test('short, aborted and subagent turns never call the model', async ($, on) => 
   await endTurn($, seen, { ...turn(LONG_REPLY, 's'), agentId: 'sub-1' })
 
   expect(seen.calls).toHaveLength(0)
-  expect((await $.command.run(FINEPRINT)).text).toContain('Checks used this session: 0 of 30.')
+  expect((await fineprint($))).toContain('Checks used this session: 0 of 30.')
 })
 
 test('a reply just over 150 words is checked, one at 150 is not', async ($, on) => {
@@ -309,7 +346,7 @@ test('the cap stops checks and says so once in the status line', { options: { ma
   expect(seen.calls).toHaveLength(2)
   expect(seen.statuses).toHaveLength(1)
   expect(seen.statuses[0]).toContain('all 2 checks')
-  expect((await $.command.run(FINEPRINT)).text).toContain('Checks used this session: 2 of 2.')
+  expect((await fineprint($))).toContain('Checks used this session: 2 of 2.')
 })
 
 test('/clear starts fresh: notes, band, spend and the cap line', { options: { maxChecksPerSession: 1 } }, async ($, on) => {
@@ -321,7 +358,7 @@ test('/clear starts fresh: notes, band, spend and the cap line', { options: { ma
   expect(seen.statuses).toEqual([expect.stringContaining('all 1 checks'), undefined])
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'got-it' })).toBeUndefined()
-  expect((await $.command.run(FINEPRINT)).text).toContain('has flagged nothing this session. Checks used this session: 0 of 1.')
+  expect((await fineprint($))).toContain('has flagged nothing this session. Checks used this session: 0 of 1.')
 
   await endTurn($, seen, turn(LONG_REPLY, 'after'))
   expect(seen.calls).toHaveLength(2)
@@ -331,7 +368,7 @@ test('other session ends keep the notes', async ($, on) => {
   const seen = world(on, [JSON.stringify(FLAG)])
   await endTurn($, seen, turn(LONG_REPLY))
   await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })
-  expect((await $.command.run(FINEPRINT)).text).toContain(FLAG.headline)
+  expect((await fineprint($))).toContain(FLAG.headline)
 })
 
 test('a reload puts the cap line back up', { options: { maxChecksPerSession: 1 } }, async ($, on) => {
@@ -390,7 +427,7 @@ for (const surface of SURFACES) {
     expect(await ui.find({ key: 'dismiss' })).toBeUndefined()
     expect(await ui.find({ text: 'engine band' })).toBeDefined()
 
-    const listed = (await $.command.run(FINEPRINT)).text ?? ''
+    const listed = await fineprint($)
     expect(listed).toContain('1. Second note (dismissed')
     expect(listed).toContain(`2. ${FLAG.headline} (got it`)
     expect(seen.submitted).toEqual([])
@@ -408,7 +445,7 @@ for (const surface of SURFACES) {
     expect(seen.submitted[0]?.text).toContain('Fine Print (a second-reader plugin)')
     expect(seen.submitted[0]?.origin).toEqual({ kind: 'plugin', name: PLUGIN })
     expect(await ui.find({ key: 'explain' })).toBeUndefined()
-    expect((await $.command.run(FINEPRINT)).text).toContain('(asked to explain')
+    expect((await fineprint($))).toContain('(asked to explain')
     expect(seen.toasts).toEqual([])
   })
 }
@@ -423,11 +460,36 @@ test('a second Explain more press sends nothing more', async ($, on) => {
   expect(seen.submitted).toHaveLength(1)
 })
 
-test('/fineprint still answers when reading its notes fails', async ($, on) => {
-  // No clock beneath: the command's own read throws, and its .catch answers.
-  on('ui.log', () => ({ value: undefined }))
+test('/fineprint says so when it cannot open its notes', async ($, on) => {
+  // Nothing beneath answers ui.open: the command throws, and its .catch answers.
+  const toasts: string[] = []
+  on('ui.toast', ($, e) => ((toasts.push(e.text), { value: undefined })))
   const result = await $.command.run(FINEPRINT)
-  expect(result.text).toBe('Fine Print could not read its notes.')
+  expect(result).toEqual({})
+  expect(toasts).toEqual(['Fine Print could not open its notes.'])
+})
+
+test('/fineprint opens a pane and answers no text, so the model never reads the list', async ($, on) => {
+  const seen = world(on, [JSON.stringify(FLAG)])
+  await endTurn($, seen, turn(LONG_REPLY))
+
+  for (const surface of SURFACES) {
+    const listed = await fineprint($, surface)
+    expect(listed).toContain(`1. ${FLAG.headline} (open`)
+    expect(listed).toContain(`   - ${FLAG.bullets[0]}`)
+  }
+  expect(seen.opened[0]).toMatchObject({ id: 'fineprint', title: 'Fine Print', focus: true, closeOnEscape: true })
+  expect(seen.logs).toEqual([])
+})
+
+test('where no surface seats a pane, the list is a transcript line the model does not read', async ($, on) => {
+  const seen = world(on, [JSON.stringify(FLAG)], { panes: false })
+  await endTurn($, seen, turn(LONG_REPLY))
+
+  expect(await $.command.run(FINEPRINT)).toEqual({})
+  expect(seen.logs).toHaveLength(1)
+  expect(seen.logs[0]).toContain(`1. ${FLAG.headline} (open`)
+  expect(seen.logs[0]).toContain('Checks used this session: 1 of 30.')
 })
 
 test('Explain more says so when the question could not be sent', async ($, on) => {
@@ -442,7 +504,7 @@ test('Explain more says so when the question could not be sent', async ($, on) =
   expect(seen.toasts[0]).toContain('could not send the question')
   // The note is back, still open, and can be tried again.
   expect(await ui.find({ key: 'explain' })).toBeDefined()
-  expect((await $.command.run(FINEPRINT)).text).toContain(`1. ${FLAG.headline} (open`)
+  expect((await fineprint($))).toContain(`1. ${FLAG.headline} (open`)
 })
 
 test('a failing model is silent in the band and toasts once per session', async ($, on) => {
@@ -462,13 +524,13 @@ test('/fineprint is registered and lists every note, newest first', async ($, on
   const seen = world(on, [JSON.stringify(FLAG), JSON.stringify({ ...FLAG, headline: 'Newer note' })])
 
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
-  expect(seen.registered).toEqual(['fineprint'])
+  expect(seen.registered).toEqual([{ name: 'fineprint', description: expect.any(String), immediate: true }])
 
   await endTurn($, seen, turn(LONG_REPLY, 'a'))
   await seen.clock.advance(5 * 60_000)
   await endTurn($, seen, turn(LONG_REPLY, 'b'))
 
-  const listed = (await $.command.run(FINEPRINT)).text ?? ''
+  const listed = await fineprint($)
   expect(listed).toContain('Fine Print: 2 notes this session, newest first.')
   expect(listed.indexOf('Newer note')).toBeLessThan(listed.indexOf(FLAG.headline))
   expect(listed).toContain(`2. ${FLAG.headline} (open, 5 min ago; cost, irreversible)`)
@@ -556,7 +618,7 @@ test('a verdict full of control characters still draws the note and its buttons'
     for (const text of await ui.findAll({ type: 'Text' })) expect(CONTROL_CHARS.test(text.text)).toBe(false)
     await ui.unmount()
   }
-  const listed = (await $.command.run(FINEPRINT)).text ?? ''
+  const listed = await fineprint($)
   expect(listed).toContain('Billing is on')
   expect(CONTROL_CHARS.test(listed)).toBe(false)
 })
@@ -585,7 +647,7 @@ test('where no surface draws the band, the note arrives as a toast', async ($, o
   await endTurn($, seen, turn(LONG_REPLY))
 
   expect(seen.toasts).toEqual([`Fine print: ${FLAG.headline} (/fineprint has the details)`])
-  expect((await $.command.run(FINEPRINT)).text).toContain(FLAG.headline)
+  expect((await fineprint($))).toContain(FLAG.headline)
 })
 
 test('on the terminal or desktop the band alone shows the note', async ($, on) => {
