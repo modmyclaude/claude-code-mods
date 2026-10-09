@@ -2,6 +2,8 @@
 // Every edit is an insertion, a one-line replacement or a one-line removal
 // at an exact offset, so the rest of the file comes back byte-for-byte.
 
+import { stripControls } from './text'
+
 export const HEADING = '## House rules'
 
 /** A rule can be at most this long, so the file stays a list of one-liners. */
@@ -23,48 +25,69 @@ function splitLines(s: string): Line[] {
   return out
 }
 
-const FENCE = /^ {0,3}(```|~~~)/
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/
 const ANY_HEADING = /^ {0,3}(#{1,6})(?:[ \t]|$)/
 const HOUSE_HEADING = /^ {0,3}(#{1,6})[ \t]+house rules[ \t]*#*[ \t]*$/i
 const BULLET = /^([ \t]*(?:[-*+]|\d+[.)])[ \t]+)(.*\S)[ \t]*$/
 
-/** A House rules section: its heading, every line under it, its list items. */
-type Section = { heading: Line; body: Line[]; items: RuleLine[] }
+/**
+ * A House rules section: its heading, every line under it, the lines before
+ * any nested sub-heading (where a new rule goes), and its list items.
+ */
+type Section = { heading: Line; body: Line[]; lead: Line[]; items: RuleLine[] }
 type RuleLine = { rule: string; line: Line; prefix: string }
+/** The sections, and where a code fence that never closes opens (or null). */
+type Parsed = { sections: Section[]; openFence: number | null }
 
 /** Every House rules section, headings and bullets inside code fences ignored. */
-function sections(content: string): Section[] {
+function parse(content: string): Parsed {
   const found: Section[] = []
   let current: Section | null = null
   let level = 0
-  let fence: string | null = null
+  let nested = false
+  // A fence closes only on the same character, at least as long, with no info string.
+  let fence: { char: string; length: number; start: number } | null = null
   for (const line of splitLines(content)) {
-    const marker = FENCE.exec(line.text)?.[1]
-    const isFenceLine = marker !== undefined && (fence === null || fence === marker)
-    const isCode = fence !== null || isFenceLine
-    if (isFenceLine) fence = fence === null ? (marker ?? null) : null
+    // A byte order mark is not part of the first line's text.
+    const text = line.start === 0 ? line.text.replace(/^﻿/, '') : line.text
+    const marker = FENCE.exec(text)
+    let isCode = fence !== null
+    if (marker) {
+      const run = marker[1] ?? ''
+      if (fence === null) {
+        fence = { char: run[0] ?? '`', length: run.length, start: line.start }
+        isCode = true
+      } else if (run[0] === fence.char && run.length >= fence.length && (marker[2] ?? '').trim() === '') {
+        fence = null
+      }
+    }
 
     if (!isCode) {
-      const house = HOUSE_HEADING.exec(line.text)
+      const house = HOUSE_HEADING.exec(text)
       if (house) {
-        current = { heading: line, body: [], items: [] }
+        current = { heading: line, body: [], lead: [], items: [] }
         level = house[1]?.length ?? 2
+        nested = false
         found.push(current)
         continue
       }
-      const heading = ANY_HEADING.exec(line.text)
-      if (heading && current && (heading[1]?.length ?? 1) <= level) current = null
+      const heading = ANY_HEADING.exec(text)
+      if (heading && current) {
+        if ((heading[1]?.length ?? 1) <= level) current = null
+        else nested = true
+      }
     }
     if (!current) continue
     current.body.push(line)
-    const bullet = isCode ? null : BULLET.exec(line.text)
+    if (!nested) current.lead.push(line)
+    const bullet = isCode ? null : BULLET.exec(text)
     if (bullet) current.items.push({ rule: bullet[2] ?? '', line, prefix: bullet[1] ?? '- ' })
   }
-  return found
+  return { sections: found, openFence: fence?.start ?? null }
 }
 
 function ruleLines(content: string): RuleLine[] {
-  return sections(content).flatMap(s => s.items)
+  return parse(content).sections.flatMap(s => s.items)
 }
 
 /** The rules listed under every House rules heading, in file order. */
@@ -73,11 +96,12 @@ export function houseRules(content: string): string[] {
 }
 
 /**
- * A rule's comparable form: case, punctuation, markdown marks and
- * "do not" / "don't" spelling folded, so near-identical rules compare equal.
+ * A rule's comparable form: terminal escapes, case, punctuation, markdown
+ * marks and "do not" / "don't" spelling folded, so near-identical rules
+ * compare equal.
  */
 export function normalizeRule(rule: string): string {
-  return rule
+  return stripControls(rule)
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/\bdo not\b/g, "don't")
@@ -95,10 +119,11 @@ export function sameRule(a: string, b: string): boolean {
 
 /**
  * A rule (the model's or the person's) made safe to write as one list item:
- * one line, no leading bullet or wrapping quotes. '' when nothing is left.
+ * one line, no control characters, no leading bullet or wrapping quotes.
+ * '' when nothing is left.
  */
 export function cleanRule(rule: string): string {
-  return rule
+  return stripControls(rule)
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^(?:[-*+]|\d+[.)])\s+/, '')
@@ -111,24 +136,32 @@ function eolOf(content: string): string {
 }
 
 /**
- * The file with `rule` added after the last line of the first House rules
- * section, or with the heading and the rule appended when there is none.
- * Nothing that was in the file moves or changes.
+ * The file with `rule` added at the end of the first House rules section
+ * (before any sub-heading in it), or with the heading and the rule appended
+ * when there is none. Nothing that was in the file moves or changes.
+ * Null when a code fence that never closes would swallow the new line
+ * wherever it went (it opens before the section, or there is no section).
  */
-export function appendRule(content: string, rule: string): string {
+export function appendRule(content: string, rule: string): string | null {
   const eol = eolOf(content)
-  const first = sections(content)[0]
+  const { sections, openFence } = parse(content)
+  const first = sections[0]
+  let at: number
+  let text: string
   if (first) {
-    const filled = first.body.filter(l => l.text.trim() !== '')
-    const last = filled.at(-1) ?? first.heading
+    // Before a fence that never closes, if one opens inside the section.
+    const usable = first.lead.filter(l => l.text.trim() !== '' && (openFence === null || l.start < openFence))
+    const last = usable.at(-1) ?? first.heading
     // A heading with nothing under it yet gets a blank line before the list.
-    const gap = last === first.heading ? eol + eol : eol
-    return content.slice(0, last.end) + `${gap}- ${rule}` + content.slice(last.end)
+    at = last.end
+    text = `${last === first.heading ? eol + eol : eol}- ${rule}`
+  } else {
+    const gap = content === '' || content.endsWith(eol + eol) ? '' : content.endsWith(eol) ? eol : eol + eol
+    at = content.length
+    text = `${gap}${HEADING}${eol}${eol}- ${rule}${eol}`
   }
-  const block = `${HEADING}${eol}${eol}- ${rule}${eol}`
-  if (content === '') return block
-  const gap = content.endsWith(eol + eol) ? '' : content.endsWith(eol) ? eol : eol + eol
-  return content + gap + block
+  if (openFence !== null && openFence < at) return null
+  return content.slice(0, at) + text + content.slice(at)
 }
 
 /** The file with the first House rule equal to `oldRule` reworded, or null. */

@@ -10,9 +10,10 @@ export const MAX_PROMPT_CHARS = 800
 const FILLER =
   /^(?:(?:hey|hi|hmm+|um+|uh+|oh|ah|ugh|ok(?:ay)?|well|wait|sorry|so|actually|please|pls|plz|claude)\b[\s,.!:;]*)+/i
 
-// A leading "no" that is a pleasantry, not a correction ("no worries").
+// A leading "no" that is a pleasantry or a status report, not a correction
+// ("no worries", "no luck", "nope, still broken", "no, same error").
 const NO_PLEASANTRY =
-  /^(?:worries|worry|problem|problems|prob|probs|thanks|thank|thx|rush|biggie|idea|clue|need|way|kidding|doubt|matter|offen[cs]e|pressure|stress|more|longer)\b/i
+  /^(?:worries|worry|problem|problems|prob|probs|thanks|thank|thx|rush|biggie|idea|clue|need|way|kidding|doubt|matter|offen[cs]e|pressure|stress|more|longer|luck|dice|change|difference|effect|joy)\b|^(?:it\s+|that\s+|this\s+)?(?:still|same)\b/i
 
 // "don't" / "do not" / "never" followed by these is an idiom or a feature
 // name ("do not disturb mode", "never mind", "don't worry").
@@ -24,17 +25,19 @@ const NEGATION_OPENER = /^(?:don'?t|dont|do\s+not|never)\s+(\S.*)$/is
 const OPENERS: readonly RegExp[] = [
   /^always\s+\w/i,
   /^(?:stop|quit)\s+\w+ing\b/i,
-  /^use\s+\S+\s+(?:not|instead\s+of|rather\s+than|over)\s+\S/i,
+  /^use\s+\S+(?:\s+\S+){0,3}?,?\s+(?:not|instead|rather\s+than|over)\b/i,
   /^instead\s+of\s+\S.*\buse\b/i,
   /^prefer\s+\S.*\b(?:over|to)\s+\S/i,
   /^(?:from\s+now\s+on|going\s+forward|in\s+(?:the\s+)?future)\b/i,
 ]
+// Openers that stay corrections when asked as a question ("Can you stop ...?").
+const ASKING: readonly RegExp[] = [/^(?:can|could|would|will)\s+you\s+(?:please\s+)?stop\s+\w+ing\b/i]
 
 // Patterns that count anywhere in the prompt.
 const ANYWHERE: readonly RegExp[] = [
-  /\bi\s+(?:already\s+|just\s+)?(?:told|asked)\s+you\b/i,
+  /\bi\s+(?:already\s+|just\s+)?(?:told|asked)\s+you\b(?!\s+about\b)/i,
   /\bas\s+i\s+(?:said|mentioned)\b/i,
-  /\bi\s+said\s+(?:to|not)\b/i,
+  /\bi\s+said\s+(?:to|not|no)\b/i,
   /\bwe\s+(?:use|prefer|want)\s+\S+(?:\s+\S+)?\s+(?:not|instead\s+of|rather\s+than|over)\s+\S/i,
   /\bwe\s+(?:always|never|don'?t|do\s+not)\s+\w/i,
   /\byou\s+keep\s+\w+ing\b/i,
@@ -65,7 +68,7 @@ function opensWithCorrection(candidate: string): boolean {
   const negation = NEGATION_OPENER.exec(s)
   if (negation) return !isQuestion && !NEGATION_IDIOM.test(negation[1] ?? '')
 
-  return !isQuestion && OPENERS.some(re => re.test(s))
+  return ASKING.some(re => re.test(s)) || (!isQuestion && OPENERS.some(re => re.test(s)))
 }
 
 /**

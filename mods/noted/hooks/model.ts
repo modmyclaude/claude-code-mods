@@ -11,8 +11,9 @@ export const MAX_TAIL_CHARS = 600
 export const MAX_RULES_SENT = 60
 export const MAX_RULE_CHARS_SENT = 200
 // The haiku alias thinks by default, and thinking spends this budget too:
-// leave headroom so the JSON is not cut mid-line. A cut reply is malformed.
-export const MAX_REPLY_TOKENS = 600
+// leave headroom so the JSON is not cut mid-line (unused tokens cost nothing).
+// A cut reply is malformed.
+export const MAX_REPLY_TOKENS = 1024
 export const TIMEOUT_MS = 20_000
 
 export const SYSTEM = [
@@ -37,7 +38,7 @@ export function buildPrompt(correction: string, assistantTail: string, existing:
   const tail = assistantTail.trim().slice(-MAX_TAIL_CHARS)
   return [
     'Existing rules:',
-    rules.length > 0 ? rules.join('\n') : '(none)',
+    quote(rules.length > 0 ? rules.join('\n') : '(none)'),
     '',
     "The assistant's previous message ended with:",
     quote(tail === '' ? '(nothing yet)' : tail),

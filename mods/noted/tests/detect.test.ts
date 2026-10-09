@@ -30,6 +30,10 @@ const CORRECTIONS = [
   'from now on, write the test first',
   'you keep forgetting the changelog',
   "Thanks. Don't rename files without asking though.",
+  'use pnpm instead',
+  'Please use pnpm here, not npm',
+  'I said no comments',
+  'Can you stop adding emojis?',
 ]
 
 const NOT_CORRECTIONS = [
@@ -61,6 +65,14 @@ const NOT_CORRECTIONS = [
   'Here is the snippet:\n```\n// no, use pnpm\n```\nwhat does it do',
   '/rules',
   '! npm install',
+  // Status reports in a debugging loop, and narration (review R-noted-3):
+  'nope, still broken',
+  'No, it still fails with the same error',
+  'no. same error',
+  'no luck, same error',
+  'No change, still failing',
+  'no dice',
+  'I told you about the outage yesterday, did you see the logs?',
 ]
 
 describe('looksLikeCorrection', () => {

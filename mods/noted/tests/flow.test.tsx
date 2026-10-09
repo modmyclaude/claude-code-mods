@@ -48,7 +48,7 @@ describe('a correction', () => {
       // One cheap call, carrying the correction and the reply it corrects.
       expect(w.calls).toHaveLength(1)
       expect(w.calls[0]?.model).toBe('haiku')
-      expect(w.calls[0]?.maxTokens).toBe(600) // headroom: the haiku alias thinks first
+      expect(w.calls[0]?.maxTokens).toBe(1024) // headroom: the haiku alias thinks first
       expect(w.calls[0]?.effort).toBe('low')
       expect(w.calls[0]?.prompt).toContain('no, use pnpm')
       expect(w.calls[0]?.prompt).toContain('I ran npm install and added lodash.')
@@ -144,10 +144,19 @@ describe('a correction', () => {
 
 describe('sharing the band', () => {
   for (const surface of SURFACES) {
-    test(`noted draws above other mods' bands, never in place of them, on ${surface}`, { plugins: [NEIGHBOUR] }, async ($, on) => {
+    test(`noted draws after other mods' bands, never in place of them, on ${surface}`, { plugins: [NEIGHBOUR] }, async ($, on) => {
       world(on, { reply: verdict(PNPM) })
       const ui = await $.ui.mount({ plugin: 'noted', surface, component: 'AbovePrompt', props: BAND })
-      const all = async () => [await ui.find({ key: 'noted' }), await ui.find({ key: 'neighbour' }), await ui.find({ key: 'engine' })]
+      // All three drawn, noted's last: an overflowing band scrolls its end away, never their buttons.
+      const all = async () => {
+        const keys = (await ui.findAll({ type: 'Box' })).map(b => b.key)
+        const at = (key: string) => keys.indexOf(key)
+        expect(at('neighbour')).toBeGreaterThanOrEqual(0)
+        expect(at('engine')).toBeGreaterThanOrEqual(0)
+        expect(at('noted')).toBeGreaterThan(at('neighbour'))
+        expect(at('noted')).toBeGreaterThan(at('engine'))
+        return [await ui.find({ key: 'noted' })]
+      }
 
       await $.prompt.submit({ text: 'no, use pnpm', ...PROMPT_FROM_PERSON })
       await ui.redraw()
