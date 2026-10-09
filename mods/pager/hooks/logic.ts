@@ -63,11 +63,11 @@ export const notificationAlert = (type: string): Kind | undefined =>
 const UNIT_MS: Record<string, number> = { d: 86_400_000, h: 3_600_000, m: 60_000, s: 1_000 }
 
 /**
- * A mute length: `30m`, `2h`, `1h30m`, `45s`, `1d`; a bare number is minutes.
+ * A mute length: `30m`, `2h`, `1h30m` (or `1h 30m`), `45s`, `1d`; a bare number is minutes.
  * Undefined for anything else, for zero, and past seven days.
  */
 export function parseDuration(text: string): number | undefined {
-  const t = text.trim().toLowerCase()
+  const t = text.replace(/\s+/g, '').toLowerCase() // `1h 30m` and `30 m` read as typed
   let ms: number
   if (/^\d+$/.test(t)) {
     ms = Number(t) * UNIT_MS.m!

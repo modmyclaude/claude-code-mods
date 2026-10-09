@@ -70,7 +70,9 @@ describe('parseDuration', () => {
     ['0m', undefined],
     ['', undefined],
     ['soon', undefined],
-    ['30 m', undefined],
+    ['30 m', 30 * 60_000],
+    ['1h 30m', 90 * 60_000],
+    ['1 h 30 m', 90 * 60_000],
     ['-5m', undefined],
     ['1.5h', undefined],
   ]

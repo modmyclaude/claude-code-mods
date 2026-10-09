@@ -95,11 +95,14 @@ function push($: EngineInterface, topic: string, kind: Kind, durationMs: number 
 
 /** One alert: always a toast; a sound and a push unless silenced or too soon. */
 async function alert($: EngineInterface, pager: Pager, kind: Kind, durationMs?: number) {
+  // A plain `claude -p` run draws nowhere: nobody to page, so no sound and no push.
+  if ((await $.session.surfaces()).length === 0) return
   const now = await $.clock.now()
   const took = durationMs === undefined ? '' : ` (${formatDuration(durationMs)})`
   $.ui.toast(`${LABEL[kind]} - ${await nameOf($, pager)}${took}`)
 
   if ((await silence($, pager, now)) !== undefined) return
+  // No await between this check and the set: two alerts at once rely on it.
   if (now - pager.lastSoundAt < GAP_MS) return
   pager.lastSoundAt = now
 
@@ -126,7 +129,7 @@ async function status($: EngineInterface, pager: Pager, now: number): Promise<st
     `Pager: ${await currentPack($)} pack, ${silent ? `silent (${silent})` : 'sounds on'}.`,
     `Done pages after turns of ${formatDuration(pager.minMs)} or more. Quiet hours: ${pager.quiet ? pager.quietText : 'off'}. Phone push: ${phone}.`,
     `Commands: ${COMMANDS}.`,
-  ].join('\n')
+  ].join(' ')
 }
 
 async function choosePack($: EngineInterface, arg: string): Promise<string> {
@@ -143,7 +146,7 @@ async function testPack($: EngineInterface, pager: Pager, now: number): Promise<
   const failed: string[] = []
   for (const kind of KINDS) {
     await $.audio.play({ asset: assetFor(pack, kind) }).catch(err => {
-      failed.push(`${LABEL[kind]}: ${reason(err)}`)
+      failed.push(`${LABEL[kind]}: ${clean(reason(err))}`)
     })
   }
   const silent = await silence($, pager, now)
@@ -155,7 +158,7 @@ async function testPack($: EngineInterface, pager: Pager, now: number): Promise<
     NO_PLAYER,
   ]
     .filter(Boolean)
-    .join('\n')
+    .join(' ')
 }
 
 async function mute($: EngineInterface, arg: string, now: number): Promise<string> {
@@ -235,7 +238,8 @@ export const register: Register = (on, options) => {
 
   // The session's title rides on these two settings-hook events; read it, change nothing.
   on('classic.SessionStart', ($, e, next) => {
-    if (e.session_title?.trim()) pager.title = e.session_title
+    // Set or cleared: after a /clear the old conversation's title must not linger.
+    pager.title = e.session_title?.trim() ? e.session_title : undefined
     return next(e)
   }).catch(($, e, next) => next(e))
   on('classic.UserPromptSubmit', ($, e, next) => {
@@ -258,5 +262,10 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'pager' }, async ($, e) => ({ text: await runCommand($, pager, e.args, e.origin) }))
+  // The answer is for the person, not the model: shown as a toast, and the
+  // command answers {} so nothing lands in the transcript the model reads.
+  on('command.run', { command: 'pager' }, async ($, e) => {
+    $.ui.toast(await runCommand($, pager, e.args, e.origin), { timeoutMs: 8_000 })
+    return {}
+  })
 }

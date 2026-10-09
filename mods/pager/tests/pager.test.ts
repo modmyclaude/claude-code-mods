@@ -10,11 +10,18 @@ const ROOT = '/Users/someone/code/my-app'
 const NOON = new Date(2026, 0, 5, 12, 0).getTime()
 const SECRET_PROMPT = 'please rotate the prod-db password hunter2'
 const SECRET_ANSWER = 'Rotated prod-db; new password is swordfish'
+const BENEATH = 'what the chain beneath answered'
 
 type Post = { url: string; method?: string; headers?: Record<string, string>; body?: string }
 
 type World = {
-  options?: { play?: 'ok' | 'fails'; fetch?: 'ok' | 'fails'; now?: number }
+  options?: {
+    play?: 'ok' | 'fails'
+    fetch?: 'ok' | 'fails'
+    now?: number
+    /** What draws the session; a plain `claude -p` run has nothing. */
+    surfaces?: ('terminal' | 'desktop')[]
+  }
 }
 
 /** The world beneath the plugin, recorded. */
@@ -26,9 +33,15 @@ function world(on: On, { options = {} }: World = {}) {
   const logs: { text: string; to: string }[] = []
   const posts: Post[] = []
   const commands: { name: string; immediate?: true }[] = []
+  let playing = 0
+  let overlapped = false
 
-  on('audio.play', (_$, e) => {
+  on('audio.play', async (_$, e) => {
     if (options.play === 'fails') return { deny: 'no device' }
+    // Take a little while, as a real clip does, so clips started together overlap.
+    if (++playing > 1) overlapped = true
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    playing--
     plays.push(e.clip.asset ?? '(not an asset)')
     return { value: undefined }
   })
@@ -46,16 +59,17 @@ function world(on: On, { options = {} }: World = {}) {
     return { value: undefined }
   })
   on('session.root', () => ({ value: ROOT }))
+  on('session.surfaces', () => ({ value: options.surfaces ?? ['terminal'] }))
   on('command.register', (_$, e) => {
     commands.push({ name: e.name, immediate: e.immediate })
     return { value: { command: e.name } }
   })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
-  on('turn.complete', (_$, e) => ({ text: e.answer }))
+  on('turn.complete', () => ({ text: BENEATH }))
   on('classic.Notification', () => ({}))
   on('classic.SessionStart', () => ({}))
   on('classic.UserPromptSubmit', () => ({}))
-  return { clock, plays, toasts, logs, posts, commands }
+  return { clock, plays, toasts, logs, posts, commands, overlapped: () => overlapped }
 }
 
 type W = ReturnType<typeof world>
@@ -85,15 +99,21 @@ async function notify($: Engine, w: W, type = 'permission_prompt') {
   await w.clock.settle()
 }
 
+/** Runs /pager and returns the toast it answered with (taken off the toast list). */
 async function pager($: Engine, w: W, args: string, origin: PromptOrigin = { kind: 'composer' }) {
-  const { text = '' } = await $.command.run({
+  const before = w.toasts.length
+  const out = await $.command.run({
     command: 'pager',
     args,
     origin,
     presentation: { isFullscreen: false, columns: 100 },
   })
   await w.clock.settle()
-  return text
+  // Nothing for the model to read: the answer is a toast (gotcha #18).
+  expect(out.text, `/pager ${args} put text in the transcript`).toBeUndefined()
+  expect(out.context).toBeUndefined()
+  expect(w.toasts.length, `/pager ${args} showed no toast`).toBe(before + 1)
+  return w.toasts.splice(before, 1)[0] ?? ''
 }
 
 const SIX_S = 6_000
@@ -154,10 +174,52 @@ describe('alerts', () => {
     expect(w.toasts).toHaveLength(2)
   })
 
-  test('the turn still ends with its own answer', async ($, on) => {
+  test('the turn result is what the chain beneath answers', async ($, on) => {
     const w = world(on)
     await start($, w)
-    expect(await endTurn($, w, 30_000)).toMatchObject({ text: SECRET_ANSWER })
+    expect(await endTurn($, w, 30_000)).toMatchObject({ text: BENEATH })
+    expect(w.plays).toHaveLength(1)
+  })
+
+  test('a turn end and a notification at the same moment make one sound', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    await Promise.all([
+      $.turn.complete({ answer: '', durationMs: 30_000, isAborted: false, turnId: 'same-moment', reason: 'answer' }),
+      $.classic.Notification({ message: 'Claude needs your permission', notification_type: 'permission_prompt' }),
+    ])
+    await w.clock.settle()
+    expect(w.toasts).toHaveLength(2)
+    expect(w.plays).toHaveLength(1)
+  })
+
+  test('a plain claude -p run (nothing drawing) gets no sound, push or toast', { options: { ntfyTopic: 'pager-test' } }, async ($, on) => {
+    const w = world(on, { options: { surfaces: [] } })
+    await start($, w)
+    await endTurn($, w, 1_000, 'error')
+    await endTurn($, w, 60_000)
+    await notify($, w)
+    expect(w.plays).toEqual([])
+    expect(w.posts).toEqual([])
+    expect(w.toasts).toEqual([])
+  })
+
+  test('a session the desktop app draws pages like a terminal one', async ($, on) => {
+    const w = world(on, { options: { surfaces: ['desktop'] } })
+    await start($, w)
+    await endTurn($, w, 30_000)
+    expect(w.plays).toEqual(['sounds/classic/done.wav'])
+  })
+
+  test('/clear forgets the old conversation title', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    await $.classic.SessionStart({ source: 'startup', session_title: 'Old conversation about payroll' })
+    await endTurn($, w, 30_000)
+    await $.classic.SessionStart({ source: 'clear' })
+    await w.clock.advance(SIX_S)
+    await endTurn($, w, 30_000)
+    expect(w.toasts).toEqual(['Done - Old conversation about payroll (30s)', 'Done - my-app (30s)'])
   })
 
   test('needs you plays on a permission prompt or a question, not on idle or auth notices', async ($, on) => {
@@ -230,7 +292,7 @@ describe('alerts', () => {
   test('a failing player never breaks the turn or the next alert', async ($, on) => {
     const w = world(on, { options: { play: 'fails' } })
     await start($, w)
-    expect(await endTurn($, w, 30_000)).toMatchObject({ text: SECRET_ANSWER })
+    expect(await endTurn($, w, 30_000)).toMatchObject({ text: BENEATH })
     expect(w.toasts).toEqual(['Done - my-app (30s)'])
     expect(w.logs.some(l => l.to === 'debug' && l.text.includes('could not play done'))).toBe(true)
     await w.clock.advance(SIX_S)
@@ -258,6 +320,25 @@ describe('mute and quiet hours', () => {
     await w.clock.advance(60_000) // 12:30, the mute is over
     await endTurn($, w, 30_000)
     expect(w.plays).toEqual(['sounds/classic/done.wav'])
+  })
+
+  test('a mute silences the phone push too', { options: { ntfyTopic: 'pager-test' } }, async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    await pager($, w, 'mute 30m')
+    await endTurn($, w, 30_000)
+    await notify($, w)
+    expect(w.toasts).toHaveLength(2)
+    expect(w.posts).toEqual([])
+    await pager($, w, 'unmute')
+    await endTurn($, w, 31_000)
+    expect(w.posts.map(p => p.url)).toEqual(['https://ntfy.sh/pager-test'])
+  })
+
+  test('a mute length may be typed with spaces', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    expect(await pager($, w, 'mute 1h 30m')).toContain('Muted for 1h 30m, until 13:30.')
   })
 
   test('unmute ends a mute early', async ($, on) => {
@@ -340,6 +421,7 @@ describe('commands', () => {
     await pager($, w, 'mute 1h')
     const text = await pager($, w, 'test')
     expect(w.plays).toEqual(['sounds/zen/done.wav', 'sounds/zen/needs-you.wav', 'sounds/zen/error.wav'])
+    expect(w.overlapped(), 'clips played on top of each other').toBe(false)
     expect(text).toContain('Played the zen pack: done, needs you, error.')
     expect(text).toContain('Real alerts are silent now (muted until 13:00).')
     expect(w.posts).toEqual([])
