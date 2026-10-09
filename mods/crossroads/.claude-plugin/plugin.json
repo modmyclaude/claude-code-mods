@@ -2,7 +2,7 @@
   "name": "crossroads",
   "version": "0.1.0",
   "description": "Three ways forward after every turn, risky ones marked. About $0.0002 a turn.",
-  "author": { "name": "ORG_TBD" },
+  "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["next-prompt", "suggestions", "workflow", "band", "hotkeys", "safety"],
   "types": "./types/index.d.ts"

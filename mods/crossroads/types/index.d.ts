@@ -22,7 +22,13 @@ export type CrossroadsItem = {
   kind: CrossroadsKind
   /** A short note ("deploys", "pushes") when the prompt is risky; null when safe. */
   risk: string | null
-  /** True for the engine's own guess (the dim ghost text), passed through as option 1. */
+  /**
+   * On the safe set (read, inspect, test, explain, review; no risky target):
+   * only these may be option 1 or carry a digit key. Everything else is a
+   * plain, click-only row.
+   */
+  isSafe: boolean
+  /** True for the engine's own guess (the dim ghost text). */
   fromEngine: boolean
 }
 

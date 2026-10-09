@@ -1,8 +1,11 @@
 // Crossroads: when Claude finishes a turn, three specific next prompts wait
-// in a band above the prompt. 1, 2 or 3 in an empty prompt drafts one (it is
-// never sent for you), 0 dismisses, and each item is a button too. The
-// engine's own guess (the dim ghost text) is option 1 at no cost; a small
-// model writes the rest from a compact, redacted digest of the turn.
+// in a band above the prompt. Each item is a button that drafts it (it is
+// never sent for you), and 0 dismisses. Only a clearly safe suggestion (read,
+// inspect, test, explain or review, with no risky target) is privileged: it
+// may be option 1, carry a digit key, or stay as the engine's ghost text.
+// Everything else is a plain, click-only row. A small model writes the
+// suggestions from a compact, redacted digest of the turn and tags each risky
+// one; keyword rules back that tag up.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, PromptFilled, PromptOrigin, Register, UiPressArgument } from 'claude-code'
@@ -24,9 +27,10 @@ import {
   clip,
   endsWithNumberedOptions,
   isTrivial,
+  asSuggestion,
+  judgeGuess,
   parseReply,
   pickSlashCommands,
-  riskOf,
   sameText,
 } from './logic'
 import type { EngineGuess, Request } from './logic'
@@ -265,9 +269,9 @@ async function suggestAfterTurn($: EngineInterface, at: number, answer: string) 
     if (!parsed) return await clearView($)
 
     // A safe guess that arrived during the call still takes option 1 (ghost
-    // and option 1 agree); a risky late one stays out of a list made without it.
+    // and option 1 agree); any other late one stays out of a list made without it.
     const late = engineGuessFor(at)
-    const items = arrange(engine ?? (late && !late.risky ? late : null), parsed)
+    const items = arrange(engine ?? (late?.isSafe ? late : null), parsed)
     live.shown = { epoch: at, items }
     await showFor($, at, { phase: 'shown', epoch: at, items, digits: !endsWithNumberedOptions(answer) })
   } catch (error) {
@@ -276,18 +280,18 @@ async function suggestAfterTurn($: EngineInterface, at: number, answer: string) 
   }
 }
 
-// The engine's guess landed after the list was drawn without it: it takes
-// option 1 so the ghost text and option 1 still agree. A risky guess is kept
-// from the ghost text anyway, so it never displaces a safe suggestion.
+// The engine's guess landed after the list was drawn without it: a safe one
+// takes option 1 so the ghost text and option 1 still agree. Any other guess
+// is kept from the ghost text anyway, so it displaces nothing.
 function needsGuess(current: CrossroadsView, at: number): boolean {
   return current.phase === 'shown' && current.epoch === at && !current.items.some(item => item.fromEngine)
 }
 
 async function mergeLateGuess($: EngineInterface, at: number, guess: EngineGuess) {
-  if (guess.risky || !needsGuess(await read($, view), at)) return
+  if (!guess.isSafe || !needsGuess(await read($, view), at)) return
   await update($, view, current => {
     if (current.phase !== 'shown' || !needsGuess(current, at)) return current
-    const items = arrange(guess, current.items.filter(item => !item.fromEngine))
+    const items = arrange(guess, current.items.filter(item => !item.fromEngine).map(asSuggestion))
     live.shown = { epoch: at, items }
 
     return { ...current, items }
@@ -467,13 +471,13 @@ export const register: Register = on => {
     return entered
   }).catch(($, e, next) => next(e))
 
-  // The engine's own guess: passed through untouched (it becomes option 1),
-  // unless it is risky, in which case it never becomes the ghost text. Our
-  // copy of it is cleaned: it is drawn in the band and may be drafted.
+  // The engine's own guess: passed through untouched (it becomes option 1)
+  // only when it is on the safe set; anything else never becomes the ghost
+  // text. It is judged on its raw text; our copy of it is cleaned, as it is
+  // drawn in the band and may be drafted.
   on('prompt.suggest', async ($, e, next) => {
     if (e.origin.kind !== 'suggestion' || !(await isEnabled($))) return next(e)
-    const text = clean(e.text)
-    const guess: EngineGuess = { text, risky: riskOf(text) !== null }
+    const guess: EngineGuess = judgeGuess(e.text)
     // A guess made while a turn runs belongs to no finished turn.
     if (!live.isTurnRunning) {
       const at = live.epoch
@@ -482,7 +486,7 @@ export const register: Register = on => {
       await mergeLateGuess($, at, guess)
     }
 
-    return guess.risky ? { isShown: false } : next(e)
+    return guess.isSafe ? next(e) : { isShown: false }
   }).catch(($, e, next) => (next.called ? next(e) : { isShown: false }))
 
   on('session.end', async ($, e, next) => {
@@ -546,12 +550,13 @@ export const register: Register = on => {
     const width = Math.max(24, e.props.bodyColumns)
     // Every suggestion drawn below is untrusted (the model's, the engine's): it
     // passes through clean() here even when it was cleaned on the way in.
-    // Stack on top of what other mods draw here instead of replacing it (API-GOTCHAS #25).
+    // Compose what other mods draw here instead of replacing it, theirs first
+    // (API-GOTCHAS #25): an overflowing band cuts these rows, never their buttons.
     const below = await next(e)
     const stack = (mine: JSX.Element) => (
       <Box flexDirection="column">
-        {mine}
         {below}
+        {mine}
       </Box>
     )
 
@@ -593,8 +598,9 @@ export const register: Register = on => {
           <Button
             key={`pick-${n}`}
             plain
-            // A risky suggestion is click-only: one stray digit must never draft a push or deploy.
-            {...(digits && item.risk === null ? { hotkey: n } : {})}
+            // Only a safe-set suggestion carries a digit: one stray key must
+            // never draft a push, a deploy or anything the allowlist does not know.
+            {...(digits && item.isSafe ? { hotkey: n } : {})}
             label={clip(clean(item.text), room)}
             onPress={press => void pick($, press, index)}
           />
