@@ -12,7 +12,8 @@
 // mod's tests to refresh the published test counts (slow).
 
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, openSync, closeSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -124,10 +125,16 @@ function testsOf(modDir, name) {
   const surfaces = ['terminal', 'desktop', 'vscode', 'mobile'].filter(s => text.includes(`'${s}'`) || text.includes(`"${s}"`))
   let count = PUBLISHED[name] ?? null
   if (COUNTS || count === null) try {
-    // The runner may print its summary on either stream, so read both; trust only a clean exit.
-    const run = spawnSync(CC, ['plugin', 'test', modDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 })
+    // Write to a file, not a pipe: the CLI can exit before a pipe drains and cut its output
+    // (and the summary line) off at about 32 KB. Trust only a clean exit.
+    const dir = mkdtempSync(join(tmpdir(), 'catalog-test-'))
+    const logPath = join(dir, 'out.log')
+    const fd = openSync(logPath, 'w')
+    let run
+    try { run = spawnSync(CC, ['plugin', 'test', modDir], { stdio: ['ignore', fd, fd] }) } finally { closeSync(fd) }
+    const out = readFileSync(logPath, 'utf8')
+    rmSync(dir, { recursive: true, force: true })
     if (run.status !== 0) throw new Error(`plugin test exited ${run.status}`)
-    const out = `${run.stdout}\n${run.stderr}`
     // Only a positive count replaces the published one, so a flaky or killed run never blanks it.
     const ran = Number(out.match(/(\d+) pass/)?.[1] ?? NaN)
     if (ran > 0) count = ran
