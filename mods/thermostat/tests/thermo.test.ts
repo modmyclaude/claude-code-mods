@@ -8,6 +8,7 @@ import {
   HOUR,
   MINUTE,
   amberMs,
+  clean,
   formatDuration,
   formatTokens,
   formatUsd,
@@ -218,4 +219,18 @@ describe('planKeepWarm weighs the pings still needed against one cold re-read', 
     // Expiry at 5m, then 25 more minutes at 4 minutes a ping.
     expect(got).toMatchObject({ kind: 'wait', pingAt: T + 4 * MINUTE, pingsLeft: 7 })
   })
+})
+
+describe('clean makes outside text safe to draw', () => {
+  const cases: [label: string, text: string, want: string][] = [
+    ['plain text is untouched', '90 minutes', '90 minutes'],
+    ['a colour sequence is stripped', '\x1b[31mred\x1b[0m', 'red'],
+    ['an OSC title is stripped', '\x1b]0;title\x07after', 'after'],
+    ['an 8-bit CSI is stripped', '\x9b2Jgone', 'gone'],
+    ['a bell becomes U+FFFD', 'ding\x07', 'ding\uFFFD'],
+    ['NUL, DEL and C1 become U+FFFD', 'a\x00b\x7fc\x85d', 'a\uFFFDb\uFFFDc\uFFFDd'],
+    ['a newline becomes U+FFFD', 'one\ntwo', 'one\uFFFDtwo'],
+    ['a lone ESC becomes U+FFFD', 'x\x1b', 'x\uFFFD'],
+  ]
+  for (const [label, text, want] of cases) test(label, () => expect(clean(text)).toBe(want))
 })

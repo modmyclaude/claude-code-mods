@@ -152,6 +152,18 @@ export function statusColor(temp: Temperature): 'warning' | 'suggestion' | undef
   return undefined
 }
 
+// ------------------------------------------------------------ outside text
+
+// ANSI sequences (CSI, OSC, two-byte escapes, and the 8-bit CSI), then any
+// control character left: the engine refuses a drawn text that holds one.
+const ANSI = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]|\x9b[0-?]*[ -/]*[@-~]/g
+const CONTROL = /[\x00-\x1f\x7f-\x9f]/g
+
+/** Makes text from outside the mod safe to draw: ANSI stripped, C0, DEL and C1 shown as U+FFFD. */
+export function clean(text: string): string {
+  return text.replace(ANSI, '').replace(CONTROL, '\uFFFD')
+}
+
 // ---------------------------------------------------------------- durations
 
 /**

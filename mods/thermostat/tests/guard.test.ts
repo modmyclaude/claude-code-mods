@@ -264,3 +264,32 @@ test('a resume that restores its own model keeps the resumed cache', SLOW, async
   })
   expect((await submit($, 'where were we')).drop).toContain('re-reads 150k tokens')
 })
+
+/** C0, DEL and C1 control characters: the engine refuses a drawn text holding one. */
+const CONTROL_CHARS = /[\x00-\x1f\x7f-\x9f]/
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on ${surface}, control characters in a prompt or a model id never reach what is drawn`, SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await step($, w, usage(140_000, 9_000, { model: 'claude-\x1b[31mopus\x07-5-5\x9b' }))
+    await w.clock.advance(61 * MIN)
+    const held = await submit($, 'fix \x1b[2J this\x07 now\x9b')
+    expect(held.drop).toContain('Thermostat held this prompt once')
+    expect(CONTROL_CHARS.test(held.drop ?? '')).toBe(false)
+    const ui = await $.ui.mount({ plugin: 'thermostat', surface, component: 'SessionMode', props: { modes: [] } })
+    const label = await ui.find({ key: 'thermostat' })
+    expect(label?.text).toBe('cache cold · 150k to re-read')
+    expect(CONTROL_CHARS.test(JSON.stringify(await ui.drawn()))).toBe(false)
+    await ui.unmount()
+  })
+}
+
+test('a /warm argument with control characters is echoed back clean', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, CONVERSATION)
+  const answer = await command($, 'warm', 'soon\x1b[31m\x07\x9b')
+  expect(answer).toContain('Could not read "soon\uFFFD\uFFFD" as a duration')
+  expect(CONTROL_CHARS.test(answer)).toBe(false)
+})

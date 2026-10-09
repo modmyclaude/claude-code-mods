@@ -25,6 +25,7 @@ import {
   statusText,
   temperature,
   ttlFromResume,
+  clean,
 } from './thermo'
 import type { Settings, Temperature, Ttl } from './thermo'
 
@@ -266,7 +267,7 @@ async function ping($: Dollar, s: Snapshot): Promise<void> {
     if (usage.cache_read_input_tokens + usage.cache_creation_input_tokens === 0) {
       // No request reached the cache (an API error, an abort): try again next tick, a few times.
       live.pingFailures += 1
-      const why = reply.isAnswered ? 'no cache activity' : reply.reason
+      const why = reply.isAnswered ? 'no cache activity' : clean(reply.reason)
       if (live.pingFailures >= MAX_PING_FAILURES) await stopWarm($, `keep-warm stopped, ${live.pingFailures} pings in a row failed (${why})`)
       return
     }
@@ -414,7 +415,7 @@ async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promi
   if (!(await isPerson($, origin))) return 'Keep-warm starts only from a /warm you type.'
   const ms = parseDuration(arg)
   if (ms === null || ms < MINUTE || ms > MAX_WARM_MS) {
-    return `Could not read "${args.trim()}" as a duration from 1m to 24h. ${USAGE}`
+    return `Could not read "${clean(args.trim())}" as a duration from 1m to 24h. ${USAGE}`
   }
   if (s.temp.kind === 'empty' || s.cache.lastAt === null) return 'Nothing is cached yet: send a prompt first, then /warm.'
   if (s.temp.kind === 'off') return 'Prompt caching looks switched off for this session, so there is nothing to keep warm.'
