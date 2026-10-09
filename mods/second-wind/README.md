@@ -27,7 +27,7 @@ Breathe in 4  physiological sigh
   4 breaths while Claude worked · 37 today · 6-day streak
   ```
 
-- While you type your next prompt, the band shrinks to one quiet line. It also uses that one line when the space above the prompt is short, and it sizes itself to the width it is given (narrower beside a docked pane), drawing above anything other mods put in the band rather than over it.
+- While you type your next prompt, the band shrinks to one quiet line. It also uses that one line when the space above the prompt is short, and it sizes itself to the width it is given (narrower beside a docked pane), drawing beneath anything other mods put in the band, so a tight band clips the breath, never another mod's prompt.
 - The spinner's verb follows the breath (`Breathing in…`), but only when Claude Code is not showing a status of its own there.
 - It only follows the main conversation. Subagents starting and finishing never restart or stutter the breath.
 
