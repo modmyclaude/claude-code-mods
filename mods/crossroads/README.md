@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/crossroads.svg" width="64" height="64" alt="">
+
 # Crossroads
 
 Three ways forward after every turn, risky ones marked. About $0.0002 a turn.
@@ -60,3 +62,5 @@ None. Use the commands above.
 ## Built from a prompt
 
 This mod was built from [prompts/crossroads.md](../../prompts/crossroads.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

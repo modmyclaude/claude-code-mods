@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/headway.svg" width="64" height="64" alt="">
+
 # Headway
 
 See how far along Claude is, and when it will land. Zero tokens.
@@ -75,3 +77,5 @@ None.
 ## Built from a prompt
 
 [`prompts/headway.md`](../../prompts/headway.md)
+
+More mods: [the full catalogue](../../README.md#the-mods).

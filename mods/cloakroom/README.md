@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/cloakroom.svg" width="64" height="64" alt="">
+
 # Cloakroom
 
 Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it.
@@ -101,3 +103,5 @@ None.
 ## Built from a prompt
 
 This mod was built from [`prompts/cloakroom.md`](../../prompts/cloakroom.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

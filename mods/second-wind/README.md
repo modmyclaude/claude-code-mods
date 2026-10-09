@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/second-wind.svg" width="64" height="64" alt="">
+
 # Second Wind
 
 A breath, an eye rest or a stretch while Claude works, sized to the wait.
@@ -85,3 +87,5 @@ Change them in `/config`.
 ## Built from a prompt
 
 This mod was built from [`prompts/second-wind.md`](../../prompts/second-wind.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

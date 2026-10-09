@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/halftime.svg" width="64" height="64" alt="">
+
 # Halftime
 
 Claude works, you play. The whistle blows the moment it needs you.
@@ -104,3 +106,5 @@ session.
 ## Built from a prompt
 
 [`prompts/halftime.md`](../../prompts/halftime.md)
+
+More mods: [the full catalogue](../../README.md#the-mods).
