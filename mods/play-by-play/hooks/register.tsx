@@ -246,18 +246,23 @@ export const register: Register = on => {
     return { text: await openReplay($, back) }
   })
 
-  // The hint above the prompt after a turn that changed files.
+  // The hint above the prompt after a turn that changed files, drawn above
+  // whatever other mods draw in the band (never in place of it).
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || e.props.isWorking || !(await read($, hint))) return next(e)
     const list = await read($, turns)
     const turn = list[list.length - 1]
     if (turn === undefined) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
+    const below = await next(e)
     return (
-      <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-        <Text>{summaryLine(turn)} {'·'} press r or /replay</Text>
-        <Button key="replay" hotkey="r" label="Replay" onPress={() => void openReplay($, 1)} />
-        <Button key="hide" hotkey="x" label="Hide" role="dismiss" dimColor onPress={() => void update($, hint, () => false)} />
+      <Box flexDirection="column">
+        <Box key="play-by-play" flexDirection="row" flexWrap="wrap" columnGap={1}>
+          <Text>{summaryLine(turn)} {'\u00b7'} press r or /replay</Text>
+          <Button key="replay" hotkey="r" label="Replay" onPress={() => void openReplay($, 1)} />
+          <Button key="hide" hotkey="x" label="Hide" role="dismiss" dimColor onPress={() => void update($, hint, () => false)} />
+        </Box>
+        {below}
       </Box>
     )
   })
