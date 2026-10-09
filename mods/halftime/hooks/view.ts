@@ -24,6 +24,20 @@ export type BoardProps = {
   wait: string
   needClick: boolean
   showHint: boolean
+  /** The keyboard pad (MM-081): one letter per action, for a terminal that sends no clicks. */
+  pad: string[]
+}
+
+const PAD_ORDER = 'wasdxfpr'
+
+/** One letter per action (wasd before hjkl), then pause, or again once the run is over. */
+export function padFor(run: HalftimeRun): string[] {
+  const byAction = new Map<string, string>()
+  for (const [key, action] of Object.entries(gameOf(run.game).controls)) {
+    if (/^[a-z]$/.test(key) && PAD_ORDER.includes(key) && !byAction.has(action)) byAction.set(action, key)
+  }
+  const pad = [...byAction.values(), run.status === 'over' ? 'r' : 'p']
+  return pad.sort((a, b) => PAD_ORDER.indexOf(a) - PAD_ORDER.indexOf(b))
 }
 
 /** Keys a game's board may pass on: its controls plus pause and again (no map holds a forbidden key). */
@@ -91,6 +105,7 @@ export function boardView(run: HalftimeRun, stats: HalftimeStats, cols: number, 
     live: run.status === 'live',
     tick: game.realtime ? game.tickMs : 0,
     keys: keysFor(run),
+    pad: padFor(run),
     ack: [run.input.iid, run.input.seq],
     title,
     rows: drawn.rows,

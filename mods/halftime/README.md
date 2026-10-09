@@ -30,8 +30,10 @@ desktop app its replies are short toasts and nothing is added to the
 conversation, so Claude never reads them. VS Code and the mobile app have no
 band, so there the reply is the command's row: your one-line scorecard.
 
-**A board takes your keys only when you click it.** Esc hands them back to the
-prompt. No game ever uses Enter, `y`, `n` or a digit, and the board never
+**A board takes your keys only when you click it.** No mouse (the classic
+terminal renderer sends no clicks)? Press ctrl+x tab to focus the band, then
+the letter keys drawn under the board (`w a s d`, `x f`, `p` to pause). Esc
+hands the keys back to the prompt. No game ever uses Enter, `y`, `n` or a digit, and the board never
 passes those keys on, so a stray press can never answer one of Claude Code's
 prompts.
 
@@ -86,8 +88,9 @@ session.
 - **Terminal and desktop app only.** VS Code and the mobile app have no band
   and no board; there `/halftime` shows a one-line scorecard instead.
 - **Starting a game cannot hand it your keys.** Claude Code gives the band the
-  keyboard only on your click, so `/halftime cratehop` puts the
-  board up and the run starts on your first click.
+  keyboard only on your click or its focus chord (ctrl+x tab), so
+  `/halftime cratehop` puts the board up and the run starts on your first
+  click or key.
 - **Esc gives no signal to the mod.** A realtime run you leave keeps going
   until you type at the prompt (it pauses then) or, at most, 20 seconds with
   no key or click, when it pauses itself. Those idle seconds never count as

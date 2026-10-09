@@ -82,7 +82,7 @@ test('R-3 (#18): where the band draws, every /halftime answer is a toast and the
   for (const surfaces of [['terminal'], ['desktop'], ['mobile', 'desktop']] as const) {
     attached.splice(0, attached.length, ...surfaces)
     expect(await said($, seen, '')).toBe('halftime · cratehop - · tailchase - · merge - · sweep - · 0s played while waiting')
-    expect(await said($, seen, 'cratehop')).toBe('halftime: cratehop is above the prompt - click the board to play')
+    expect(await said($, seen, 'cratehop')).toBe('halftime: cratehop is above the prompt - click the board (or ctrl+x tab, then a key) to play')
     expect(await said($, seen, 'auto on')).toContain('halftime auto is on')
     expect(await said($, seen, 'auto off')).toBe('halftime auto is off')
     expect(await said($, seen, 'off')).toBe('halftime: closed')

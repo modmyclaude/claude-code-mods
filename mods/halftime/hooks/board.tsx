@@ -24,6 +24,7 @@ type Props = {
   wait: string
   needClick: boolean
   showHint: boolean
+  pad: string[]
 }
 
 /** What this instance remembers between calls; dropped with the instance. */
@@ -32,6 +33,8 @@ type Local = {
   seq: number
   arm: number
   armed: boolean
+  /** The keys were taken through the pad, so it stays drawn: its Buttons carry them. */
+  viaPad: boolean
   /** Input not yet applied by the hooks module; resent whole until acknowledged. */
   ev: [number, string][]
   props: Props
@@ -74,21 +77,26 @@ function queue(local: Local, item: string) {
   if (local.ev.length > MAX_QUEUE) local.ev.splice(0, local.ev.length - MAX_QUEUE)
 }
 
+/** One of the run's own keys, from the board's focus or the pad: the first one takes the keys. */
+function take(surface: Surface, local: Local, key: string) {
+  if (!local.armed) {
+    local.armed = true
+    local.arm += 1
+  }
+  queue(local, key)
+  send(surface, local, false)
+  syncTicker(surface, local)
+  surface.setState(local)
+}
+
 function start(surface: Surface, props: Props): Local {
-  const local: Local = { iid: newId(), seq: 0, arm: 0, armed: false, ev: [], props, stop: null }
+  const local: Local = { iid: newId(), seq: 0, arm: 0, armed: false, viaPad: false, ev: [], props, stop: null }
   surface.setState(local)
   surface.onKey((event: ClientKeyEvent) => {
     const key = keyName(event.key)
     // Only the run's own keys travel; Enter, y, n and digits are never in that list.
     if (event.ctrl || event.meta || !local.props.keys.includes(key)) return
-    if (!local.armed) {
-      local.armed = true
-      local.arm += 1
-    }
-    queue(local, key)
-    send(surface, local, false)
-    syncTicker(surface, local)
-    surface.setState(local)
+    take(surface, local, key)
   })
   surface.onPointer((event: ClientPointerEvent) => {
     if (event.type !== 'down') return
@@ -126,7 +134,7 @@ export default function Board(props: Props, surface: Surface) {
   if (props.ack[0] === local.iid) local.ev = local.ev.filter(([n]) => n > props.ack[1])
   syncTicker(surface, local)
 
-  const { Box, Text } = surface.elements
+  const { Box, Text, Button } = surface.elements
   const seg = (s: Seg) => {
     const p: TextStyle = {}
     if (s[1]) p.color = s[1]
@@ -147,6 +155,30 @@ export default function Board(props: Props, surface: Surface) {
       {line(props.showHint ? props.title : [...props.title, [`  ${status}`, 'subtle', '', DIM]])}
       {props.rows.map(line)}
       {props.showHint ? <Text dimColor wrap="truncate-end">{status}</Text> : null}
+      {
+        // The pad (MM-081): a terminal with no mouse reporting never sends the click, so the
+        // band's focus chord (ctrl+x tab) and these letters take the keys instead. Letters only,
+        // never Enter, y, n or a digit; drawn until a click takes the keys, then only if it did.
+        (!local.armed || local.viaPad) && props.pad.length > 0 ? (
+          <Box flexDirection="row" columnGap={1}>
+            <Text dimColor>{local.viaPad ? 'keys:' : 'no mouse? ctrl+x tab, then'}</Text>
+            {props.pad
+              .filter(key => props.keys.includes(key))
+              .map(key => (
+                <Button
+                  key={`pad:${key}`}
+                  label={key}
+                  hotkey={key}
+                  plain
+                  onPress={() => {
+                    local.viaPad = true
+                    take(surface, local, key)
+                  }}
+                />
+              ))}
+          </Box>
+        ) : null
+      }
     </Box>
   )
 }

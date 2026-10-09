@@ -185,7 +185,7 @@ async function command($: EngineInterface, args: string): Promise<string> {
   }
   if (isGameId(word)) {
     await apply($, (s, now) => startGame(s, word, extra === 'practice' || (extra !== 'daily' && s.practice), now))
-    return `halftime: ${word} is above the prompt - click the board to play`
+    return `halftime: ${word} is above the prompt - click the board (or ctrl+x tab, then a key) to play`
   }
   if (word === 'auto') {
     const current = (await read($, stats)).auto
