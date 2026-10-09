@@ -37,7 +37,8 @@ function tone(t: LastLookTone | undefined): TextProps {
 export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElement {
   const { Box, Text, Button } = kit
   const { report } = hold
-  const width = Math.max(20, room.columns)
+  // The site's own width: never wider than it, so nothing draws under its marks.
+  const width = Math.max(1, room.columns)
   // Cancel first, so it is the one focused (`autoFocus`, first drawn wins)
   // and Enter cancels. Proceed has NO hotkey: no keystroke typed at the site
   // may ever approve. It takes a click, or Tab onto it and then Enter.
@@ -51,7 +52,7 @@ export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElemen
 
   if (room.compact) {
     // The band: one line per part, so the buttons stay in its rows.
-    const free = Math.max(0, room.rows - 5 - (room.queued > 0 ? 1 : 0))
+    const free = Math.max(0, room.rows - 6 - (room.queued > 0 ? 1 : 0))
     const shown = report.items.slice(0, free)
     return (
       <Box key="last-look" flexDirection="column" width={width}>
@@ -70,6 +71,9 @@ export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElemen
         {report.items.length > shown.length && <Text dimColor>{`and ${report.items.length - shown.length} more parts`}</Text>}
         {room.queued > 0 && <Text dimColor>{`${room.queued} more held after this one`}</Text>}
         {buttons}
+        <Box key="alone">
+          <Text dimColor wrap="truncate-end">Other bands are hidden until you decide.</Text>
+        </Box>
         <Box key="footer">
           <Text dimColor wrap="truncate-end">{hint ? `${FOOTER} ${hint}` : FOOTER}</Text>
         </Box>

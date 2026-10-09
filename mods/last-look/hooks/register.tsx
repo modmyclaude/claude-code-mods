@@ -1,5 +1,6 @@
-// Last Look: holds a destructive Bash command, measures what it would
-// destroy, and waits for the person to press Cancel or Proceed.
+// Last Look: holds a destructive shell command (the Bash tool, and the Monitor
+// tool's command), measures what it would destroy, and waits for the person
+// to press Cancel or Proceed.
 //
 // A safety net, not a permission system: it judges commands by their text,
 // measures with read-only commands, and on any fault of its own it stops the
@@ -56,28 +57,15 @@ export const register: Register = (on, options) => {
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     // Judge first: nothing runs until this hook has decided.
-    if (classify(e.command).length === 0) return next(e)
-    const home = await $.env.get('HOME')
-    const findings = classify(e.command, home === undefined ? {} : { home })
-    const ctx = await context($, home, allow)
+    const verdict = await guard($, e.command, e.tool_use_id, e.agentId, next.signal, allow)
+    return verdict === 'run' ? next(e) : { deny: verdict.deny }
+  }).catch(($, e, next) => (next.called ? next(e) : { deny: FAILED }))
 
-    $.ui.status(`Last Look is measuring: ${clip(e.command, 60)}`)
-    let report: LastLookReport
-    try {
-      report = await measureAll(ctx, e.command, findings)
-    } finally {
-      $.ui.status(undefined)
-    }
-    if (!shouldHold(report)) return next(e)
-
-    const surfaces = await $.session.surfaces()
-    if (surfaces.length === 0) {
-      return { deny: `last-look: nobody can review this command in this session, so it was stopped (${report.headline}). Ask the person to run it themselves if they intend it.` }
-    }
-    const outcome = await hold($, { id: e.tool_use_id, report, isSubagent: e.agentId !== undefined }, surfaces, next.signal)
-    $.ui.log(`Last Look: ${LOGGED[outcome]}: ${clip(e.command, 80)}`)
-    if (outcome === 'proceed') return next(e)
-    return { deny: refusal(outcome, report) }
+  // The Monitor tool runs a shell command too.
+  on('tool.call', { tool: 'Monitor' }, async ($, e, next) => {
+    if (e.command === undefined) return next(e)
+    const verdict = await guard($, e.command, e.tool_use_id, e.agentId, next.signal, allow)
+    return verdict === 'run' ? next(e) : { deny: verdict.deny }
   }).catch(($, e, next) => (next.called ? next(e) : { deny: FAILED }))
 
   // Closing the pane by hand (its close mark, Esc) is a Cancel.
@@ -102,31 +90,54 @@ export const register: Register = (on, options) => {
     })
   })
 
-  // The band above the prompt: where the pane has no room to open. The hold
-  // goes on top, the most important thing on screen, and whatever other mods
-  // draw in the band stays beneath it rather than being erased.
+  // The band above the prompt: where the pane has no room to open. While a
+  // hold waits it draws ALONE: another mod's band holding one control
+  // character would make the engine refuse the whole tree, and the hold with
+  // its Cancel button would vanish. With nothing held, the band is theirs.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const list = await read($, holds)
     const first = list.find(h => h.mode === 'band')
     if (!first) return next(e)
-    const kit = $.ui.resolve(e)
-    const below = await next(e)
-    return (
-      <kit.Box flexDirection="column">
-        {drawHold(kit, first, {
-          rows: e.props.maxRows,
-          columns: e.props.bodyColumns,
-          compact: true,
-          surface: e.surface,
-          queued: list.length - 1,
-          onCancel: () => decide($, first.id, 'cancel'),
-          onProceed: () => decide($, first.id, 'proceed'),
-        })}
-        {below}
-      </kit.Box>
-    )
+    return drawHold($.ui.resolve(e), first, {
+      rows: e.props.maxRows,
+      columns: e.props.bodyColumns,
+      compact: true,
+      surface: e.surface,
+      queued: list.length - 1,
+      onCancel: () => decide($, first.id, 'cancel'),
+      onProceed: () => decide($, first.id, 'proceed'),
+    })
   })
+}
+
+/**
+ * Classifies, measures and, when it must, holds one shell command until the
+ * person decides. `run`: let it run; else the refusal the model reads.
+ */
+async function guard($: EngineInterface, command: string, id: string, agentId: string | undefined, signal: AbortSignal, allow: readonly string[]): Promise<'run' | { deny: string }> {
+  const home = await $.env.get('HOME')
+  // Classified once: brace expansion is capped, but never paid for twice.
+  const findings = classify(command, home === undefined ? {} : { home })
+  if (findings.length === 0) return 'run'
+  const ctx = await context($, home, allow)
+
+  $.ui.status(`Last Look is measuring: ${clip(command, 60)}`)
+  let report: LastLookReport
+  try {
+    report = await measureAll(ctx, command, findings)
+  } finally {
+    $.ui.status(undefined)
+  }
+  if (!shouldHold(report)) return 'run'
+
+  const surfaces = await $.session.surfaces()
+  if (surfaces.length === 0) {
+    return { deny: `last-look: nobody can review this command in this session, so it was stopped (${report.headline}). Ask the person to run it themselves if they intend it.` }
+  }
+  const outcome = await hold($, { id, report, isSubagent: agentId !== undefined }, surfaces, signal)
+  $.ui.log(`Last Look: ${LOGGED[outcome]}: ${clip(command, 80)}`)
+  return outcome === 'proceed' ? 'run' : { deny: refusal(outcome, report) }
 }
 
 async function context($: EngineInterface, home: string | undefined, allow: readonly string[]): Promise<Ctx> {

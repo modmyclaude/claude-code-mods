@@ -8,7 +8,8 @@
 /** One piece of a word, as written. */
 export type Part =
   | { t: 'lit'; s: string; quoted: boolean }
-  | { t: 'var'; name: string }
+  /** `quoted`: inside double quotes, so the shell neither splits nor globs its value. */
+  | { t: 'var'; name: string; quoted: boolean }
   /** `$( ... )`, backticks or `<( ... )`: a command of its own. */
   | { t: 'sub'; src: string }
   /** An expansion nobody can know ahead (`$1`, `$((n+1))`, `${x:-y}`). */
@@ -312,11 +313,11 @@ class Parser {
       const close = this.src.indexOf('}', this.i + 2)
       const end = close === -1 ? this.src.length : close
       const inner = this.src.slice(this.i + 2, end)
-      parts.push(/^[A-Za-z_][A-Za-z0-9_]*$/.test(inner) ? { t: 'var', name: inner } : { t: 'opaque' })
+      parts.push(/^[A-Za-z_][A-Za-z0-9_]*$/.test(inner) ? { t: 'var', name: inner, quoted: inQuotes } : { t: 'opaque' })
       this.i = end + 1
     } else if (/[A-Za-z_]/.test(next)) {
       const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(this.src.slice(this.i + 1)) ?? ['']
-      parts.push({ t: 'var', name: m[0] })
+      parts.push({ t: 'var', name: m[0], quoted: inQuotes })
       this.i += 1 + m[0].length
     } else if (/[0-9@*#?$!-]/.test(next) && next !== '') {
       parts.push({ t: 'opaque' })

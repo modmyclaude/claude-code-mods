@@ -18,6 +18,12 @@ export type Word = {
   glob: boolean
   /** As written in the command. */
   raw: string
+  /**
+   * A literal path as written: no glob, brace, `$VAR`, `~`, `$(...)` or
+   * backticks. Only such paths may be skipped by alwaysAllow, and only they
+   * can be reported "not found" with confidence.
+   */
+  plain: boolean
 }
 
 /** One `cd` on the way to where a command runs. */
@@ -42,7 +48,8 @@ export type Kind =
   | 'redirect'
 
 export type GitInfo =
-  | { sub: 'clean'; flags: string[]; excludes: string[]; paths: Word[] }
+  /** `forces`: 2 for `-ff`, which also removes nested git repositories. */
+  | { sub: 'clean'; flags: string[]; forces: number; excludes: string[]; paths: Word[] }
   | { sub: 'reset'; ref?: Word }
   | {
       sub: 'discard'
@@ -89,7 +96,8 @@ function walk(seq: Seq, src: string, cd: CdStep[], vars: Vars, env: ClassifyEnv,
   let steps = cd
   seq.forEach((item, index) => {
     const before = seq[index - 1]?.op ?? ''
-    const isPiped = item.op === '|' || item.op === '|&' || before === '|' || before === '|&'
+    // A pipeline part and a `&` command run in a subshell: their `cd` stays there.
+    const isPiped = item.op === '|' || item.op === '|&' || item.op === '&' || before === '|' || before === '|&'
     if (item.kind === 'group') {
       const after = walk(item.body, src, steps, vars, env, out, depth)
       redirects(item.redirs, item, src, steps, vars, env, out, depth)
@@ -150,12 +158,12 @@ function simple(item: Item & { kind: 'simple' }, src: string, cd: CdStep[], vars
   }
 
   if (name === 'cd' || name === 'pushd') {
-    const operand = argv.slice(1).find(w => !(w.known && /^-[LPe@]+$/.test(w.text)))
-    const dir = operand ?? { text: env.home ?? '', known: env.home !== undefined, glob: false, raw: '~' }
+    const operand = argv.slice(1).find(w => !(w.known && /^(-[LPe@]+|--)$/.test(w.text)))
+    const dir = operand ?? { text: env.home ?? '', known: env.home !== undefined, glob: false, raw: '~', plain: false }
     if (dir.known && dir.text === '-') return [...cd, { dir: { ...dir, known: false }, soft: false }]
     return [...cd, { dir, soft: item.op !== '&&' }]
   }
-  if (name === 'popd') return [...cd, { dir: { text: '', known: false, glob: false, raw: 'popd' }, soft: false }]
+  if (name === 'popd') return [...cd, { dir: { text: '', known: false, glob: false, raw: 'popd', plain: false }, soft: false }]
 
   if (peeled.viaXargs && name === 'rm') {
     finding('xargs-rm', { unknown: 'it deletes whatever the command before it prints' })
@@ -220,51 +228,112 @@ function resolve(w: RawWord, src: string, vars: Vars, env: ClassifyEnv): Word {
   let text = ''
   let known = true
   let glob = false
+  let plain = true
   w.parts.forEach((p: Part, index) => {
     if (p.t === 'lit') {
       let s = p.s
       if (index === 0 && !p.quoted && s.startsWith('~')) {
+        plain = false
         const user = /^~([^/]*)/.exec(s)?.[1] ?? ''
         if (user === '' && env.home !== undefined) s = env.home + s.slice(1)
         else known = false
       }
       if (!p.quoted && /[*?[]/.test(s)) glob = true
+      // An unquoted brace may expand (or be refused) by the shell: not a plain path.
+      if (!p.quoted && /[{}]/.test(s)) plain = false
       text += s
     } else if (p.t === 'var') {
+      plain = false
       const value = vars.has(p.name) ? vars.get(p.name) : p.name === 'HOME' ? env.home : undefined
-      if (value === undefined) known = false
+      // Unquoted, bash splits the value on spaces and globs it: one word no more.
+      if (value === undefined || (!p.quoted && /[\s*?[]/.test(value))) known = false
       else text += value
-    } else known = false
+    } else {
+      plain = false
+      known = false
+    }
   })
-  return { text, known, glob, raw: src.slice(w.start, w.end) }
+  return { text, known, glob, raw: src.slice(w.start, w.end), plain: plain && !glob }
 }
 
-/** Resolves a word, expanding `{a,b}` the way the shell would first. */
+export function literalWord(text: string): Word {
+  return { text, known: true, glob: false, raw: text, plain: true }
+}
+
+/** Resolves a word, expanding braces (`{a,b}`, `{1..3}`) the way the shell would first. */
 function resolveAll(w: RawWord, src: string, vars: Vars, env: ClassifyEnv): Word[] {
   const only = w.parts.length === 1 ? w.parts[0] : undefined
-  if (only?.t !== 'lit' || only.quoted || !/\{[^{}]*,[^{}]*\}/.test(only.s)) return [resolve(w, src, vars, env)]
-  return braces(only.s).map(s => resolve({ ...w, parts: [{ t: 'lit', s, quoted: false }] }, src, vars, env))
+  // Bash does not brace-expand an assignment (`X={a,b}`), so neither do we.
+  const isBraced = only?.t === 'lit' && !only.quoted && /\{[^{}]*(,|\.\.)[^{}]*\}/.test(only.s) && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(only.s)
+  if (!isBraced || only?.t !== 'lit') return [resolve(w, src, vars, env)]
+  const expanded = braces(only.s)
+  const raw = src.slice(w.start, w.end)
+  // Past the cap the word is unknown, so it is held, never cut short.
+  if (!expanded) return [{ text: only.s, known: false, glob: false, raw, plain: false }]
+  return expanded.map(s => ({ ...resolve({ ...w, parts: [{ t: 'lit', s, quoted: false }] }, src, vars, env), plain: false }))
 }
 
-export function braces(s: string, budget = 64): string[] {
-  const open = s.indexOf('{')
-  if (open === -1) return [s]
-  let depth = 0
-  const commas: number[] = []
-  for (let j = open; j < s.length; j++) {
-    if (s[j] === '{') depth++
-    else if (s[j] === '}') depth--
-    else if (s[j] === ',' && depth === 1) commas.push(j)
-    if (depth === 0) {
-      if (commas.length === 0) return [s]
-      const cuts = [open, ...commas, j]
+/** Most words one brace expression may become, and most nested groups, before it counts as unknown. */
+const BRACE_CAP = 256
+const BRACE_GROUPS = 8
+
+/**
+ * Brace expansion with bounded work: comma lists and `{1..9}` / `{a..e}`
+ * ranges, generated one at a time; undefined once past the cap.
+ */
+export function braces(s: string): string[] | undefined {
+  const out: string[] = []
+  const expand = (text: string, depth: number): boolean => {
+    if (depth > BRACE_GROUPS) return false
+    const group = braceGroup(text)
+    if (!group) {
+      out.push(text)
+      return out.length <= BRACE_CAP
+    }
+    if (group.alternatives === undefined) return false
+    for (const alternative of group.alternatives) {
+      if (!expand(group.head + alternative + group.tail, depth + 1)) return false
+    }
+    return true
+  }
+  return expand(s, 0) ? out : undefined
+}
+
+/** The first `{...}` that expands: its alternatives (undefined: too many), and what is around it. */
+function braceGroup(s: string): { head: string; tail: string; alternatives: string[] | undefined } | undefined {
+  for (let open = s.indexOf('{'); open !== -1; open = s.indexOf('{', open + 1)) {
+    let depth = 0
+    const commas: number[] = []
+    for (let j = open; j < s.length; j++) {
+      if (s[j] === '{') depth++
+      else if (s[j] === '}') depth--
+      else if (s[j] === ',' && depth === 1) commas.push(j)
+      if (depth !== 0) continue
       const head = s.slice(0, open)
       const tail = s.slice(j + 1)
-      const alternatives = cuts.slice(1).map((cut, k) => s.slice((cuts[k] ?? open) + 1, cut))
-      return alternatives.flatMap(alt => braces(head + alt + tail, budget)).slice(0, budget)
+      const body = s.slice(open + 1, j)
+      if (commas.length > 0) {
+        const cuts = [open, ...commas, j]
+        return { head, tail, alternatives: cuts.slice(1).map((cut, k) => s.slice((cuts[k] ?? open) + 1, cut)) }
+      }
+      const range = /^(-?\d+|[a-zA-Z])\.\.(-?\d+|[a-zA-Z])$/.exec(body)
+      if (range) return { head, tail, alternatives: sequence(range[1] ?? '', range[2] ?? '') }
+      break
     }
   }
-  return [s]
+  return undefined
+}
+
+function sequence(from: string, to: string): string[] | undefined {
+  const isNumber = /\d/.test(from)
+  if (isNumber !== /\d/.test(to)) return undefined
+  const a = isNumber ? Number(from) : from.charCodeAt(0)
+  const b = isNumber ? Number(to) : to.charCodeAt(0)
+  if (Math.abs(b - a) >= BRACE_CAP) return undefined
+  const step = a <= b ? 1 : -1
+  const out: string[] = []
+  for (let n = a; step > 0 ? n <= b : n >= b; n += step) out.push(isNumber ? String(n) : String.fromCharCode(n))
+  return out
 }
 
 function isAssignment(w: Word): boolean {
@@ -385,6 +454,14 @@ const FIND_VALUED = new Set([
   '-newerat', '-newerBt',
 ])
 const FIND_EXEC = new Set(['-exec', '-execdir', '-ok', '-okdir'])
+/**
+ * Predicates that write files or run commands. Never copied into a measuring
+ * command: a find holding one is held unmeasured (GNU find opens -fprint
+ * files for writing while it parses, before it runs anything).
+ */
+export const FIND_WRITES = new Set(['-delete', '-exec', '-execdir', '-ok', '-okdir', '-fprint', '-fprint0', '-fprintf', '-fls'])
+/** Tests whose meaning differs between the system find and the shell's own (bfs, GNU). */
+const FIND_UNPORTABLE = new Set(['-regex', '-iregex', '-regextype', '-readable', '-writable', '-executable'])
 /** Actions that write or print on their own: a listing re-run would not be clean. */
 const FIND_SIDE_EFFECTS = new Set(['-exec', '-execdir', '-ok', '-okdir', '-fprint', '-fprint0', '-fprintf', '-fls', '-delete', '-print', '-print0', '-printf', '-ls'])
 
@@ -418,8 +495,16 @@ export function parseFind(argv: Word[]): Partial<Finding> | undefined {
   const listing: string[] = []
   const isKnown = expr.every(w => w.known) && starts.every(w => w.known && !w.glob)
   let isListable = true
+  let isPortable = true
   for (let j = 0; j < expr.length; j++) {
     const t = expr[j]?.text ?? ''
+    // Writers first: -fprint takes a value, but must never reach the listing.
+    if (t === '-fprint' || t === '-fprint0' || t === '-fprintf' || t === '-fls') {
+      isListable = false
+      j += t === '-fprintf' ? 2 : 1
+      continue
+    }
+    if (FIND_UNPORTABLE.has(t)) isPortable = false
     if (FIND_VALUED.has(t)) {
       listing.push(t, expr[j + 1]?.text ?? '')
       j++
@@ -434,9 +519,16 @@ export function parseFind(argv: Word[]): Partial<Finding> | undefined {
     if (FIND_EXEC.has(t)) {
       let end = j + 1
       while (end < expr.length && expr[end]?.text !== ';' && expr[end]?.text !== '+') end++
-      if (base(expr[j + 1]?.text ?? '') === 'rm') {
+      // `-exec sudo rm`, `-exec env rm`: peel the same prefixes as a command line.
+      const command = peel(expr.slice(j + 1, end)).argv
+      const program = command[0]?.known ? base(command[0].text) : ''
+      if (program === 'rm') {
         deletes = true
         listing.push('-print0')
+      } else if (SHELLS.has(program) || program === 'eval' || program === 'xargs' || !command[0]?.known) {
+        // A shell or a run-time program could delete anything: held unmeasured.
+        deletes = true
+        isListable = false
       } else {
         isListable = false
       }
@@ -447,14 +539,18 @@ export function parseFind(argv: Word[]): Partial<Finding> | undefined {
     listing.push(t)
   }
   if (!deletes) return undefined
-  const from = starts.length > 0 ? starts : [{ text: '.', known: true, glob: false, raw: '.' }]
+  const from = starts.length > 0 ? starts : [{ text: '.', known: true, glob: false, raw: '.', plain: true }]
   if (!isKnown) return { targets: from, unknown: 'it names paths that are only known when it runs' }
   if (!isListable) return { targets: from, unknown: 'its find expression does more than delete, so it was not re-run to look' }
+  if (!isPortable) return { targets: from, unknown: 'it uses a find test the system find reads differently from the shell' }
   // -delete turns on -depth, which also switches -prune off: list the same way.
   return { targets: from, findListing: [...leading, ...from.map(w => w.text), ...(usesDelete ? ['-depth'] : []), ...listing] }
 }
 
 // ---------------------------------------------------------------- git
+
+/** Options of a branch switch that cannot discard anything. */
+const SWITCH_FLAGS = new Set(['-q', '--quiet', '-t', '--track', '--no-track', '--detach', '--progress', '--no-progress', '--guess', '--no-guess'])
 
 type GitParsed = { cd: CdStep[]; finding: Pick<Finding, 'kind' | 'git' | 'unknown'> }
 
@@ -520,15 +616,15 @@ function gitSub(sub: string, rest: Word[], viaXargs: boolean): Pick<Finding, 'ki
   const hasShort = (ch: string) => flags.some(f => shortFlags(f).includes(ch))
 
   if (sub === 'clean') {
-    const isForced = hasShort('f') || has('--force')
-    if (!isForced || hasShort('n') || has('--dry-run')) return undefined
+    const forces = flags.reduce((n, f) => n + (f === '--force' ? 1 : (shortFlags(f).match(/f/g) ?? []).length), 0)
+    if (forces === 0 || hasShort('n') || has('--dry-run')) return undefined
     const keep = ['d', 'x', 'X'].filter(hasShort)
     const excludes: string[] = []
     flags.forEach((f, j) => {
       if (f === '-e' || f === '--exclude') excludes.push(flags[j + 1] ?? '')
       else if (f.startsWith('--exclude=')) excludes.push(f.slice('--exclude='.length))
     })
-    return { kind: 'git-clean', git: { sub: 'clean', flags: keep, excludes, paths: [...positionals, ...after] } }
+    return { kind: 'git-clean', git: { sub: 'clean', flags: keep, forces, excludes, paths: [...positionals, ...after] } }
   }
   if (sub === 'reset') {
     if (!has('--hard')) return undefined
@@ -551,7 +647,11 @@ function gitSub(sub: string, rest: Word[], viaXargs: boolean): Pick<Finding, 'ki
     const [first, ...others] = positionals
     if (!first || (first.known && first.text === '-')) return undefined
     if (others.length > 0) return discard('paths', others, first)
-    const isPath = !first.known || first.glob || first.text === '.' || first.text.startsWith('./') || first.text.startsWith(':/')
+    // Only a bare `git checkout <plain name>` may turn out to be a branch switch
+    // (the measurer asks git). Any other option, or a name that is not a plain
+    // token, is taken as paths and held.
+    const isBare = flags.every(f => SWITCH_FLAGS.has(f.split('=')[0] ?? ''))
+    const isPath = !isBare || !first.plain || first.text === '.' || first.text.startsWith('./') || first.text.startsWith(':/')
     return discard(isPath ? 'paths' : 'maybe-ref', [first])
   }
   if (sub === 'restore') {
@@ -562,7 +662,7 @@ function gitSub(sub: string, rest: Word[], viaXargs: boolean): Pick<Finding, 'ki
     if (paths.length === 0) return undefined
     const sourceAt = flags.findIndex(f => f === '-s' || f === '--source')
     const sourceText = sourceAt >= 0 ? flags[sourceAt + 1] : flags.find(f => f.startsWith('--source='))?.slice('--source='.length)
-    const source = sourceText !== undefined ? { text: sourceText, known: true, glob: false, raw: sourceText } : staged ? { text: 'HEAD', known: true, glob: false, raw: 'HEAD' } : undefined
+    const source = sourceText !== undefined ? literalWord(sourceText) : staged ? literalWord('HEAD') : undefined
     return { kind: 'git-discard', git: { sub: 'discard', mode: 'paths', paths, fromIndex: source === undefined, ...(source ? { source } : {}) } }
   }
   if (sub === 'switch') {
@@ -572,10 +672,11 @@ function gitSub(sub: string, rest: Word[], viaXargs: boolean): Pick<Finding, 'ki
   if (sub === 'push') {
     const name = (f: string) => f.split('=')[0] ?? ''
     // git takes a unique prefix of a long option: --force-with is the lease.
-    const hasLease = flags.some(f => name(f).length >= '--force-w'.length && '--force-with-lease'.startsWith(name(f)))
     const isMirror = flags.some(f => name(f) === '--mirror')
     const isForced = has('--force') || hasShort('f') || isMirror || positionals.slice(1).some(w => w.text.startsWith('+'))
-    if (!isForced || hasLease || has('--dry-run') || hasShort('n')) return undefined
+    // A lease guards only a push that is not also forced: `--force` (or -f,
+    // a `+refspec`, --mirror) switches the lease off, so it is held.
+    if (!isForced || has('--dry-run') || hasShort('n')) return undefined
     const isWholeRepo = isMirror || has('--all', '--branches', '--tags')
     const [remote, ...refspecs] = [...positionals, ...after]
     return { kind: 'git-push-force', git: { sub: 'push', refspecs, isWholeRepo, ...(remote ? { remote } : {}) } }

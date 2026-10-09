@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { braces, classify } from '../hooks/classify'
+import { FIND_WRITES, braces, classify } from '../hooks/classify'
 import type { Finding, Kind } from '../hooks/classify'
 
 const env = { home: '/Users/me' }
@@ -57,6 +57,17 @@ const CAUGHT: [string, Kind[]][] = [
   ['find . -name "*.pyc" -delete', ['find-delete']],
   ['find . -type d -name __pycache__ -exec rm -rf {} +', ['find-delete']],
   ['find build -name "*.map" -exec rm {} \\;', ['find-delete']],
+  ['find . -name x -exec sudo rm -rf {} +', ['find-delete']],
+  ['find . -name x -exec /usr/bin/env rm -rf {} \\;', ['find-delete']],
+  ["find . -name x -exec sh -c 'rm -rf \"$1\"' _ {} \\;", ['find-delete']],
+  ['find web -name "*.md" -fprint web/notes.md -delete', ['find-delete']],
+  ["find cache -regex '.*\\.pyc' -delete", ['find-delete']],
+  ['git clean -ffdx', ['git-clean']],
+  ['git clean -f -f -d', ['git-clean']],
+  ['rm -rf h{8..9}', ['rm']],
+  ['rm -rf **/notes', ['rm']],
+  ['cd -- web && rm -rf build', ['rm']],
+  ['cd web & rm -rf web', ['rm']],
   ['find -delete', ['find-delete']],
   ['find . -name x | xargs rm -rf', ['xargs-rm']],
   ['find . -name "*.log" -print0 | xargs -0 rm -f', ['xargs-rm']],
@@ -89,6 +100,11 @@ const CAUGHT: [string, Kind[]][] = [
   ['git push origin +main', ['git-push-force']],
   ['git push -fu origin feature', ['git-push-force']],
   ['git push --mirror', ['git-push-force']],
+  // A lease guards nothing once --force (or -f, or +ref) is also given.
+  ['git push --force --force-with-lease', ['git-push-force']],
+  ['git push --force-with-lease --force', ['git-push-force']],
+  ['git push -f --force-with-lease origin main', ['git-push-force']],
+  ['git push --force-with-lease origin +main', ['git-push-force']],
   ['git branch -D feature', ['git-branch-delete']],
   ['git branch -D a b', ['git-branch-delete']],
   ['git branch -df feature', ['git-branch-delete']],
@@ -143,7 +159,6 @@ const SAFE: string[] = [
   'git push --force-with-lease',
   'git push --force-with-lease origin main',
   'git push --force-with=main origin main',
-  'git push --force-with-lease --force',
   'git push --force --dry-run',
   'git push -fn',
   'git branch -d feature',
@@ -210,6 +225,9 @@ describe('classify', () => {
     expect(steps(one('git -C ../api reset --hard'))).toEqual(['../api'])
     expect(steps(one('env -C web rm -rf build'))).toEqual(['web'])
     expect(one('cd "$(mktemp -d)" && rm -rf x').cd[0]?.dir.known).toBe(false)
+    // `cd --` is cd; a backgrounded cd moves only its own subshell.
+    expect(steps(one('cd -- web && rm -rf build'))).toEqual(['web'])
+    expect(steps(one('cd web & rm -rf web'))).toEqual([])
   })
 
   test('labels are the part of the command that does it', () => {
@@ -259,10 +277,83 @@ describe('classify', () => {
     expect(kinds('rm -rf build "open')).toEqual(['rm'])
   })
 
-  test('brace expansion', () => {
+  test('brace expansion: lists and ranges, and a cap on the work', () => {
     expect(braces('{a,b}')).toEqual(['a', 'b'])
     expect(braces('x/{a,b}/y')).toEqual(['x/a/y', 'x/b/y'])
     expect(braces('{a,b}{1,2}')).toEqual(['a1', 'a2', 'b1', 'b2'])
     expect(braces('{a}')).toEqual(['{a}'])
+    expect(braces('h{8..9}')).toEqual(['h8', 'h9'])
+    expect(braces('{3..1}')).toEqual(['3', '2', '1'])
+    expect(braces('{a..c}')).toEqual(['a', 'b', 'c'])
+    expect(braces('{a,b,c,d,e,f,g,h}{1,2,3,4,5,6,7,8,9}')).toHaveLength(72)
+    // Past 256 words, or 8 nested groups, it gives up: the word is unknown, never cut short.
+    expect(braces('{a,b}'.repeat(9))).toBeUndefined()
+    expect(braces('{1..1000}')).toBeUndefined()
+  })
+
+  test('braces past the cap make the word unknown, so it is held unmeasured', () => {
+    const f = one(`rm -rf ${'{a,b}'.repeat(9)}`)
+    expect(f.targets).toHaveLength(1)
+    expect(f.targets[0]?.known).toBe(false)
+    expect(texts(one('rm -rf h{8..9}'))).toEqual(['h8', 'h9'])
+    expect(one('rm -rf h{8..9}').targets.every(w => !w.plain)).toBe(true)
+  })
+
+  test('classifying a brace bomb stays fast; an assignment is never brace-expanded', () => {
+    const started = Date.now()
+    expect(kinds(`X=${'{a,b}'.repeat(40)}; rm -rf src`)).toEqual(['rm'])
+    expect(kinds(`rm -rf ${'{a,b}'.repeat(40)}`)).toEqual(['rm'])
+    expect(kinds(`echo ${'{a,b,c,d}'.repeat(40)}`)).toEqual([])
+    expect(Date.now() - started).toBeLessThan(500)
+  })
+
+  test('an unquoted variable bash would split or glob is unknown', () => {
+    expect(one('T="src cache"; rm -rf $T').targets[0]?.known).toBe(false)
+    expect(one("P='*'; rm -rf $P").targets[0]?.known).toBe(false)
+    expect(texts(one('T="src cache"; rm -rf "$T"'))).toEqual(['src cache'])
+    expect(texts(one('T=src; rm -rf $T'))).toEqual(['src'])
+  })
+
+  test('plain marks only literal paths as written', () => {
+    const plain = (command: string) => one(command).targets.map(w => w.plain)
+    expect(plain('rm -rf dist "my build" ./out')).toEqual([true, true, true])
+    expect(plain('rm -rf ~/dist')).toEqual([false])
+    expect(plain('rm -rf "$HOME/dist"')).toEqual([false])
+    expect(plain('rm -rf dist/*')).toEqual([false])
+    expect(plain('rm -rf {dist,build}')).toEqual([false, false])
+    expect(plain('DIR=dist; rm -rf "$DIR"')).toEqual([false])
+  })
+
+  test('no find listing ever carries a predicate that writes or runs', () => {
+    const finds = [
+      'find . -name "*.pyc" -delete',
+      'find . -type d -name x -exec rm -rf {} +',
+      'find web -name "*.md" -fprint web/notes.md -delete',
+      'find web -fprint0 out -delete',
+      'find web -fls out -delete',
+      'find web -fprintf out "%p" -delete',
+      'find . -name x -exec rm {} \\; -exec touch y \\;',
+      'find . -name x -execdir rm {} + -ok rm {} \\;',
+      'find . -name x -exec sudo rm -rf {} +',
+      "find . -name x -exec sh -c 'rm -rf \"$1\"' _ {} \\;",
+      'find . -name x -print -delete',
+    ]
+    for (const command of finds) {
+      const f = one(command)
+      for (const t of f.findListing ?? []) expect(FIND_WRITES.has(t), `${command}: ${t}`).toBe(false)
+    }
+    for (const writer of ['-fprint out', '-fprint0 out', '-fls out', '-fprintf out "%p"']) {
+      const f = one(`find web -name "*.md" ${writer} -delete`)
+      expect(f.findListing, writer).toBeUndefined()
+      expect(f.unknown, writer).toBe('its find expression does more than delete, so it was not re-run to look')
+    }
+    expect(one("find cache -regex '.*\\.pyc' -delete").findListing).toBeUndefined()
+    expect(one('find . -name x -exec sudo rm -rf {} +').findListing).toBeDefined()
+  })
+
+  test('git clean counts its forces', () => {
+    expect(one('git clean -ffdx').git).toMatchObject({ sub: 'clean', forces: 2, flags: ['d', 'x'] })
+    expect(one('git clean -f -f -d').git).toMatchObject({ forces: 2 })
+    expect(one('git clean --force -d').git).toMatchObject({ forces: 1 })
   })
 })
