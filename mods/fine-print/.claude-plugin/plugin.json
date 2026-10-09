@@ -1,0 +1,26 @@
+{
+  "name": "fine-print",
+  "version": "0.1.0",
+  "description": "A second reader that flags what you would miss in a wall of text.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["review", "safety", "cost", "security", "insight", "band"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "watchFor": {
+      "type": "string",
+      "multiple": true,
+      "title": "Watch for",
+      "description": "Topics Fine Print flags: cost, security, data-loss, irreversible, customers, assumptions. 'all' means every topic, 'none' turns checks off.",
+      "default": ["cost", "security", "data-loss", "irreversible", "customers", "assumptions"]
+    },
+    "maxChecksPerSession": {
+      "type": "number",
+      "title": "Max checks per session",
+      "description": "Spend cap: how many small-model checks Fine Print may run in one session. 0 turns checks off.",
+      "default": 30,
+      "min": 0,
+      "max": 1000
+    }
+  }
+}
