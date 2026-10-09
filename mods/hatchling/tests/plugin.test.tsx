@@ -556,12 +556,51 @@ describe('the band', () => {
     }
   })
 
+  // Another mod's band, loaded beneath this one: the pet must draw on top of
+  // it, never erase it, in both the full and the one-line layouts.
+  const neighbour = {
+    name: 'neighbour',
+    tier: 'append' as const,
+    register: (on: On) => {
+      on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+        const { Box, Text } = $.ui.resolve(e)
+        return (
+          <Box key="neighbour-band">
+            <Text>neighbour safety notice</Text>
+          </Box>
+        )
+      })
+    },
+  }
+
+  test('shares the band with other mods on every layout', { plugins: [neighbour] }, async ($, on) => {
+    world(on, { pet: savedPet() })
+    await start($)
+    for (const surface of SURFACES) {
+      for (const props of [{}, { bodyColumns: 24 }]) {
+        const ui = await band($, surface, props)
+        expect(await ui.find({ key: 'neighbour-band' }), `${surface} ${JSON.stringify(props)}`).toBeDefined()
+        expect(await ui.find({ key: 'band' })).toBeDefined()
+        expect(await shown(ui)).toContain('neighbour safety notice')
+        await ui.unmount()
+      }
+      // Hidden: the neighbour alone.
+      await petCommand($, 'hide')
+      const hidden = await band($, surface)
+      expect(await hidden.find({ key: 'neighbour-band' })).toBeDefined()
+      expect(await hidden.find({ key: 'band' })).toBeUndefined()
+      await hidden.unmount()
+      await petCommand($, 'show')
+    }
+  })
+
   test('yields to a survey', async ($, on) => {
     world(on, { pet: savedPet() })
     await start($)
     for (const surface of SURFACES) {
       const ui = await band($, surface, { hasSurvey: true })
       expect(await ui.find({ key: 'engine' })).toBeDefined()
+      expect(await ui.find({ key: 'band' })).toBeUndefined()
       await ui.unmount()
     }
   })

@@ -328,16 +328,22 @@ export const register: Register = on => {
     const accent = accentOf(pet)
     const line = anim.line !== '' ? anim.line : idleLine(pet, anim.mood, isWorking)
     const { Box, Text } = $.ui.resolve(e)
+    // Other mods share this band: the pet draws on top of what they draw,
+    // never in place of it.
+    const below = await next(e)
 
     // Too narrow or too short for the sprite: one line instead.
     const width = e.props.bodyColumns
     if (width < frame.w + 20 || e.props.maxRows < cells.length) {
       return (
-        <Box key="band">
-          <Text wrap="truncate-end">
-            <Text color={accent}>{bar(progressOf(pet), 5)}</Text>
-            {` ${line}`}
-          </Text>
+        <Box flexDirection="column">
+          <Box key="band">
+            <Text wrap="truncate-end">
+              <Text color={accent}>{bar(progressOf(pet), 5)}</Text>
+              {` ${line}`}
+            </Text>
+          </Box>
+          {below}
         </Box>
       )
     }
@@ -350,26 +356,29 @@ export const register: Register = on => {
     }
     const barWidth = Math.max(6, Math.min(16, width - frame.w - 16))
     return (
-      <Box key="band" flexDirection="row" gap={2} alignItems="center">
-        {sprite}
-        <Box key="info" flexDirection="column">
-          <Text wrap="truncate-end">
-            <Text bold>{nameOf(pet)}</Text>
-            {'  '}
-            {pet.hatch === undefined ? (
-              <Text dimColor>{bandTag(pet)}</Text>
-            ) : (
-              <Text color={RARITY_COLOR[rarityOf(pet.hatch.species)]}>{rarityOf(pet.hatch.species)}</Text>
-            )}
-            {pet.hatch === undefined ? null : <Text dimColor>{` - ${stageOf(pet)}`}</Text>}
-            {pet.hatch?.shiny === true ? <Text color={RARITY_COLOR.legendary}>{' - shiny'}</Text> : null}
-          </Text>
-          <Text wrap="truncate-end">{line}</Text>
-          <Text wrap="truncate-end">
-            <Text color={accent}>{bar(progressOf(pet), barWidth)}</Text>
-            <Text dimColor>{` ${shortProgress(pet)}`}</Text>
-          </Text>
+      <Box flexDirection="column">
+        <Box key="band" flexDirection="row" gap={2} alignItems="center">
+          {sprite}
+          <Box key="info" flexDirection="column">
+            <Text wrap="truncate-end">
+              <Text bold>{nameOf(pet)}</Text>
+              {'  '}
+              {pet.hatch === undefined ? (
+                <Text dimColor>{bandTag(pet)}</Text>
+              ) : (
+                <Text color={RARITY_COLOR[rarityOf(pet.hatch.species)]}>{rarityOf(pet.hatch.species)}</Text>
+              )}
+              {pet.hatch === undefined ? null : <Text dimColor>{` - ${stageOf(pet)}`}</Text>}
+              {pet.hatch?.shiny === true ? <Text color={RARITY_COLOR.legendary}>{' - shiny'}</Text> : null}
+            </Text>
+            <Text wrap="truncate-end">{line}</Text>
+            <Text wrap="truncate-end">
+              <Text color={accent}>{bar(progressOf(pet), barWidth)}</Text>
+              <Text dimColor>{` ${shortProgress(pet)}`}</Text>
+            </Text>
+          </Box>
         </Box>
+        {below}
       </Box>
     )
   })
