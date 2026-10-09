@@ -16,6 +16,8 @@ type World = {
   runs: string[][]
   spawns: string[][]
   toasts: string[]
+  /** Toasts the command raised for its own success lines. */
+  notes: string[]
   opened: string[]
   blits: number
   files: Set<string>
@@ -28,7 +30,7 @@ type World = {
   mktempOut: string | undefined
   toastThrows: boolean
   openDenied: boolean
-  registered: string[]
+  registered: unknown[]
 }
 
 /** Answers every noun porthole calls, as a terminal session on a Mac with Chrome would. */
@@ -38,6 +40,7 @@ function world(on: On, chromePath: string | null = CHROME): World {
     runs: [],
     spawns: [],
     toasts: [],
+    notes: [],
     opened: [],
     blits: 0,
     files: new Set(chromePath === null ? [] : [chromePath]),
@@ -93,7 +96,8 @@ function world(on: On, chromePath: string | null = CHROME): World {
   }))
   on('ui.toast', ($, e) => {
     if (w.toastThrows) throw new Error('toast broke')
-    w.toasts.push(e.text)
+    if (/^(Porthole: |Viewport set to )/.test(e.text)) w.notes.push(e.text)
+    else w.toasts.push(e.text)
     return { value: undefined }
   })
   on('ui.blit', () => {
@@ -102,7 +106,7 @@ function world(on: On, chromePath: string | null = CHROME): World {
   })
   on('ui.log', () => ({ value: undefined }))
   on('command.register', ($, e) => {
-    w.registered.push(e.name)
+    w.registered.push({ ...e })
     return { value: { command: e.name } }
   })
   return w
@@ -110,6 +114,15 @@ function world(on: On, chromePath: string | null = CHROME): World {
 
 const run = ($: Engine, args: string, command = 'porthole', origin: PromptOrigin = { kind: 'composer' }) =>
   $.command.run({ command, args, origin, presentation: { isFullscreen: true, columns: 200 } })
+
+/** Runs /porthole expecting success: no text for the model, one toast for the person. */
+async function shown($: Engine, w: World, args: string, origin: PromptOrigin = { kind: 'composer' }): Promise<string | undefined> {
+  const before = w.notes.length
+  const answer = await run($, args, 'porthole', origin)
+  expect(answer.text, `answer to "${args}"`).toBeUndefined()
+  expect(w.notes.length).toBe(before + 1)
+  return w.notes.at(-1)
+}
 
 /** Lets the background capture (started by the command, not awaited by it) finish. */
 async function settled(w: World): Promise<void> {
@@ -160,17 +173,23 @@ const editResult = {
   text: 'The file was updated.',
 }
 
-test('the command is registered at session start', async ($, on) => {
+test('the command is registered at session start, runnable mid-turn (immediate)', async ($, on) => {
   const w = world(on)
   on('session.start', ($2, e) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: '/app', surface: 'terminal', isInteractive: true })
-  expect(w.registered).toEqual(['porthole'])
+  expect(w.registered).toEqual([
+    {
+      name: 'porthole',
+      description: 'Preview a local web page in a side pane (headless Chrome screenshot)',
+      argumentHint: '[url] [mobile|desktop]',
+      immediate: true,
+    },
+  ])
 })
 
 test('/porthole <url> shoots with headless Chrome, a fresh profile and the desktop viewport', async ($, on) => {
   const w = world(on)
-  const answer = await run($, 'http://localhost:5173')
-  expect(answer.text).toBe('Porthole: http://localhost:5173/ at 1280 px (desktop).')
+  expect(await shown($, w, 'http://localhost:5173')).toBe('Porthole: http://localhost:5173/ at 1280 px (desktop).')
   expect(w.opened).toEqual(['porthole'])
   await settled(w)
 
@@ -191,12 +210,12 @@ test('/porthole <url> shoots with headless Chrome, a fresh profile and the deskt
 
 test('/porthole mobile and /porthole desktop switch the viewport width', async ($, on) => {
   const w = world(on)
-  expect((await run($, 'mobile')).text).toBe('Viewport set to mobile (390 px wide). Open a page with /porthole <url>.')
+  expect(await shown($, w, 'mobile')).toBe('Viewport set to mobile (390 px wide). Open a page with /porthole <url>.')
   expect(w.spawns).toEqual([])
-  expect((await run($, '127.0.0.1:8000')).text).toBe('Porthole: http://127.0.0.1:8000/ at 390 px (mobile).')
+  expect(await shown($, w, '127.0.0.1:8000')).toBe('Porthole: http://127.0.0.1:8000/ at 390 px (mobile).')
   await settled(w)
   expect(w.spawns[0]?.find(arg => arg.startsWith('--window-size='))).toBe('--window-size=390,844')
-  expect((await run($, 'desktop')).text).toBe('Porthole: http://127.0.0.1:8000/ at 1280 px (desktop).')
+  expect(await shown($, w, 'desktop')).toBe('Porthole: http://127.0.0.1:8000/ at 1280 px (desktop).')
   await settled(w)
   expect(w.spawns[1]?.find(arg => arg.startsWith('--window-size='))).toBe('--window-size=1280,800')
 })
@@ -271,7 +290,7 @@ test('Bash output naming a local server toasts "Open in porthole" once per addre
   ])
 
   // Bare /porthole now opens the last address seen.
-  expect((await run($, '')).text).toBe('Porthole: http://localhost:3000/ at 1280 px (desktop).')
+  expect(await shown($, w, '')).toBe('Porthole: http://localhost:3000/ at 1280 px (desktop).')
   await settled(w)
   expect(w.spawns[0]?.at(-1)).toBe('http://localhost:3000/')
 })
@@ -535,8 +554,7 @@ const REFUSAL = 'Porthole opens a site other than localhost only when you type /
 test('a remote URL opens for the person typing: composer and bridge', async ($, on) => {
   const w = world(on)
   for (const origin of [{ kind: 'composer' }, { kind: 'bridge' }] as const) {
-    const answer = await run($, `https://example.com/${origin.kind}`, 'porthole', origin)
-    expect(answer.text).toBe(`Porthole: https://example.com/${origin.kind} at 1280 px (desktop).`)
+    expect(await shown($, w, `https://example.com/${origin.kind}`, origin)).toBe(`Porthole: https://example.com/${origin.kind} at 1280 px (desktop).`)
     await settled(w)
   }
   expect(w.spawns.map(argv => argv.at(-1))).toEqual(['https://example.com/composer', 'https://example.com/bridge'])
@@ -552,8 +570,7 @@ test('every other origin gets localhost only', async ($, on) => {
     expect(w.spawns.length, origin.kind).toBe(before)
 
     // The local page still opens from the same origin.
-    const local = await run($, `http://localhost:${5000 + before}`, 'porthole', origin)
-    expect(local.text, origin.kind).toBe(`Porthole: http://localhost:${5000 + before}/ at 1280 px (desktop).`)
+    expect(await shown($, w, `http://localhost:${5000 + before}`, origin)).toBe(`Porthole: http://localhost:${5000 + before}/ at 1280 px (desktop).`)
     await settled(w)
     expect(w.spawns.length, origin.kind).toBe(before + 1)
   }
@@ -630,7 +647,7 @@ test('bare /porthole prefers the last dev server seen over the page in the pane'
   await run($, 'http://localhost:5173')
   await settled(w)
   await $.tool.call({ tool: 'Bash', command: 'npm run dev' })
-  expect((await run($, '')).text).toBe('Porthole: http://localhost:3000/ at 1280 px (desktop).')
+  expect(await shown($, w, '')).toBe('Porthole: http://localhost:3000/ at 1280 px (desktop).')
 })
 
 test('failed or staged edits do not refresh', async ($, on) => {

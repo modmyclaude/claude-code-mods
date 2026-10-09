@@ -17,6 +17,10 @@ A live preview of the app you are building, right beside the chat.
 | `/porthole mobile` / `/porthole desktop` | Switches the viewport to 390 px or 1280 px wide and shoots again. |
 | `/porthole 3000` or `/porthole localhost:3000/app` | Shorthands for a local address. |
 
+`/porthole` runs at once even while Claude is working, so you can open or refresh the preview mid-turn.
+When it works it says so in a toast and adds nothing to the conversation; a refusal (an address it will
+not open, Chrome missing) stays visible as the command's output.
+
 - **Dev-server detection.** When a Bash result from Claude names a local server
   (`http://localhost:<port>` or `http://127.0.0.1:<port>`), a toast says
   `Open in porthole: http://localhost:5173/ - type /porthole`. Each address is offered once per session.
