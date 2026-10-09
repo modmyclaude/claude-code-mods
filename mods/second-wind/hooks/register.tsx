@@ -265,9 +265,16 @@ async function copyCard($: EngineInterface, text: string): Promise<string> {
   }
 }
 
+/** Who may turn the mod off or write the clipboard: the person typing (API-GOTCHAS #27). */
+const PERSON_ORIGINS: ReadonlySet<string> = new Set(['composer', 'bridge', 'sdk'])
+const PERSON_ONLY: ReadonlySet<string> = new Set(['off', 'snooze', 'card'])
+
 /** /breathe and its arguments. */
-async function breathe($: EngineInterface, args: string): Promise<{ text: string }> {
+async function breathe($: EngineInterface, args: string, origin: string): Promise<{ text: string }> {
   const arg = args.trim().toLowerCase()
+  if (PERSON_ONLY.has(arg) && !PERSON_ORIGINS.has(origin)) {
+    return { text: `Second Wind only does /breathe ${arg} when you type it yourself.` }
+  }
   const now = await $.clock.now()
   const day = localDay(now)
   const sw = await loadSwitch($)
@@ -384,7 +391,7 @@ export const register: Register = (on, options) => {
   // The answer is for the person, not the model (API-GOTCHAS #18): a dim
   // transcript line Claude never reads, and an empty result.
   on('command.run', { command: 'breathe' }, async ($, e) => {
-    $.ui.log((await breathe($, e.args)).text)
+    $.ui.log((await breathe($, e.args, e.origin.kind)).text)
     return {}
   }).catch(($) => {
     $.ui.log('Second Wind could not answer that just now.')
