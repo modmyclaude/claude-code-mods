@@ -390,19 +390,32 @@ export function ago(ms: number): string {
   return hours < 24 ? `${hours} h ago` : `${Math.floor(hours / 24)} d ago`
 }
 
-/** The /fineprint output: every note, newest first, then the spend so far. */
-export function formatNotes(notes: readonly FinePrintNote[], now: number, checks: number, max: number): string {
-  const spend = `Checks used this session: ${checks} of ${max}.`
-  if (notes.length === 0) return `Fine Print has flagged nothing this session. ${spend}`
+/** One line of the /fineprint list, with what it is, so a pane can style it. */
+export type NoteLine = { text: string; kind: 'title' | 'head' | 'bullet' | 'blank' | 'spend' }
+
+/** The /fineprint list: every note, newest first, then the spend so far. */
+export function noteLines(notes: readonly FinePrintNote[], now: number, checks: number, max: number): NoteLine[] {
+  const spend: NoteLine = { text: `Checks used this session: ${checks} of ${max}.`, kind: 'spend' }
+  if (notes.length === 0) return [{ text: `Fine Print has flagged nothing this session. ${spend.text}`, kind: 'title' }]
 
   // Stored oldest first; reversing first keeps same-moment notes newest first.
   const newestFirst = [...notes].reverse().sort((a, b) => b.at - a.at)
-  const blocks = newestFirst.map((note, index) => {
-    const head = `${index + 1}. ${note.headline} (${STATUS_WORDS[note.status]}, ${ago(now - note.at)}; ${note.topics.join(', ')})`
-
-    return [head, ...note.bullets.map(bullet => `   - ${bullet}`)].join('\n')
-  })
+  const blocks = newestFirst.flatMap((note, index): NoteLine[] => [
+    {
+      text: `${index + 1}. ${note.headline} (${STATUS_WORDS[note.status]}, ${ago(now - note.at)}; ${note.topics.join(', ')})`,
+      kind: 'head',
+    },
+    ...note.bullets.map((bullet): NoteLine => ({ text: `   - ${bullet}`, kind: 'bullet' })),
+  ])
   const count = notes.length === 1 ? '1 note' : `${notes.length} notes`
+  const blank: NoteLine = { text: '', kind: 'blank' }
 
-  return [`Fine Print: ${count} this session, newest first.`, '', ...blocks, '', spend].join('\n')
+  return [{ text: `Fine Print: ${count} this session, newest first.`, kind: 'title' }, blank, ...blocks, blank, spend]
+}
+
+/** The same list as plain text. */
+export function formatNotes(notes: readonly FinePrintNote[], now: number, checks: number, max: number): string {
+  return noteLines(notes, now, checks, max)
+    .map(line => line.text)
+    .join('\n')
 }

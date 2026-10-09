@@ -23,7 +23,7 @@ When it finds something, a band appears above the prompt:
 
 The letter keys (`g`, `d`) work once the band has focus (a click, or ctrl+x tab). A newer note replaces the one on screen; the band then says how many older notes are still open.
 
-`/fineprint` lists every note flagged this session, newest first, with what you did with it (open, got it, dismissed, asked to explain), how long ago, its topics, and how many checks were used.
+`/fineprint` opens a pane (also while Claude is working; Esc closes it) listing every note flagged this session, newest first, with what you did with it (open, got it, dismissed, asked to explain), how long ago, its topics, and how many checks were used.
 
 ## Settings
 
@@ -41,7 +41,7 @@ Change them in `/config` (or on the install screen).
 - **Reads:** the session transcript, through Claude Code, to find this turn's tool calls. No files, no processes, no network of its own.
 - **Writes:** nothing on disk. Notes and the check count live in the session and end with it.
 - **Explain more** starts one turn of your main model, at its normal cost, and only when you press it.
-- `/fineprint` prints its list into the transcript, where the model can read it too.
+- `/fineprint` shows its list in a pane, not in the conversation, so the model never reads it. Where no surface can show a pane, the list is a transcript line, which the model does not read either.
 
 ## Limits
 

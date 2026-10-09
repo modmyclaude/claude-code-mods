@@ -17,6 +17,7 @@ import {
   explainPrompt,
   formatNotes,
   isOwnQuestion,
+  noteLines,
   parseMaxChecks,
   parseVerdict,
   parseWatchFor,
@@ -173,6 +174,13 @@ async function explain($: EngineInterface, id: string) {
   $.ui.toast(drawable(`Fine Print could not send the question (${why}). The note is still open.`))
 }
 
+// Where no surface seats a pane: the list as a transcript line, which the
+// person sees and the model does not.
+async function logNotes($: EngineInterface, maxChecks: number) {
+  const [list, used, now] = await Promise.all([read($, notes), read($, checks), $.clock.now()])
+  $.ui.log(formatNotes(list, now, used, maxChecks))
+}
+
 export const register: Register = (on, options) => {
   const settings: Settings = {
     topics: parseWatchFor(options.watchFor),
@@ -183,6 +191,8 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'fineprint',
       description: 'List the notes Fine Print flagged this session, newest first',
+      // It only reads notes, so it may open while Claude works.
+      immediate: true,
     })
     // Also raised on a reload, possibly with a new cap: put the line right.
     await syncCapLine($, await read($, checks), settings.maxChecks, true)
@@ -202,11 +212,36 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // The list opens in a pane, never as command text the model would read.
   on('command.run', { command: 'fineprint' }, async $ => {
-    const [list, used, now] = await Promise.all([read($, notes), read($, checks), $.clock.now()])
+    const opened = await $.ui.open({ id: 'fineprint', title: 'Fine Print', focus: true, closeOnEscape: true })
+    if (!opened.isPlaced) await logNotes($, settings.maxChecks)
 
-    return { text: formatNotes(list, now, used, settings.maxChecks) }
-  }).catch(() => ({ text: 'Fine Print could not read its notes.' }))
+    return {}
+  }).catch($ => {
+    $.ui.toast('Fine Print could not open its notes.')
+
+    return {}
+  })
+
+  on('ui.render', { component: 'Pane', requestId: 'fineprint' }, async ($, e) => {
+    const [list, used, now] = await Promise.all([read($, notes), read($, checks), $.clock.now()])
+    const { Box, Text } = $.ui.resolve(e)
+
+    return (
+      <Box flexDirection="column">
+        {noteLines(list, now, used, settings.maxChecks).map(line =>
+          line.kind === 'blank' ? (
+            <Text> </Text>
+          ) : (
+            <Text bold={line.kind === 'head' || line.kind === 'title'} dimColor={line.kind === 'spend'} wrap="wrap">
+              {line.text}
+            </Text>
+          ),
+        )}
+      </Box>
+    )
+  })
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
