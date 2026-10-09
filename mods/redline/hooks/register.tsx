@@ -39,6 +39,8 @@ const fromUsage = (u: Pick<SessionMeasureInput, 'context' | 'rateLimits' | 'cost
  */
 /** One repaint after the 10-minute window passes with no reading (see apply). */
 let idleRepaint: Timer | undefined
+/** One repaint just after the earliest plan window resets (see apply). */
+let resetRepaint: Timer | undefined
 
 async function apply($: EngineInterface, reading: Reading): Promise<void> {
   let fire = false
@@ -51,13 +53,22 @@ async function apply($: EngineInterface, reading: Reading): Promise<void> {
   })
   $.ui.status(gaugeLine(g, reading.now))
   if (fire) $.ui.toast(TOAST_TEXT(percentOf(g) ?? RED_AT), { timeoutMs: 10_000 })
-  // The status line is a fixed string: once the session sits idle past the
-  // 10-minute window, paint it once more so the pace and rate read idle. One
-  // shot, re-armed by each reading: nothing ticks while nothing happens.
+  // The status line is a fixed string and the band and pane cache their
+  // drawing: two moments must repaint them with no reading at all. Once the
+  // session sits idle past the 10-minute window (pace and rate read idle),
+  // and just after the earliest plan window resets (a spent window means no
+  // replies, so nothing else would). One shot each, re-armed by every reading:
+  // nothing ticks while nothing happens.
+  const repaint = () =>
+    void safely($, 'repaint', async () => {
+      $.ui.status(gaugeLine(await read($, gauge), await $.clock.now()))
+      $.ui.invalidate('ui.render')
+    })
   idleRepaint?.cancel()
-  idleRepaint = $.clock.after(SPAN_MS + 1000, () => {
-    void safely($, 'idle repaint', async () => $.ui.status(gaugeLine(await read($, gauge), await $.clock.now())))
-  })
+  idleRepaint = $.clock.after(SPAN_MS + 1000, repaint)
+  resetRepaint?.cancel()
+  const nextReset = Math.min(...g.limits.map(l => Date.parse(l.resetsAt ?? '')).filter(t => t > reading.now))
+  resetRepaint = Number.isFinite(nextReset) ? $.clock.after(nextReset - reading.now + 1000, repaint) : undefined
 }
 
 /** Runs gauge work so a failure is logged and never stands in a turn's way. */
@@ -166,6 +177,7 @@ export const register: Register = on => {
           ...EMPTY_GAUGE,
           window: was.window,
           limits: was.limits,
+          limitHistory: was.limitHistory,
           sessionStartedAt: now,
           trackingSince: now,
         }))

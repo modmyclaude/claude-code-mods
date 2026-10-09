@@ -20,6 +20,7 @@ import {
   paceEta,
   percentOf,
   reduce,
+  recordLimits,
   runOut,
   tokensPerMinute,
 } from '../hooks/gauge'
@@ -151,8 +152,38 @@ describe('plan run-out', () => {
   })
   test('a window used slowly resets first', () => {
     const l = { kind: 'seven_day', percentUsed: 10, resetsAt: at(24 * 6) }
-    expect(runOut(l, NOW)).toEqual({ kind: 'resets-first' })
+    expect(runOut(l, NOW)).toEqual({ kind: 'resets-first', basis: 'average' })
     expect(limitText(l, NOW)).toBe('7d 10%')
+  })
+  test('a late burst warns at the recent rate, which the average would hide', () => {
+    // Opened 4.5h ago, 50% used, resets in 30 min: the average says it resets first.
+    const l = { kind: 'five_hour', percentUsed: 50, resetsAt: at(0.5) }
+    expect(limitText(l, NOW)).toBe('5h 50%')
+    // But it went 20% -> 50% in the last 10 minutes: 3 points a minute, dry in ~17m.
+    const burst = [{ t: NOW - 10 * MIN, tokens: 20 }, { t: NOW, tokens: 50 }]
+    const r = runOut(l, NOW, burst)
+    expect(r).toMatchObject({ kind: 'at', basis: 'recent' })
+    expect(r?.kind === 'at' ? Math.round(r.ms / MIN) : -1).toBe(17)
+    expect(limitText(l, NOW, burst)).toBe('5h 50% out in ~17m')
+  })
+  test('a window that held still lately falls back to its average pace', () => {
+    const flat = [{ t: NOW - 10 * MIN, tokens: 80 }, { t: NOW, tokens: 80 }]
+    expect(runOut({ kind: 'five_hour', percentUsed: 80, resetsAt: at(3) }, NOW, flat)).toMatchObject({ kind: 'at', basis: 'average' })
+  })
+  test('a reset inside the last 15 minutes starts the recent run over', () => {
+    // Reset 4 minutes ago (95 -> 3), then 3 -> 5 in 4 minutes: 0.5 a minute, 95 left.
+    const history = [{ t: NOW - 8 * MIN, tokens: 95 }, { t: NOW - 4 * MIN, tokens: 3 }, { t: NOW, tokens: 5 }]
+    const r = runOut({ kind: 'five_hour', percentUsed: 5, resetsAt: at(5 - 4 / 60) }, NOW, history)
+    expect(r).toMatchObject({ kind: 'at', basis: 'recent' })
+    expect(r?.kind === 'at' ? Math.round(r.ms / MIN) : -1).toBe(190)
+  })
+  test('readings are kept for 15 minutes, one a minute while the figure holds still', () => {
+    const l = (percentUsed: number) => [{ kind: 'five_hour', percentUsed }]
+    let h = recordLimits({}, l(10), NOW - 20 * MIN)
+    h = recordLimits(h, l(10), NOW - 30_000) // the old one is dropped
+    h = recordLimits(h, l(10), NOW - 10_000) // same figure, under a minute: not kept
+    h = recordLimits(h, l(12), NOW) // moved: kept
+    expect(h.five_hour).toEqual([{ t: NOW - 30_000, tokens: 10 }, { t: NOW, tokens: 12 }])
   })
   test('a spent window is out', () => {
     expect(runOut({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toEqual({ kind: 'out' })
@@ -240,10 +271,9 @@ describe('reduce', () => {
     expect(gaugeLine(gauge, NOW)).not.toContain('$')
   })
 
-  test("the ledger, when Claude Code keeps one, is the cost shown, plain: it is Claude Code's figure", () => {
+  test("the ledger, when Claude Code keeps one, is the cost shown, marked ≈: it is list-price arithmetic, not a bill", () => {
     const { gauge } = reduce({ ...EMPTY_GAUGE, window: 200_000 }, { now: NOW, ledgerUsd: 3.456, request: { turnId: 't', usage: usage('claude-nova-1', 10_000) } })
-    expect(gaugeLine(gauge, NOW)).toContain(' · $3.46 · ')
-    expect(gaugeLine(gauge, NOW)).not.toContain('≈')
+    expect(gaugeLine(gauge, NOW)).toContain(' · ≈$3.46 · ')
   })
 
   test("Claude Code's own percentage wins for the count it came with, and only that count", () => {
@@ -306,17 +336,14 @@ describe('formatting', () => {
     [3_250_000, '3.3M'],
   ]
   for (const [n, s] of cases) test(`${n} tokens read ${s}`, () => expect(fmtTokens(n)).toBe(s))
-  const usd: [number, string, boolean?][] = [
+  const usd: [number, string][] = [
     [0, '≈$0.00'],
-    [0, '$0.00', false],
-    [0.004, '<$0.01', false],
-    [4.125, '$4.13', false],
     [0.004, '≈<$0.01'],
     [0.0537, '≈$0.05'],
     [4.125, '≈$4.13'],
     [123.4, '≈$123'],
   ]
-  for (const [n, text, isEstimate] of usd) test(`$${n} reads ${text}`, () => expect(fmtUsd(n, isEstimate)).toBe(text))
+  for (const [n, text] of usd) test(`$${n} reads ${text}`, () => expect(fmtUsd(n)).toBe(text))
   test('bars fill by the percent and clamp', () => {
     expect(bar(0, 10)).toBe('░░░░░░░░░░')
     expect(bar(52, 10)).toBe('█████░░░░░')
