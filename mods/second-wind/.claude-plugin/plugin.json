@@ -1,0 +1,49 @@
+{
+  "name": "second-wind",
+  "version": "0.1.0",
+  "description": "A breath, an eye rest or a stretch while Claude works, sized to the wait.",
+  "author": { "name": "ORG_TBD" },
+  "license": "MIT",
+  "keywords": ["wellness", "breathing", "eye-rest", "stretch", "band", "spinner", "focus"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "pattern": {
+      "type": "string",
+      "title": "Breathing pattern",
+      "description": "What follows the opening physiological sigh: slow paced breathing (5.5 s in, 5.5 s out) or box breathing (4-4-4-4).",
+      "default": "slow",
+      "options": ["slow", "box"]
+    },
+    "motion": {
+      "type": "string",
+      "title": "Motion",
+      "description": "full animates the shape, gentle moves it less and less often, still shows the words only (for reduced motion).",
+      "default": "full",
+      "options": ["full", "gentle", "still"]
+    },
+    "delaySeconds": {
+      "type": "number",
+      "title": "Delay (seconds)",
+      "description": "How long a turn runs before the band appears. Quicker turns never show it. 0 to 600.",
+      "default": 3
+    },
+    "eyeRest": {
+      "type": "boolean",
+      "title": "Eye rest",
+      "description": "On turns over 60 seconds, offer a 20-20-20 eye rest between breaths.",
+      "default": true
+    },
+    "stretch": {
+      "type": "boolean",
+      "title": "Stretch",
+      "description": "On turns over 60 seconds, offer a one-line stretch between breaths.",
+      "default": true
+    },
+    "movementCard": {
+      "type": "boolean",
+      "title": "Movement card",
+      "description": "Every fifth long turn, offer a 'Stand up and stretch' or '10 squats' card with Did it and Skip buttons.",
+      "default": false
+    }
+  }
+}
