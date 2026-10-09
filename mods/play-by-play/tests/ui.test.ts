@@ -46,7 +46,35 @@ async function textOf(ui: { findAll: (q: { type: string }) => Promise<{ text: st
   return (await ui.findAll({ type: 'Text' })).map(found => found.text).join('\n')
 }
 
+/** Another mod's band, loaded beneath this one (tier append), drawing a keyed line. */
+const OTHER_BAND = {
+  name: 'other-band',
+  tier: 'append' as const,
+  register(on: On) {
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box, Text } = $.ui.resolve(e)
+      return Box({ key: 'other-band', children: Text({ children: 'other mod line' }) })
+    })
+  },
+}
+
 describe('the hint above the prompt', () => {
+  test('composes with other mods: their band line stays beneath the hint', { plugins: [OTHER_BAND] }, async ($, on) => {
+    await threeStepTurn($, on)
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect(await ui.find({ type: 'Box', key: 'play-by-play' })).toBeDefined()
+      expect(await ui.find({ type: 'Box', key: 'other-band' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: 'other mod line' })).toBeDefined()
+      await ui.unmount()
+    }
+    // Hidden, the other mod's line is all that is left.
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
+    await ui.press({ key: 'hide' })
+    expect(await ui.find({ type: 'Box', key: 'play-by-play' })).toBeUndefined()
+    expect(await ui.find({ type: 'Box', key: 'other-band' })).toBeDefined()
+  })
+
   test('shows after a turn with changes, opens the pane, hides on both surfaces', async ($, on) => {
     const world = await threeStepTurn($, on)
     for (const surface of ['terminal', 'desktop'] as const) {
