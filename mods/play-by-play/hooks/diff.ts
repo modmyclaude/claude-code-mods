@@ -182,13 +182,34 @@ function header(hunk: Hunk): string {
   return `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`
 }
 
+// ANSI escape sequences (CSI, OSC, and the one-byte C1 CSI), dropped whole.
+// eslint-disable-next-line no-control-regex
+const ANSI = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u009b[0-?]*[ -/]*[@-~]/g
+// C0 but tab and newline, DEL, and C1 (U+0080..U+009F, what stray binary bytes decode to).
+// eslint-disable-next-line no-control-regex
+const CONTROLS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g
+
 /**
  * Text safe to draw: a surface takes tab and newline as its only control
- * characters, so a line's trailing CR goes and any other becomes U+FFFD.
+ * characters and refuses a whole tree holding any other. ANSI sequences go,
+ * a line's trailing CR goes, and every other control becomes U+FFFD.
  */
 export function clean(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/\r$/, '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '�')
+  return text.replace(/\r$/, '').replace(ANSI, '').replace(CONTROLS, '\uFFFD')
+}
+
+/**
+ * A name drawn on one line (a file path, a rename target, a prompt excerpt):
+ * as `clean`, and a tab or newline in it becomes U+FFFD too. Paths may hold
+ * any byte but NUL and `/`, so every path is untrusted text.
+ */
+export function cleanName(text: string): string {
+  return clean(text).replace(/[\t\n\r]/g, '\uFFFD')
+}
+
+/** Git's own test for binary content: a NUL in the first 8000 characters. */
+export function isBinary(text: string): boolean {
+  return text.slice(0, 8000).includes('\0')
 }
 
 /** One file's section of `git diff` output. */

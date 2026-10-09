@@ -9,8 +9,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { PlayByPlayStep, PlayByPlayTurn } from '../types'
-import { clean } from './diff'
-import { shellSteps, snapshot, type Run } from './shell'
+import { clean, cleanName } from './diff'
+import { shellSteps, snapshot, type Run, type Snapshot } from './shell'
 import {
   addSteps,
   cellStep,
@@ -32,15 +32,16 @@ import {
 
 const PANE = 'play-by-play'
 const TITLE = 'Play-by-Play'
-/** Each git call's limit; a slow repository skips the shell step, never the command. */
-const GIT_TIMEOUT_MS = 5_000
-/** Snapshots slower than this around one command turn shell tracking off for the session. */
+/** A snapshot slower than this pauses shell tracking for the session. */
 const SLOW_MS = 2_000
+/** Each git call's limit: a call past it fails, which pauses tracking too. */
+const GIT_TIMEOUT_MS = SLOW_MS + 1_000
 
 const current = atom({ plugin: 'play-by-play', key: 'current' } as const, null)
 const turns = atom({ plugin: 'play-by-play', key: 'turns' } as const, [])
 const hint = atom({ plugin: 'play-by-play', key: 'hint' } as const, false)
 const view = atom({ plugin: 'play-by-play', key: 'view' } as const, { back: 1, step: 0 })
+const shellPaused = atom({ plugin: 'play-by-play', key: 'shellPaused' } as const, false)
 
 type $ = EngineInterface
 
@@ -68,20 +69,35 @@ function remember(file: string, text: string | undefined) {
 let seq = 0
 const toolEdited = new Map<string, number>()
 
-// Set once git proves too slow here, so every later command runs unwatched.
-let shellOff = false
-
-/** Turns shell tracking off for the session, saying so once in the transcript. */
-function slowGit($: $, spent: number) {
-  if (shellOff) return
-  shellOff = true
-  try {
-    $.ui.log(
-      `play-by-play: git took ${(spent / 1000).toFixed(1)} s around one command here, so shell changes are not tracked for the rest of this session (file tools still are).`,
-    )
-  } catch {
-    // best effort, as with debug()
+/**
+ * Pauses shell tracking for the rest of the session, so a large repository
+ * never taxes every command; says so once, however many calls find it slow.
+ */
+async function pauseShell($: $, why: string) {
+  const held = await $.state.get({ plugin: 'play-by-play', key: 'shellPaused' })
+  if (held.value === true) return
+  const { isSet } = await $.state.set({ plugin: 'play-by-play', key: 'shellPaused' }, true, { ifVersion: held.version })
+  if (isSet) {
+    try {
+      $.ui.log(`play-by-play: shell tracking paused for this session (${why}); file tools are still tracked.`)
+    } catch {
+      // best effort, as with debug()
+    }
   }
+}
+
+/** Snapshots on the session's clock: one over SLOW_MS, failing, or too large pauses tracking. */
+async function timedSnapshot($: $, run: Run, at?: Snapshot): Promise<Snapshot | null> {
+  const startedAt = await $.clock.now()
+  const taken = await snapshot(run, at).catch((error: unknown) => {
+    debug($, `git failed around a command: ${String(error)}`)
+    return 'failed' as const
+  })
+  const spent = (await $.clock.now()) - startedAt
+  if (taken === 'failed') await pauseShell($, 'git did not answer in time here')
+  else if (taken === 'too-large') await pauseShell($, 'the uncommitted changes are over 4 MiB')
+  else if (spent > SLOW_MS) await pauseShell($, `git took ${(spent / 1000).toFixed(1)} s here`)
+  return typeof taken === 'string' ? null : taken
 }
 
 async function record($: $, steps: readonly PlayByPlayStep[]) {
@@ -131,7 +147,7 @@ async function openReplay($: $, back: number): Promise<string> {
   // No surface places a pane here (a headless run): list the steps instead.
   const lines = turn.steps.map(
     (step, index) =>
-      `${index + 1}. ${stepTitle(step)} (${step.kind}) ${plusMinus(step.added, step.removed)}${step.via === 'shell' ? ' via shell' : ''}`,
+      `${index + 1}. ${cleanName(stepTitle(step))} (${step.kind}) ${plusMinus(step.added, step.removed)}${step.via === 'shell' ? ' via shell' : ''}`,
   )
   return [`${which}: ${summaryLine(turn)}`, ...lines].join('\n')
 }
@@ -169,26 +185,20 @@ export const register: Register = on => {
 
   on('tool.call', async ($, e, next) => {
     if (e.tool === 'Bash') {
-      if (shellOff) return next(e)
+      if (await read($, shellPaused)) return next(e)
       // Snapshot before the command; outside a git repository, or if git
       // fails, the command just runs.
       const run: Run = (argv, init) => $.process.run(argv, { timeoutMs: GIT_TIMEOUT_MS, ...init })
-      const startedAt = performance.now()
-      const before = await snapshot(run).catch(error => {
-        debug($, `no snapshot before Bash: ${String(error)}`)
-        return null
-      })
-      let spent = performance.now() - startedAt
       const mark = seq
+      const before = await timedSnapshot($, run)
       const ran = await next(e)
-      // A denied command ran nothing. A failed one may still have changed files.
-      if (before === null || ran.deny !== undefined) {
-        if (spent > SLOW_MS) slowGit($, spent)
-        return ran
-      }
-      const resumedAt = performance.now()
+      // A denied command ran nothing, and core marks one it held read-only
+      // (ls, cat, git status): no second snapshot. A failed one may still
+      // have changed files.
+      if (before === null || ran.deny !== undefined || ran.isReadOnly === true) return ran
+      if (await read($, shellPaused)) return ran // the first snapshot was already too slow
       try {
-        const after = await snapshot(run, before)
+        const after = await timedSnapshot($, run, before)
         if (after !== null) {
           // Shown relative to the session's folder, as file-tool steps are.
           const display = (path: string) => {
@@ -203,8 +213,6 @@ export const register: Register = on => {
       } catch (error) {
         debug($, `could not read what Bash changed: ${String(error)}`)
       }
-      spent += performance.now() - resumedAt
-      if (spent > SLOW_MS) slowGit($, spent)
       return ran
     }
 
@@ -246,8 +254,9 @@ export const register: Register = on => {
     return { text: await openReplay($, back) }
   })
 
-  // The hint above the prompt after a turn that changed files, drawn above
-  // whatever other mods draw in the band (never in place of it).
+  // The hint in the band above the prompt after a turn that changed files.
+  // It composes: other mods' band lines are drawn first, so an overflowing
+  // band never pushes their buttons out of view; the hint comes after them.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || e.props.isWorking || !(await read($, hint))) return next(e)
     const list = await read($, turns)
@@ -257,12 +266,12 @@ export const register: Register = on => {
     const below = await next(e)
     return (
       <Box flexDirection="column">
+        {below}
         <Box key="play-by-play" flexDirection="row" flexWrap="wrap" columnGap={1}>
-          <Text>{summaryLine(turn)} {'\u00b7'} press r or /replay</Text>
+          <Text>{clean(`${summaryLine(turn)} \u00b7 press r or /replay`)}</Text>
           <Button key="replay" hotkey="r" label="Replay" onPress={() => void openReplay($, 1)} />
           <Button key="hide" hotkey="x" label="Hide" role="dismiss" dimColor onPress={() => void update($, hint, () => false)} />
         </Box>
-        {below}
       </Box>
     )
   })
@@ -303,7 +312,7 @@ export const register: Register = on => {
             <Client
               key="keys"
               module="./keys.ts"
-              props={{ hint: 'Keys: n/p or up/down step, 1-9 jump to a file, q closes; click this line for left/right too' }}
+              props={{ hint: 'Keys: n/p step, 1-9 jump to a file, q closes; click this line for the arrow keys' }}
             />
           )
         })()
@@ -313,7 +322,7 @@ export const register: Register = on => {
 
     const where = list.length > 1 ? `Turn ${at.back} of ${list.length}, newest first` : 'Latest turn'
     const biggest = board.biggest
-      ? ` · biggest: ${short(board.biggest.file, Math.floor(width / 2))} ${plusMinus(board.biggest.added, board.biggest.removed)}`
+      ? ` · biggest: ${cleanName(short(board.biggest.file, Math.floor(width / 2)))} ${plusMinus(board.biggest.added, board.biggest.removed)}`
       : ''
     const dropped = turn.dropped > 0 ? ` · ${turn.dropped} more not kept` : ''
 
@@ -321,7 +330,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Text dimColor wrap="truncate-end">
           {where}
-          {turn.prompt ? ` · "${clean(turn.prompt)}"` : ''}
+          {turn.prompt ? ` · "${cleanName(turn.prompt)}"` : ''}
         </Text>
         <Text bold wrap="truncate-end">
           {`${board.files} file${board.files === 1 ? '' : 's'} · ${plusMinus(board.added, board.removed)} · ${board.edits} edit${board.edits === 1 ? '' : 's'}${biggest}${dropped}`}
@@ -332,7 +341,7 @@ export const register: Register = on => {
               key={`file-${i + 1}`}
               hotkey={String(i + 1)}
               plain
-              label={clean(short(entry.file, Math.max(12, Math.floor(width / 3))))}
+              label={cleanName(short(entry.file, Math.max(12, Math.floor(width / 3))))}
               dimColor={entry.file !== step.file}
               onPress={() => void go($, { go: 'jump', file: i + 1 })}
             />
@@ -357,7 +366,7 @@ export const register: Register = on => {
         {keys}
         <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
           <Text bold wrap="truncate-start">
-            {clean(stepTitle(step))}
+            {cleanName(stepTitle(step))}
           </Text>
           <Text dimColor>
             {step.kind} {'·'} {plusMinus(step.added, step.removed)}
@@ -366,7 +375,7 @@ export const register: Register = on => {
         </Box>
         {step.note ? <Text dimColor>{clean(step.note)}</Text> : null}
         {step.hunks !== '' ? (
-          <Code source={step.hunks} format="diff" path={step.file} />
+          <Code source={clean(step.hunks)} format="diff" path={cleanName(step.file)} />
         ) : (
           <Text dimColor>No line detail for this step.</Text>
         )}

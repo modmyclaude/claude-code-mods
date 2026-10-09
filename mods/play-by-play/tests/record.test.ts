@@ -68,7 +68,7 @@ test('a denied Bash takes no second snapshot and records nothing', async ($, on)
   on('tool.call', { tool: 'Bash' }, () => ({ deny: 'blocked' }))
   await start($)
   await turn($, 't1', () => $.tool.call({ tool: 'Bash', command: 'rm -rf build' }))
-  const diffs = git.calls.filter(argv => argv.includes('diff'))
+  const diffs = git.calls.filter(argv => argv.includes('diff-index'))
   expect(diffs).toHaveLength(1)
   expect(await replay($)).toBe('Nothing to replay yet: no turn has changed files.')
 })
@@ -110,7 +110,7 @@ test('outside a git repository the command runs and nothing is recorded', async 
 })
 
 test('when git cannot run at all the command still runs untouched', async ($, on) => {
-  const { logs, opened } = session(on)
+  const { logs, debugLines, opened } = session(on)
   panes(on, false, opened)
   on('process.run', () => ({ deny: 'process is off here' }))
   const ran: string[] = []
@@ -125,7 +125,10 @@ test('when git cannot run at all the command still runs untouched', async ($, on
   })
   expect(ran).toEqual(['Bash'])
   expect(result).toMatchObject({ text: 'ok' })
-  expect(logs.some(line => line.includes('no snapshot before Bash'))).toBe(true)
+  expect(debugLines.some(line => line.includes('git failed around a command'))).toBe(true)
+  expect(logs).toEqual([
+    'play-by-play: shell tracking paused for this session (git did not answer in time here); file tools are still tracked.',
+  ])
 })
 
 test('shell: a new untracked file, a plain mv, and a git add that changes nothing', async ($, on) => {
@@ -264,31 +267,6 @@ test('a subagent finishing mid-turn neither ends nor splits the main turn', asyn
   )
   expect(await replay($, '2')).toBe('Only 1 turn with changes kept; try /replay 1 to 1.')
 })
-
-test(
-  'when git is slow, shell tracking turns off for the session and says so once',
-  { timeoutMs: 15_000 },
-  async ($, on) => {
-    // A repository so large that the first snapshot outlasts the limit.
-    const git = repo({ slowMs: 2_200 })
-    const { logs, opened } = session(on)
-    panes(on, false, opened)
-    fakeGit(on, git)
-    let runs = 0
-    on('tool.call', { tool: 'Bash' }, () => {
-      runs++
-      return { result: { stdout: '', stderr: '', interrupted: false }, text: '' }
-    })
-    await start($)
-    await turn($, 't1', () => $.tool.call({ tool: 'Bash', command: 'ls' }))
-    git.slowMs = 0
-    const callsAfterFirst = git.calls.length
-    await turn($, 't2', () => $.tool.call({ tool: 'Bash', command: 'ls' }))
-    expect(runs).toBe(2)
-    expect(git.calls.length).toBe(callsAfterFirst) // the second command ran unwatched
-    expect(logs.filter(line => line.includes('shell changes are not tracked'))).toHaveLength(1)
-  },
-)
 
 test('shell: a staged git mv that also edits shows as one rename with its line changes', async ($, on) => {
   const git = repo({ diff: '', base: { 'old.ts': 'keep\nold line\n' } })

@@ -2,7 +2,7 @@
 // the turn's scoreboard, and moving through steps. No `$` here.
 
 import type { PlayByPlayKind, PlayByPlayStep, PlayByPlayTurn, PlayByPlayView } from '../types'
-import { countHunks, diffLines, hunksText, splitLines, toHunks } from './diff'
+import { countHunks, diffLines, hunksText, isBinary, splitLines, toHunks } from './diff'
 
 /** Diff lines kept per step for drawing; counts always cover the whole change. */
 export const MAX_STEP_LINES = 400
@@ -20,10 +20,17 @@ export function stepFromTexts(
   after: string | null,
   options: { via: 'tool' | 'shell'; kind?: PlayByPlayKind; from?: string; note?: string },
 ): PlayByPlayStep | null {
-  const ops = diffLines(splitLines(before ?? ''), splitLines(after ?? ''))
-  const hunks = toHunks(ops)
   const kind =
     options.kind ?? (before === null ? 'create' : after === null ? 'delete' : 'edit')
+  if (isBinary(before ?? '') || isBinary(after ?? '')) {
+    // Never diff bytes as lines: they decode to control characters.
+    if (before === after) return null
+    const bytes = new TextEncoder().encode(after ?? before ?? '').length
+    const step = bareStep(file, kind === 'edit' || kind === 'write' ? 'change' : kind, options.via, binaryNote(bytes))
+    return options.from !== undefined ? { ...step, from: options.from } : step
+  }
+  const ops = diffLines(splitLines(before ?? ''), splitLines(after ?? ''))
+  const hunks = toHunks(ops)
   // A step that changes nothing (a no-op write, a final newline alone) is
   // only worth keeping when it says something: a rename, or a new empty file.
   if (hunks.length === 0 && kind !== 'rename' && kind !== 'create' && kind !== 'delete') return null
@@ -41,6 +48,11 @@ export function stepFromTexts(
     hunks: text,
     ...(note ? { note } : {}),
   }
+}
+
+/** The note a binary step shows: `binary file changed (1234 bytes)`. */
+export function binaryNote(bytes?: number | null): string {
+  return bytes === undefined || bytes === null ? 'binary file changed' : `binary file changed (${bytes} bytes)`
 }
 
 /** A step with no line detail (binary, or no earlier copy to compare). */

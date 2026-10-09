@@ -59,13 +59,16 @@ const OTHER_BAND = {
 }
 
 describe('the hint above the prompt', () => {
-  test('composes with other mods: their band line stays beneath the hint', { plugins: [OTHER_BAND] }, async ($, on) => {
+  test('composes with other mods: their band line is drawn first, the hint after it', { plugins: [OTHER_BAND] }, async ($, on) => {
     await threeStepTurn($, on)
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: BAND_PROPS })
       expect(await ui.find({ type: 'Box', key: 'play-by-play' })).toBeDefined()
       expect(await ui.find({ type: 'Box', key: 'other-band' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: 'other mod line' })).toBeDefined()
+      // Other mods first, so an overflowing band never hides their buttons.
+      const keyed = (await ui.findAll({ type: 'Box' })).map(box => box.key).filter(key => key !== undefined)
+      expect(keyed).toEqual(['other-band', 'play-by-play'])
       await ui.unmount()
     }
     // Hidden, the other mod's line is all that is left.
