@@ -12,11 +12,24 @@ import {
   DOCKED, NARROW, PANE, PLUGIN, SURFACES, bandProps, engineBand, paneProps, usage, world,
 } from './world'
 
-/** The colour of the first element inside the keyed Box. */
+/** The first colour drawn inside the keyed Box (a glyph cell on the desktop, a Text on the terminal). */
 async function colorIn(ui: { find: (q: { key: string }) => Promise<{ children: unknown[] } | undefined> }, key: string) {
+  const firstColor = (node: unknown): unknown => {
+    if (node === null || typeof node !== 'object') return undefined
+    const n = node as { props?: { color?: unknown }; children?: unknown[] }
+    if (n.props?.color !== undefined) return n.props.color
+    for (const c of n.children ?? []) {
+      const hit = firstColor(c)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
   const box = await ui.find({ key })
-  const first = box?.children.find(c => typeof c === 'object' && c !== null) as { props?: { color?: unknown } } | undefined
-  return first?.props?.color
+  for (const c of box?.children ?? []) {
+    const hit = firstColor(c)
+    if (hit !== undefined) return hit
+  }
+  return undefined
 }
 
 const texts = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
@@ -42,7 +55,7 @@ describe('counting', () => {
       expect(all).toContain('Map the auth flow')
       expect(all).toContain('opus-5-5 · running')
       expect(all).toContain('2 req · 1.60M tok · ≈$6.10')
-      expect((await pane.find({ key: 'totals' }))?.text).toBe('Subagents ≈$6.10 · 1.60M tokens · 0s wall')
+      expect((await pane.find({ key: 'totals' }))?.text).toBe('Subagents ≈$6.10 (price table) · 1.60M tokens · 0s wall')
       await pane.unmount()
     }
   })
@@ -54,8 +67,8 @@ describe('counting', () => {
     await w.step($, undefined, usage('claude-opus-5-5', 1_000_000, 0), 'claude-opus-5-5') // main: $4
     await w.step($, 'compaction-fork', usage('claude-opus-5-5', 250_000, 0), 'claude-opus-5-5') // other: $1
     const pane = await mountPane($, 'terminal')
-    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$1.00 · 500k tokens')
-    expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$6.00 of $2.00 budget - past 2x')
+    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$1.00 (price table) · 500k tokens')
+    expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$6.00 of $2.00 budget (price-table estimate) - past 2x')
     expect(w.rec.statuses.at(-1)).toBe('≈$6.00 of $2.00 budget - past 2x the budget')
     // The fork the agent list does not name is not drawn as an ant.
     expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
@@ -78,7 +91,7 @@ describe('counting', () => {
     await w.step($, id, usage('mystery-9', 4000, 1000), 'mystery-9')
     const pane = await mountPane($, 'terminal')
     expect((await texts(pane)).join('\n')).toContain('1 req · 5k tok · ?')
-    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ? · 5k tokens')
+    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ? (price table) · 5k tokens')
   })
 
   test('the model stream passes through unchanged, even when counting fails', async ($, on) => {
@@ -264,7 +277,7 @@ describe('budget alarm', () => {
     expect(w.rec.statuses.at(-1)).toBe('≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
     for (const surface of SURFACES) {
       const pane = await mountPane($, surface)
-      expect((await pane.find({ key: 'budget' }))?.text).toBe('Claude Code\'s estimate ≈$2.50 of $2.00 budget - over')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over')
       expect(await colorIn(pane, 'budget')).toBe('warning')
       // The subagent's own figure stays the table's estimate.
       expect((await texts(pane)).join('\n')).toContain('2 req · 2.2k tok · ≈$0.0003')
@@ -290,7 +303,7 @@ describe('budget alarm', () => {
       expect(w.rec.toasts).toEqual(['Session estimate ≈$2.20 reached your $2.00 budget.'])
       expect(w.rec.statuses.at(-1)).toBe('≈$2.20 of $2.00 budget - over budget')
       const pane = await mountPane($, 'terminal')
-      expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$2.20 of $2.00 budget - over')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$2.20 of $2.00 budget (price-table estimate) - over')
     })
   }
 
@@ -350,7 +363,7 @@ describe('band', () => {
       await band.unmount()
     }
     const pane = await mountPane($, 'terminal')
-    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$0.40 · 100k tokens')
+    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$0.40 (price table) · 100k tokens')
   })
 
   test('idle with nothing running, the band is the engine own', async ($, on) => {
@@ -422,6 +435,56 @@ describe('pane and the narrow fallback', () => {
       expect((await pane.find({ key: 'totals' }))?.text).toContain('Subagents')
       await pane.unmount()
     }
+  })
+
+  // MM-094: on the desktop a Text holding block characters is drawn in the code font, so
+  // words beside a bar or an ant changed font and overflowed. Glyph art sits in one-cell
+  // Boxes of its own there, and no Text mixes glyphs with words.
+  const GLYPH = /[\u2580-\u259f]/u
+  const textsOf = (node: unknown, inCell = false, out: { text: string; inCell: boolean; props: Record<string, unknown> }[] = []) => {
+    if (node === null || typeof node !== 'object') return out
+    const n = node as { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+    const cell = inCell || (n.type === 'Box' && n.props?.width === 1)
+    if (n.type === 'Text') {
+      const text = (n.children ?? []).filter(c => typeof c === 'string').join('')
+      out.push({ text, inCell: cell, props: n.props ?? {} })
+    }
+    for (const c of n.children ?? []) textsOf(c, cell, out)
+    return out
+  }
+
+  test('desktop: ants and bars are one-cell glyphs apart from the words; a finished ant rests dim', async ($, on) => {
+    const w = world(on)
+    engineBand(on)
+    const a = await w.spawn($, 'Running one')
+    await w.step($, a, usage('claude-opus-5-5', 100_000, 0), 'claude-opus-5-5')
+    const b = await w.spawn($, 'Done one')
+    await w.step($, b, usage('claude-opus-5-5', 50_000, 0), 'claude-opus-5-5')
+    await w.finish($, b)
+    for (const expanded of [false, true]) {
+      if (expanded) {
+        const pane = await mountPane($, 'desktop')
+        await pane.press({ key: 'toggle-finished' })
+        await pane.unmount()
+      }
+      const pane = await mountPane($, 'desktop')
+      const texts = textsOf(await pane.drawn())
+      expect(texts.some(t => GLYPH.test(t.text))).toBe(true)
+      for (const t of texts.filter(t => GLYPH.test(t.text))) {
+        expect(t.inCell, t.text).toBe(true)
+        expect([...t.text].length, t.text).toBe(1)
+      }
+      // The dim rest is the finished ant's paint, not its model colour.
+      expect(texts.some(t => GLYPH.test(t.text) && t.props.dimColor === true && t.props.color === 'subtle')).toBe(true)
+      await pane.unmount()
+    }
+    const band = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
+    for (const t of textsOf(await band.drawn()).filter(t => GLYPH.test(t.text))) expect(t.inCell, t.text).toBe(true)
+    await band.unmount()
+    // The terminal keeps one Text per row of art.
+    const term = await mountPane($, 'terminal')
+    expect(textsOf(await term.drawn()).some(t => GLYPH.test(t.text) && [...t.text].length > 1)).toBe(true)
+    await term.unmount()
   })
 
   test('/antfarm opens the pane', async ($, on) => {
@@ -710,7 +773,7 @@ describe('review cases', () => {
     const id = await w.spawn($, 'Fell back', { model: 'claude-opus-5-5' })
     await w.step($, id, usage('claude-sonnet-5-5', 1_000_000, 0), 'claude-opus-5-5')
     const pane = await mountPane($, 'terminal')
-    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$2.00 ·')
+    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$2.00 (price table) ·')
   })
 
   test('a request that got no response is not counted', async ($, on) => {
@@ -788,7 +851,7 @@ describe('session', () => {
       await $.session.end({ reason, sessionId: 's', resume: { id: 's' } })
       expect(w.rec.statuses.at(-1)).toBeUndefined()
       const pane = await mountPane($, 'terminal')
-      expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$0.00 of $2.00 budget')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$0.00 of $2.00 budget (price-table estimate)')
       expect(await pane.find({ key: 'empty' })).toBeDefined()
     })
   }

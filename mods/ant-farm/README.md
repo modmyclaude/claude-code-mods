@@ -19,14 +19,15 @@ Watch your subagents work, and what they cost, live.
   buttons out of view.
 - **The pane.** `/antfarm` opens the Ant farm pane (it also works mid-turn,
   and adds nothing to the conversation).
-  At the top: the subagents' total estimated cost, total tokens and wall time,
-  then the session's spend against your budget. Below, one card per running
+  At the top: the subagents' total (price-table estimate), tokens and wall time,
+  then the whole session's spend against your budget (Claude Code's estimate
+  where it keeps one). With no subagents yet, Bolt naps here. Below, one card per running
   subagent: its task, model, status, elapsed time, a progress bar, requests,
   tokens and estimated cost. Finished subagents fold into one line each under
   **Finished**; **Expand** shows them as full cards again.
 - **The ants.** Every subagent gets a small pixel-art ant, one colour per
-  model. It walks while its subagent works, stands still when it is done, and
-  lies on its back if it failed.
+  model. It walks while its subagent works, stands still and dims when it is
+  done, and lies on its back in the error colour if it failed.
 - **ETA.** Once a running subagent has made 3 model requests, its card shows
   an estimate of the time left ("~1m left"). It uses the subagent's own pace
   (time per request so far) and how many requests finished subagents of the

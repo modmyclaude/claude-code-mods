@@ -10,11 +10,12 @@
 // everything is idle it stops.
 
 import { atom, read, update } from 'claude-code'
-import type { AgentStatus, EngineInterface, Register, Timer, TurnStepResult } from 'claude-code'
+import type { AgentStatus, EngineInterface, Register, TextProps, Timer, TurnStepResult } from 'claude-code'
 
 import type { AntFarmAnt, AntFarmLoops, AntFarmStatus, AntFarmUsage } from '../types'
 import { addRequest, budgetLevel, NO_USAGE, sumUsage } from './prices'
 import { boltSprite } from './bolt-draw'
+import { glyphRow } from './cells'
 import {
   alarmText, ANT_WIDTH, antRows, bar, clean, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt,
   modelColors, nextAlarm, phaseOf, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts,
@@ -401,9 +402,10 @@ export const register: Register = (on, options) => {
         {below}
         <Box flexDirection="column" key="ant-farm" width={e.props.bodyColumns}>
           <Box flexDirection="row" key="band">
-            <Box key="summary" flexGrow={1}>
+            <Box key="summary" flexDirection="row" flexGrow={1}>
+              {glyphRow($.ui.resolve(e), e.surface, miniAnt(running.length > 0 ? 'running' : 'done', frame), tone)}
               <Text wrap="truncate-end" {...tone}>
-                {miniAnt(running.length > 0 ? 'running' : 'done', frame)} {summary}
+                {' '}{summary}
               </Text>
             </Box>
             {showList ? (
@@ -415,7 +417,7 @@ export const register: Register = (on, options) => {
             const tail = isRunning(a) ? (p.etaMs !== null ? fmtEta(p.etaMs) : 'running') : a.status
             return (
               <Box flexDirection="row" key={`row-${a.id}`}>
-                <Text color={colors.get(a.model) ?? 'subtle'}>{miniAnt(a.status, frame + phaseOf(a.id))}</Text>
+                {glyphRow($.ui.resolve(e), e.surface, miniAnt(a.status, frame + phaseOf(a.id)), { color: colors.get(a.model) ?? 'subtle' })}
                 <Text wrap="truncate-end" dimColor={!isRunning(a)}>
                   {' '}{taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)} · {tail}
                 </Text>
@@ -445,14 +447,22 @@ export const register: Register = (on, options) => {
 
     const firstStart = list.length > 0 ? Math.min(...list.map(a => a.startedAt)) : now
     const lastEnd = running.length > 0 ? now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
-    const label = spend.isEngine ? "Claude Code's estimate" : 'Session'
+    // Two totals that can differ: the subagents alone (price table) and the whole
+    // session (Claude Code's own estimate where it keeps one), each named as such.
+    const source = spend.isEngine ? " (Claude Code's estimate)" : ' (price-table estimate)'
     const budgetLine =
       budgetUsd > 0
-        ? `${label} ${spend.text} of ${fmtUsd(budgetUsd)} budget${level === 2 ? ' - past 2x' : level === 1 ? ' - over' : ''}`
-        : `${label} ${spend.text}`
+        ? `Whole session ${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${level === 2 ? ' - past 2x' : level === 1 ? ' - over' : ''}`
+        : `Whole session ${spend.text}${source}`
+
+    // A finished ant rests dim, a failed one in the error colour, a running one in its model's.
+    const antPaint = (a: AntFarmAnt): TextProps =>
+      a.status === 'failed' ? { color: 'error' } : isRunning(a) ? { color: colors.get(a.model) ?? 'subtle' } : { color: 'subtle', dimColor: true }
+    const ui = $.ui.resolve(e)
 
     const card = (a: AntFarmAnt) => {
       const p = progressOf(a, list, now)
+      const tone: TextProps = a.status === 'failed' ? { color: 'error' } : { dimColor: !isRunning(a) }
       const rows = antRows(a.status, frame + phaseOf(a.id), lane)
       const meta = [
         modelOf(a),
@@ -463,16 +473,17 @@ export const register: Register = (on, options) => {
       return (
         <Box flexDirection="row" key={`ant-${a.id}`} marginBottom={1}>
           <Box key={`art-${a.id}`} flexDirection="column" width={lane} flexShrink={0}>
-            {rows.map(row => (
-              <Text color={a.status === 'failed' ? 'error' : colors.get(a.model) ?? 'subtle'}>{row}</Text>
-            ))}
+            {rows.map(row => glyphRow(ui, e.surface, row, antPaint(a)))}
           </Box>
           <Box flexDirection="column" flexGrow={1} marginLeft={1}>
             <Text bold={isRunning(a)} wrap="truncate-end">{taskOf(a)}</Text>
             <Text dimColor wrap="truncate-end">{meta}</Text>
-            <Text wrap="truncate-end" {...(a.status === 'failed' ? { color: 'error' } : { dimColor: !isRunning(a) })}>
-              {bar(p.fraction, 12)} {a.usage.requests} req · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
-            </Text>
+            <Box flexDirection="row">
+              {glyphRow(ui, e.surface, bar(p.fraction, 12), tone)}
+              <Text wrap="truncate-end" {...tone}>
+                {' '}{a.usage.requests} req · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
+              </Text>
+            </Box>
           </Box>
         </Box>
       )
@@ -480,7 +491,7 @@ export const register: Register = (on, options) => {
 
     const line = (a: AntFarmAnt) => (
       <Box flexDirection="row" key={`line-${a.id}`}>
-        <Text color={a.status === 'failed' ? 'error' : colors.get(a.model) ?? 'subtle'}>{miniAnt(a.status, 0)}</Text>
+        {glyphRow(ui, e.surface, miniAnt(a.status, 0), antPaint(a))}
         <Text dimColor wrap="truncate-end">
           {' '}{a.status} · {taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
         </Text>
@@ -493,7 +504,7 @@ export const register: Register = (on, options) => {
     const totals = (
       <Box key="totals">
         <Text bold wrap="truncate-end">
-          Subagents {fmtCost(subagents)} · {fmtTokens(subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
+          Subagents {fmtCost(subagents)} (price table) · {fmtTokens(subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
         </Text>
       </Box>
     )
