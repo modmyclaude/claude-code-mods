@@ -57,6 +57,26 @@ describe('/breathe', () => {
     expect((await say($, w, 'loud')).text).toBe('Second Wind does not know "loud". Use /breathe, /breathe on, /breathe off, /breathe snooze or /breathe card.')
   })
 
+  test('off, snooze and card act only for the person typing (API-GOTCHAS #27)', async ($, on) => {
+    const w = world(on)
+    await w.start($)
+    await w.clock.advance(3000)
+    const by = (kind: 'plugin' | 'composer', args: string) =>
+      $.command.run({ command: 'breathe', args, origin: kind === 'plugin' ? { kind, name: 'other-mod' } : { kind }, presentation: { isFullscreen: true, columns: 120 } })
+    for (const arg of ['off', 'snooze', 'card']) {
+      const logged = w.rec.logs.length
+      expect((await by('plugin', arg)).text).toBeUndefined()
+      expect(w.rec.logs.at(-1)).toBe(`Second Wind only does /breathe ${arg} when you type it yourself.`)
+      expect(w.rec.logs.length).toBe(logged + 1)
+    }
+    expect(await shown(w, $)).toEqual([true, true]) // still on
+    expect(w.rec.copies).toEqual([]) // nothing written to the clipboard
+    await by('composer', 'card')
+    expect(w.rec.copies).toHaveLength(1)
+    await by('composer', 'off')
+    expect(await shown(w, $)).toEqual([false, false])
+  })
+
   test('off hides the band at once and stops its clock; on brings it back next turn', { plugins: [timerSpy] }, async ($, on) => {
     const w = world(on)
     await w.start($)
