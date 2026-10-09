@@ -125,7 +125,9 @@ function testsOf(modDir, name) {
   let count = PUBLISHED[name] ?? null
   if (COUNTS || count === null) try {
     const out = execFileSync(CC, ['plugin', 'test', modDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
-    count = Number(out.match(/(\d+) pass/)?.[1] ?? NaN) || null
+    // Only a positive count replaces the published one, so a flaky or killed run never blanks it.
+    const ran = Number(out.match(/(\d+) pass/)?.[1] ?? NaN)
+    if (ran > 0) count = ran
   } catch {}
   return { count, surfaces }
 }
