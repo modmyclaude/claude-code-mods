@@ -4,7 +4,9 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   assetFor,
+  clean,
   formatDuration,
+  isPerson,
   isQuiet,
   notificationAlert,
   parseDuration,
@@ -163,5 +165,35 @@ describe('ntfy', () => {
     expect(pushFor('done')).toEqual({ title: 'Pager: done', body: 'A turn finished.' })
     expect(pushFor('needs-you').title).toBe('Pager: needs you')
     expect(pushFor('error').title).toBe('Pager: error')
+  })
+})
+
+describe('untrusted text', () => {
+  test('clean strips ANSI and replaces C0, DEL and C1 controls', () => {
+    const cases: [string, string][] = [
+      ['plain title', 'plain title'],
+      ['\u001b[31mred\u001b[0m', 'red'],
+      ['\u001b]0;evil title\u0007name', 'name'],
+      ['\u001b]8;;https://x.example\u001b\\link\u001b]8;;\u001b\\', 'link'],
+      ['bell\u0007', 'bell\ufffd'],
+      ['nul\u0000del\u007f', 'nul\ufffddel\ufffd'],
+      ['nel\u0085csi\u009b', 'nel\ufffdcsi\ufffd'],
+      ['two\nlines\ttab', 'two\ufffdlines\ufffdtab'],
+      ['lone \u001b escape', 'lone \ufffd escape'],
+      ['caf\u00e9 \u00a0ok', 'caf\u00e9 \u00a0ok'],
+    ]
+    for (const [raw, want] of cases) expect(clean(raw), JSON.stringify(raw)).toBe(want)
+  })
+
+  test('a title or folder with controls is cleaned for the toast', () => {
+    expect(sessionName('Fix \u001b[1mlogin\u001b[0m\u0007\u0085', undefined)).toBe('Fix login\ufffd\ufffd')
+    expect(sessionName(undefined, '/x/odd\u0007dir')).toBe('odd\ufffddir')
+  })
+
+  test('only the person may change Pager', () => {
+    for (const kind of ['composer', 'sdk', 'bridge']) expect(isPerson({ kind }), kind).toBe(true)
+    for (const kind of ['peer', 'peer-send-message', 'channel', 'plugin', 'task-notification', 'scheduled-trigger', 'coordinator', 'unclassified']) {
+      expect(isPerson({ kind }), kind).toBe(false)
+    }
   })
 })

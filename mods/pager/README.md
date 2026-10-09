@@ -24,7 +24,9 @@ Look away while Claude works. Pager plays one short sound, with a toast naming t
 | `/pager mute <duration>` | Silences sounds and phone pushes for `30m`, `2h`, `1h30m`, `45s` or `1d` (up to 7 days; a bare number is minutes; no duration means 1 hour). |
 | `/pager unmute` | Ends a mute early. |
 
-`/pager` runs at once, even while a turn is running, so you can mute mid-turn.
+`/pager` runs at once, even while a turn is running, so you can mute mid-turn. Only you can change Pager: a `/pager` run that comes from a peer session, a channel relay, a background task or another plugin can read the status but cannot mute, unmute, switch packs or play the test (typed at the terminal, in the desktop app or through Remote Control all count as you).
+
+Session titles and folder names are cleaned before a toast shows them: terminal escape codes are removed and other control characters become a replacement mark.
 
 The three packs, all synthesized for this mod:
 

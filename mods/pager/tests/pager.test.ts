@@ -2,7 +2,7 @@
 // run as the engine raises them; the test's hooks stand in for the player,
 // the toast stack, the network and the clock beneath the plugin.
 
-import type { On } from 'claude-code'
+import type { On, PromptOrigin } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
@@ -85,11 +85,11 @@ async function notify($: Engine, w: W, type = 'permission_prompt') {
   await w.clock.settle()
 }
 
-async function pager($: Engine, w: W, args: string) {
+async function pager($: Engine, w: W, args: string, origin: PromptOrigin = { kind: 'composer' }) {
   const { text = '' } = await $.command.run({
     command: 'pager',
     args,
-    origin: { kind: 'composer' },
+    origin,
     presentation: { isFullscreen: false, columns: 100 },
   })
   await w.clock.settle()
@@ -208,6 +208,24 @@ describe('alerts', () => {
     await notify($, w)
     expect(w.toasts.at(-1)).toBe('Needs you - Renamed later')
   })
+
+  test(
+    'a session title with control characters gives a clean toast and a clean push',
+    { options: { ntfyTopic: 'pager-test' } },
+    async ($, on) => {
+      const w = world(on)
+      await start($, w)
+      await $.classic.SessionStart({ source: 'startup', session_title: 'Fix \u001b[31mlogin\u001b[0m\u0007 bug\u0085' })
+      await endTurn($, w, 30_000)
+      expect(w.toasts).toEqual(['Done - Fix login\ufffd bug\ufffd (30s)'])
+      expect(w.posts).toHaveLength(1)
+      const controls = /[\u0000-\u001f\u007f-\u009f]/
+      const shown = [...w.toasts, ...w.posts.flatMap(p => [p.headers?.Title ?? '', p.body ?? ''])]
+      for (const text of shown) expect(controls.test(text), JSON.stringify(text)).toBe(false)
+      expect(w.posts[0]?.body).toBe('A turn finished after 30s.')
+      expect(JSON.stringify(w.posts)).not.toContain('login')
+    },
+  )
 
   test('a failing player never breaks the turn or the next alert', async ($, on) => {
     const w = world(on, { options: { play: 'fails' } })
@@ -333,6 +351,37 @@ describe('commands', () => {
     const text = await pager($, w, 'test')
     expect(text).toContain('Played the classic pack, but 3 of 3 failed: Done: $.audio.play: no device;')
     expect(text).toContain('Heard nothing?')
+  })
+
+  test('only the person can mute, unmute, switch or test; status is open', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    const strangers: PromptOrigin[] = [
+      { kind: 'peer' },
+      { kind: 'channel', server: 'slack' },
+      { kind: 'plugin', name: 'other', asUser: true },
+      { kind: 'task-notification' },
+      { kind: 'unclassified' },
+    ]
+    for (const origin of strangers) {
+      for (const args of ['mute 7d', 'pack zen', 'unmute', 'test']) {
+        expect(await pager($, w, args, origin), `${origin.kind} ${args}`).toContain('only runs when you type it')
+      }
+      expect(await pager($, w, '', origin)).toContain('Pager: classic pack, sounds on.')
+    }
+    expect(w.plays).toEqual([]) // no test clips played for a stranger
+    await endTurn($, w, 30_000)
+    expect(w.plays).toEqual(['sounds/classic/done.wav']) // not muted, pack unchanged
+
+    // The desktop app's prompts arrive as sdk, Remote Control as bridge: both are the person.
+    expect(await pager($, w, 'pack zen', { kind: 'sdk' })).toBe('Pack set to zen. Run /pager test to hear it.')
+    expect(await pager($, w, 'mute 10m', { kind: 'bridge' })).toContain('Muted for 10m')
+  })
+
+  test('echoed arguments are cleaned', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    expect(await pager($, w, 'pack \u001b[31mzen\u0007')).toBe('No pack called "zen\ufffd". Packs: classic, arcade, zen.')
   })
 
   test('status and an unknown subcommand', async ($, on) => {

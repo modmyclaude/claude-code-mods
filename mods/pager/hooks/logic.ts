@@ -165,10 +165,27 @@ export function pushFor(kind: Kind, durationMs?: number): { title: string; body:
   }
 }
 
-/** The name a toast shows: the session's title, else its project folder. */
+/**
+ * Text safe to draw or send: ANSI escape sequences removed, and every other
+ * C0 control, DEL and C1 control (U+0080..U+009F) replaced with U+FFFD. The
+ * engine can refuse drawn text holding them, and a session title or folder
+ * name is not ours to trust.
+ */
+export function clean(text: string): string {
+  return text
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '') // CSI: colors, cursor moves
+    .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, '') // OSC: titles, links
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '\ufffd')
+}
+
+/** Who may change Pager with /pager: the person, typing in a terminal, the desktop app or Remote Control. */
+const PERSON = new Set(['composer', 'sdk', 'bridge'])
+export const isPerson = (origin: { kind: string }) => PERSON.has(origin.kind)
+
+/** The name a toast shows: the session's title, else its project folder, cleaned. */
 export function sessionName(title: string | undefined, root: string | undefined): string {
   const clip = (s: string) => (s.length > 60 ? `${s.slice(0, 59)}...` : s)
-  if (title?.trim()) return clip(title.trim())
+  if (title?.trim()) return clip(clean(title.trim()))
   const folder = root?.split(/[\\/]/).filter(Boolean).at(-1)
-  return folder ? clip(folder) : 'this session'
+  return folder ? clip(clean(folder)) : 'this session'
 }
