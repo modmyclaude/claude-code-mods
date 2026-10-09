@@ -13,7 +13,7 @@
 /plugin install last-look --marketplace modmyclaude/claude-code-mods
 ```
 
-<!-- count -->14<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
+<!-- count -->15<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
 
 </div>
 
@@ -106,6 +106,12 @@ On older versions, add the marketplace first:
 | Mod | What it does | Can reach | Install |
 |---|---|---|---|
 | [**Hatchling**](mods/hatchling) | A collectible pixel pet that hatches, reacts and evolves while you code. [Prompt](prompts/hatchling.md) | `hooks tool calls` | `hatchling@modmyclaude` |
+
+### Wellness
+
+| Mod | What it does | Can reach | Install |
+|---|---|---|---|
+| [**Second Wind**](mods/second-wind) | A breath, an eye rest or a stretch while Claude works, sized to the wait. [Prompt](prompts/second-wind.md) | `hooks prompts` | `second-wind@modmyclaude` |
 <!-- catalogue:end -->
 
 ## Build your own

@@ -189,6 +189,22 @@
       ]
     },
     {
+      "name": "second-wind",
+      "source": "./mods/second-wind",
+      "description": "A breath, an eye rest or a stretch while Claude works, sized to the wait.",
+      "version": "0.1.0",
+      "category": "wellness",
+      "keywords": [
+        "wellness",
+        "breathing",
+        "eye-rest",
+        "stretch",
+        "band",
+        "spinner",
+        "focus"
+      ]
+    },
+    {
       "name": "thermostat",
       "source": "./mods/thermostat",
       "description": "Shows when your prompt cache goes cold, and stops the expensive send.",
