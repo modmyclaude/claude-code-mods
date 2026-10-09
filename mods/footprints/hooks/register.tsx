@@ -35,6 +35,7 @@ import {
   shellChanges,
   shimmerParts,
   startEdit,
+  statOrder,
   statusText,
   toAbs,
   type Counts,
@@ -61,6 +62,11 @@ const touchedOnlyAtom = atom({ plugin: 'footprints', key: 'touchedOnly' } as con
 const phaseAtom = atom({ plugin: 'footprints', key: 'phase' } as const, 0)
 const SHELL_PAUSED = { plugin: 'footprints', key: 'shellPaused' } as const
 const shellPausedAtom = atom(SHELL_PAUSED, false)
+
+// node_modules is skipped even where .gitignore does not list it: git prints untracked names
+// first, so one unignored node_modules would flood the name cap (git never lists .git).
+const NO_NODE_MODULES_HERE = ':(exclude,glob)**/node_modules/**'
+const NO_NODE_MODULES_ANYWHERE = ':(top,exclude,glob)**/node_modules/**'
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -174,7 +180,10 @@ async function repoOf($: Engine, root: string): Promise<Repo | null> {
 /** Read-only, and without the index lock, so it never races the model's own git. */
 async function gitStatus($: Engine, repo: Repo): Promise<Porcelain | null> {
   const out = await $.process.run(
-    ['git', '--no-optional-locks', '-C', repo.root, 'status', '--porcelain=v2', '-z', '--branch', '--untracked-files=all', '--no-renames'],
+    [
+      'git', '--no-optional-locks', '-C', repo.root, 'status', '--porcelain=v2', '-z', '--branch',
+      '--untracked-files=all', '--no-renames', '--', NO_NODE_MODULES_ANYWHERE,
+    ],
     { timeoutMs: SLOW_GIT_MS + 1000 },
   )
   return out.exitCode === 0 && !out.isStdoutTruncated ? parsePorcelain(out.stdout) : null
@@ -221,7 +230,9 @@ async function statAll($: Engine, repo: Repo, paths: readonly string[]): Promise
 async function scanTree($: Engine, root: string, repo: Repo | null): Promise<Tree> {
   if (repo) {
     const out = await $.process
-      .run(['git', '-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], { timeoutMs: 15000 })
+      .run(['git', '-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.', NO_NODE_MODULES_HERE], {
+        timeoutMs: 15000,
+      })
       .catch(() => undefined)
     if (out?.exitCode === 0) {
       const files = parseNulList(out.stdout)
@@ -288,9 +299,6 @@ type Watch = { repo: Repo; before: Porcelain; startedAt: number }
 
 async function beforeShell($: Engine): Promise<Watch | undefined> {
   if (await read($, shellPausedAtom)) return undefined
-  // Nothing to show yet (no pane, no edit): skip git; tracking starts with the first edit or the pane.
-  const hasEdits = Object.values(await read($, marksAtom)).some(mark => mark.edited === true)
-  if (!hasEdits && !(await paneIsOpen($))) return undefined
   const repo = await repoOf($, (await rootsOf($)).root)
   if (!repo) return undefined
   const before = await timedStatus($, repo)
@@ -302,7 +310,7 @@ async function afterShell($: Engine, watch: Watch, command: string, ran: ToolCal
   const { repo, before, startedAt } = watch
   const after = await timedStatus($, repo)
   if (!after) return
-  const paths = [...new Set([...Object.keys(before.dirty), ...Object.keys(after.dirty)])]
+  const paths = statOrder(before.dirty, after.dirty) // what the command moved first, so the cap never hides it
   const changes = Object.entries(shellChanges(before.dirty, after.dirty, await statAll($, repo, paths), startedAt))
   // A commit moved HEAD; a `git commit` that failed (nothing staged, a hook said no) did not.
   const isCommit =
@@ -376,6 +384,7 @@ export const register: Register = on => {
       name: 'footprints',
       description: 'Show where Claude has been: a live file tree beside the chat',
       argumentHint: '[touched]',
+      immediate: true, // opens while Claude works; the handler reads no turn state
     })
     // An edit in flight when the module reloaded cannot report back here.
     const marks = await update($, marksAtom, settleEdits)
@@ -393,16 +402,19 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // Answers {} every time: the pane and a toast are for the person, and the model needs none of it.
   on('command.run', { command: 'footprints' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'touched') {
       const isOn = await update($, touchedOnlyAtom, value => !value)
+      $.ui.toast(isOn ? 'Footprints: touched files only' : 'Footprints: all files')
       if (!(await paneIsOpen($))) await openPane($)
-      return { text: isOn ? 'Footprints: touched files only.' : 'Footprints: all files.' }
+    } else if (arg !== '') {
+      $.ui.toast('Footprints: /footprints opens the pane, /footprints touched toggles touched-only')
+    } else {
+      await openPane($)
     }
-    if (arg !== '') return { text: 'Usage: /footprints opens the pane; /footprints touched toggles touched-only.' }
-    const isPlaced = await openPane($)
-    return isPlaced ? { text: 'Footprints pane open. Press t in it, or /footprints touched, for touched files only.' } : {}
+    return {}
   })
 
   // An observer, never a guard: whatever happens in here, the call goes on.

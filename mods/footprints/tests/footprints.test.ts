@@ -334,13 +334,15 @@ describe('the pane', () => {
     const w = world(on, { tracked: files })
     await start($)
     const on1 = await footprints($, 'touched')
-    expect(on1.text).toBe('Footprints: touched files only.')
+    expect(on1).toEqual({}) // nothing for the model to read
+    expect(w.rec.toasts).toEqual(['Footprints: touched files only'])
     expect(w.rec.opens).toEqual([PANE])
     const ui = await mount($, 'terminal')
     expect(await ui.find({ key: 'f:README.md' })).toBeUndefined()
     expect((await ui.find({ key: 'empty' }))?.text).toBe('Nothing touched yet.')
     const off = await footprints($, 'touched')
-    expect(off.text).toBe('Footprints: all files.')
+    expect(off).toEqual({})
+    expect(w.rec.toasts.at(-1)).toBe('Footprints: all files')
     expect(w.rec.opens).toEqual([PANE]) // already open: not opened again
     expect(await ui.find({ key: 'f:README.md' })).toBeDefined()
   })
@@ -353,17 +355,26 @@ describe('the pane', () => {
     expect(w.rec.toasts).toEqual(['Footprints cannot show its pane here: no surface attached that places panes'])
   })
 
-  test('an unknown argument answers with the usage', async ($, on) => {
-    world(on, { tracked: files })
+  test('an unknown argument answers with the usage, in a toast', async ($, on) => {
+    const w = world(on, { tracked: files })
     await start($)
     const ran = await footprints($, 'sideways')
-    expect(ran.text).toContain('Usage: /footprints')
+    expect(ran).toEqual({})
+    expect(w.rec.toasts).toEqual(['Footprints: /footprints opens the pane, /footprints touched toggles touched-only'])
+  })
+
+  test('opening the pane answers {}: the pane is the answer, the model reads nothing', async ($, on) => {
+    const w = world(on, { tracked: files })
+    await start($)
+    expect(await footprints($)).toEqual({})
+    expect(w.rec.opens).toEqual([PANE])
+    expect(w.rec.toasts).toEqual([])
   })
 
   test('the command is registered when the session starts', async ($, on) => {
     const w = world(on, { tracked: files })
     await start($)
-    expect(w.rec.registered).toEqual(['footprints'])
+    expect(w.rec.registered).toEqual([{ name: 'footprints', immediate: true }]) // opens while Claude works
   })
 
   test('a big untouched folder starts collapsed with its file count', async ($, on) => {
@@ -482,16 +493,14 @@ describe('slow git', () => {
     expect(await header(ui)).toBe('read 0 · edited 1 · new 0')
   })
 
-  test('with no pane and no edit yet, a Bash call runs no git at all', async ($, on) => {
+  test('a change made only through the shell reaches the status line with the pane closed', async ($, on) => {
     const w = world(on, { tracked: ['src/a.ts', 'src/b.ts'] })
     await start($)
-    await bash($, 'ls')
-    expect(statusRuns(w)).toBe(0)
-    await $.tool.call({ tool: 'Edit', file_path: abs('src/a.ts'), old_string: 'x', new_string: 'y' })
     w.onBash(() => w.write('src/b.ts'))
-    await bash($, 'touch src/b.ts')
-    expect(statusRuns(w)).toBe(2) // after the first edit: before and after the call
-    expect(statusNow(w)).toBe('edited 2')
+    await bash($, 'npx prettier --write src/b.ts')
+    expect(statusRuns(w)).toBe(2) // before and after the call, with no pane and no edit
+    expect(statusNow(w)).toBe('edited 1')
+    expect(w.rec.opens).toEqual([])
   })
 })
 
@@ -521,5 +530,121 @@ describe('file names with control characters', () => {
       }
       await ui.unmount()
     }
+  })
+})
+
+describe('review fixes', () => {
+  test('node_modules is skipped in a git repo even when .gitignore does not list it', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts', 'package.json'], untracked: ['node_modules/x/y.js', 'pkg/node_modules/z/w.js', 'pkg/p.ts'] })
+    await start($)
+    await footprints($)
+    w.onBash(() => w.write('node_modules/fresh/index.js')) // an install writes there
+    await bash($, 'npm install fresh')
+    for (const surface of SURFACES) {
+      const ui = await mount($, surface)
+      expect(await ui.find({ key: 'd:node_modules' }), surface).toBeUndefined()
+      expect(await ui.find({ key: 'd:pkg/node_modules' }), surface).toBeUndefined()
+      expect(await ui.find({ key: 'f:pkg/p.ts' }), surface).toBeDefined()
+      expect(await ui.find({ key: 'f:src/a.ts' }), surface).toBeDefined()
+      expect(await header(ui), surface).toBe('read 0 · edited 0 · new 0') // the install marks nothing
+      await ui.unmount()
+    }
+  })
+
+  test('with 400+ files already dirty, a file the command changed is still marked', async ($, on) => {
+    const noise = Array.from({ length: 450 }, (_, i) => `scratch/n${String(i).padStart(3, '0')}.txt`)
+    const w = world(on, { tracked: ['src/a.ts'], untracked: noise })
+    await start($)
+    await footprints($)
+    w.onBash(() => w.write('src/a.ts'))
+    await bash($, "sed -i '' s/x/y/ src/a.ts")
+    const ui = await mount($, 'terminal')
+    expect(await header(ui)).toBe('read 0 · edited 1 · new 0')
+    expect((await nameOf(ui, 'src/a.ts'))?.props.color).toBe('warning')
+  })
+
+  test('no shimmer frames are written while the pane is not open', async ($, on) => {
+    let phaseWrites = 0
+    on('state.set', ($, e, next) => {
+      if (e.key === 'phase') phaseWrites++
+      return next(e)
+    })
+    const w = world(on, { tracked: ['src/a.ts'] })
+    await start($)
+    const release = w.hold()
+    const editing = $.tool.call({ tool: 'Edit', file_path: abs('src/a.ts'), old_string: 'a', new_string: 'b' })
+    await w.clock.settle()
+    await w.clock.advance(120 * 10)
+    release()
+    await editing
+    expect(phaseWrites).toBe(0)
+  })
+
+  test('an edit held for review (staged) is not counted', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts'] })
+    w.answer(tool => (tool === 'Edit' ? { result: { filePath: abs('src/a.ts'), staged: true }, text: 'Held for review.' } : undefined))
+    await start($)
+    await $.tool.call({ tool: 'Edit', file_path: abs('src/a.ts'), old_string: 'a', new_string: 'b' })
+    await footprints($)
+    const ui = await mount($, 'terminal')
+    expect(await header(ui)).toBe('read 0 · edited 0 · new 0')
+    expect(w.rec.statuses.filter(s => s !== undefined)).toEqual([])
+  })
+
+  test('a huge repo keeps at most 20,000 names and says so', async ($, on) => {
+    const many = Array.from({ length: 20_050 }, (_, i) => `d${String(Math.floor(i / 100)).padStart(3, '0')}/f${i}.ts`)
+    world(on, { tracked: many })
+    await start($)
+    await footprints($)
+    const ui = await mount($, 'terminal')
+    expect((await ui.find({ key: 'note' }))?.text).toBe('showing 20000 files of a longer list')
+    expect(await ui.find({ key: 'd:d199' })).toBeDefined()
+    expect(await ui.find({ key: 'd:d200' })).toBeUndefined() // the 50 names past the cap are not kept
+  })
+
+  test('files a commit brings in (a pull) appear in an open pane', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts'] })
+    await start($)
+    await footprints($)
+    w.onBash(() => {
+      w.write('pulled.ts')
+      w.stage('pulled.ts')
+      w.commit()
+    })
+    await bash($, 'git pull --ff-only')
+    const ui = await mount($, 'terminal')
+    expect(await ui.find({ key: 'f:pulled.ts' })).toBeDefined()
+  })
+
+  test('a reload mid-edit stops the shimmer', async ($, on) => {
+    const w = world(on, { tracked: ['src/a.ts'] })
+    await start($)
+    await footprints($)
+    const ui = await mount($, 'terminal')
+    const release = w.hold()
+    const editing = $.tool.call({ tool: 'Edit', file_path: abs('src/a.ts'), old_string: 'a', new_string: 'b' })
+    await w.clock.settle()
+    await start($) // the engine raises session.start again on a reload
+    await w.clock.advance(120 * 3)
+    const bands = (await ui.findAll({ type: 'Text', text: /./ })).filter(t => t.props.bold === true && 'a.ts'.includes(t.text))
+    expect(bands).toEqual([])
+    release()
+    await editing
+  })
+
+  test('a stat that fails for a file that still exists is not a delete', async ($, on) => {
+    on('fs.*', ($, e, next) =>
+      (next.event === 'fs.stat' && String((e as { path?: string }).path).endsWith('/src/b.ts') ? { deny: 'EACCES' } : next(e)) as never,
+    )
+    const w = world(on, { tracked: ['src/a.ts', 'src/b.ts'] })
+    await start($)
+    await footprints($)
+    w.onBash(() => {
+      w.write('src/a.ts')
+      w.write('src/b.ts')
+    })
+    await bash($, 'touch src/a.ts src/b.ts')
+    const ui = await mount($, 'terminal')
+    expect(await header(ui)).toBe('read 0 · edited 1 · new 0')
   })
 })

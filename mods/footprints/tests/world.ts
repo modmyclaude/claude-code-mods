@@ -59,7 +59,7 @@ export function world(on: On, setup: Setup = {}) {
     toasts: [] as string[],
     logs: [] as string[],
     opens: [] as string[],
-    registered: [] as string[],
+    registered: [] as { name: string; immediate?: true }[],
     panes: [] as { id: string; title: string; isShown: boolean; isFocused: boolean; isPlaced: boolean }[],
     /** What each tool call reached beneath the mod, in order. */
     tools: [] as string[],
@@ -108,8 +108,15 @@ export function world(on: On, setup: Setup = {}) {
     if (e.argv[0] !== 'git') return { value: fail('not git') }
     if (!isGit) return { value: fail('fatal: not a git repository') }
     if (args.includes(' rev-parse ')) return { value: ok(`${setup.realRoot ?? ROOT}\n\n`) }
-    if (args.includes(' status ')) return { value: ok(porcelain()) }
-    if (args.includes(' ls-files ')) return { value: ok(lsFiles()) }
+    // git's own pathspec rule for `:(...exclude,glob)**/<dir>/**`: drop any path under a folder named <dir>
+    const after = e.argv.indexOf('--')
+    const excluded = (after < 0 ? [] : e.argv.slice(after + 1))
+      .map(spec => /^:\([^)]*exclude[^)]*\)\*\*\/([^/*]+)\/\*\*$/.exec(spec)?.[1])
+      .filter((dir): dir is string => dir !== undefined)
+    const keep = (path: string) => !path.split('/').some(part => excluded.includes(part))
+    const only = (out: string) => out.split('\0').filter(entry => entry.startsWith('#') || keep(entry.replaceAll(' ', '/'))).join('\0')
+    if (args.includes(' status ')) return { value: ok(only(porcelain())) }
+    if (args.includes(' ls-files ')) return { value: ok(only(lsFiles())) }
     return { value: fail(`unexpected: ${args}`) }
   })
 
@@ -168,7 +175,10 @@ export function world(on: On, setup: Setup = {}) {
     return { value }
   })
   on('ui.panes', () => ({ value: rec.panes }))
-  on('command.register', ($, e) => (rec.registered.push(e.name), { value: { command: e.name } }))
+  on('command.register', ($, e) => {
+    rec.registered.push({ name: e.name, ...(e.immediate === true ? { immediate: true as const } : {}) })
+    return { value: { command: e.name } }
+  })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
 
