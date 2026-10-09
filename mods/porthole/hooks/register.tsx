@@ -301,32 +301,38 @@ async function noticeAddresses($: Engine, output: string): Promise<void> {
   if (!isShowing) $.ui.toast(clean(`Open in porthole: ${address} - type /porthole`), { timeoutMs: 8000 })
 }
 
-async function runCommand($: Engine, args: string, isPerson: boolean): Promise<string> {
+/** What /porthole says: `done` lines go to a toast (the model need not read them), the rest stay as text. */
+type Said = { done: boolean; text: string }
+const refuse = (text: string): Said => ({ done: false, text })
+
+// Registered `immediate`, so this can run while a turn streams: it reads only porthole's
+// own state and never the transcript or a tool in flight.
+async function runCommand($: Engine, args: string, isPerson: boolean): Promise<Said> {
   const parsed = parseArgs(args)
-  if ('error' in parsed) return parsed.error
+  if ('error' in parsed) return refuse(parsed.error)
   const current = await read($, view)
   let url: string | null
   if (parsed.target !== undefined) {
     const verdict = checkTypedUrl(parsed.target)
-    if (!verdict.ok) return verdict.reason
+    if (!verdict.ok) return refuse(verdict.reason)
     url = verdict.url
   } else if (parsed.mode !== undefined) {
     url = current.url ?? (await read($, lastSeen)) // a viewport switch keeps the page
   } else {
     url = (await read($, lastSeen)) ?? current.url // bare /porthole: the last dev server seen
   }
-  if (url !== null && !isPerson && !isLocalHost(url)) return NOT_TYPED
+  if (url !== null && !isPerson && !isLocalHost(url)) return refuse(NOT_TYPED)
   const mode = parsed.mode ?? current.mode
   const width = VIEWPORT_WIDTH[mode]
   if (url === null) {
     if (parsed.mode === undefined) {
-      return 'No dev server address seen yet. Open one with /porthole <url>, for example /porthole http://localhost:3000'
+      return refuse('No dev server address seen yet. Open one with /porthole <url>, for example /porthole http://localhost:3000')
     }
     await update($, view, (v): PortholeView => ({ ...v, mode }))
-    return `Viewport set to ${mode} (${width} px wide). Open a page with /porthole <url>.`
+    return { done: true, text: `Viewport set to ${mode} (${width} px wide). Open a page with /porthole <url>.` }
   }
   const isTerminal = await hasTerminal($)
-  if (isTerminal && (await findChrome($)) === undefined) return chromeMissing()
+  if (isTerminal && (await findChrome($)) === undefined) return refuse(chromeMissing())
   const keepsShot = current.url === url && current.mode === mode
   if (!keepsShot && current.shot !== null) await remove($, current.shot.dir)
   await update($, view, (v): PortholeView => ({
@@ -340,10 +346,10 @@ async function runCommand($: Engine, args: string, isPerson: boolean): Promise<s
     await update($, view, (v): PortholeView => ({ ...v, phase: 'idle' })) // no pane, so nothing to refresh
     throw error
   })
-  if (!isTerminal) return elsewhereLine(url)
+  if (!isTerminal) return refuse(elsewhereLine(url))
   void refresh($).catch(() => undefined)
   const waits = opened.isPlaced ? '' : ` The pane is waiting: ${opened.reason}`
-  return `Porthole: ${url} at ${width} px (${mode}).${waits}`
+  return { done: true, text: `Porthole: ${url} at ${width} px (${mode}).${waits}` }
 }
 
 export const register: Register = (on, options) => {
@@ -355,13 +361,17 @@ export const register: Register = (on, options) => {
       name: 'porthole',
       description: 'Preview a local web page in a side pane (headless Chrome screenshot)',
       argumentHint: '[url] [mobile|desktop]',
+      immediate: true, // open or refresh the preview while Claude is still working
     })
     return next(e)
   })
 
   on('command.run', { command: 'porthole' }, async ($, e) => {
     try {
-      return { text: clean(await runCommand($, e.args, PERSON_ORIGINS.has(e.origin.kind))) }
+      const said = await runCommand($, e.args, PERSON_ORIGINS.has(e.origin.kind))
+      if (!said.done) return { text: clean(said.text) } // refusals stay visible as the command's output
+      $.ui.toast(clean(said.text))
+      return {} // nothing the model needs to read
     } catch (error) {
       return { text: clean(`porthole: ${message(error)}`) }
     }
