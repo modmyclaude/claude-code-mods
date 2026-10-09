@@ -35,8 +35,8 @@ def validate():
                     # BRAND.md: signal pink is the antenna light only, so it lives in the top rows.
                     if ch == "O" and y > 2:
                         fail(f"{name}: pink light below the antenna at {x},{y}")
-                    if ch == "G":
-                        fail(f"{name}: grey is for glyphs only")
+                    if ch == "G" and pose != "sweat":
+                        fail(f"{name}: grey is for the sleep z and the sweat drop only")
                     # Ink must sit inside a lime shape, or it vanishes on a dark terminal.
                     if ch == "E":
                         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
