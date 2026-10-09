@@ -4,7 +4,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   ANT_WIDTH, antRows, bar, fmtCost, fmtDuration, fmtEta, fmtTokens, miniAnt, modelColors,
-  alarmText, progressOf, shortModel, spendOf, statusText, viewAfterClose,
+  alarmText, nextAlarm, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts, viewAfterClose,
 } from '../hooks/show'
 import type { AntFarmAnt } from '../types'
 
@@ -157,5 +157,41 @@ describe('viewAfterClose', () => {
   test('a plugin or the engine closing it changes nothing', () => {
     expect(viewAfterClose(open, 'plugin')).toEqual(open)
     expect(viewAfterClose(open, 'unload')).toEqual(open)
+  })
+})
+
+describe('nextAlarm', () => {
+  const cases: [string, { level: number; budgetUsd: number }, 0 | 1 | 2, number, { level: number; budgetUsd: number }, 0 | 1 | 2][] = [
+    ['first crossing', { level: 0, budgetUsd: 2 }, 1, 2, { level: 1, budgetUsd: 2 }, 1],
+    ['same level again is quiet', { level: 1, budgetUsd: 2 }, 1, 2, { level: 1, budgetUsd: 2 }, 0],
+    ['a lower reading keeps the level and stays quiet', { level: 2, budgetUsd: 2 }, 0, 2, { level: 2, budgetUsd: 2 }, 0],
+    ['past twice it', { level: 1, budgetUsd: 2 }, 2, 2, { level: 2, budgetUsd: 2 }, 2],
+    ['straight past twice it', { level: 0, budgetUsd: 2 }, 2, 2, { level: 2, budgetUsd: 2 }, 2],
+    ['a new budget re-arms: under it', { level: 2, budgetUsd: 2 }, 0, 5, { level: 0, budgetUsd: 5 }, 0],
+    ['a new budget re-arms: over it', { level: 1, budgetUsd: 2 }, 1, 1, { level: 1, budgetUsd: 1 }, 1],
+    ['nothing stored yet', { level: 0, budgetUsd: -1 }, 0, 2, { level: 0, budgetUsd: 2 }, 0],
+  ]
+  for (const [name, stored, level, budget, alarm, toast] of cases) {
+    test(name, () => expect(nextAlarm(stored, level, budget)).toEqual({ alarm, toast }))
+  }
+})
+
+describe('labels and trimming', () => {
+  test('the session figure names its source', () => {
+    const est = { requests: 1, tokens: 10, costUsd: 0.4, unpricedTokens: 0 }
+    expect(spendLabel(spendOf(2.5, est))).toBe('Claude Code total $2.50')
+    expect(spendLabel(spendOf(null, est))).toBe('≈$0.40 session')
+  })
+  test('trimming drops the oldest finished ants before any running one', () => {
+    const list = [
+      ant({ id: 'r1' }),
+      ant({ id: 'd1', status: 'done' }),
+      ant({ id: 'r2' }),
+      ant({ id: 'f1', status: 'failed' }),
+      ant({ id: 'd2', status: 'done' }),
+    ]
+    expect(trimAnts(list, 3).map(a => a.id)).toEqual(['r1', 'r2', 'd2'])
+    expect(trimAnts(list, 9).map(a => a.id)).toEqual(['r1', 'd1', 'r2', 'f1', 'd2'])
+    expect(trimAnts([ant({ id: 'a' }), ant({ id: 'b' })], 1).map(a => a.id)).toEqual(['b'])
   })
 })

@@ -12,8 +12,10 @@ Watch your subagents work, and what they cost, live.
 
 - **The band.** While a turn runs, a slim line above the prompt shows the
   elapsed time, how many subagents are running and done, and the session's
-  spend so far. It stays while background subagents still run.
-- **The pane.** `/antfarm` opens the Ant farm pane (it also works mid-turn).
+  spend so far. It stays while background subagents still run. Other mods'
+  band lines keep drawing beneath it.
+- **The pane.** `/antfarm` opens the Ant farm pane (it also works mid-turn,
+  and adds nothing to the conversation).
   At the top: the subagents' total estimated cost, total tokens and wall time,
   then the session's spend against your budget. Below, one card per running
   subagent: its task, model, status, elapsed time, a progress bar, requests,
@@ -43,7 +45,8 @@ Watch your subagents work, and what they cost, live.
   session's spend against your budget. When it reaches the budget you get a
   toast and the budget mark beside the prompt footer turns amber; at twice the
   budget, another toast and red. Each crossing toasts once.
-- `/clear` starts the farm over, as it does `/cost`.
+- `/clear` (or another session taking this one's place) starts the farm over,
+  as it does `/cost`.
 
 ## Settings
 
@@ -94,7 +97,17 @@ Watch your subagents work, and what they cost, live.
   its requests, and cannot tell exactly when it ends.
 - A background subagent stopped from outside may never report its end; the
   mod checks the engine's agent list about every 10 seconds and settles it
-  from there.
+  from there. A running subagent that makes no request for 10 minutes (with no
+  main turn running) stops the animation clock until it is heard from again.
+- An interrupted subagent shows as failed (red, on its back): Claude Code
+  reports an interrupt as an aborted turn, not a success.
+- Caps: the pane lists 50 finished subagents one by one and counts the rest;
+  past 200 subagents in a session the oldest finished ones leave the farm,
+  and with them the subagents' header totals (Claude Code's session total is
+  unaffected).
+- Whether the pane may open on its own follows the surface that drew last;
+  with a main-screen terminal and the desktop app both attached, that can be
+  either.
 
 ## Built from a prompt
 

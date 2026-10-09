@@ -3,6 +3,7 @@
 // drawings the engine asks for, on the terminal and the desktop alike.
 
 import { describe, expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 import {
@@ -136,6 +137,7 @@ describe('status and order', () => {
   test('if recording a spawn fails, the spawn still goes through', async ($, on) => {
     const w = world(on)
     w.rec.panesThrow = true
+    engineBand(on)
     // Seen a docking surface, so the spawn tries to open the pane unasked and fails.
     const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
     await band.unmount()
@@ -265,7 +267,7 @@ describe('budget alarm', () => {
       // The subagent's own figure stays the table's estimate.
       expect((await texts(pane)).join('\n')).toContain('2 req · 2.2k tok · ≈$0.0003')
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
-      expect((await band.find({ key: 'summary' }))?.text).toContain('· $2.50 session')
+      expect((await band.find({ key: 'summary' }))?.text).toContain('· Claude Code total $2.50')
       await pane.unmount()
       await band.unmount()
     }
@@ -274,7 +276,7 @@ describe('budget alarm', () => {
     await w.finish($, id)
     expect(w.rec.toasts.at(-1)).toBe('Claude Code total $4.40 is past 2x your $2.00 budget.')
     const modes = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'SessionMode', props: { modes: [] } })
-    expect((await modes.find({ key: 'budget-mark' }))?.text).toBe('$4.40 past 2x budget')
+    expect((await modes.find({ key: 'budget-mark' }))?.text).toBe('Claude Code total $4.40 past 2x budget')
   })
 
   for (const broken of ['throws', 'has no ledger'] as const) {
@@ -372,7 +374,8 @@ describe('pane and the narrow fallback', () => {
     const w = world(on)
     await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
     const r = await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
-    expect(r.text).toBe('Ant farm open.')
+    expect(r.text).toBeUndefined() // nothing for the model to read
+    expect(w.rec.toasts).toEqual([])
     expect(w.rec.opens).toEqual([PANE])
     const pane = await mountPane($, 'desktop')
     expect((await pane.find({ key: 'empty' }))?.text).toContain('No subagents yet')
@@ -385,7 +388,8 @@ describe('pane and the narrow fallback', () => {
     await w.step($, id, usage('claude-haiku-5-5', 1000, 0))
     await w.finish($, id)
     const r = await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
-    expect(r.text).toContain('cannot be placed here (no attached surface places panes)')
+    expect(r.text).toBeUndefined()
+    expect(w.rec.toasts.at(-1)).toContain('cannot be placed here (no attached surface places panes)')
     for (const surface of SURFACES) {
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps({ isWorking: false }) })
       expect((await band.find({ key: `row-${id}` }))?.text).toContain('Listed task · haiku-5-5')
@@ -449,6 +453,143 @@ describe('pane and the narrow fallback', () => {
     // Asked for, it opens at once.
     await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
     expect(w.rec.opens).toEqual([PANE, PANE])
+  })
+})
+
+describe('sharing the band', () => {
+  const STUB = {
+    name: 'stub-band',
+    tier: 'append' as const, // beneath ant-farm, as another installed band mod may be
+    register(on: On) {
+      on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+        const { Box, Text } = $.ui.resolve(e)
+        return (
+          <Box key="stub-band">
+            <Text>another mod</Text>
+          </Box>
+        )
+      })
+    },
+  }
+
+  test('another mod band still draws beneath ours, busy or idle', { plugins: [STUB] }, async ($, on) => {
+    const w = world(on)
+    await w.spawn($, 'Busy')
+    for (const surface of SURFACES) {
+      const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
+      expect(await band.find({ key: 'summary' })).toBeDefined()
+      expect((await band.find({ key: 'stub-band' }))?.text).toBe('another mod')
+      await band.unmount()
+    }
+    await w.finish($, 'agent-1')
+    for (const surface of SURFACES) {
+      const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps({ isWorking: false }) })
+      expect(await band.find({ key: 'summary' })).toBeUndefined()
+      expect(await band.find({ key: 'stub-band' })).toBeDefined()
+      await band.unmount()
+    }
+  })
+})
+
+describe('alarm repeats', () => {
+  test('one failed read of the total neither drops the figure nor re-arms the alarm', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Steady')
+    w.rec.engineUsd = 2.5
+    await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
+    expect(w.rec.toasts).toEqual(['Claude Code total $2.50 reached your $2.00 budget.'])
+    w.rec.usageThrows = true
+    await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
+    expect(w.rec.statuses.at(-1)).toBe('ant-farm $2.50 of $2.00 budget (Claude Code total) - over budget')
+    w.rec.usageThrows = false
+    w.rec.engineUsd = 2.6
+    await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
+    expect(w.rec.toasts).toHaveLength(1)
+  })
+
+  test('a lower reading in between does not announce a level twice', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Jittery')
+    w.rec.engineUsd = 4.4
+    await w.step($, id, usage('claude-haiku-5-5', 10, 10))
+    w.rec.engineUsd = 1 // a stale reading, as a slower parallel request might report
+    await w.step($, id, usage('claude-haiku-5-5', 10, 10))
+    w.rec.engineUsd = 4.5
+    await w.step($, id, usage('claude-haiku-5-5', 10, 10))
+    expect(w.rec.toasts).toEqual(['Claude Code total $4.40 is past 2x your $2.00 budget.'])
+  })
+})
+
+describe('review cases', () => {
+  test('a main turn with no subagents ticks the clock', async ($, on) => {
+    const w = world(on)
+    await w.startTurn($)
+    const before = w.rec.invalidates
+    await w.clock.advance(1500)
+    expect(w.rec.invalidates).toBeGreaterThan(before)
+  })
+
+  test('the band list ends once the waiting pane is placed', async ($, on) => {
+    const w = world(on, { placed: false })
+    engineBand(on)
+    const first = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: bandProps({ isWorking: false }), viewport: { columns: 120, rows: 40, isFullscreen: true } })
+    await first.unmount()
+    const id = await w.spawn($, 'Widened')
+    w.rec.panes = w.rec.panes.map(p => ({ ...p, isPlaced: true, isShown: true }))
+    const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: bandProps({ isWorking: false }), viewport: DOCKED })
+    expect(await band.find({ key: `row-${id}` })).toBeUndefined()
+  })
+
+  test('a running workflow agent is not settled from the agent list', async ($, on) => {
+    const w = world(on)
+    await $.agent.spawn({
+      tool_use_id: 'tu-wf', prompt: 'p', description: 'Workflow step', subagentType: 'Explore',
+      provider: { plugin: 'engine', tier: 'core' }, parentModel: 'claude-opus-5-5', background: true, fork: false,
+      workflow: { runId: 'wf_1', agentIndex: 1 },
+    })
+    w.rec.listed = [] // the engine lists no workflow agent
+    await w.clock.advance(12_000)
+    const pane = await mountPane($, 'terminal')
+    expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
+  })
+
+  test('a request is priced by the model that answered', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Fell back', { model: 'claude-opus-5-5' })
+    await w.step($, id, usage('claude-sonnet-5-5', 1_000_000, 0), 'claude-opus-5-5')
+    const pane = await mountPane($, 'terminal')
+    expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$2.00 ·')
+  })
+
+  test('a request that got no response is not counted', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Interrupted')
+    for (let i = 0; i < 3; i += 1) await w.step($, id, 'no-response')
+    const pane = await mountPane($, 'terminal')
+    expect((await texts(pane)).join('\n')).toContain('0 req · 0 tok')
+  })
+
+  test('an ant silent for 10 minutes stops the clock until it speaks again', { timeoutMs: 30_000 }, async ($, on) => {
+    const w = world(on)
+    await $.agent.spawn({
+      tool_use_id: 'tu-wf', prompt: 'p', description: 'Remote step', subagentType: 'Explore',
+      provider: { plugin: 'engine', tier: 'core' }, parentModel: 'claude-opus-5-5', background: true, fork: false,
+      workflow: { runId: 'wf_2', agentIndex: 1 },
+    })
+    await w.clock.advance(10 * 60_000 + 1000)
+    const stopped = w.rec.invalidates
+    await w.clock.advance(5000)
+    expect(w.rec.invalidates).toBe(stopped)
+    await w.step($, 'agent-1', usage('claude-haiku-5-5', 10, 10))
+    await w.clock.advance(1000)
+    expect(w.rec.invalidates).toBeGreaterThan(stopped)
+  })
+
+  test('past 50 finished subagents the pane says how many more', async ($, on) => {
+    const w = world(on)
+    for (let i = 0; i < 52; i += 1) await w.finish($, await w.spawn($, `Task ${i}`))
+    const pane = await mountPane($, 'terminal')
+    expect((await pane.find({ key: 'more-finished' }))?.text).toBe('+2 more finished')
   })
 })
 

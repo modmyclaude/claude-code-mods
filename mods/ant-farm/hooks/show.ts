@@ -1,7 +1,7 @@
 // What the band and the pane say: formatting, the ETA, model colours and the
 // pixel ants. Pure: no `$`, so the tests drive it directly.
 
-import type { AntFarmAnt, AntFarmUsage, AntFarmView } from '../types'
+import type { AntFarmAlarm, AntFarmAnt, AntFarmUsage, AntFarmView } from '../types'
 
 // ---------------------------------------------------------------- numbers
 
@@ -45,6 +45,24 @@ export function statusText(spend: Spend, budgetUsd: number, level: 0 | 1 | 2): s
   return `ant-farm ${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${over}`
 }
 
+/**
+ * The alarm after a new reading: a level once announced is not announced
+ * again, even if a later reading comes in lower (a stale or failed read), until
+ * the budget itself changes. `toast` is the level to announce now, or 0.
+ */
+export function nextAlarm(stored: AntFarmAlarm, level: 0 | 1 | 2, budgetUsd: number): { alarm: AntFarmAlarm; toast: 0 | 1 | 2 } {
+  const before = stored.budgetUsd === budgetUsd ? stored.level : 0
+  return {
+    alarm: { level: Math.max(before, level), budgetUsd },
+    toast: level > before ? level : 0,
+  }
+}
+
+/** The session figure with its source: "Claude Code total $2.50" or "≈$2.50 session". */
+export function spendLabel(spend: Spend): string {
+  return spend.isEngine ? `Claude Code total ${spend.text}` : `${spend.text} session`
+}
+
 /** The toast when the spend crosses the budget (level 1) or twice it (level 2). */
 export function alarmText(spend: Spend, budgetUsd: number, level: 1 | 2): string {
   const what = `${spend.isEngine ? 'Claude Code total' : 'Session estimate'} ${spend.text}`
@@ -72,6 +90,20 @@ export function fmtEta(ms: number): string {
 /** `claude-opus-5-5` -> `opus-5-5`; regional and dated spellings kept readable. */
 export function shortModel(model: string): string {
   return model.replace(/^.*?claude-/, '') || model
+}
+
+/** At most `max` ants, the oldest finished ones dropped before any running one. */
+export function trimAnts(list: readonly AntFarmAnt[], max: number): AntFarmAnt[] {
+  let excess = list.length - max
+  if (excess <= 0) return [...list]
+  const kept = list.filter(a => {
+    if (excess > 0 && a.status !== 'running') {
+      excess -= 1
+      return false
+    }
+    return true
+  })
+  return kept.slice(-max)
 }
 
 /**

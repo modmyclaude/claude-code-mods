@@ -31,12 +31,17 @@ export type AntFarmAnt = {
   startedAt: number
   endedAt?: number
   usage: AntFarmUsage
+  /** When it last started or answered a request: an ant silent for long stops the clock. */
+  lastActiveAt?: number
   /** Started by a workflow script: never listed by `$.agent.list()`. */
   isWorkflow?: boolean
 }
 
 /** Usage outside the subagents: the main loop, and loops no agent list names (engine forks). */
 export type AntFarmLoops = { main: AntFarmUsage; other: AntFarmUsage }
+
+/** The budget level last announced and the budget it was measured against. */
+export type AntFarmAlarm = { level: number; budgetUsd: number }
 
 /** The main loop's current turn. */
 export type AntFarmTurn = { isRunning: boolean; startedAt: number }
@@ -58,8 +63,8 @@ declare module 'claude-code' {
       ants: AntFarmAnt[]
       loops: AntFarmLoops
       turn: AntFarmTurn
-      /** The budget level last announced: 0 under, 1 past the budget, 2 past twice it. */
-      alarm: number
+      /** The budget level announced (0 under, 1 past the budget, 2 past twice it); it only rises until the budget changes or /clear. */
+      alarm: AntFarmAlarm
       /** Claude Code's own cost total for the session (what /cost shows), or null where unavailable. */
       engineUsd: number | null
       view: AntFarmView
