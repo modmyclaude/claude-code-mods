@@ -1,0 +1,17 @@
+{
+  "name": "ant-farm",
+  "version": "0.1.0",
+  "description": "Watch your subagents work, and what they cost, live.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["subagents", "cost", "tokens", "budget", "pane", "visibility"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "budgetUsd": {
+      "type": "number",
+      "title": "Session budget (USD)",
+      "description": "When the session's estimated spend reaches this, ant-farm shows a toast and turns its budget mark amber; past twice it, red. 0 turns the alarm off.",
+      "default": 2
+    }
+  }
+}
