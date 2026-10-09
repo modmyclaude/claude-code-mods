@@ -78,7 +78,7 @@ export function detailLines(g: RedlineGauge, now: number, barCells = 20): Detail
   add('tokens-note', more(`${requests} model requests${since}`), 'dim')
 
   // Cost: Claude Code's ledger when it keeps one, the price table beside it.
-  if (g.ledgerUsd !== null) add('cost', row('Cost', `${fmtUsd(g.ledgerUsd, false)} this session, Claude Code's own figure (as /cost shows it)`))
+  if (g.ledgerUsd !== null) add('cost', row('Cost', `${fmtUsd(g.ledgerUsd)} this session, Claude Code's estimate (as /cost shows it)`))
   if (g.unpriced.length > 0) {
     add('cost-table', row(g.ledgerUsd === null ? 'Cost' : '', `no price for ${g.unpriced.join(', ')} - tokens only`), 'dim')
   } else if (requests > 0) {
@@ -103,11 +103,18 @@ export function detailLines(g: RedlineGauge, now: number, barCells = 20): Detail
   for (const l of g.limits) {
     const pct = Math.round(l.percentUsed)
     const reset = Date.parse(l.resetsAt ?? '')
-    const resets = Number.isNaN(reset) ? '' : ` · resets in ${fmtDuration(Math.max(0, reset - now))}`
-    const r = runOut(l, now)
+    // Past its reset the figure is stale: say so, and judge no run-out on it.
+    const isPast = !Number.isNaN(reset) && reset <= now
+    const resets = Number.isNaN(reset)
+      ? ''
+      : isPast
+        ? ` · reset ${fmtDuration(now - reset)} ago; the next reply brings the new figure`
+        : ` · resets in ${fmtDuration(reset - now)}`
+    const r = isPast ? undefined : runOut(l, now, g.limitHistory[l.kind])
+    const pace = r && r.kind !== 'out' && r.basis === 'recent' ? "at the last 15 minutes' rate" : "at this window's average pace"
     const out =
-      r === undefined ? '' : r.kind === 'at' ? ` · ${fmtRunOut(r)} at this window's pace so far` : r.kind === 'out' ? ' · used up' : ' · on pace to reset first'
-    const tone: Tone = r?.kind === 'out' || r?.kind === 'at' ? 'red' : levelOf(pct)
+      r === undefined ? '' : r.kind === 'at' ? ` · ${fmtRunOut(r)} ${pace}` : r.kind === 'out' ? ' · used up' : ` · on pace to reset first (${pace})`
+    const tone: Tone = r?.kind === 'out' || r?.kind === 'at' ? 'red' : isPast ? 'dim' : levelOf(pct)
     add(`limit-${l.kind}`, `  ${limitLabel(l.kind).padEnd(LABEL - 2)}${bar(Math.min(100, pct), 10)} ${pct}%${resets}${out}`, tone)
   }
 

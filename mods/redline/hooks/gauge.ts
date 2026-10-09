@@ -13,6 +13,8 @@ export const RED_AT = 80
 export const REARM_BELOW = 75
 /** Pace and tokens per minute look back this far. */
 export const SPAN_MS = 10 * 60_000
+/** A plan window's current rate looks back this far (it moves in whole points). */
+export const LIMIT_SPAN_MS = 15 * 60_000
 /** Under a minute of growth is too little to extrapolate from. */
 const MIN_PACE_MS = 60_000
 const TURNS_KEPT = 100
@@ -36,6 +38,7 @@ export const EMPTY_GAUGE: RedlineGauge = {
   unpriced: [],
   ledgerUsd: null,
   limits: [],
+  limitHistory: {},
   turns: [],
   model: null,
   isArmed: true,
@@ -90,11 +93,11 @@ export function paceEta(samples: readonly RedlineSample[], window: number | null
 }
 
 /**
- * How fast the main loop's context grew over the last 10 minutes, counted
- * from the last drop: tokens per millisecond and the latest count.
+ * How fast a reading grew over the last `span` (10 minutes for the context),
+ * counted from the last drop: units per millisecond and the latest value.
  */
-export function contextGrowth(samples: readonly RedlineSample[], now: number): { perMs: number; last: number } | undefined {
-  const recent = samples.filter(s => s.t >= now - SPAN_MS)
+export function contextGrowth(samples: readonly RedlineSample[], now: number, span = SPAN_MS): { perMs: number; last: number } | undefined {
+  const recent = samples.filter(s => s.t >= now - span)
   let start = 0
   for (let i = 1; i < recent.length; i++) {
     if ((recent[i]?.tokens ?? 0) < (recent[i - 1]?.tokens ?? 0)) start = i
@@ -103,10 +106,10 @@ export function contextGrowth(samples: readonly RedlineSample[], now: number): {
   const first = run[0]
   const last = run[run.length - 1]
   if (!first || !last || run.length < 2) return undefined
-  const span = last.t - first.t
+  const covered = last.t - first.t
   const growth = last.tokens - first.tokens
-  if (span < MIN_PACE_MS || growth <= 0) return undefined
-  return { perMs: growth / span, last: last.tokens }
+  if (covered < MIN_PACE_MS || growth <= 0) return undefined
+  return { perMs: growth / covered, last: last.tokens }
 }
 
 /**
@@ -133,23 +136,56 @@ const LIMIT_WINDOWS: Record<string, { label: string; short: string; ms: number }
 export const limitLabel = (kind: string): string => LIMIT_WINDOWS[kind]?.label ?? kind.replace(/_/g, ' ')
 export const limitShort = (kind: string): string => LIMIT_WINDOWS[kind]?.short ?? kind.replace(/_limit$/, '').replace(/_/g, ' ')
 
-export type RunOut = { kind: 'out' } | { kind: 'at'; ms: number } | { kind: 'resets-first' }
+/** What a run-out was judged on: the last 15 minutes, or the window's average. */
+export type RunOutBasis = 'recent' | 'average'
+
+export type RunOut = { kind: 'out' } | { kind: 'at'; ms: number; basis: RunOutBasis } | { kind: 'resets-first'; basis: RunOutBasis }
 
 /**
- * When a plan window runs out at the average pace it has been used at since it
- * opened (its start is its reset less its length). Undefined for a window of
- * unknown length (a gateway's spend limit), with no reset time, unused, or
- * opened under 10 minutes ago (too little to go on).
+ * When a plan window runs out. At its current rate (how far it moved over the
+ * last 15 minutes) when it moved; otherwise at the average pace since it
+ * opened (its start is its reset less its length), so a late burst warns and
+ * a quiet spell does not hide what came before. Undefined with no reset time
+ * or one already past, and for an average that has too little to go on (a
+ * window of unknown length, unused, or opened under 10 minutes ago).
  */
-export function runOut(limit: RedlineLimit, now: number): RunOut | undefined {
+export function runOut(limit: RedlineLimit, now: number, history: readonly RedlineSample[] = []): RunOut | undefined {
   if (limit.percentUsed >= 100) return { kind: 'out' }
-  const length = LIMIT_WINDOWS[limit.kind]?.ms
   const reset = Date.parse(limit.resetsAt ?? '')
-  if (length === undefined || Number.isNaN(reset) || limit.percentUsed <= 0) return undefined
-  const elapsed = now - (reset - length)
-  if (elapsed < 10 * MINUTE) return undefined
-  const ms = ((100 - limit.percentUsed) * elapsed) / limit.percentUsed
-  return now + ms >= reset ? { kind: 'resets-first' } : { kind: 'at', ms }
+  if (Number.isNaN(reset) || reset <= now) return undefined
+  const left = 100 - limit.percentUsed
+  const recent = contextGrowth(history, now, LIMIT_SPAN_MS)
+  let ms: number
+  let basis: RunOutBasis
+  if (recent) {
+    ms = left / recent.perMs
+    basis = 'recent'
+  } else {
+    const length = LIMIT_WINDOWS[limit.kind]?.ms
+    if (length === undefined || limit.percentUsed <= 0) return undefined
+    const elapsed = now - (reset - length)
+    if (elapsed < 10 * MINUTE) return undefined
+    ms = (left * elapsed) / limit.percentUsed
+    basis = 'average'
+  }
+  return now + ms >= reset ? { kind: 'resets-first', basis } : { kind: 'at', ms, basis }
+}
+
+/** Adds this reading of each plan window to its last 15 minutes of readings. */
+export function recordLimits(
+  history: Readonly<Record<string, readonly RedlineSample[]>>,
+  limits: readonly RedlineLimit[],
+  now: number,
+): Record<string, RedlineSample[]> {
+  const out: Record<string, RedlineSample[]> = {}
+  for (const l of limits) {
+    const kept = (history[l.kind] ?? []).filter(s => s.t >= now - LIMIT_SPAN_MS)
+    const last = kept[kept.length - 1]
+    // A reading a minute is plenty while the figure holds still.
+    const isSame = last !== undefined && last.tokens === l.percentUsed && now - last.t < MINUTE
+    out[l.kind] = isSame ? kept : [...kept, { t: now, tokens: l.percentUsed }]
+  }
+  return out
 }
 
 // ------------------------------------------------------------------- reduce
@@ -210,7 +246,10 @@ export function reduce(g: RedlineGauge, r: Reading): { gauge: RedlineGauge; fire
   if (next.trackingSince === null) next.trackingSince = r.now
   if (r.window !== undefined && r.window > 0) next.window = r.window
   if (r.ledgerUsd !== undefined) next.ledgerUsd = r.ledgerUsd
-  if (r.limits !== undefined) next.limits = r.limits.map(l => ({ ...l }))
+  if (r.limits !== undefined) {
+    next.limits = r.limits.map(l => ({ ...l }))
+    next.limitHistory = recordLimits(next.limitHistory, r.limits, r.now)
+  }
 
   let context = r.contextTokens
   if (r.turnStart) {
@@ -290,15 +329,15 @@ export function fmtTokens(n: number): string {
 }
 
 /**
- * Dollars as the gauge writes them: an estimate (the price table) marked "≈",
- * Claude Code's own ledger plain.
+ * Dollars as the gauge writes them, always marked "≈": the price table and
+ * Claude Code's own ledger alike are list-price arithmetic, not a bill (on a
+ * subscription nobody pays them).
  */
-export function fmtUsd(usd: number, isEstimate = true): string {
-  const mark = isEstimate ? '≈' : ''
-  if (usd >= 100) return `${mark}$${Math.round(usd)}`
+export function fmtUsd(usd: number): string {
+  if (usd >= 100) return `≈$${Math.round(usd)}`
   // A real but tiny cost reads as such, not as a suspicious $0.00.
-  if (usd > 0 && usd < 0.005) return `${mark}<$0.01`
-  return `${mark}$${usd.toFixed(2)}`
+  if (usd > 0 && usd < 0.005) return '≈<$0.01'
+  return `≈$${usd.toFixed(2)}`
 }
 
 export function fmtDuration(ms: number): string {
@@ -331,11 +370,11 @@ export function bar(percent: number | undefined, cells: number): string {
 export const levelWord = (level: Level): string => (level === 'red' ? 'RED' : level === 'amber' ? 'AMBER' : '')
 
 /**
- * The session's cost as the gauge shows it: Claude Code's ledger (what /cost
- * shows, not an estimate), else the price table (≈), else tokens.
+ * The session's cost as the gauge shows it: Claude Code's own estimate (what
+ * /cost shows), else the price table's, else tokens.
  */
 export function costText(g: RedlineGauge): string {
-  if (g.ledgerUsd !== null) return fmtUsd(g.ledgerUsd, false)
+  if (g.ledgerUsd !== null) return fmtUsd(g.ledgerUsd)
   if (g.unpriced.length === 0) return fmtUsd(sumTokens(g.tableUsd))
   return `${fmtTokens(sumTokens(g.totals))} tok`
 }
@@ -349,12 +388,12 @@ export function fmtRunOut(r: RunOut | undefined): string | undefined {
 }
 
 /** One plan window for the one-line gauge: `5h 46%`, its run-out when due first. */
-export function limitText(l: RedlineLimit, now: number): string {
+export function limitText(l: RedlineLimit, now: number, history: readonly RedlineSample[] = []): string {
   const short = limitShort(l.kind)
   const reset = Date.parse(l.resetsAt ?? '')
   // Past its reset the reading is stale until the next response says more.
   if (!Number.isNaN(reset) && reset <= now) return `${short} reset`
-  const r = runOut(l, now)
+  const r = runOut(l, now, history)
   // A spent window: when it comes back is the one figure that matters.
   if (r?.kind === 'out') return Number.isNaN(reset) ? `${short} OUT` : `${short} OUT, resets in ~${fmtDuration(reset - now)}`
   const head = `${short} ${Math.round(l.percentUsed)}%`
@@ -373,7 +412,7 @@ export function gaugeParts(g: RedlineGauge, now: number) {
     rate: `${fmtTokens(tokensPerMinute(g.flow, now, g.trackingSince))} tok/min`,
     pace: fmtPace(paceEta(g.samples, g.window, now)),
     // Carries the engine's window kinds: each view cleans what it draws.
-    limits: g.limits.map(l => limitText(l, now)),
+    limits: g.limits.map(l => limitText(l, now, g.limitHistory[l.kind])),
   }
 }
 

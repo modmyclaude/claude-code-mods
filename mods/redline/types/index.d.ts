@@ -59,6 +59,8 @@ export type RedlineGauge = {
   /** Claude Code's own cost ledger for the session, USD; null where absent. */
   ledgerUsd: number | null
   limits: RedlineLimit[]
+  /** Each plan window's readings of the last 15 minutes, by kind (run-out). */
+  limitHistory: Record<string, RedlineSample[]>
   turns: RedlineTurn[]
   /** The model of the main loop's last request. */
   model: string | null
