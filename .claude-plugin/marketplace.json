@@ -83,6 +83,22 @@
       ]
     },
     {
+      "name": "last-look",
+      "source": "./mods/last-look",
+      "description": "Holds destructive commands and shows exactly what they would destroy.",
+      "version": "0.1.0",
+      "category": "safety",
+      "keywords": [
+        "safety",
+        "bash",
+        "rm",
+        "git",
+        "guard",
+        "destructive",
+        "review"
+      ]
+    },
+    {
       "name": "noted",
       "source": "./mods/noted",
       "description": "Turns your corrections into permanent rules, without duplicates.",
