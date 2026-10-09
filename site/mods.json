@@ -40,7 +40,7 @@
         }
       ],
       "tests": {
-        "count": 145,
+        "count": 146,
         "surfaces": [
           "terminal",
           "desktop"
@@ -49,7 +49,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "111d1fb",
+      "commit": "11f3041",
       "reach": [
         "display only"
       ],
@@ -182,7 +182,7 @@
       "commands": [],
       "settings": [],
       "tests": {
-        "count": 314,
+        "count": 315,
         "surfaces": [
           "terminal",
           "desktop",
@@ -193,7 +193,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "34dc716",
+      "commit": "6007f91",
       "reach": [
         "calls a model",
         "hooks prompts"
@@ -270,7 +270,7 @@
         }
       ],
       "tests": {
-        "count": 175,
+        "count": 176,
         "surfaces": [
           "terminal",
           "desktop",
@@ -281,7 +281,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ef85001",
+      "commit": "11f3041",
       "reach": [
         "calls a model"
       ],
@@ -396,7 +396,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 120,
+        "count": 122,
         "surfaces": [
           "terminal",
           "desktop",
@@ -407,7 +407,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "7b3b320",
+      "commit": "6758aae",
       "reach": [
         "hooks tool calls"
       ],
@@ -472,7 +472,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 146,
+        "count": 147,
         "surfaces": [
           "terminal",
           "desktop",
@@ -482,7 +482,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ef85001",
+      "commit": "11f3041",
       "reach": [
         "hooks tool calls"
       ],
@@ -540,7 +540,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 242,
+        "count": 243,
         "surfaces": [
           "terminal",
           "desktop",
@@ -551,7 +551,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "2578c63",
+      "commit": "6007f91",
       "reach": [
         "hooks tool calls"
       ],
@@ -676,7 +676,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 210,
+        "count": 211,
         "surfaces": [
           "terminal",
           "desktop",
@@ -686,7 +686,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ef85001",
+      "commit": "11f3041",
       "reach": [
         "writes files",
         "reads files",
@@ -822,7 +822,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 95,
+        "count": 96,
         "surfaces": [
           "terminal",
           "desktop",
@@ -833,7 +833,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ef85001",
+      "commit": "11f3041",
       "reach": [
         "runs commands",
         "hooks tool calls"
@@ -966,7 +966,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 135,
+        "count": 136,
         "surfaces": [
           "terminal",
           "desktop"
@@ -975,7 +975,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ef85001",
+      "commit": "11f3041",
       "reach": [
         "display only"
       ],
@@ -1069,7 +1069,7 @@
         }
       ],
       "tests": {
-        "count": 175,
+        "count": 176,
         "surfaces": [
           "terminal",
           "desktop",
@@ -1080,7 +1080,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "2578c63",
+      "commit": "6007f91",
       "reach": [
         "hooks prompts"
       ],
@@ -1154,7 +1154,7 @@
         }
       ],
       "tests": {
-        "count": 189,
+        "count": 190,
         "surfaces": [
           "terminal",
           "desktop",
@@ -1165,7 +1165,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ef85001",
+      "commit": "11f3041",
       "reach": [
         "calls a model",
         "hooks prompts"
@@ -1246,7 +1246,7 @@
         }
       ],
       "tests": {
-        "count": 324,
+        "count": 325,
         "surfaces": [
           "terminal",
           "vscode",
@@ -1256,7 +1256,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-09",
-      "commit": "ef85001",
+      "commit": "11f3041",
       "reach": [
         "hooks tool calls"
       ],
