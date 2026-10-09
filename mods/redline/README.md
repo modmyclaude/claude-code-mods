@@ -47,7 +47,7 @@ None. The thresholds (60%, 80%, re-arm under 75%) and the 10-minute window are f
 - Plan windows appear only on a Claude subscription, after the first reply of a session; with an API key there are none, and the detail view says so.
 - Token counts (and the price-table estimate) start when redline loads; Claude Code's cost estimate and the context fill cover the whole session. A plan window's recent rate needs readings from this session, so right after start the average stands in.
 - The pace needs a minute of growing context inside the last 10 minutes. Flat or shrinking context gives no estimate. Right after a compaction the fill is Claude Code's own estimate of the compacted size until the next reply measures it.
-- The status line, band and pane update on model requests and measurements, not on a timer. Two one-shot repaints are the exception: 10 minutes after the last reading (so an idle session stops showing a pace and rate) and just after the earliest plan window resets (so a spent window flips to `reset` while you wait). The session time in the detail view refreshes with readings.
+- The status line, band and pane update on model requests and measurements, not on a timer. Two one-shot repaints are the exception: 10 minutes after the last reading (so an idle session stops showing a pace and rate) and just after each plan window resets (so a spent window flips to `reset` while you wait). The session time in the detail view refreshes with readings.
 - Terminal and desktop are supported and tested. VS Code and mobile draw the pane through the same hooks but are not tested.
 
 ## Built from a prompt
