@@ -227,6 +227,8 @@ export const register: Register = (on, options) => {
 
     const others = list.filter(one => one.status === 'open' && one.id !== id).length
     const { Box, Button, Text } = $.ui.resolve(e)
+    // Other mods' bands draw beneath the note, never erased by it.
+    const below = await next(e)
 
     return (
       <Box key="fine-print" flexDirection="column">
@@ -259,6 +261,7 @@ export const register: Register = (on, options) => {
           <Button key="explain" label="Explain more" onPress={() => explain($, id)} />
           <Button key="dismiss" label="Dismiss" hotkey="d" role="dismiss" onPress={() => settle($, id, 'dismissed')} />
         </Box>
+        {below}
       </Box>
     )
   })
