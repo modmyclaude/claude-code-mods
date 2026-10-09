@@ -553,7 +553,9 @@ export const register: Register = on => {
     const shown = room.reveal
     if (!hold && !shown) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
-    const below = await next(e)
+    // A pending hold renders alone (API-GOTCHAS #36): what another mod draws beneath could
+    // make the engine refuse the whole band and take Deny and Allow once with it.
+    const below = hold ? null : await next(e)
 
     // Each button acts on the hold it was drawn for, even if the queue moved since.
     const decide = (isAllowed: boolean) => async () => {

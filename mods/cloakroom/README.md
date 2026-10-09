@@ -60,7 +60,7 @@ Claude was told to wait. Allow once lets this exact command run one time.
 [ Deny ]  [ Allow once ]
 ```
 
-The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and the focus starts on **Deny** (`d` also denies). **Allow once** has no key, so a stray keystroke cannot press it; click it or move to it on purpose. Allow once lets that exact command run one time within 10 minutes and tells Claude it may run it again. Deny leaves it refused. Other mods' bands stay drawn beneath this one.
+The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and the focus starts on **Deny** (`d` also denies). **Allow once** has no key, so a stray keystroke cannot press it; click it or move to it on purpose. Allow once lets that exact command run one time within 10 minutes and tells Claude it may run it again. Deny leaves it refused. While a hold waits for you, it is drawn on its own (other mods' bands come back once you answer), so nothing another mod draws can hide Deny.
 
 **Commands:**
 
