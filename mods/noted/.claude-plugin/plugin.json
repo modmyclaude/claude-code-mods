@@ -1,0 +1,9 @@
+{
+  "name": "noted",
+  "version": "0.1.0",
+  "description": "Turns your corrections into permanent rules, without duplicates.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["memory", "claude-md", "rules", "corrections", "house-rules"],
+  "types": "./types/index.d.ts"
+}
