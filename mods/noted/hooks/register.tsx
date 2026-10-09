@@ -15,6 +15,7 @@ import type { Elements, EngineInterface, Register, SessionMessage } from 'claude
 
 import type { NotedBand, NotedExisting, NotedLearned, NotedScope } from '../types'
 import { looksLikeCorrection } from './detect'
+import { clean } from './text'
 import { buildPrompt, MAX_REPLY_TOKENS, MODEL, parseVerdict, SYSTEM, TIMEOUT_MS } from './model'
 import {
   appendRule,
@@ -51,7 +52,8 @@ async function projectFile($: Dollar): Promise<File> {
 async function globalFile($: Dollar): Promise<File | undefined> {
   const config = await $.env.get('CLAUDE_CONFIG_DIR')
   if (config) return { path: `${trimEnd(config)}/CLAUDE.md`, label: `${trimEnd(config)}/CLAUDE.md` }
-  const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
+  // USERPROFILE first, as Claude Code's own home lookup on Windows; unset elsewhere.
+  const home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME'))
   return home ? { path: `${trimEnd(home)}/.claude/CLAUDE.md`, label: '~/.claude/CLAUDE.md' } : undefined
 }
 
@@ -180,9 +182,12 @@ const notice = (text: string, isError = false): NotedBand => ({ kind: 'notice', 
 
 let hasSaidNoBand = false
 let hasSaidNoModel = false
+/** Counts corrections, so an older one's late answer never replaces a newer one's. */
+let latest = 0
 
 /** One model call: the correction becomes a proposal, an "already a rule", or nothing. */
 async function learn($: Dollar, correction: string): Promise<void> {
+  const mine = ++latest
   const surfaces = await $.session.surfaces()
   if (surfaces.length === 0) return // headless: nobody to show a band to
   if (!surfaces.some(s => s === 'terminal' || s === 'desktop')) {
@@ -209,11 +214,18 @@ async function learn($: Dollar, correction: string): Promise<void> {
   } catch (err) {
     // Refused before sending (the alias blocked on Bedrock, Vertex or a
     // gateway): say so once rather than going quiet for the whole session.
-    if (!hasSaidNoModel) $.ui.log(`noted: the ${MODEL} model is not available here (${reasonOf(err)}), so corrections are not turned into rules.`)
+    if (!hasSaidNoModel) $.ui.log(clean(`noted: the ${MODEL} model is not available here (${reasonOf(err)}), so corrections are not turned into rules.`))
     hasSaidNoModel = true
     return
   }
   if (!reply.isAnswered) {
+    // A provider without this model answers instead of refusing: say so once too.
+    const apiError = reply.reason === 'api-error' ? reply.error : undefined
+    if ((apiError === 'model_not_found' || apiError === 'invalid_request') && !hasSaidNoModel) {
+      $.ui.log(`noted: the ${MODEL} model is not available here (${apiError}), so corrections are not turned into rules.`)
+      hasSaidNoModel = true
+      return
+    }
     $.ui.log(`noted: no rule this time (${reply.reason})`, { to: 'debug' })
     return
   }
@@ -232,6 +244,7 @@ async function learn($: Dollar, correction: string): Promise<void> {
   const next: NotedBand = same
     ? notice(`already a rule in ${same.label}: ${same.text}`)
     : { kind: 'proposal', rule, conflict, isEditing: false, note: null }
+  if (mine !== latest) return // a newer correction is under way or done
   // The person may have started editing an earlier proposal while the model ran.
   await update($, band, now => (now?.kind === 'proposal' && now.isEditing ? now : next))
 }
@@ -274,8 +287,13 @@ function save($: Dollar, scope: NotedScope): Promise<void> {
       await update($, band, () => notice(`already a rule in ${file.label}: ${same}`))
       return
     }
+    const appended = appendRule(got.text, shown.rule)
+    if (appended === null) {
+      await update($, band, () => notice(`${file.label} has a code fence that never closes, so a rule added now would land inside it. Nothing was saved.`, true))
+      return
+    }
     try {
-      await $.fs.write(file.path, appendRule(got.text, shown.rule))
+      await $.fs.write(file.path, appended)
     } catch (err) {
       await update($, band, () => notice(`could not write ${file.label} (${reasonOf(err)}). Nothing was saved.`, true))
       return
@@ -361,7 +379,7 @@ function listText(items: readonly NotedLearned[], globalLabel: string): string {
     return 'No house rules learned yet. When you correct Claude ("no, use pnpm"), noted proposes a rule above the prompt.'
   }
   const rows = items.map(
-    (l, i) => `${i + 1}. ${l.rule} (${l.scope === 'project' ? './CLAUDE.md' : globalLabel}, added ${day(l.addedAt)})`,
+    (l, i) => `${i + 1}. ${clean(l.rule)} (${l.scope === 'project' ? './CLAUDE.md' : clean(globalLabel)}, added ${day(l.addedAt)})`,
   )
   return [
     'House rules learned by noted:',
@@ -418,18 +436,22 @@ export const register: Register = on => {
     }
     const remove = /^(?:remove|rm|delete)\s+(\d+)$/i.exec(args)
     if (!remove) return { text: 'Usage: `/rules` to list, `/rules remove <number>` to remove one.' }
+    // A file edit only for the person's own command: never a peer, relay, task or plugin.
+    if (!PERSON.has(e.origin.kind)) {
+      return { text: 'noted removes a rule only when you type it: run `/rules remove <number>` yourself.' }
+    }
     const item = (await learnedHere($))[Number(remove[1]) - 1]
     if (!item) return { text: `There is no rule ${remove[1]}. Run \`/rules\` to see the list.` }
     let text = 'noted is busy with another edit; try again in a moment.'
     await exclusive(async () => {
-      text = await removeLearned($, item)
+      text = clean(await removeLearned($, item))
     })
     if ((await read($, band))?.kind === 'rules') await showRules($, text)
     return { text }
   }).catch(() => ({ text: 'noted: /rules failed; the debug log (claude --debug) says why.' }))
 
-  // The band, drawn above whatever other mods draw there (next(e) beneath),
-  // never in place of it.
+  // The band, drawn after whatever other mods draw there (next(e)), never in
+  // place of it.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     if (e.props.hasSurvey) return next(e)
@@ -438,12 +460,14 @@ export const register: Register = on => {
     const ui = $.ui.resolve(e)
     const { Box } = ui
     const below = await next(e)
+    // Other mods' bands first: when the band overflows, its end scrolls out of
+    // view, and their buttons (a Cancel, say) must never be the part pushed out.
     return (
       <Box flexDirection="column">
+        {below}
         <Box key="noted" flexDirection="column">
           {bandTree($, ui, shown)}
         </Box>
-        {below}
       </Box>
     )
   })
@@ -464,7 +488,7 @@ function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedB
     return (
       <Box flexDirection="row" gap={1}>
         <Box key="notice" flexShrink={1}>
-          <Text color={shown.isError ? 'error' : undefined}>Noted: {shown.text}</Text>
+          <Text color={shown.isError ? 'error' : undefined}>Noted: {clean(shown.text)}</Text>
         </Box>
         <Button key="ok" label="OK" hotkey="o" role="dismiss" onPress={close} />
       </Box>
@@ -483,17 +507,17 @@ function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedB
             <Button key={`remove-${l.id}`} label="Remove" dimColor onPress={() => pressRemove($, l.id)} />
             <Box flexShrink={1}>
               <Text>
-                {i + 1}. {l.rule}{' '}
+                {i + 1}. {clean(l.rule)}{' '}
               </Text>
               <Text dimColor>
-                ({l.scope === 'project' ? './CLAUDE.md' : shown.globalLabel}, added {day(l.addedAt)})
+                ({l.scope === 'project' ? './CLAUDE.md' : clean(shown.globalLabel)}, added {day(l.addedAt)})
               </Text>
             </Box>
           </Box>
         ))}
         {shown.message !== null && (
           <Box key="message">
-            <Text dimColor>{shown.message}</Text>
+            <Text dimColor>{clean(shown.message)}</Text>
           </Box>
         )}
         <Button key="done" label="Done" hotkey="d" role="dismiss" onPress={close} />
@@ -509,26 +533,26 @@ function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedB
         <Input
           key="rule-input"
           label="Rule: "
-          value={shown.rule}
+          value={clean(shown.rule)}
           submitLabel="keep"
           autoFocus
           onSubmit={value => finishEdit($, value)}
         />
       ) : (
         <Box key="rule">
-          <Text>{shown.rule}</Text>
+          <Text>{clean(shown.rule)}</Text>
         </Box>
       )}
       {conflict !== null && (
         <Box key="conflict">
           <Text color="warning">
-            Conflicts with a rule in {conflict.label}: {conflict.text}
+            Conflicts with a rule in {clean(conflict.label)}: {clean(conflict.text)}
           </Text>
         </Box>
       )}
       {shown.note !== null && (
         <Box key="note">
-          <Text dimColor>{shown.note}</Text>
+          <Text dimColor>{clean(shown.note)}</Text>
         </Box>
       )}
       {shown.isEditing ? (

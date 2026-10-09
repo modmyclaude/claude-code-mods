@@ -24,9 +24,9 @@ Use pnpm, not npm, in this repo.
 - If the rule is already there (same words, or the same meaning), the band says **already a rule** instead of proposing it again.
 - If it contradicts a rule you already have, the band shows the old rule and offers **Replace old rule**, which rewrites that line in place, instead of adding a contradiction.
 
-Once the band has focus (click it, or ctrl+x tab), `e` edits, `s` skips, `o` dismisses a notice and `d` closes the `/rules` list. The buttons that write a file (Save, Replace old rule, Remove) have no key, so a stray keystroke never writes one. The band sits above any other mod's band rather than replacing it.
+Once the band has focus (click it, or ctrl+x tab), `e` edits, `s` skips, `o` dismisses a notice and `d` closes the `/rules` list. The buttons that write a file (Save, Replace old rule, Remove) have no key, so a stray keystroke never writes one. noted's lines come after any other mod's band, never in place of it, so their buttons stay in view.
 
-`/rules` lists the rules noted has learned, with the file and the date each was added, in the transcript and in the band, where each one has a **Remove** button. `/rules remove <number>` removes one by its number, for surfaces without the band. Removing a rule deletes its line from the file.
+`/rules` lists the rules noted has learned, with the file and the date each was added, in the transcript and in the band, where each one has a **Remove** button. `/rules remove <number>` removes one by its number, for surfaces without the band; it acts only when you type it, and a peer session, channel, task or plugin running it gets a refusal. Removing a rule deletes its line from the file. The `/rules` listing is a transcript row, so Claude reads it too.
 
 ## Settings
 
@@ -36,9 +36,9 @@ None.
 
 - **Files read:** `./CLAUDE.md` at the project root and `~/.claude/CLAUDE.md` (or `$CLAUDE_CONFIG_DIR/CLAUDE.md` when that is set), only to find the `## House rules` list. They are read when a correction is detected, when you press a button and when you run `/rules`.
 - **Files written:** those two files and nothing else, and only after you press Save, Replace old rule or Remove, or run `/rules remove <number>`. A file that exists but cannot be read is never written.
-- **Environment:** `HOME`, `USERPROFILE` and `CLAUDE_CONFIG_DIR`, to find the global file.
+- **Environment:** `CLAUDE_CONFIG_DIR`, `USERPROFILE` and `HOME` (in that order), to find the global file.
 - **Transcript:** the last 600 characters of Claude's previous reply, as context for the rule.
-- **Model calls:** one per prompt that passes a keyword pre-filter, never for other prompts. It uses the `haiku` alias at low effort and sends the correction (up to 600 characters), that reply tail, and up to 60 existing rules (200 characters each). That is at most about 4,000 input tokens and usually a few hundred. The reply is capped at 600 tokens, room for the model to think first, and the call at 20 seconds. A reply cut short is ignored. The call goes through the session's own client.
+- **Model calls:** one per prompt that passes a keyword pre-filter, never for other prompts. It uses the `haiku` alias at low effort and sends the correction (up to 600 characters), that reply tail, and up to 60 existing rules (200 characters each). That is at most about 4,000 input tokens and usually a few hundred. The existing rules, like the correction and the reply tail, are sent as quoted data the model is told not to follow, and nothing is written until you press a button. The reply is capped at 1,024 tokens, room for the model to think first, and the call at 20 seconds. A reply cut short is ignored. The call goes through the session's own client.
 - **Store:** noted's own store keeps each saved rule's text, file and date, so `/rules` can show when it was added.
 - **Network and processes:** none of its own.
 
@@ -48,11 +48,12 @@ None.
 - Only prompts you type (terminal, Remote Control, desktop app) are read. Prompts from tools, plugins, peers and schedules are ignored.
 - The band draws in the terminal and the desktop app. In VS Code or on mobile, noted says once that corrections there are not captured. `/rules` works everywhere.
 - The model call runs after your prompt has entered, alongside Claude's reply, so it never slows the turn. If you interrupt the turn while it runs, that suggestion may be lost.
-- If the session cannot use the `haiku` model (some Bedrock, Vertex or gateway setups), noted says so once and proposes nothing.
+- If the session cannot use the `haiku` model (some Bedrock, Vertex or gateway setups, refused or answered as "model not found"), noted says so once and proposes nothing.
 - "Same meaning" duplicates and conflicts are judged by the model, which sees the first 60 existing rules. Same-words duplicates are caught in every rule, without the model.
 - `/rules` lists only rules saved through noted. Rules you write by hand still count for duplicates and conflicts. A rule you delete by hand drops off the list.
 - Claude Code reads CLAUDE.md when a session starts, so a saved rule steers Claude from the next session on. The correction you just typed is already in the current conversation.
-- A CLAUDE.md that is not valid UTF-8 text is left alone. Line endings are kept. Removing the last rule leaves the heading in place.
+- A CLAUDE.md that is not valid UTF-8 text is left alone, and so is one where a code fence that never closes would swallow the new rule. Line endings are kept. Removing the last rule leaves the heading in place.
+- Terminal escapes and control characters are stripped from a rule before it is written, and shown as a placeholder in the band when they sit in rules you already have; those lines in your file are never touched.
 
 ## Built from a prompt
 

@@ -3,7 +3,7 @@
 // plugin calls is answered here, so nothing reaches a real disk or model.
 
 import { mock } from 'claude-code/testing'
-import type { ModelCompleteInput, ModelUsage, On, RenderSurface, SessionMessage } from 'claude-code'
+import type { ModelApiError, ModelCompleteInput, ModelUsage, On, RenderSurface, SessionMessage } from 'claude-code'
 
 export const ROOT = '/work/app'
 export const PROJECT = `${ROOT}/CLAUDE.md`
@@ -41,8 +41,14 @@ export function verdict(rule: string | null, extra: { duplicateOf?: number; conf
 
 type Options = {
   files?: Record<string, string>
-  /** The model's text, or a function of the request; `null` makes it fail. */
-  reply?: string | null | ((e: ModelCompleteInput) => string)
+  /** The model's text, or a function of the request (late when async); `null` makes it fail. */
+  reply?: string | null | ((e: ModelCompleteInput) => string | Promise<string>)
+  /** How a `null` reply fails (default `overloaded`). */
+  modelError?: ModelApiError
+  /** Variables beyond HOME=/home/me. */
+  env?: Record<string, string>
+  /** A hook beneath noted drops every prompt with this reason. */
+  dropPrompts?: string
   messages?: SessionMessage[]
   surfaces?: RenderSurface[]
   /** Paths that exist but cannot be read. */
@@ -62,8 +68,8 @@ export function world(on: On, options: Options = {}) {
   ]
 
   mock.store(on)
-  mock.env(on, { HOME: '/home/me' })
-  mock.clock(on, { now: NOW })
+  mock.env(on, { HOME: '/home/me', ...options.env })
+  const clock = mock.clock(on, { now: NOW })
 
   on('session.root', () => ({ value: ROOT }))
   on('session.surfaces', () => ({ value: options.surfaces ?? ['terminal'] }))
@@ -81,15 +87,16 @@ export function world(on: On, options: Options = {}) {
     return { value: undefined }
   })
 
-  on('model.complete', ($, e) => {
+  on('model.complete', async ($, e) => {
     calls.push(e)
     const reply = options.reply === undefined ? verdict(null) : options.reply
     if (reply === null) {
-      return { value: { isAnswered: false, reason: 'api-error', status: 529, error: 'overloaded', usage: ZERO } }
+      const error = options.modelError ?? 'overloaded'
+      return { value: { isAnswered: false, reason: 'api-error', status: 529, error, usage: ZERO } }
     }
     let text: string
     try {
-      text = typeof reply === 'function' ? reply(e) : reply
+      text = typeof reply === 'function' ? await reply(e) : reply
     } catch (err) {
       return { deny: String(err) } // the call itself fails
     }
@@ -97,7 +104,7 @@ export function world(on: On, options: Options = {}) {
   })
 
   // The engine's own end of each chain the plugin passes on.
-  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('prompt.submit', ($, e) => (options.dropPrompts === undefined ? { text: e.text } : { drop: options.dropPrompts }))
   on('ui.log', ($, e) => {
     logs.push(e.text)
     return { value: undefined }
@@ -111,5 +118,5 @@ export function world(on: On, options: Options = {}) {
     )
   })
 
-  return { files, calls, writes, logs, messages }
+  return { files, calls, writes, logs, messages, clock }
 }
