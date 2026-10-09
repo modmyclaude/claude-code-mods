@@ -13,7 +13,7 @@
 /plugin install last-look --marketplace modmyclaude/claude-code-mods
 ```
 
-<!-- count -->12<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
+<!-- count -->13<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
 
 </div>
 
@@ -43,6 +43,12 @@ On older versions, add the marketplace first:
 ## The mods
 
 <!-- catalogue:start -->
+### Safety
+
+| Mod | What it does | Can reach | Install |
+|---|---|---|---|
+| [**Last Look**](mods/last-look) | Holds destructive commands and shows exactly what they would destroy. [Prompt](prompts/last-look.md) | `reads files` `runs commands` `hooks tool calls` | `last-look@modmyclaude` |
+
 ### Cost and limits
 
 | Mod | What it does | Can reach | Install |
