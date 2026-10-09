@@ -1,7 +1,7 @@
 {
   "name": "last-look",
   "version": "0.1.0",
-  "description": "Holds destructive commands and shows exactly what they would destroy.",
+  "description": "Holds destructive commands until you approve, and shows what they would destroy.",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["safety", "bash", "rm", "git", "guard", "destructive", "review"],

@@ -308,5 +308,6 @@ for (const [rel, content] of outputs) {
 }
 const failed = mods.filter(m => !m.reach.ok)
 for (const m of failed) console.error(`validate failed: ${m.name}: ${m.reach.notes.join(' | ')}`)
-console.log(`${mods.length} mods catalogued${failed.length ? `, ${failed.length} failed validation` : ''}`)
+const testTotal = mods.reduce((n, m) => n + (m.tests?.count ?? 0), 0)
+console.log(`${mods.length} mods catalogued, ${testTotal} tests${failed.length ? `, ${failed.length} failed validation` : ''}`)
 process.exit(stale || failed.length ? 1 : 0)
