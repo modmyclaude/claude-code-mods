@@ -489,6 +489,37 @@ describe('failing safe', () => {
     expect(ran).toEqual([])
   })
 
+  test('V-1: a redirect after a command that creates its target is held', async ($, on) => {
+    const { seen, ran } = setup(on, { files: { 'a.ts': { size: 100, git: 'modified' } } })
+    const call = bash($, 'mv a.ts tmp && echo x > tmp')
+    await until(() => seen.opened.length > 0, 'the pane to open')
+    const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+    await ui.press({ key: 'cancel' })
+    expect(refusal(await call)).toContain('chose Cancel')
+    expect(ran).toEqual([])
+  })
+
+  test('V-2: find through a link in an allowed folder is held with the default alwaysAllow', async ($, on) => {
+    const { seen, ran } = setup(on, { files: { 'src/a.ts': { size: 1, git: 'modified' }, 'dist/x.js': { size: 1, git: 'ignored' } }, links: { 'dist/src': '/work/app/src' } })
+    const call = bash($, 'find -L dist -delete')
+    await until(() => seen.opened.length > 0, 'the pane to open')
+    const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+    await ui.press({ key: 'cancel' })
+    await call
+    expect(ran).toEqual([])
+  })
+
+  test('V-3: git branch -D -- feature is held', async ($, on) => {
+    const { seen, ran } = setup(on, { files: { 'a.ts': { size: 1, git: 'clean' } }, git: { refs: ['refs/heads/feature'], ranges: { 'only:feature': ['1111111 wip'] } } })
+    const call = bash($, 'git branch -D -- feature')
+    await until(() => seen.opened.length > 0, 'the pane to open')
+    const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+    expect((await ui.find({ key: 'headline' }))?.text).toBe('1 commit would be lost')
+    await ui.press({ key: 'cancel' })
+    await call
+    expect(ran).toEqual([])
+  })
+
   test('a stat error is never taken for "does not exist": the redirect holds', async ($, on) => {
     const { seen, ran } = setup(on, { ...FILES, unreadable: ['secret.txt'] })
     const call = bash($, 'echo hi > secret.txt')

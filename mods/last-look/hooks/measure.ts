@@ -110,6 +110,10 @@ async function measureOne(ctx: Ctx, f: Finding): Promise<LastLookItem> {
       return push(ctx, f, where, notes, at.dir)
     case 'git-branch-delete':
       return branchDelete(ctx, f, where, notes, at.dir)
+    case 'git-worktree-remove': {
+      const paths = git?.sub === 'worktree' ? git.paths.map(w => w.raw).join(' ') : ''
+      return unmeasured(f, where, `it deletes the worktree ${paths} and any uncommitted work in it`, notes)
+    }
     case 'xargs-rm':
       return unmeasured(f, where, 'it deletes whatever the command before it prints', notes)
   }
@@ -343,7 +347,7 @@ async function findDelete(ctx: Ctx, f: Finding, where: string, notes: LastLookRo
     }
     return unmeasured(f, where, `nothing was found at ${names}, but the shell may read these paths differently`, notes)
   }
-  if (allowed(ctx, f, starts, found)) return allowedItem(f, where, notes)
+  // alwaysAllow never covers find: -L, -H or -follow (anywhere) reach through links.
 
   const dirReal = (await stat(ctx, dir))?.realPath ?? dir
   const out = await run(ctx, ['find', ...listing], dirReal, LIST_MS).catch(() => undefined)
@@ -431,7 +435,9 @@ async function overwrite(ctx: Ctx, f: Finding, where: string, notes: LastLookRow
   if (typeof paths === 'string') return unmeasured(f, where, paths, notes)
   const path = paths[0]
   if (!path) return unmeasured(f, where, 'it names no file', notes)
-  const isPlain = path.plain && plainSteps(f.cd)
+  // The exception holds only for a command that is this redirect alone: in
+  // `mv a tmp && echo x > tmp` the target exists by the time the redirect runs.
+  const isPlain = path.plain && plainSteps(f.cd) && f.isSole === true
   // `stat` answers undefined only when the path positively does not exist; any
   // other failure throws, and the part is held unmeasured.
   const found = await stat(ctx, path.abs)
@@ -448,9 +454,6 @@ async function overwrite(ctx: Ctx, f: Finding, where: string, notes: LastLookRow
     notes = [...notes, { text: `${name} is a link: the file it leads to is overwritten.`, tone: 'warning' }]
   }
   const real = found.realPath
-  if (isPlain && real !== undefined && ctx.allow.length > 0 && isAllowed(path.abs, ctx.root, ctx.allow) && isAllowed(real, ctx.rootReal, ctx.allow)) {
-    return allowedItem(f, where, notes)
-  }
 
   const view = await gitView(ctx, dir, [real ?? path.abs], true)
   const rows = [...notes]

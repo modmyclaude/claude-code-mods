@@ -22,6 +22,8 @@ export type Redir = {
   fd?: string
   /** The file it names; absent for a here-doc or a descriptor copy (`2>&1`). */
   target?: RawWord
+  /** For a here-doc: its delimiter was quoted, so its body is plain data (no `$(...)` runs). */
+  isQuotedDoc?: boolean
 }
 
 export type Simple = {
@@ -159,7 +161,7 @@ class Parser {
     if (op === '<<' || op === '<<-') {
       const delim = this.word()
       this.heredocs.push({ delim: literal(delim), strip: op === '<<-' })
-      return { op, fd }
+      return { op, fd, isQuotedDoc: delim.parts.some(p => p.t === 'lit' && p.quoted) }
     }
     const target = this.word()
     if ((op === '>&' || op === '<&') && /^(\d+|-)$/.test(literal(target))) return { op, fd }

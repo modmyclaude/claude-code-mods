@@ -111,6 +111,15 @@ const CAUGHT: [string, Kind[]][] = [
   ['git branch --delete --force feature', ['git-branch-delete']],
   ['git branch -d -f feature', ['git-branch-delete']],
   ['git branch --merged | xargs git branch -D', ['git-branch-delete']],
+  // `--` ends the options in every git rule.
+  ['git branch -D -- feature', ['git-branch-delete']],
+  ['git branch -D -- -weird', ['git-branch-delete']],
+  ['git push --force -- origin main', ['git-push-force']],
+  ['git restore -- src/app.ts', ['git-discard']],
+  ['git clean -fd -- src', ['git-clean']],
+  ['git reset --hard --', ['git-reset-hard']],
+  ['git worktree remove --force ../wt', ['git-worktree-remove']],
+  ['git worktree remove -f ../wt', ['git-worktree-remove']],
   ['echo hi > notes.txt', ['redirect']],
   ['cat config.json > backup.json', ['redirect']],
   ['npm test 2> errors.log', ['redirect']],
@@ -164,6 +173,8 @@ const SAFE: string[] = [
   'git branch -d feature',
   'git branch -D -r origin/feature',
   'git branch -D',
+  'git worktree remove ../wt',
+  'git worktree list',
   'find . -name "*.ts"',
   'find . -name "-delete"',
   'find . -type f -exec grep -l TODO {} +',
@@ -349,6 +360,21 @@ describe('classify', () => {
     }
     expect(one("find cache -regex '.*\\.pyc' -delete").findListing).toBeUndefined()
     expect(one('find . -name x -exec sudo rm -rf {} +').findListing).toBeDefined()
+  })
+
+  test('only a lone redirect is marked sole: nothing runs before or inside it', () => {
+    const sole = (command: string) => one(command).isSole === true
+    expect(sole('echo x > new.txt')).toBe(true)
+    expect(sole('cat > new.md <<\'EOF\'\n$(rm -rf src)\nEOF')).toBe(true)
+    expect(sole('mv a.ts tmp && echo x > tmp')).toBe(false)
+    expect(sole('ln a.ts hard.txt; : > hard.txt')).toBe(false)
+    expect(sole('echo x > new.txt &')).toBe(false)
+    expect(sole('( echo x > new.txt )')).toBe(false)
+    expect(sole('echo $(date) > new.txt')).toBe(false)
+    expect(sole('cat > new.md <<EOF\n$(rm -rf src)\nEOF')).toBe(false)
+    expect(sole('ls\necho x > new.txt')).toBe(false)
+    expect(sole('ls | tee x > new.txt')).toBe(false)
+    expect(classify('echo x > a.txt > b.txt').every(f => !f.isSole)).toBe(true)
   })
 
   test('git clean counts its forces', () => {

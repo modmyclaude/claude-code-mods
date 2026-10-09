@@ -30,18 +30,19 @@ Compound commands are understood: `cd web && rm -rf build` is measured inside `w
 | `git reset --hard [ref]` | uncommitted changes discarded, commits dropped from the branch |
 | `git checkout -- <paths>`, `git checkout .`, `git checkout <file>`, `git checkout -f`, `git restore <paths>`, `git switch --discard-changes` | uncommitted changes in those paths |
 | `git push --force`, `-f`, `+refspec`, `--mirror`, even beside `--force-with-lease` (a lease alone is not held) | commits on the remote branch that yours lacks, as of your last fetch |
-| `git branch -D`, `git branch --delete --force` | commits that exist only on that branch |
+| `git branch -D`, `git branch --delete --force` (`--` before the names too) | commits that exist only on that branch |
+| `git worktree remove --force` / `-f` | held as "could not measure": it deletes the worktree folder and any uncommitted work in it |
 | `> file`, `2> file`, `&> file`, `>\| file` onto an existing file (not `>>`, not `/dev/null`) | the file's size and git status |
 
 Every one of these is held even when nothing is found to destroy (`rm -rf build` with no `build`, `git reset --hard` on a clean tree): the hold says what it found. Only two cases run untouched, and only on positive proof that they destroy nothing:
-- a redirect (`> new.txt`) whose target is a plain literal path (no `$VAR`, `~`, glob, braces, `..`, `$(...)` or backticks) that the file system answers **does not exist**. Any other answer (a permission error, a link, a folder, a path it cannot read) holds;
+- a redirect (`> new.txt`) when the whole command is that one simple command (no `&&`, `||`, `;`, `|`, `&`, newline, subshell, `$(...)` or unquoted here-doc: an earlier part could create the file first), its target is a plain literal path (no `$VAR`, `~`, glob, braces, `..`, `$(...)` or backticks), and the file system answers that it **does not exist**. Any other answer (a permission error, a link, a folder, a path it cannot read) holds;
 - a bare `git checkout <name>` (no `-f`, `--force`, `--`, extra paths or other options; `<name>` a plain token) when git confirms `<name>` is a local branch, a remote-tracking branch, or the one remote branch it would set up, and no file of that name makes it ambiguous. A git error, a tag or commit, or any doubt holds. (git itself refuses a branch switch that would lose changes.)
 
 ## Settings
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `alwaysAllow` | `dist,build,.next,coverage,node_modules/.cache` | Folders that are fine to delete or overwrite without asking (with `rm -r`, `find -delete` or a redirect). A relative entry matches that run of folder names anywhere beneath the project root (`dist` matches `packages/web/dist`, not `distro`, and never the root itself); an absolute entry matches by prefix. A command passes only when **every** path it touches is a plain literal path (no glob, braces, `$VAR`, `~`, `..` or `$(...)`) that exists, and both its spelling and where its links lead are inside an allowed folder. Git commands are never allowed this way. Leave it empty to hold everything. |
+| `alwaysAllow` | `dist,build,.next,coverage,node_modules/.cache` | Folders that are fine to delete with `rm -r` without asking. It never covers `find` (with `-L`, `-H` or `-follow` it reaches through links), redirects or git. A relative entry matches that run of folder names anywhere beneath the project root (`dist` matches `packages/web/dist`, not `distro`, and never the root itself); an absolute entry matches by prefix. A command passes only when **every** path it touches is a plain literal path (no glob, braces, `$VAR`, `~`, `..` or `$(...)`) that exists, and both its spelling and where its links lead are inside an allowed folder. Leave it empty to hold everything. |
 
 ## What it can touch
 
@@ -59,7 +60,7 @@ Every one of these is held even when nothing is found to destroy (`rm -rf build`
   - a program named only at run time (`$(echo rm) -rf`, `"$RM" -rf`, `eval $CMD`), shell and git aliases, flags hidden in variables (`rm $FLAGS dir`);
   - other interpreters and tools (`python -c`, `node -e`, `perl -e`, `rsync --delete`, `grm`, `busybox rm`, `parallel rm`, `ssh host rm`, `docker run ... rm`);
   - other ways to destroy files or history (`mv` or `cp` over a file, `sed -i`, `tee`, `truncate`, `dd`, `git stash drop`/`clear`, `git push --delete` or `origin :branch`, `git checkout -B`, `git switch -C`, `git rm -r`, `git reset --merge`, `git gc --prune`, database commands).
-- `rm` without `-r` (any number of plain files, `rm *` included) is left alone on purpose.
+- `rm` without `-r` (any number of plain files, `rm *` included) is left alone on purpose, and so are the other one-file-at-a-time tools treated like it: `shred`, `unlink`, `ln -sf` over a file.
 - Only the Bash tool and the Monitor tool's command are held. The Edit and Write tools are not.
 - It measures with the system `find`; the shell's own `find` (Claude Code's bundled one, or GNU find) can match a little differently, so a listing is a guide, and an empty or failed one holds as "could not measure".
 - zsh's `**` patterns, and brace expressions past 256 words, are held as "could not measure" rather than guessed at.
