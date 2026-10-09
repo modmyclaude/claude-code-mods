@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/thermostat.svg" width="64" height="64" alt="">
+
 # Thermostat
 
 Shows when your prompt cache goes cold, and stops the expensive send.
@@ -65,3 +67,5 @@ Prices come from a small table of API list prices per model family (October 2026
 ## Built from a prompt
 
 This mod was built from [the Thermostat prompt](../../prompts/thermostat.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

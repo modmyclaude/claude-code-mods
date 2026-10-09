@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/last-look.svg" width="64" height="64" alt="">
+
 # Last Look
 
 Holds destructive commands until you approve, and shows what they would destroy.
@@ -78,3 +80,5 @@ Every one of these is held even when nothing is found to destroy (`rm -rf build`
 ## Built from a prompt
 
 This mod was built from [prompts/last-look.md](../../prompts/last-look.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

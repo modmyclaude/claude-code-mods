@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/ant-farm.svg" width="64" height="64" alt="">
+
 # Ant Farm
 
 Watch your subagents work, and what they cost, live.
@@ -116,3 +118,5 @@ Watch your subagents work, and what they cost, live.
 ## Built from a prompt
 
 This mod was built from [the ant-farm prompt](../../prompts/ant-farm.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/porthole.svg" width="64" height="64" alt="">
+
 # Porthole
 
 A live preview of the app you are building, right beside the chat.
@@ -86,3 +88,5 @@ not open, Chrome missing) stays visible as the command's output.
 ## Built from a prompt
 
 This mod was built from [prompts/porthole.md](../../prompts/porthole.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

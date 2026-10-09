@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/wardrobe.svg" width="64" height="64" alt="">
+
 # Wardrobe
 
 Restyle Claude Code live, including colourblind-safe and high-contrast themes.
@@ -78,3 +80,5 @@ Set these in `/config`. A time wardrobe cannot read falls back to its default, a
 ## Built from a prompt
 
 This mod was built from [prompts/wardrobe.md](../../prompts/wardrobe.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/fine-print.svg" width="64" height="64" alt="">
+
 # Fine Print
 
 A second reader that flags what you would miss in a wall of text.
@@ -58,3 +60,5 @@ Change them in `/config` (or on the install screen).
 ## Built from a prompt
 
 This mod was built from [prompts/fine-print.md](../../prompts/fine-print.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

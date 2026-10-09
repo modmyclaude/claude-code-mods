@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/footprints.svg" width="64" height="64" alt="">
+
 # Footprints
 
 A live file tree beside the chat that shows where Claude has been.
@@ -58,3 +60,5 @@ None.
 ## Built from a prompt
 
 [prompts/footprints.md](../../prompts/footprints.md)
+
+More mods: [the full catalogue](../../README.md#the-mods).

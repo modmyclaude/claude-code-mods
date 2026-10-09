@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/noted.svg" width="64" height="64" alt="">
+
 # Noted
 
 Turns your corrections into permanent rules, without duplicates.
@@ -58,3 +60,5 @@ None.
 ## Built from a prompt
 
 This mod was built from [`prompts/noted.md`](../../prompts/noted.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

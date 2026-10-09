@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/redline.svg" width="64" height="64" alt="">
+
 # Redline
 
 Context fill, session cost and pace on one line, with a warning before the red line.
@@ -53,3 +55,5 @@ None. The thresholds (60%, 80%, re-arm under 75%) and the 10-minute window are f
 ## Built from a prompt
 
 This mod was built from [its prompt](../../prompts/redline.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/hatchling.svg" width="64" height="64" alt="">
+
 # Hatchling
 
 A collectible pixel pet that hatches, reacts and evolves while you code.
@@ -83,3 +85,5 @@ None.
 ## Built from a prompt
 
 This mod was built from [this prompt](../../prompts/hatchling.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

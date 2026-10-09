@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/pager.svg" width="64" height="64" alt="">
+
 # Pager
 
 Plays a sound when Claude finishes, needs you or hits an error.
@@ -84,3 +86,5 @@ python3 -I mods/pager/tools/synth.py
 ## Built from a prompt
 
 This mod was built from [`../../prompts/pager.md`](../../prompts/pager.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).

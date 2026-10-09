@@ -187,6 +187,14 @@ function isTracked(rel) {
   }
 }
 
+// A mod README carries GitHub-only chrome (its icon above the title, a link back to the catalogue) whose
+// relative paths would break on the site, which draws its own icon and navigation: drop it from the site data.
+function siteReadme(text) {
+  return text
+    .replace(/^<img src="\.\.\/\.\.\/brand\/pixel-icons\/svg\/[^"]+"[^>]*>\s*\n+/, '')
+    .replace(/\n+More mods: \[the full catalogue\]\(\.\.\/\.\.\/README\.md#the-mods\)\.\s*$/, '\n')
+}
+
 function collect() {
   const mods = []
   for (const file of readdirSync(join(ROOT, 'prompts')).filter(f => f.endsWith('.md')).sort()) {
@@ -209,7 +217,7 @@ function collect() {
       keywords: manifest.keywords || [],
       prompt: promptText(text),
       media: ['gif', 'png', 'webp'].map(ext => `${fm.mod}.${ext}`).find(f => existsSync(join(ROOT, 'site', 'media', f))) ?? null,
-      readme: existsSync(join(ROOT, 'mods', fm.mod, 'README.md')) ? readFileSync(join(ROOT, 'mods', fm.mod, 'README.md'), 'utf8') : '',
+      readme: existsSync(join(ROOT, 'mods', fm.mod, 'README.md')) ? siteReadme(readFileSync(join(ROOT, 'mods', fm.mod, 'README.md'), 'utf8')) : '',
       reach: reachOf(join(ROOT, 'mods', fm.mod)),
       commands: commandsOf(join(ROOT, 'mods', fm.mod)),
       settings: settingsOf(manifest),

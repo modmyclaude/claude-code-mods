@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/play-by-play.svg" width="64" height="64" alt="">
+
 # Play-by-Play
 
 Replays every change Claude made in a turn, shell edits included.
@@ -88,3 +90,5 @@ None.
 ## Built from a prompt
 
 This mod was built from [prompts/play-by-play.md](../../prompts/play-by-play.md).
+
+More mods: [the full catalogue](../../README.md#the-mods).
