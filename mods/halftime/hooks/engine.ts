@@ -18,6 +18,11 @@ import { shareLine } from './share'
 export const COUNTDOWN = 3
 /** The longest a realtime tick may advance, so a stalled frame never jumps the game. */
 export const MAX_TICK_MS = 200
+/**
+ * A realtime run with no key or click for this long pauses itself. Esc tells
+ * the mod nothing, so this is how a run someone walked away from stops ticking.
+ */
+export const IDLE_PAUSE_MS = 20_000
 
 export const EMPTY_SESSION: HalftimeSession = {
   phase: 'off', practice: false, run: null, whistle: null, asking: [], turn: null, nextId: 1, owed: [0, 0, 0],
@@ -53,7 +58,21 @@ function credit(s: HalftimeSession, run: HalftimeRun, ms: number): [HalftimeSess
   ]
 }
 
-/** Closes a turn-based run's live stretch up to now (realtime runs are credited per tick). */
+/**
+ * Counts a realtime run's play since the last input. Ticks only hold it back
+ * (`run.pending`) until the person shows they are still there; a run that
+ * idles out drops it instead, so time nobody played is never counted.
+ */
+function confirm(s: HalftimeSession, run: HalftimeRun): [HalftimeSession, HalftimeRun] {
+  const [ms, wait] = run.pending
+  if (ms === 0 && wait === 0) return [s, run]
+  return [
+    { ...s, owed: [s.owed[0] + ms, s.owed[1] + wait, s.owed[2]] },
+    { ...run, playedMs: run.playedMs + ms, waitPlayedMs: run.waitPlayedMs + wait, pending: [0, 0] },
+  ]
+}
+
+/** Closes a turn-based run's live stretch up to now (realtime runs are counted per tick). */
 function checkpoint(s: HalftimeSession, run: HalftimeRun, now: number): [HalftimeSession, HalftimeRun] {
   if (run.status !== 'live' || run.liveSince === 0) return [s, run]
   const [s2, r2] = credit(s, run, now - run.liveSince)
@@ -61,19 +80,20 @@ function checkpoint(s: HalftimeSession, run: HalftimeRun, now: number): [Halftim
 }
 
 /**
- * Takes a run out of play: no tick, no clock, until it goes live again.
+ * Takes a run out of play: no tick, no clock, until it goes live again. What
+ * was played up to now counts (an idle pause empties `pending` first).
  * `keysLeft`: the keys went elsewhere, so the board comes back as a fresh one
  * that waits for a click (only p, pressed on the board itself, keeps it).
  */
 function leaveLive(s: HalftimeSession, run: HalftimeRun, now: number, status: HalftimeRun['status'], held: boolean, keysLeft = true): [HalftimeSession, HalftimeRun] {
-  const [s2, r2] = checkpoint(s, run, now)
+  const [s2, r2] = checkpoint(...confirm(s, run), now)
   return [s2, { ...r2, status, held, lastAt: 0, liveSince: 0, count: 0, epoch: r2.epoch + (keysLeft ? 1 : 0) }]
 }
 
 /** In play. A turn-based run's clock starts at the first touch, a realtime one at the first tick. */
 function goLive(run: HalftimeRun, now: number, touched: boolean): HalftimeRun {
   const turnBased = !gameOf(run.game).realtime
-  return { ...run, status: 'live', held: false, count: 0, lastAt: 0, liveSince: turnBased && touched ? now : 0 }
+  return { ...run, status: 'live', held: false, count: 0, lastAt: 0, liveSince: turnBased && touched ? now : 0, inputAt: now }
 }
 
 /** A run's share line, counting the main turn still running. */
@@ -86,7 +106,7 @@ export function shareOf(s: HalftimeSession, run: HalftimeRun, score: number | nu
 
 /** The run just ended: freeze its clock, write its share line, owe it to the totals. */
 function finish(s: HalftimeSession, run: HalftimeRun, now: number): HalftimeSession {
-  const [s2, r2] = checkpoint(s, run, now)
+  const [s2, r2] = checkpoint(...confirm(s, run), now)
   const score = gameOf(run.game).score(r2.g, r2.playedMs)
   const { line, waitMs } = shareOf(s2, r2, score, now)
   const over: HalftimeRun = {
@@ -123,7 +143,7 @@ export function startGame(s: HalftimeSession, game: HalftimeGameId, practice: bo
   const seed = practice ? practiceSeed(game, now, id) : dailySeed(game, day)
   const run: HalftimeRun = {
     id, game, mode, day, seed, g: gameOf(game).init(seed), status: 'ready', count: 0, held: false, epoch: 0,
-    createdAt: now, lastAt: 0, liveSince: 0, playedMs: 0, waitPlayedMs: 0, waitMs: 0,
+    createdAt: now, lastAt: 0, liveSince: 0, inputAt: 0, pending: [0, 0], playedMs: 0, waitPlayedMs: 0, waitMs: 0,
     input: { iid: '', seq: 0, arm: 0 }, result: null,
   }
   return { ...base, phase: 'board', whistle: null, practice, run, nextId: id + 1 }
@@ -228,6 +248,10 @@ export function onMessage(s: HalftimeSession, msg: BoardMsg, now: number): Halft
   let next: HalftimeSession = s
   let run: HalftimeRun = { ...s.run, input: { iid: msg.iid, seq, arm: Math.max(lastArm, msg.arm) } }
 
+  // Any new key or click is the person still at the board: the play since their last one
+  // counts, and the idle clock starts over.
+  if (msg.arm > lastArm || msg.ev.some(([n]) => n > lastSeq)) [next, run] = confirm(next, { ...run, inputAt: now })
+
   // A click on a board that was not in play is the person taking the keys: start, or go on.
   if (msg.arm > lastArm && (run.status === 'ready' || (run.status === 'paused' && !run.held))) run = goLive(run, now, true)
 
@@ -261,9 +285,15 @@ export function onMessage(s: HalftimeSession, msg: BoardMsg, now: number): Halft
   }
 
   if (msg.tick && run.status === 'live' && game.realtime && game.step) {
+    if (now - run.inputAt >= IDLE_PAUSE_MS) {
+      // Nobody has touched it in a while (Esc, or a walk-away): pause, which stops the
+      // board's frame clock, and drop the idle stretch so it never counts as play.
+      ;[next, run] = leaveLive(next, { ...run, pending: [0, 0] }, now, 'paused', false)
+      return { ...next, run }
+    }
     const dt = run.lastAt > 0 ? Math.max(0, Math.min(MAX_TICK_MS, now - run.lastAt)) : 0
-    ;[next, run] = credit(next, { ...run, lastAt: now }, dt)
-    run = { ...run, g: game.step(run.g, dt) }
+    const wait = turnActive(next) ? dt : 0
+    run = { ...run, lastAt: now, pending: [run.pending[0] + dt, run.pending[1] + wait], g: game.step(run.g, dt) }
   }
 
   if (run.status === 'live' && game.isOver(run.g)) return finish(next, run, now)

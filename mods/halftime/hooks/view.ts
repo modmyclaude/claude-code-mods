@@ -47,8 +47,8 @@ function liveScore(run: HalftimeRun, now: number): string {
 function overText(run: HalftimeRun): string {
   const score = run.result?.score ?? null
   const shown = scoreText(run.game, score)
-  if (run.game === 'dash') return `crashed at ${shown}`
-  if (run.game === 'slither') return (run.g as { won: boolean }).won ? `filled the field: ${shown}` : `bit your own tail at ${shown}`
+  if (run.game === 'hurdle') return `crashed at ${shown}`
+  if (run.game === 'tailchase') return (run.g as { won: boolean }).won ? `filled the field: ${shown}` : `bit your own tail at ${shown}`
   if (run.game === 'merge') return `no moves left at ${shown}`
   return score === null ? 'boom - a mine' : `cleared in ${shown}`
 }

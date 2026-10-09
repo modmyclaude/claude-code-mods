@@ -2,10 +2,10 @@
 // session. A run lives here (never in the board's surface module), so the
 // board can be unmounted at any moment and drawn again from exactly here.
 
-export type HalftimeGameId = 'dash' | 'slither' | 'merge' | 'sweep'
+export type HalftimeGameId = 'hurdle' | 'tailchase' | 'merge' | 'sweep'
 
-/** dash: a one-button runner. Distances are in cells, speeds in cells/s. */
-export type HalftimeDash = {
+/** hurdle: a one-button runner. Distances are in cells, speeds in cells/s. */
+export type HalftimeHurdle = {
   rng: number
   x: number
   y: number
@@ -18,8 +18,8 @@ export type HalftimeDash = {
   buffered: boolean
 }
 
-/** slither: a snake on a wide, short field whose edges wrap. */
-export type HalftimeSlither = {
+/** tailchase: a snake on a wide, short field whose edges wrap. */
+export type HalftimeTailchase = {
   w: number
   h: number
   /** Head first. */
@@ -62,7 +62,7 @@ export type HalftimeSweep = {
   boom: number
 }
 
-export type HalftimeGameState = HalftimeDash | HalftimeSlither | HalftimeMerge | HalftimeSweep
+export type HalftimeGameState = HalftimeHurdle | HalftimeTailchase | HalftimeMerge | HalftimeSweep
 
 export type HalftimeStatus = 'ready' | 'countdown' | 'live' | 'paused' | 'over'
 
@@ -101,6 +101,13 @@ export type HalftimeRun = {
   lastAt: number
   /** Turn-based games: when the current live stretch began; 0 while not counting. */
   liveSince: number
+  /** When the person last touched the run (a key, a click, taking the keys); a realtime run idle too long pauses. */
+  inputAt: number
+  /**
+   * Realtime play since the last input, not yet counted: [ms, ms of it while a
+   * main turn ran]. A key or click confirms it; idling out drops it.
+   */
+  pending: [number, number]
   playedMs: number
   /** Played while a main-loop turn was running. */
   waitPlayedMs: number

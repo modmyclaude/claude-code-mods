@@ -4,7 +4,7 @@
 
 import { expect, test } from 'claude-code/testing'
 
-import { BAND, METER, SURFACES, VIEWPORT, bandText, boardOf, fieldText, halftime, meterCount, play, titleText, world } from './fixtures'
+import { BAND, METER, SURFACES, VIEWPORT, bandText, boardOf, fieldText, halftime, meterCount, play, said, titleText, world } from './fixtures'
 
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 const turnDone = (turnId: string, agentId?: string) => ({
@@ -15,7 +15,7 @@ for (const surface of SURFACES) {
   test(`a permission prompt mid-run freezes the run and unmounts the board; it comes back exact with a 3-2-1 (${surface})`, async ($, on) => {
     const { clock } = world(on)
     await $.turn.start(MAIN_TURN)
-    await $.command.run(halftime('dash'))
+    await $.command.run(halftime('hurdle'))
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
 
     const ready = await boardOf(ui)
@@ -66,7 +66,7 @@ for (const surface of SURFACES) {
   test(`subagents starting and finishing change nothing (${surface})`, async ($, on) => {
     const { clock } = world(on)
     await $.turn.start(MAIN_TURN)
-    await $.command.run(halftime('slither'))
+    await $.command.run(halftime('tailchase'))
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
     await ui.pointer({ type: 'down', x: 1, y: 1, button: 'left' })
     await play(clock, ui, 300)
@@ -92,7 +92,7 @@ for (const surface of SURFACES) {
   test(`a subagent's permission prompt still needs you; only that subagent moving on resumes (${surface})`, async ($, on) => {
     const { clock } = world(on)
     await $.turn.start(MAIN_TURN)
-    await $.command.run(halftime('dash'))
+    await $.command.run(halftime('hurdle'))
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
     await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
     await play(clock, ui, 300)
@@ -133,13 +133,13 @@ for (const surface of SURFACES) {
 test('coming back on your own during a whistle: the picker, then the board waits for your click', async ($, on) => {
   const { clock } = world(on)
   await $.turn.start(MAIN_TURN)
-  await $.command.run(halftime('dash'))
+  await $.command.run(halftime('hurdle'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   await play(clock, ui, 300)
   await $.turn.complete(turnDone('main-1'))
   await $.command.run(halftime(''))
-  expect(await bandText(ui)).toContain('[back to dash]')
+  expect(await bandText(ui)).toContain('[back to hurdle]')
   await ui.press({ key: 'resume' })
   const paused = await boardOf(ui)
   expect(paused?.live).toBe(false)
@@ -207,7 +207,7 @@ test('the observing hooks never block: with their own logic failing, the questio
 
 test('a survey takes the band: the run pauses and the board waits for a click afterwards', { plugins: [METER] }, async ($, on) => {
   const { clock, seen } = world(on)
-  await $.command.run(halftime('dash'))
+  await $.command.run(halftime('hurdle'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   await play(clock, ui, 300)
@@ -232,7 +232,7 @@ test('a survey takes the band: the run pauses and the board waits for a click af
 test('zero idle: a paused or closed game schedules nothing and draws nothing new', { plugins: [METER] }, async ($, on) => {
   const { clock, seen } = world(on)
   await $.turn.start(MAIN_TURN)
-  await $.command.run(halftime('slither'))
+  await $.command.run(halftime('tailchase'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 1, y: 1, button: 'left' })
 
@@ -272,7 +272,7 @@ test('zero idle: a paused or closed game schedules nothing and draws nothing new
 
 test('typing at the prompt pauses a run in play (the keys have left the board)', async ($, on) => {
   const { clock } = world(on)
-  await $.command.run(halftime('dash'))
+  await $.command.run(halftime('hurdle'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   await play(clock, ui, 300)
@@ -286,9 +286,8 @@ test('typing at the prompt pauses a run in play (the keys have left the board)',
 })
 
 test('auto mode only offers a line after 10 s of a main-loop turn, and never takes the keys', async ($, on) => {
-  const { clock } = world(on)
-  const text = (await $.command.run(halftime('auto'))).text
-  expect(text).toContain('auto is on')
+  const { clock, seen } = world(on)
+  expect(await said($, seen, 'auto')).toContain('auto is on')
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
 
   // A subagent's turn arms nothing.
@@ -302,7 +301,7 @@ test('auto mode only offers a line after 10 s of a main-loop turn, and never tak
   await clock.advance(200)
   const offer = await bandText(ui)
   expect(offer).toContain('play while you wait')
-  expect(offer).toContain('[dash]')
+  expect(offer).toContain('[hurdle]')
   // An offer, not a game: no board, nothing holds the keys.
   expect(await boardOf(ui)).toBeUndefined()
 
@@ -320,7 +319,7 @@ test('auto mode only offers a line after 10 s of a main-loop turn, and never tak
   await clock.advance(30_000)
   expect(await bandText(ui)).toBe('ENGINE')
 
-  expect((await $.command.run(halftime('auto off'))).text).toBe('halftime auto is off')
+  expect(await said($, seen, 'auto off')).toBe('halftime auto is off')
   await $.turn.start({ text: 'long one', turnId: 'main-3' })
   await clock.advance(30_000)
   expect(await bandText(ui)).toBe('ENGINE')

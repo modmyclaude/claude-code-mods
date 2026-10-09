@@ -2,9 +2,9 @@
 // the band drew. Every event the plugin passes on is answered here, so a test
 // fails on the plugin's behaviour, never on a missing bottom.
 
-import { mock } from 'claude-code/testing'
-import type { Plugin } from 'claude-code/testing'
-import type { ClassicResultOf, On } from 'claude-code'
+import { expect, mock } from 'claude-code/testing'
+import type { Engine, Plugin } from 'claude-code/testing'
+import type { ClassicResultOf, On, RenderSurface } from 'claude-code'
 
 /** 3 pm local time on 9 October 2026: the daily board's day is 2026-10-09 wherever the test runs. */
 export const T0 = new Date(2026, 9, 9, 15, 0, 0).getTime()
@@ -40,7 +40,13 @@ export type Seen = {
  */
 export function world(
   on: On,
-  options: { store?: Record<string, unknown> | Map<string, unknown>; now?: number; permission?: ClassicResultOf['classic.PermissionRequest'] } = {},
+  options: {
+    store?: Record<string, unknown> | Map<string, unknown>
+    now?: number
+    permission?: ClassicResultOf['classic.PermissionRequest']
+    /** What `$.session.surfaces()` answers: the terminal unless a test says otherwise. */
+    surfaces?: RenderSurface[]
+  } = {},
 ) {
   const clock = mock.clock(on, { now: options.now ?? T0 })
   const disk = options.store
@@ -64,6 +70,7 @@ export function world(
     return { value: undefined }
   })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('session.surfaces', () => ({ value: options.surfaces ?? ['terminal'] }))
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
   on('classic.PermissionRequest', () => options.permission ?? {})
@@ -118,6 +125,17 @@ export const halftime = (args: string) => ({
   origin: { kind: 'composer' as const },
   presentation: { isFullscreen: false, columns: 80 },
 })
+
+/**
+ * Runs `/halftime <args>` where the band draws and returns what it told the
+ * person. It must answer {}: a command's text is a row the model reads
+ * (API-GOTCHAS #18), so its words go to a toast instead.
+ */
+export async function said($: Engine, seen: Seen, args: string): Promise<string> {
+  const before = seen.toasts.length
+  expect(await $.command.run(halftime(args)), `/halftime ${args}`).toEqual({})
+  return seen.toasts.slice(before).join(' | ')
+}
 
 type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
 

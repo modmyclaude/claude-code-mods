@@ -2,15 +2,15 @@
 // run's state as the union and looks the game up by the run's id.
 
 import type { HalftimeGameId, HalftimeGameState } from '../../types'
-import { dash } from './dash'
+import { hurdle } from './hurdle'
 import type { Game } from './kit'
 import { merge } from './merge'
-import { slither } from './slither'
+import { tailchase } from './tailchase'
 import { sweep } from './sweep'
 
-export const GAME_IDS: readonly HalftimeGameId[] = ['dash', 'slither', 'merge', 'sweep']
+export const GAME_IDS: readonly HalftimeGameId[] = ['hurdle', 'tailchase', 'merge', 'sweep']
 
-const GAMES = { dash, slither, merge, sweep }
+const GAMES = { hurdle, tailchase, merge, sweep }
 
 /** The game a run plays; its state is the matching member of the union by construction. */
 export function gameOf(id: HalftimeGameId): Game<HalftimeGameState> {

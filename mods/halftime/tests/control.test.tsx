@@ -10,7 +10,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine, Plugin } from 'claude-code/testing'
 
 import { clean } from '../hooks/share'
-import { BAND, SURFACES, VIEWPORT, halftime, world } from './fixtures'
+import { BAND, SURFACES, VIEWPORT, halftime, said, world } from './fixtures'
 
 const CONTROLS = [
   ['BEL', '\u0007'],
@@ -130,7 +130,7 @@ describe('control characters (API-GOTCHAS #31)', () => {
     test(`${name} in why the board failed: the fallback line draws clean`, { plugins: [BREAKER, NEIGHBOUR] }, async ($, on) => {
       world(on)
       mock.env(on, { HALFTIME_DIRT: c })
-      await $.command.run(halftime('dash'))
+      await $.command.run(halftime('hurdle'))
       for (const surface of SURFACES) {
         // The first drawing here: the board throws, and the engine reports the fault.
         await expect(mountBand($, surface)).rejects.toThrow(/Client/)
@@ -154,18 +154,18 @@ describe('control characters (API-GOTCHAS #31)', () => {
     })
 
     test(`${name} in what the store holds: picker, scorecard and board draw clean`, { plugins: [NEIGHBOUR] }, async ($, on) => {
-      world(on, {
+      const { seen } = world(on, {
         store: {
-          'best:dash': `12${c}`, 'best:sweep': 47, 'daily:dash': { day: `2026-10-09${c}`, score: 5 },
-          totals: { playedMs: c, waitPlayedMs: `9${c}`, runs: 1 }, last: `dash${c}`, auto: c,
+          'best:hurdle': `12${c}`, 'best:sweep': 47, 'daily:hurdle': { day: `2026-10-09${c}`, score: 5 },
+          totals: { playedMs: c, waitPlayedMs: `9${c}`, runs: 1 }, last: `hurdle${c}`, auto: c,
         },
       })
       await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true } as never)
-      expect((await $.command.run(halftime(''))).text).toBe('halftime · dash - · slither - · merge - · sweep 47s · 0s played while waiting')
+      expect(await said($, seen, '')).toBe('halftime · hurdle - · tailchase - · merge - · sweep 47s · 0s played while waiting')
       for (const surface of SURFACES) {
         const ui = await mountBand($, surface)
         await expectClean(ui, `${surface} picker`)
-        await ui.press({ key: 'pick:dash' })
+        await ui.press({ key: 'pick:hurdle' })
         await expectClean(ui, `${surface} board`)
         await ui.press({ key: 'games' })
         await ui.unmount()
@@ -177,10 +177,8 @@ describe('control characters (API-GOTCHAS #31)', () => {
     })
 
     test(`${name} typed after /halftime is never repeated back`, async ($, on) => {
-      world(on)
-      for (const args of [c, `dash${c}`, `auto ${c}`, `sweep ${c}`]) {
-        expect((await $.command.run(halftime(args))).text ?? '').not.toMatch(CONTROL)
-      }
+      const { seen } = world(on)
+      for (const args of [c, `hurdle${c}`, `auto ${c}`, `sweep ${c}`]) expect(await said($, seen, args)).not.toMatch(CONTROL)
     })
   }
 })

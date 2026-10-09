@@ -46,7 +46,7 @@ export type ShareInput = {
   waitPlayedMs: number
 }
 
-/** "halftime daily 10-09 · dash 412 · played 3m of a 7m turn" */
+/** "halftime daily 10-09 · hurdle 412 · played 3m of a 7m turn" */
 export function shareLine(r: ShareInput): string {
   const head = r.mode === 'daily' ? `halftime daily ${r.day.slice(5)}` : 'halftime practice'
   const score = r.score === null ? 'lost' : scoreText(r.game, r.score)
@@ -54,7 +54,7 @@ export function shareLine(r: ShareInput): string {
   return `${head} · ${r.game} ${score} · ${played}`
 }
 
-/** "halftime · dash 412 · slither 31 · merge - · sweep 47s · 37m played while waiting" */
+/** "halftime · hurdle 412 · tailchase 31 · merge - · sweep 47s · 37m played while waiting" */
 export function scorecard(stats: HalftimeStats): string {
   const games = GAME_IDS.map(g => `${g} ${scoreText(g, stats.best[g] ?? null)}`).join(' · ')
   return `halftime · ${games} · ${duration(stats.waitPlayedMs)} played while waiting`
