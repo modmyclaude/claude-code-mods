@@ -25,6 +25,8 @@ type Props = {
   needClick: boolean
   showHint: boolean
   pad: [string, string][]
+  /** The desktop app: draw the field one code-font cell per character (MM-084). */
+  cells?: boolean
 }
 
 /** What this instance remembers between calls; dropped with the instance. */
@@ -146,6 +148,18 @@ export default function Board(props: Props, surface: Surface) {
     return <Text {...p}>{s[0]}</Text>
   }
   const line = (segs: Seg[]) => <Text wrap="truncate-end">{segs.map(seg)}</Text>
+  // The desktop app draws Text in a proportional font, so a row of glyphs drifts and
+  // wraps (MM-084). A Box's width is in the surface's code-font cells: one cell per
+  // character keeps every column where the game put it; a run of spaces is one gap.
+  const cellRow = (segs: Seg[]) => (
+    <Box flexDirection="row" flexWrap="nowrap">
+      {segs.flatMap(s =>
+        /^ +$/.test(s[0])
+          ? [<Box width={s[0].length} />]
+          : [...s[0]].map(ch => <Box width={1}>{seg([ch, s[1], s[2], s[3]])}</Box>),
+      )}
+    </Box>
+  )
   const status =
     props.live && local.armed
       ? props.hint
@@ -153,7 +167,7 @@ export default function Board(props: Props, surface: Surface) {
   return (
     <Box flexDirection="column">
       {line(props.showHint ? props.title : [...props.title, [`  ${status}`, 'subtle', '', DIM]])}
-      {props.rows.map(line)}
+      {props.rows.map(props.cells ? cellRow : line)}
       {props.showHint ? <Text dimColor wrap="truncate-end">{status}</Text> : null}
       {
         // The pad (MM-081): a terminal with no mouse reporting never sends the click, so the

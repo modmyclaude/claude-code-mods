@@ -371,7 +371,7 @@ export const register: Register = on => {
             halftime: the board could not run here ({clean(broken.reason)}). {scorecard(st)}
           </Text>
         ) : (
-          <Client key={`board-${run.id}-${run.epoch}`} module="./board.tsx" props={props} />
+          <Client key={`board-${run.id}-${run.epoch}`} module="./board.tsx" props={{ ...props, cells: e.surface === 'desktop' }} />
         )}
         {roomy ? (
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
