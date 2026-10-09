@@ -13,7 +13,7 @@
 /plugin install last-look --marketplace modmyclaude/claude-code-mods
 ```
 
-<!-- count -->11<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
+<!-- count -->12<!-- /count --> mods · validated and tested on every commit · terminal and desktop app · MIT
 
 </div>
 
@@ -56,6 +56,7 @@ On older versions, add the marketplace first:
 |---|---|---|---|
 | [**Ant Farm**](mods/ant-farm) | Watch your subagents work, and what they cost, live. [Prompt](prompts/ant-farm.md) | `display only` | `ant-farm@modmyclaude` |
 | [**Footprints**](mods/footprints) | A live file tree beside the chat that shows where Claude has been. [Prompt](prompts/footprints.md) | `reads files` `runs commands` `hooks tool calls` | `footprints@modmyclaude` |
+| [**Headway**](mods/headway) | See how far along Claude is, and when it will land. Zero tokens. [Prompt](prompts/headway.md) | `hooks tool calls` | `headway@modmyclaude` |
 
 ### Review changes
 
