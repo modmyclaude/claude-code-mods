@@ -4,6 +4,7 @@
 import type { BoxProps, ButtonProps, ElementConstructor, RenderElement, RenderSurface, TextProps } from 'claude-code'
 
 import type { LastLookHold, LastLookItem, LastLookRow, LastLookTone } from '../types'
+import { clean } from './text'
 
 export type Kit = {
   Box: ElementConstructor<BoxProps>
@@ -56,14 +57,14 @@ export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElemen
       <Box key="last-look" flexDirection="column" width={width}>
         <Box key="command" flexDirection="row">
           <Text bold color="warning">Last Look held: </Text>
-          <Text wrap="truncate-end">{report.command}</Text>
+          <Text wrap="truncate-end">{clean(report.command)}</Text>
         </Box>
         <Box key="headline">
-          <Text bold {...tone(report.headlineTone)} wrap="truncate-end">{report.headline}</Text>
+          <Text bold {...tone(report.headlineTone)} wrap="truncate-end">{clean(report.headline)}</Text>
         </Box>
         {shown.map((item, k) => (
           <Box key={`item-${k}`}>
-            <Text {...tone(item.summaryTone)} wrap="truncate-end">{`${item.title}: ${item.summary}`}</Text>
+            <Text {...tone(item.summaryTone)} wrap="truncate-end">{clean(`${item.title}: ${item.summary}`)}</Text>
           </Box>
         ))}
         {report.items.length > shown.length && <Text dimColor>{`and ${report.items.length - shown.length} more parts`}</Text>}
@@ -85,11 +86,11 @@ export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElemen
     <Box flexDirection="column" width={width}>
       <Text bold color="warning">Held: this command can destroy work</Text>
       <Box key="command">
-        <Text wrap="wrap">{`$ ${clip(report.command, width * 3 - 2)}`}</Text>
+        <Text wrap="wrap">{`$ ${clip(clean(report.command), width * 3 - 2)}`}</Text>
       </Box>
       {hold.isSubagent && <Text dimColor>Asked by a subagent.</Text>}
       <Box key="headline" marginTop={1}>
-        <Text bold {...tone(report.headlineTone)} wrap="wrap">{report.headline}</Text>
+        <Text bold {...tone(report.headlineTone)} wrap="wrap">{clean(report.headline)}</Text>
       </Box>
       {report.items.map((item, k) => drawItem(kit, item, k, shares[k] ?? 0))}
       {room.queued > 0 && <Text dimColor>{`${room.queued} more held after this one`}</Text>}
@@ -109,12 +110,12 @@ function drawItem(kit: Kit, item: LastLookItem, index: number, room: number): Re
   return (
     <Box key={`item-${index}`} flexDirection="column" marginTop={1}>
       <Box flexDirection="row">
-        <Text bold wrap="truncate-end">{item.title}</Text>
-        {item.where !== undefined && <Text dimColor>{`  in ${item.where}`}</Text>}
+        <Text bold wrap="truncate-end">{clean(item.title)}</Text>
+        {item.where !== undefined && <Text dimColor>{`  in ${clean(item.where)}`}</Text>}
       </Box>
-      <Text {...tone(item.summaryTone)} wrap="wrap">{item.summary}</Text>
+      <Text {...tone(item.summaryTone)} wrap="wrap">{clean(item.summary)}</Text>
       {rows.map((row: LastLookRow) => (
-        <Text {...tone(row.tone)} wrap="truncate-middle">{`  ${row.text}`}</Text>
+        <Text {...tone(row.tone)} wrap="truncate-middle">{`  ${clean(row.text)}`}</Text>
       ))}
       {hidden > 0 && <Text dimColor>{`  and ${grouped(hidden)} more`}</Text>}
     </Box>

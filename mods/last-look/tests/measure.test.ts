@@ -5,6 +5,7 @@ import { classify } from '../hooks/classify'
 import { COULD_NOT, measureAll, shouldHold, size } from '../hooks/measure'
 import type { Ctx } from '../hooks/measure'
 import { isAllowed, parseAllow } from '../hooks/paths'
+import { clean } from '../hooks/text'
 import { NOW, isReadOnly, makeWorld } from './world'
 import type { WorldSpec } from './world'
 
@@ -320,4 +321,15 @@ test('sizes read like a person would say them', () => {
   expect(size(1024)).toBe('1.0 KB')
   expect(size(1536 * 1024)).toBe('1.5 MB')
   expect(size(3 * 1024 ** 3)).toBe('3.0 GB')
+})
+
+test('clean() leaves one drawable line', () => {
+  expect(clean('plain text')).toBe('plain text')
+  expect(clean('\u001b[31mred\u001b[0m')).toBe('red')
+  expect(clean('\u001b]0;title\u0007after')).toBe('after')
+  expect(clean('\u009b2Jx')).toBe('x')
+  expect(clean('a\nb\tc\rd')).toBe('a b c d')
+  expect(clean('\u0000\u0007\u007f\u0085')).toBe('\uFFFD\uFFFD\uFFFD\uFFFD')
+  expect(clean('caf\u00e9 \u65e5\u672c')).toBe('caf\u00e9 \u65e5\u672c')
+  expect(clean('\u001b')).toBe('')
 })

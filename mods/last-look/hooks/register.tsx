@@ -13,6 +13,7 @@ import { classify } from './classify'
 import { MEASURE_ENV, measureAll, shouldHold } from './measure'
 import type { Ctx, Probe } from './measure'
 import { parseAllow } from './paths'
+import { clean } from './text'
 import { drawHold } from './view'
 
 const PANE = 'last-look'
@@ -213,7 +214,8 @@ function refusal(outcome: Exclude<Outcome, 'proceed'>, report: LastLookReport): 
   return 'last-look: it could not wait for a review here (no sleep command to wait with), so it stopped the command. Ask the person to run it themselves if they intend it.'
 }
 
+/** One clean, short line of untrusted text for the status line and the log. */
 function clip(text: string, max: number): string {
-  const line = text.replace(/\s+/g, ' ').trim()
+  const line = clean(text).replace(/\s+/g, ' ').trim()
   return line.length <= max ? line : `${line.slice(0, max - 3)}...`
 }
