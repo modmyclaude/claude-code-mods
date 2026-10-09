@@ -1,11 +1,11 @@
 // Crossroads: when Claude finishes a turn, three specific next prompts wait
 // in a band above the prompt. Each item is a button that drafts it (it is
-// never sent for you), and 0 dismisses. Only a clearly safe suggestion (read,
-// inspect, test, explain or review, with no risky target) is privileged: it
-// may be option 1, carry a digit key, or stay as the engine's ghost text.
-// Everything else is a plain, click-only row. A small model writes the
-// suggestions from a compact, redacted digest of the turn and tags each risky
-// one; keyword rules back that tag up.
+// never sent for you), and 0 dismisses. Crossroads gives its own suggestions
+// no privilege (MM-077): they are click-only rows, never option 1, a digit or
+// the ghost text. Only Claude Code's own guess, already one Tab away, leads
+// with digit 1; its ghost text is passed through untouched. A small model
+// writes the suggestions from a compact, redacted digest of the turn and tags
+// each risky one; keyword rules back that tag up, as an amber note only.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, PromptFilled, PromptOrigin, Register, UiPressArgument } from 'claude-code'
@@ -268,10 +268,8 @@ async function suggestAfterTurn($: EngineInterface, at: number, answer: string) 
     const parsed = result ? parseReply(result.text, want) : null
     if (!parsed) return await clearView($)
 
-    // A safe guess that arrived during the call still takes option 1 (ghost
-    // and option 1 agree); any other late one stays out of a list made without it.
-    const late = engineGuessFor(at)
-    const items = arrange(engine ?? (late?.isSafe ? late : null), parsed)
+    // A guess that arrived during the call still takes option 1 (ghost and option 1 agree).
+    const items = arrange(engine ?? engineGuessFor(at), parsed)
     live.shown = { epoch: at, items }
     await showFor($, at, { phase: 'shown', epoch: at, items, digits: !endsWithNumberedOptions(answer) })
   } catch (error) {
@@ -280,15 +278,14 @@ async function suggestAfterTurn($: EngineInterface, at: number, answer: string) 
   }
 }
 
-// The engine's guess landed after the list was drawn without it: a safe one
-// takes option 1 so the ghost text and option 1 still agree. Any other guess
-// is kept from the ghost text anyway, so it displaces nothing.
+// The engine's guess landed after the list was drawn without it: it takes
+// option 1 so the ghost text and option 1 still agree.
 function needsGuess(current: CrossroadsView, at: number): boolean {
   return current.phase === 'shown' && current.epoch === at && !current.items.some(item => item.fromEngine)
 }
 
 async function mergeLateGuess($: EngineInterface, at: number, guess: EngineGuess) {
-  if (!guess.isSafe || !needsGuess(await read($, view), at)) return
+  if (!needsGuess(await read($, view), at)) return
   await update($, view, current => {
     if (current.phase !== 'shown' || !needsGuess(current, at)) return current
     const items = arrange(guess, current.items.filter(item => !item.fromEngine).map(asSuggestion))
@@ -471,10 +468,9 @@ export const register: Register = on => {
     return entered
   }).catch(($, e, next) => next(e))
 
-  // The engine's own guess: passed through untouched (it becomes option 1)
-  // only when it is on the safe set; anything else never becomes the ghost
-  // text. It is judged on its raw text; our copy of it is cleaned, as it is
-  // drawn in the band and may be drafted.
+  // The engine's own guess: always passed through untouched, and it becomes
+  // option 1. It is judged on its raw text for the note; our copy of it is
+  // cleaned, as it is drawn in the band and may be drafted.
   on('prompt.suggest', async ($, e, next) => {
     if (e.origin.kind !== 'suggestion' || !(await isEnabled($))) return next(e)
     const guess: EngineGuess = judgeGuess(e.text)
@@ -486,8 +482,8 @@ export const register: Register = on => {
       await mergeLateGuess($, at, guess)
     }
 
-    return guess.isSafe ? next(e) : { isShown: false }
-  }).catch(($, e, next) => (next.called ? next(e) : { isShown: false }))
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   on('session.end', async ($, e, next) => {
     if (e.reason === 'clear') {
@@ -598,9 +594,9 @@ export const register: Register = on => {
           <Button
             key={`pick-${n}`}
             plain
-            // Only a safe-set suggestion carries a digit: one stray key must
-            // never draft a push, a deploy or anything the allowlist does not know.
-            {...(digits && item.isSafe ? { hotkey: n } : {})}
+            // Only Claude Code's own guess carries a digit (MM-077): our rows
+            // are click-only, so a stray key never drafts a suggestion of ours.
+            {...(digits && item.fromEngine ? { hotkey: n } : {})}
             label={clip(clean(item.text), room)}
             onPress={press => void pick($, press, index)}
           />

@@ -20,11 +20,11 @@ Build me a Claude Code mod called "crossroads": after Claude finishes a turn, of
 
 What it shows
 - When a turn ends with an answer, a small band above my prompt: "1 run the auth tests · add the same guard to signup.ts · push to main (pushes)". A dim loading row while they are being made.
-- Every item is a clickable button that puts it in my prompt as an editable draft (never sent automatically). Only clearly safe suggestions get a number key (press it in an empty prompt) or the top slot. Press 0 to dismiss.
+- Every item is a clickable button that puts it in my prompt as an editable draft (never sent automatically). The items you write are click-only: no number key. Press 0 to dismiss.
 - On the desktop app, if the prompt cannot be filled, clicking copies the suggestion instead, with a clearly labelled Send button that is never the default.
 
 Cooperate with Claude Code's own suggestion
-- Claude Code may already predict my next prompt (the dim ghost text I accept with Tab). If it does, include its guess at no extra cost, and only generate the other two. When its guess is clearly safe it is option 1 and stays as the ghost text, so I never see two different "next" ideas; otherwise hide the ghost text and list the guess as a plain row.
+- Claude Code may already predict my next prompt (the dim ghost text I accept with Tab). If it does, include its guess at no extra cost, and only generate the other two. Leave its ghost text untouched and make its guess option 1, the only row with a number key (it is already one Tab away), so I never see two different "next" ideas.
 - If the built-in suggestion is off or does not fire (it does not on desktop), generate all three yourself.
 
 Make them specific and cheap
@@ -32,9 +32,9 @@ Make them specific and cheap
 - Send the digest to the cheapest available model at low effort, asking for strict JSON. If the answer is malformed or cut off, show nothing.
 - Skip trivial turns (very short replies, turns with no tool use and no question). Back off after 3 ignored lists in a row, and recover when I accept one.
 
-Only clearly safe suggestions are privileged
-- A keyword list cannot cover every risky phrasing, so privilege is an allowlist. Only a suggestion that reads, inspects, tests, explains or reviews (run the tests, show, explain, read, check, list, diff, review, add a test) and names no risky target (prod, production, live, main, a release; deploy, publish, push, merge; delete, drop, remove, wipe; a migration on shared data; money; credentials; infrastructure such as terraform, kubectl or AWS; email, Slack or sending to people) may be option 1, get a number key, or stay as the ghost text.
-- Everything else is a plain row: clickable, no number key, never option 1. If no suggestion is safe, no item gets a number key. Test the safe set with a large table of risky and safe phrasings.
+Your own suggestions get no privilege
+- No list of words reliably tells a safe next step from a risky one, so do not try to privilege "safe" suggestions. Every row you write is click-only: no number key, never above Claude Code's guess, never the ghost text. The risky note is information only.
+- Test it with a large table of risky and safe phrasings: not one row you write may carry a number key.
 
 Mark risky suggestions
 - Have the model tag each suggestion it writes as risky or not, with a short reason ("pushes", "deploys", "deletes data"), and back the tag up with keyword rules: risky if either says so. Show the reason in amber, like "(deploys)". Mark lookalike letters from another alphabet mixed into a Latin word as "(unusual letters)", but treat wholly Russian or Greek text as normal text.
