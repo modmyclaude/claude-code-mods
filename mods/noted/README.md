@@ -24,7 +24,7 @@ Use pnpm, not npm, in this repo.
 - If the rule is already there (same words, or the same meaning), the band says **already a rule** instead of proposing it again.
 - If it contradicts a rule you already have, the band shows the old rule and offers **Replace old rule**, which rewrites that line in place, instead of adding a contradiction.
 
-Once the band has focus (click it, or ctrl+x tab), `e` edits, `s` skips, `o` dismisses a notice and `d` closes the `/rules` list. The buttons that write a file (Save, Replace old rule, Remove) have no key, so a stray keystroke never writes one. noted's lines come after any other mod's band, never in place of it, so their buttons stay in view.
+Once the band has focus (click it, or ctrl+x tab), `e` edits, `s` skips, `o` dismisses a notice and `d` closes the `/rules` list. The buttons that write a file (Save, Replace old rule, Remove) have no key, and focus starts on Skip, OK or Done, so neither a stray keystroke nor Enter ever writes one. noted's lines come after any other mod's band, never in place of it, so their buttons stay in view.
 
 `/rules` lists the rules noted has learned, with the file and the date each was added, in the transcript and in the band, where each one has a **Remove** button. `/rules remove <number>` removes one by its number, for surfaces without the band; it acts only when you type it, and a peer session, channel, task or plugin running it gets a refusal. Removing a rule deletes its line from the file. The `/rules` listing is a transcript row, so Claude reads it too.
 

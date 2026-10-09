@@ -16,14 +16,23 @@ const mount = ($: Engine, surface: Surface = 'terminal') =>
 /** The only hotkeys the band may carry: none of them writes a file. */
 const SAFE_HOTKEYS: Record<string, string> = { edit: 'e', skip: 's', ok: 'o', done: 'd' }
 
-/** Every Button drawn: a hotkey only where SAFE_HOTKEYS allows it, never on a writer. */
+/** Buttons that only dismiss: the one the focus ring may start on. */
+const DISMISSERS = new Set(['skip', 'ok', 'done'])
+
+/**
+ * Every Button drawn: a hotkey only where SAFE_HOTKEYS allows it, never on a
+ * writer; `autoFocus` only on a dismissing button, and on the one drawn.
+ */
 async function expectSafeHotkeys(ui: Mounted<Surface, 'AbovePrompt'>) {
   const buttons = await ui.findAll({ type: 'Button' })
   expect(buttons.length).toBeGreaterThan(0)
   for (const b of buttons) {
     const hotkey = b.props.hotkey
     if (hotkey !== undefined) expect(SAFE_HOTKEYS[b.key ?? ''], `hotkey ${String(hotkey)} on ${b.key}`).toBe(hotkey)
+    if (b.props.autoFocus === true) expect(DISMISSERS.has(b.key ?? ''), `autoFocus on ${b.key}`).toBe(true)
   }
+  const dismisser = buttons.find(b => DISMISSERS.has(b.key ?? ''))
+  if (dismisser) expect(dismisser.props.autoFocus, `focus starts on ${dismisser.key}`).toBe(true)
   return buttons
 }
 
@@ -215,7 +224,8 @@ describe('learning', () => {
     await $.prompt.submit({ text: 'no, use pnpm', ...PROMPT_FROM_PERSON })
     await $.prompt.submit({ text: "don't add comments", ...PROMPT_FROM_PERSON })
     expect(w.calls).toHaveLength(2)
-    expect(w.logs.filter(l => l.includes('haiku model is not available here'))).toHaveLength(1)
+    const said = w.logs.flatMap((l, i) => (l.includes('haiku model is not available here') ? [w.sinks[i]] : []))
+    expect(said).toEqual(['transcript']) // once, and where the person sees it
   })
 
   test('an older correction answering late never replaces a newer one', async ($, on) => {

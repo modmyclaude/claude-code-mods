@@ -49,6 +49,8 @@ type Options = {
   env?: Record<string, string>
   /** A hook beneath noted drops every prompt with this reason. */
   dropPrompts?: string
+  /** What noted's store holds from earlier sessions. */
+  store?: Record<string, unknown>
   messages?: SessionMessage[]
   surfaces?: RenderSurface[]
   /** Paths that exist but cannot be read. */
@@ -60,6 +62,8 @@ export function world(on: On, options: Options = {}) {
   const calls: ModelCompleteInput[] = []
   const writes: string[] = []
   const logs: string[] = []
+  /** Where each log line went: `transcript` (seen) or `debug`. */
+  const sinks: string[] = []
   const unreadable = new Set(options.unreadable ?? [])
   const messages: SessionMessage[] = options.messages ?? [
     { role: 'user', text: 'install the deps', toolUses: [] },
@@ -67,7 +71,7 @@ export function world(on: On, options: Options = {}) {
     { role: 'user', text: 'no, use pnpm', toolUses: [] },
   ]
 
-  mock.store(on)
+  mock.store(on, options.store)
   mock.env(on, { HOME: '/home/me', ...options.env })
   const clock = mock.clock(on, { now: NOW })
 
@@ -107,6 +111,7 @@ export function world(on: On, options: Options = {}) {
   on('prompt.submit', ($, e) => (options.dropPrompts === undefined ? { text: e.text } : { drop: options.dropPrompts }))
   on('ui.log', ($, e) => {
     logs.push(e.text)
+    sinks.push(e.to)
     return { value: undefined }
   })
   on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
@@ -118,5 +123,5 @@ export function world(on: On, options: Options = {}) {
     )
   })
 
-  return { files, calls, writes, logs, messages, clock }
+  return { files, calls, writes, logs, sinks, messages, clock }
 }
