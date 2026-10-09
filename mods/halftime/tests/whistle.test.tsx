@@ -15,7 +15,7 @@ for (const surface of SURFACES) {
   test(`a permission prompt mid-run freezes the run and unmounts the board; it comes back exact with a 3-2-1 (${surface})`, async ($, on) => {
     const { clock } = world(on)
     await $.turn.start(MAIN_TURN)
-    await $.command.run(halftime('hurdle'))
+    await $.command.run(halftime('cratehop'))
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
 
     const ready = await boardOf(ui)
@@ -92,7 +92,7 @@ for (const surface of SURFACES) {
   test(`a subagent's permission prompt still needs you; only that subagent moving on resumes (${surface})`, async ($, on) => {
     const { clock } = world(on)
     await $.turn.start(MAIN_TURN)
-    await $.command.run(halftime('hurdle'))
+    await $.command.run(halftime('cratehop'))
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
     await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
     await play(clock, ui, 300)
@@ -133,13 +133,13 @@ for (const surface of SURFACES) {
 test('coming back on your own during a whistle: the picker, then the board waits for your click', async ($, on) => {
   const { clock } = world(on)
   await $.turn.start(MAIN_TURN)
-  await $.command.run(halftime('hurdle'))
+  await $.command.run(halftime('cratehop'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   await play(clock, ui, 300)
   await $.turn.complete(turnDone('main-1'))
   await $.command.run(halftime(''))
-  expect(await bandText(ui)).toContain('[back to hurdle]')
+  expect(await bandText(ui)).toContain('[back to cratehop]')
   await ui.press({ key: 'resume' })
   const paused = await boardOf(ui)
   expect(paused?.live).toBe(false)
@@ -207,7 +207,7 @@ test('the observing hooks never block: with their own logic failing, the questio
 
 test('a survey takes the band: the run pauses and the board waits for a click afterwards', { plugins: [METER] }, async ($, on) => {
   const { clock, seen } = world(on)
-  await $.command.run(halftime('hurdle'))
+  await $.command.run(halftime('cratehop'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   await play(clock, ui, 300)
@@ -272,7 +272,7 @@ test('zero idle: a paused or closed game schedules nothing and draws nothing new
 
 test('typing at the prompt pauses a run in play (the keys have left the board)', async ($, on) => {
   const { clock } = world(on)
-  await $.command.run(halftime('hurdle'))
+  await $.command.run(halftime('cratehop'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   await play(clock, ui, 300)
@@ -301,7 +301,7 @@ test('auto mode only offers a line after 10 s of a main-loop turn, and never tak
   await clock.advance(200)
   const offer = await bandText(ui)
   expect(offer).toContain('play while you wait')
-  expect(offer).toContain('[hurdle]')
+  expect(offer).toContain('[cratehop]')
   // An offer, not a game: no board, nothing holds the keys.
   expect(await boardOf(ui)).toBeUndefined()
 

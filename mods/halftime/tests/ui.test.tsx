@@ -13,10 +13,10 @@ const DAY = '2026-10-09'
 for (const surface of SURFACES) {
   test(`the picker starts a game, and a game can be left and picked up again (${surface})`, async ($, on) => {
     const { seen } = world(on)
-    expect(await said($, seen, '')).toBe('halftime · hurdle - · tailchase - · merge - · sweep - · 0s played while waiting')
+    expect(await said($, seen, '')).toBe('halftime · cratehop - · tailchase - · merge - · sweep - · 0s played while waiting')
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
     const picker = await bandText(ui)
-    for (const label of ['[hurdle]', '[tailchase]', '[merge]', '[sweep]', '[daily]', '[auto: off]', '[close]']) expect(picker).toContain(label)
+    for (const label of ['[cratehop]', '[tailchase]', '[merge]', '[sweep]', '[daily]', '[auto: off]', '[close]']) expect(picker).toContain(label)
     expect(await boardOf(ui)).toBeUndefined()
 
     await ui.press({ key: 'pick:merge' })
@@ -43,7 +43,7 @@ for (const surface of SURFACES) {
     await ui.press({ key: 'games' })
     await ui.press({ key: 'mode' })
     expect(await bandText(ui)).toContain('[practice]')
-    await ui.press({ key: 'pick:hurdle' })
+    await ui.press({ key: 'pick:cratehop' })
     expect(titleText((await boardOf(ui))!)).toContain('practice')
     await ui.press({ key: 'close' })
     expect(await bandText(ui)).toBe('ENGINE')
@@ -91,7 +91,7 @@ for (const surface of SURFACES) {
 
   test(`the board fits the band's body, not the terminal, and reflows without losing the run (${surface})`, async ($, on) => {
     const { clock } = world(on)
-    await $.command.run(halftime('hurdle'))
+    await $.command.run(halftime('cratehop'))
     const narrow = { ...BAND, bodyColumns: 40 }
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: narrow, viewport: { columns: 200, rows: 50 } })
     await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
@@ -145,7 +145,7 @@ test('the band stacks with what other mods draw there, in every phase', async ($
 
 test('the score follows the real clock, not the frame count', async ($, on) => {
   const { clock } = world(on)
-  await $.command.run(halftime('hurdle'))
+  await $.command.run(halftime('cratehop'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   // A slow surface: one board frame for every 150 ms of real time. The first frame sets the
@@ -161,7 +161,7 @@ test('the score follows the real clock, not the frame count', async ($, on) => {
 
 test('every game: Enter, y, n and digits never reach the game', async ($, on) => {
   world(on)
-  for (const game of ['hurdle', 'tailchase', 'merge', 'sweep']) {
+  for (const game of ['cratehop', 'tailchase', 'merge', 'sweep']) {
     await $.command.run(halftime(game))
     const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
     await ui.pointer({ type: 'down', x: 2, y: 1, button: 'left' })
@@ -192,12 +192,12 @@ test('board posts that are not the board\'s shape are dropped', async ($, on) =>
 
 for (const surface of ['vscode', 'mobile'] as const) {
   test(`${surface}: no board can be drawn, so the command's row is a one-line scorecard`, async ($, on) => {
-    const { seen } = world(on, { store: { 'best:hurdle': 412, 'best:sweep': 47, totals: { playedMs: 3_000_000, waitPlayedMs: 2_220_000, runs: 9 } } })
+    const { seen } = world(on, { store: { 'best:cratehop': 412, 'best:sweep': 47, totals: { playedMs: 3_000_000, waitPlayedMs: 2_220_000, runs: 9 } } })
     await $.session.start({ cwd: '/', surface, isInteractive: true } as never)
     expect(seen.commands).toEqual(['halftime'])
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'CommandOutput', props: { command: 'halftime', args: '', text: 'halftime', isErrored: false } })
     const text = await bandText(ui)
-    expect(text).toContain('halftime · hurdle 412 · tailchase - · merge - · sweep 47s · 37m played while waiting')
+    expect(text).toContain('halftime · cratehop 412 · tailchase - · merge - · sweep 47s · 37m played while waiting')
     expect(text).toContain('games play in the terminal and the desktop app')
   })
 }
@@ -212,7 +212,7 @@ test('terminal and desktop keep the engine\'s command row', async ($, on) => {
 
 test('commands: help, off, auto, practice', async ($, on) => {
   const { seen } = world(on)
-  expect(await said($, seen, 'what')).toContain('/halftime opens the picker; /halftime hurdle|tailchase|merge|sweep [practice]')
+  expect(await said($, seen, 'what')).toContain('/halftime opens the picker; /halftime cratehop|tailchase|merge|sweep [practice]')
   expect(await said($, seen, 'sweep practice')).toContain('sweep is above the prompt')
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   expect(titleText((await boardOf(ui))!)).toContain('practice')

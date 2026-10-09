@@ -81,8 +81,8 @@ test('R-3 (#18): where the band draws, every /halftime answer is a toast and the
   const { seen } = world(on, { surfaces: attached })
   for (const surfaces of [['terminal'], ['desktop'], ['mobile', 'desktop']] as const) {
     attached.splice(0, attached.length, ...surfaces)
-    expect(await said($, seen, '')).toBe('halftime · hurdle - · tailchase - · merge - · sweep - · 0s played while waiting')
-    expect(await said($, seen, 'hurdle')).toBe('halftime: hurdle is above the prompt - click the board to play')
+    expect(await said($, seen, '')).toBe('halftime · cratehop - · tailchase - · merge - · sweep - · 0s played while waiting')
+    expect(await said($, seen, 'cratehop')).toBe('halftime: cratehop is above the prompt - click the board to play')
     expect(await said($, seen, 'auto on')).toContain('halftime auto is on')
     expect(await said($, seen, 'auto off')).toBe('halftime auto is off')
     expect(await said($, seen, 'off')).toBe('halftime: closed')
@@ -103,14 +103,14 @@ test('R-3 (#18): a /halftime that fails says so in a toast, still with no text f
 
 for (const surface of ['vscode', 'mobile'] as const) {
   test(`R-3 (#18): ${surface} draws no band, so the command's row is the scorecard, as the CommandOutput hook draws it`, async ($, on) => {
-    const { seen } = world(on, { surfaces: [surface], store: { 'best:hurdle': 412 } })
+    const { seen } = world(on, { surfaces: [surface], store: { 'best:cratehop': 412 } })
     await $.session.start({ cwd: '/', surface, isInteractive: true } as never)
-    const scorecard = 'halftime · hurdle 412 · tailchase - · merge - · sweep - · 0s played while waiting'
-    const answer = await $.command.run(halftime('hurdle'))
+    const scorecard = 'halftime · cratehop 412 · tailchase - · merge - · sweep - · 0s played while waiting'
+    const answer = await $.command.run(halftime('cratehop'))
     expect(answer).toEqual({ text: scorecard })
     expect(seen.toasts).toEqual([])
     // The row the engine raises from that text: the hook draws the scorecard in its place.
-    const row = await $.ui.mount({ plugin: 'halftime', surface, component: 'CommandOutput', props: { command: 'halftime', args: 'hurdle', text: scorecard, isErrored: false } })
+    const row = await $.ui.mount({ plugin: 'halftime', surface, component: 'CommandOutput', props: { command: 'halftime', args: 'cratehop', text: scorecard, isErrored: false } })
     const drawn = await bandText(row)
     expect(drawn).toContain(scorecard)
     expect(drawn).toContain('games play in the terminal and the desktop app')
@@ -169,7 +169,7 @@ test('M1: a question shows only after the board is gone (the whistle comes befor
 test('M2: two loops waiting - one moving on does not resume while the other still needs you', async ($, on) => {
   const { clock } = world(on)
   await $.turn.start(MAIN_TURN)
-  await $.command.run(halftime('hurdle'))
+  await $.command.run(halftime('cratehop'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   await play(clock, ui, 300)

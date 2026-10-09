@@ -219,7 +219,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'halftime',
       description: 'Play a small game above the prompt while Claude works',
-      argumentHint: '[hurdle | tailchase | merge | sweep | auto | off]',
+      argumentHint: '[cratehop | tailchase | merge | sweep | auto | off]',
       immediate: true,
     })
     try {

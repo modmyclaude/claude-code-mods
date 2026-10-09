@@ -2,10 +2,10 @@
 // session. A run lives here (never in the board's surface module), so the
 // board can be unmounted at any moment and drawn again from exactly here.
 
-export type HalftimeGameId = 'hurdle' | 'tailchase' | 'merge' | 'sweep'
+export type HalftimeGameId = 'cratehop' | 'tailchase' | 'merge' | 'sweep'
 
-/** hurdle: a one-button runner. Distances are in cells, speeds in cells/s. */
-export type HalftimeHurdle = {
+/** cratehop: a one-button runner. Distances are in cells, speeds in cells/s. */
+export type HalftimeCratehop = {
   rng: number
   x: number
   y: number
@@ -62,7 +62,7 @@ export type HalftimeSweep = {
   boom: number
 }
 
-export type HalftimeGameState = HalftimeHurdle | HalftimeTailchase | HalftimeMerge | HalftimeSweep
+export type HalftimeGameState = HalftimeCratehop | HalftimeTailchase | HalftimeMerge | HalftimeSweep
 
 export type HalftimeStatus = 'ready' | 'countdown' | 'live' | 'paused' | 'over'
 

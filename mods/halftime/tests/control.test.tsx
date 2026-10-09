@@ -130,7 +130,7 @@ describe('control characters (API-GOTCHAS #31)', () => {
     test(`${name} in why the board failed: the fallback line draws clean`, { plugins: [BREAKER, NEIGHBOUR] }, async ($, on) => {
       world(on)
       mock.env(on, { HALFTIME_DIRT: c })
-      await $.command.run(halftime('hurdle'))
+      await $.command.run(halftime('cratehop'))
       for (const surface of SURFACES) {
         // The first drawing here: the board throws, and the engine reports the fault.
         await expect(mountBand($, surface)).rejects.toThrow(/Client/)
@@ -156,16 +156,16 @@ describe('control characters (API-GOTCHAS #31)', () => {
     test(`${name} in what the store holds: picker, scorecard and board draw clean`, { plugins: [NEIGHBOUR] }, async ($, on) => {
       const { seen } = world(on, {
         store: {
-          'best:hurdle': `12${c}`, 'best:sweep': 47, 'daily:hurdle': { day: `2026-10-09${c}`, score: 5 },
-          totals: { playedMs: c, waitPlayedMs: `9${c}`, runs: 1 }, last: `hurdle${c}`, auto: c,
+          'best:cratehop': `12${c}`, 'best:sweep': 47, 'daily:cratehop': { day: `2026-10-09${c}`, score: 5 },
+          totals: { playedMs: c, waitPlayedMs: `9${c}`, runs: 1 }, last: `cratehop${c}`, auto: c,
         },
       })
       await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true } as never)
-      expect(await said($, seen, '')).toBe('halftime · hurdle - · tailchase - · merge - · sweep 47s · 0s played while waiting')
+      expect(await said($, seen, '')).toBe('halftime · cratehop - · tailchase - · merge - · sweep 47s · 0s played while waiting')
       for (const surface of SURFACES) {
         const ui = await mountBand($, surface)
         await expectClean(ui, `${surface} picker`)
-        await ui.press({ key: 'pick:hurdle' })
+        await ui.press({ key: 'pick:cratehop' })
         await expectClean(ui, `${surface} board`)
         await ui.press({ key: 'games' })
         await ui.unmount()
@@ -178,7 +178,7 @@ describe('control characters (API-GOTCHAS #31)', () => {
 
     test(`${name} typed after /halftime is never repeated back`, async ($, on) => {
       const { seen } = world(on)
-      for (const args of [c, `hurdle${c}`, `auto ${c}`, `sweep ${c}`]) expect(await said($, seen, args)).not.toMatch(CONTROL)
+      for (const args of [c, `cratehop${c}`, `auto ${c}`, `sweep ${c}`]) expect(await said($, seen, args)).not.toMatch(CONTROL)
     })
   }
 })
