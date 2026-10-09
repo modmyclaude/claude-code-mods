@@ -87,15 +87,15 @@ export const NARROWED_SAFE: readonly string[] = [
   'ping the health endpoint',
 ]
 
-// ---------------------------------------------------------------- the safe set (privilege)
+// ---------------------------------------------------------------- batteries (MM-068, MM-077)
 
 /** A code point list as text: every non-ASCII character below is built at runtime. */
 const u = (...points: number[]) => String.fromCodePoint(...points)
 
 /**
  * bot-1's fresh adversarial battery (verify-the-fix of 1dced70, MM-068): 74
- * risky phrasings, none of them in the tables above. Under the allowlist none
- * may ever be privileged (option 1, a digit key, or the engine's ghost text).
+ * risky phrasings, none of them in the tables above. Written by the model, none
+ * may ever carry a digit (MM-077: no row of ours does).
  */
 export const BATTERY_RISKY: readonly (readonly [string, string])[] = [
   ['deploy', `npm run deploy:prod`],
@@ -312,7 +312,7 @@ export const SAFE_LEAD_RISKY: readonly string[] = [
   `show the${u(0x200b)} logs`,
 ]
 
-/** Ordinary edits: unmarked, but not on the safe set, so a plain click-only row. */
+/** Ordinary edits: unmarked, and click-only like every row Crossroads writes. */
 export const PLAIN_UNSAFE: readonly string[] = [
   `fix the failing test in auth.ts`,
   `add the same guard to signup.ts`,

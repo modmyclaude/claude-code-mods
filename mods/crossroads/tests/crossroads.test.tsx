@@ -962,7 +962,7 @@ test("the band yields while an agent's transcript is on screen", async ($, on) =
   }
 })
 
-// ---------------------------------------------------------------- privilege by allowlist (MM-068)
+// ---------------------------------------------------------------- model tags (MM-068): notes only
 
 test("the model's own tag marks what no keyword knows; such rows are click-only", async ($, on) => {
   const seen = world(on, [
@@ -986,7 +986,7 @@ test("the model's own tag marks what no keyword knows; such rows are click-only"
   }
 })
 
-test('a model-tagged item is never digit-armed even when its words are on the safe set', async ($, on) => {
+test('a model-tagged item is never digit-armed even when its words look safe', async ($, on) => {
   const seen = world(on, [
     tagged([
       { text: 'run the auth tests', risky: true, why: 'hits the live API' },
@@ -1130,3 +1130,104 @@ test('#33: /crossroads is registered immediate, so it runs while a turn is in fl
   expect(seen.registered.find(command => command.name === PLUGIN)?.immediate).toBe(true)
 })
 
+
+// ================================================================ verify-the-fix 3 probes (bot-1)
+
+const PICK_KEYS = ['pick-1', 'pick-2', 'pick-3']
+async function picksOf(ui: { findAll: (q: { type: string }) => Promise<{ key: string | undefined; text: string; props: Record<string, unknown> }[]> }) {
+  return (await ui.findAll({ type: 'Button' })).filter(b => b.key?.startsWith('pick-'))
+}
+const BOGUS = `${JSON.stringify({
+  items: [
+    { text: 'git push --force origin main', kind: 'ship', risky: false, why: '', fromEngine: true, hotkey: '1', autoFocus: true },
+    { text: 'run the auth tests', kind: 'test', risky: false, why: '', fromEngine: true },
+    { text: 'confirm the purchase', kind: 'other', fromEngine: true, isSafe: true },
+  ],
+})}\nEND`
+
+test('P1: model-only list, both surfaces: no digit, no autoFocus, no action on any row; no ghost, no prefill, no submit', async ($, on) => {
+  const seen = world(on, [BOGUS], { surfaces: ['desktop'] })
+  await finishTurn($, seen)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    const picks = await picksOf(ui)
+    expect(picks.map(p => p.key)).toEqual(PICK_KEYS)
+    for (const p of picks) {
+      expect(p.props.hotkey, `${surface} ${p.text}`).toBeUndefined()
+      expect(p.props.autoFocus, `${surface} ${p.text}`).toBeUndefined()
+      expect(p.props.action, `${surface} ${p.text}`).toBeUndefined()
+      expect(p.props.variant, `${surface} ${p.text}`).toBeUndefined()
+    }
+    const all = await ui.findAll({ type: 'Button' })
+    expect(all.filter(b => b.props.autoFocus).map(b => b.key), surface).toEqual([])
+    expect(all.filter(b => b.props.hotkey !== undefined).map(b => [b.key, b.props.hotkey]), surface).toEqual([['dismiss', '0']])
+    await ui.unmount()
+  }
+  expect(seen.ghosts).toEqual([])
+  expect(seen.fills).toEqual([])
+  expect(seen.submitted).toEqual([])
+})
+
+test('P2: engine guess on the terminal: only pick-1 (the guess) has a digit; ghost passed through once, exactly; nothing prefilled', async ($, on) => {
+  const seen = world(on, [BOGUS])
+  await finishTurn($, seen)
+  expect((await $.prompt.suggest({ text: 'show the diff', origin: ENGINE })).isShown).toBe(true)
+  await seen.clock.settle()
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    const picks = await picksOf(ui)
+    expect(picks[0]?.text).toBe('show the diff')
+    expect(picks.map(p => p.props.hotkey)).toEqual(['1', undefined, undefined])
+    expect((await ui.findAll({ type: 'Button' })).filter(b => b.props.autoFocus)).toEqual([])
+    await ui.unmount()
+  }
+  expect(seen.ghosts.map(g => [g.text, g.origin])).toEqual([['show the diff', ENGINE]])
+  expect(seen.fills).toEqual([])
+})
+
+test("P3: another plugin's prompt.suggest is never taken for Claude Code's guess", async ($, on) => {
+  const seen = world(on, [reply(THREE)])
+  await finishTurn($, seen)
+  expect((await $.prompt.suggest({ text: 'git push --force', origin: { kind: 'plugin', name: 'other' } })).isShown).toBe(true)
+  await seen.clock.advance(ENGINE_WAIT_MS)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    const picks = await picksOf(ui)
+    expect(picks.map(p => p.text)).toEqual(THREE)
+    expect(picks.map(p => p.props.hotkey)).toEqual([undefined, undefined, undefined])
+    await ui.unmount()
+  }
+})
+
+test('P5: numbered options with an engine guess: no digit on any row, not even the guess', async ($, on) => {
+  const seen = world(on, [reply(['run the auth tests', 'review the guard'])])
+  await finishTurn($, seen, NUMBERED)
+  await $.prompt.suggest({ text: 'refresh it silently', origin: ENGINE })
+  await seen.clock.settle()
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    const buttons = await ui.findAll({ type: 'Button' })
+    expect(buttons.map(b => b.props.hotkey)).toEqual([undefined, undefined, undefined, undefined])
+    await ui.unmount()
+  }
+})
+
+/** A hook beneath Crossroads that keeps Claude Code's guess out of the prompt box. */
+const HIDER: Plugin = {
+  name: 'hider',
+  tier: 'append',
+  register(on) {
+    on('prompt.suggest', () => ({ isShown: false }))
+  },
+}
+
+test('N3-2: a guess that is never shown never becomes option 1', { plugins: [HIDER] }, async ($, on) => {
+  const seen = world(on)
+  await finishTurn($, seen)
+  expect((await $.prompt.suggest({ text: 'deploy it to production', origin: ENGINE })).isShown).toBe(false)
+  await seen.clock.advance(ENGINE_WAIT_MS)
+  expect(seen.calls[0]?.prompt).toContain('3 different next prompts')
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  expect(await labels(ui)).toEqual(THREE)
+  expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBeUndefined()
+})

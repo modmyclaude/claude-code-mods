@@ -468,21 +468,26 @@ export const register: Register = on => {
     return entered
   }).catch(($, e, next) => next(e))
 
-  // The engine's own guess: always passed through untouched, and it becomes
-  // option 1. It is judged on its raw text for the note; our copy of it is
-  // cleaned, as it is drawn in the band and may be drafted.
+  // The engine's own guess: always passed through untouched. Only a guess
+  // Claude Code actually shows becomes option 1 (one a hook beneath us hid is
+  // not drawn either). It is judged on its raw text for the note; our copy of
+  // it is cleaned, as it is drawn in the band and may be drafted.
   on('prompt.suggest', async ($, e, next) => {
-    if (e.origin.kind !== 'suggestion' || !(await isEnabled($))) return next(e)
-    const guess: EngineGuess = judgeGuess(e.text)
     // A guess made while a turn runs belongs to no finished turn.
-    if (!live.isTurnRunning) {
-      const at = live.epoch
+    const at = live.isTurnRunning ? null : live.epoch
+    const result = await next(e)
+    if (e.origin.kind !== 'suggestion' || at === null || !result.isShown) return result
+    try {
+      if (!(await isEnabled($))) return result
+      const guess: EngineGuess = judgeGuess(e.text)
       live.engine = { epoch: at, guess }
       live.nudge?.()
       await mergeLateGuess($, at, guess)
+    } catch (error) {
+      debug($, `engine guess not taken: ${String(error)}`)
     }
 
-    return next(e)
+    return result
   }).catch(($, e, next) => next(e))
 
   on('session.end', async ($, e, next) => {

@@ -16,7 +16,7 @@ Three ways forward after every turn, risky ones marked. About $0.0002 a turn.
 Paste this into Claude Code to build it yourself, or install the finished mod from this repo.
 
 ```text
-Build me a Claude Code mod called "crossroads": after Claude finishes a turn, offer me 3 specific next prompts I can take with one key, and clearly mark any that would do something risky.
+Build me a Claude Code mod called "crossroads": after Claude finishes a turn, offer me 3 specific next prompts I can take with a click, and clearly mark any that would do something risky.
 
 What it shows
 - When a turn ends with an answer, a small band above my prompt: "1 run the auth tests · add the same guard to signup.ts · push to main (pushes)". A dim loading row while they are being made.
