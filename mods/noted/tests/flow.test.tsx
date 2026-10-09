@@ -3,6 +3,7 @@
 // surface and its buttons pressed, and the files (answered beneath) checked.
 
 import { describe, expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
 import {
   BAND,
@@ -16,6 +17,25 @@ import {
 } from './world'
 
 const PNPM = 'Use pnpm, not npm, in this repo.'
+
+/** Another mod with a band of its own, composing what is beneath it. */
+const NEIGHBOUR = {
+  name: 'neighbour',
+  register(on: On) {
+    on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+      const { Box, Text } = $.ui.resolve(e)
+      const below = await next(e)
+      return (
+        <Box flexDirection="column">
+          <Box key="neighbour">
+            <Text>another mod's band</Text>
+          </Box>
+          {below}
+        </Box>
+      )
+    })
+  },
+}
 
 describe('a correction', () => {
   for (const surface of SURFACES) {
@@ -82,7 +102,7 @@ describe('a correction', () => {
 
       const ui = await $.ui.mount({ plugin: 'noted', surface, component: 'AbovePrompt', props: BAND })
       await ui.press({ key: 'skip' })
-      expect(await ui.find({ key: 'engine' })).toBeDefined() // the band is the engine's again
+      expect(await ui.find({ key: 'noted' })).toBeUndefined() // the band is the engine's again
       expect(w.writes).toEqual([])
       await ui.unmount()
     })
@@ -122,6 +142,28 @@ describe('a correction', () => {
   })
 })
 
+describe('sharing the band', () => {
+  for (const surface of SURFACES) {
+    test(`noted draws above other mods' bands, never in place of them, on ${surface}`, { plugins: [NEIGHBOUR] }, async ($, on) => {
+      world(on, { reply: verdict(PNPM) })
+      const ui = await $.ui.mount({ plugin: 'noted', surface, component: 'AbovePrompt', props: BAND })
+      const all = async () => [await ui.find({ key: 'noted' }), await ui.find({ key: 'neighbour' }), await ui.find({ key: 'engine' })]
+
+      await $.prompt.submit({ text: 'no, use pnpm', ...PROMPT_FROM_PERSON })
+      await ui.redraw()
+      for (const found of await all()) expect(found).toBeDefined() // the proposal
+
+      await ui.press({ key: 'save-project' })
+      for (const found of await all()) expect(found).toBeDefined() // the notice
+
+      await $.command.run({ command: 'rules', args: '', origin: { kind: 'composer' }, presentation: PRESENTATION })
+      await ui.redraw()
+      expect(await ui.find({ key: 'done' })).toBeDefined()
+      for (const found of await all()) expect(found).toBeDefined() // the /rules list
+    })
+  }
+})
+
 describe('the pre-filter', () => {
   test('keeps ordinary prompts away from the model', async ($, on) => {
     const w = world(on, { reply: verdict(PNPM) })
@@ -131,7 +173,15 @@ describe('the pre-filter', () => {
     }
     expect(w.calls).toHaveLength(0)
     const ui = await $.ui.mount({ plugin: 'noted', surface: 'terminal', component: 'AbovePrompt', props: BAND })
-    expect(await ui.find({ key: 'engine' })).toBeDefined()
+    expect(await ui.find({ key: 'noted' })).toBeUndefined()
+  })
+
+  test('takes desktop-app prompts, which arrive with origin sdk', async ($, on) => {
+    const w = world(on, { reply: verdict(PNPM), surfaces: ['desktop'] })
+    await $.prompt.submit({ text: 'no, use pnpm', wait: false, origin: { kind: 'sdk' } })
+    expect(w.calls).toHaveLength(1)
+    const ui = await $.ui.mount({ plugin: 'noted', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+    expect((await ui.find({ key: 'rule' }))?.text).toBe(PNPM)
   })
 
   test('ignores prompts that are not the person\u2019s own words', async ($, on) => {
@@ -171,7 +221,7 @@ describe('no duplicates', () => {
     await $.prompt.submit({ text: 'no, use pnpm', ...PROMPT_FROM_PERSON })
     await $.prompt.submit({ text: 'thanks, now fix the build', ...PROMPT_FROM_PERSON })
     const ui = await $.ui.mount({ plugin: 'noted', surface: 'terminal', component: 'AbovePrompt', props: BAND })
-    expect(await ui.find({ key: 'engine' })).toBeDefined()
+    expect(await ui.find({ key: 'noted' })).toBeUndefined()
   })
 
   for (const surface of SURFACES) {
@@ -227,7 +277,7 @@ describe('the model call', () => {
       expect(entered.text).toBe('no, use pnpm')
       expect(w.calls).toHaveLength(1)
       const ui = await $.ui.mount({ plugin: 'noted', surface: 'terminal', component: 'AbovePrompt', props: BAND })
-      expect(await ui.find({ key: 'engine' })).toBeDefined()
+      expect(await ui.find({ key: 'noted' })).toBeUndefined()
     })
   }
 
@@ -235,7 +285,7 @@ describe('the model call', () => {
     world(on, { reply: verdict(null) })
     await $.prompt.submit({ text: "no, that's fine", ...PROMPT_FROM_PERSON })
     const ui = await $.ui.mount({ plugin: 'noted', surface: 'terminal', component: 'AbovePrompt', props: BAND })
-    expect(await ui.find({ key: 'engine' })).toBeDefined()
+    expect(await ui.find({ key: 'noted' })).toBeUndefined()
   })
 
   test('a failed call lets the prompt through and proposes nothing', async ($, on) => {
@@ -244,7 +294,7 @@ describe('the model call', () => {
     expect(entered.text).toBe('no, use pnpm')
     expect(w.calls).toHaveLength(1)
     const ui = await $.ui.mount({ plugin: 'noted', surface: 'terminal', component: 'AbovePrompt', props: BAND })
-    expect(await ui.find({ key: 'engine' })).toBeDefined()
+    expect(await ui.find({ key: 'noted' })).toBeUndefined()
   })
 
   test('a refused call lets the prompt through and says once that the model is unavailable', async ($, on) => {
@@ -326,7 +376,7 @@ describe('/rules', () => {
       expect((await ui.findAll({ type: 'Button' })).filter(b => b.key?.startsWith('remove-'))).toHaveLength(1)
 
       await ui.press({ key: 'done' })
-      expect(await ui.find({ key: 'engine' })).toBeDefined()
+      expect(await ui.find({ key: 'noted' })).toBeUndefined()
     })
   }
 

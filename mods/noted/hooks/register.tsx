@@ -11,7 +11,7 @@
 // written only from a button press (or `/rules remove <n>`).
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, SessionMessage } from 'claude-code'
+import type { Elements, EngineInterface, Register, SessionMessage } from 'claude-code'
 
 import type { NotedBand, NotedExisting, NotedLearned, NotedScope } from '../types'
 import { looksLikeCorrection } from './detect'
@@ -428,108 +428,127 @@ export const register: Register = on => {
     return { text }
   }).catch(() => ({ text: 'noted: /rules failed; the debug log (claude --debug) says why.' }))
 
-  // The band. Texts the tests (and hover) address sit in keyed Boxes: a
-  // Text carries no key of its own.
+  // The band, drawn above whatever other mods draw there (next(e) beneath),
+  // never in place of it.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     if (e.props.hasSurvey) return next(e)
     const shown = await read($, band)
     if (shown === null) return next(e)
-    const { Box, Text, Button, Input } = $.ui.resolve(e)
-    const close = () => update($, band, () => null)
-    const setEditing = (isEditing: boolean) =>
-      update($, band, b => (b?.kind === 'proposal' ? { ...b, isEditing } : b))
-
-    if (shown.kind === 'notice') {
-      return (
-        <Box flexDirection="row" gap={1}>
-          <Box key="notice" flexShrink={1}>
-            <Text color={shown.isError ? 'error' : undefined}>Noted: {shown.text}</Text>
-          </Box>
-          <Button key="ok" label="OK" hotkey="o" role="dismiss" onPress={close} />
-        </Box>
-      )
-    }
-
-    if (shown.kind === 'rules') {
-      return (
-        <Box flexDirection="column">
-          <Text bold>House rules learned by noted</Text>
-          {shown.items.length === 0 && (
-            <Text dimColor>None yet. Correct Claude ("no, use pnpm") and save the rule it proposes.</Text>
-          )}
-          {shown.items.map((l, i) => (
-            <Box flexDirection="row" gap={1}>
-              <Button key={`remove-${l.id}`} label="Remove" dimColor onPress={() => pressRemove($, l.id)} />
-              <Box flexShrink={1}>
-                <Text>
-                  {i + 1}. {l.rule}{' '}
-                </Text>
-                <Text dimColor>
-                  ({l.scope === 'project' ? './CLAUDE.md' : shown.globalLabel}, added {day(l.addedAt)})
-                </Text>
-              </Box>
-            </Box>
-          ))}
-          {shown.message !== null && (
-            <Box key="message">
-              <Text dimColor>{shown.message}</Text>
-            </Box>
-          )}
-          <Button key="done" label="Done" hotkey="d" role="dismiss" onPress={close} />
-        </Box>
-      )
-    }
-
-    const conflict = shown.conflict
+    const ui = $.ui.resolve(e)
+    const { Box } = ui
+    const below = await next(e)
     return (
       <Box flexDirection="column">
-        <Text bold>Noted - save this as a house rule?</Text>
-        {shown.isEditing ? (
-          <Input
-            key="rule-input"
-            label="Rule: "
-            value={shown.rule}
-            submitLabel="keep"
-            autoFocus
-            onSubmit={value => finishEdit($, value)}
-          />
-        ) : (
-          <Box key="rule">
-            <Text>{shown.rule}</Text>
-          </Box>
-        )}
-        {conflict !== null && (
-          <Box key="conflict">
-            <Text color="warning">
-              Conflicts with a rule in {conflict.label}: {conflict.text}
-            </Text>
-          </Box>
-        )}
-        {shown.note !== null && (
-          <Box key="note">
-            <Text dimColor>{shown.note}</Text>
-          </Box>
-        )}
-        {shown.isEditing ? (
-          <Box flexDirection="row" gap={1}>
-            <Button key="cancel-edit" label="Cancel edit" hotkey="c" onPress={() => setEditing(false)} />
-          </Box>
-        ) : (
-          <Box flexDirection="row" gap={1} flexWrap="wrap">
-            {conflict !== null ? (
-              <Button key="replace" label="Replace old rule" hotkey="r" variant="primary" onPress={() => replaceOld($)} />
-            ) : (
-              [
-                <Button key="save-project" label="Save to project" hotkey="p" variant="primary" onPress={() => save($, 'project')} />,
-                <Button key="save-global" label="Save globally" hotkey="g" onPress={() => save($, 'global')} />,
-              ]
-            )}
-            <Button key="edit" label="Edit" hotkey="e" onPress={() => setEditing(true)} />
-            <Button key="skip" label="Skip" hotkey="s" role="dismiss" onPress={close} />
-          </Box>
-        )}
+        <Box key="noted" flexDirection="column">
+          {bandTree($, ui, shown)}
+        </Box>
+        {below}
       </Box>
     )
   })
+}
+
+// ---------------------------------------------------------------- the band
+
+// Texts the tests address sit in keyed Boxes: a Text carries no key of its
+// own. File-writing buttons have no hotkey, so a stray key in a focused band
+// never writes a file.
+function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedBand) {
+  const { Box, Text, Button, Input } = ui
+  const close = () => update($, band, () => null)
+  const setEditing = (isEditing: boolean) =>
+    update($, band, b => (b?.kind === 'proposal' ? { ...b, isEditing } : b))
+
+  if (shown.kind === 'notice') {
+    return (
+      <Box flexDirection="row" gap={1}>
+        <Box key="notice" flexShrink={1}>
+          <Text color={shown.isError ? 'error' : undefined}>Noted: {shown.text}</Text>
+        </Box>
+        <Button key="ok" label="OK" hotkey="o" role="dismiss" onPress={close} />
+      </Box>
+    )
+  }
+
+  if (shown.kind === 'rules') {
+    return (
+      <Box flexDirection="column">
+        <Text bold>House rules learned by noted</Text>
+        {shown.items.length === 0 && (
+          <Text dimColor>None yet. Correct Claude ("no, use pnpm") and save the rule it proposes.</Text>
+        )}
+        {shown.items.map((l, i) => (
+          <Box flexDirection="row" gap={1}>
+            <Button key={`remove-${l.id}`} label="Remove" dimColor onPress={() => pressRemove($, l.id)} />
+            <Box flexShrink={1}>
+              <Text>
+                {i + 1}. {l.rule}{' '}
+              </Text>
+              <Text dimColor>
+                ({l.scope === 'project' ? './CLAUDE.md' : shown.globalLabel}, added {day(l.addedAt)})
+              </Text>
+            </Box>
+          </Box>
+        ))}
+        {shown.message !== null && (
+          <Box key="message">
+            <Text dimColor>{shown.message}</Text>
+          </Box>
+        )}
+        <Button key="done" label="Done" hotkey="d" role="dismiss" onPress={close} />
+      </Box>
+    )
+  }
+
+  const conflict = shown.conflict
+  return (
+    <Box flexDirection="column">
+      <Text bold>Noted - save this as a house rule?</Text>
+      {shown.isEditing ? (
+        <Input
+          key="rule-input"
+          label="Rule: "
+          value={shown.rule}
+          submitLabel="keep"
+          autoFocus
+          onSubmit={value => finishEdit($, value)}
+        />
+      ) : (
+        <Box key="rule">
+          <Text>{shown.rule}</Text>
+        </Box>
+      )}
+      {conflict !== null && (
+        <Box key="conflict">
+          <Text color="warning">
+            Conflicts with a rule in {conflict.label}: {conflict.text}
+          </Text>
+        </Box>
+      )}
+      {shown.note !== null && (
+        <Box key="note">
+          <Text dimColor>{shown.note}</Text>
+        </Box>
+      )}
+      {shown.isEditing ? (
+        <Box flexDirection="row" gap={1}>
+          <Button key="cancel-edit" label="Cancel edit" onPress={() => setEditing(false)} />
+        </Box>
+      ) : (
+        <Box flexDirection="row" gap={1} flexWrap="wrap">
+          {conflict !== null ? (
+            <Button key="replace" label="Replace old rule" variant="primary" onPress={() => replaceOld($)} />
+          ) : (
+            [
+              <Button key="save-project" label="Save to project" variant="primary" onPress={() => save($, 'project')} />,
+              <Button key="save-global" label="Save globally" onPress={() => save($, 'global')} />,
+            ]
+          )}
+          <Button key="edit" label="Edit" hotkey="e" onPress={() => setEditing(true)} />
+          <Button key="skip" label="Skip" hotkey="s" role="dismiss" onPress={close} />
+        </Box>
+      )}
+    </Box>
+  )
 }

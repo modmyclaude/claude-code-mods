@@ -24,7 +24,7 @@ Use pnpm, not npm, in this repo.
 - If the rule is already there (same words, or the same meaning), the band says **already a rule** instead of proposing it again.
 - If it contradicts a rule you already have, the band shows the old rule and offers **Replace old rule**, which rewrites that line in place, instead of adding a contradiction.
 
-The band buttons have keys once the band has focus (click it, or ctrl+x tab): `p` project, `g` global, `e` edit, `s` skip, `r` replace, `c` cancel an edit, `o` dismiss a notice, `d` close the `/rules` list.
+Once the band has focus (click it, or ctrl+x tab), `e` edits, `s` skips, `o` dismisses a notice and `d` closes the `/rules` list. The buttons that write a file (Save, Replace old rule, Remove) have no key, so a stray keystroke never writes one. The band sits above any other mod's band rather than replacing it.
 
 `/rules` lists the rules noted has learned, with the file and the date each was added, in the transcript and in the band, where each one has a **Remove** button. `/rules remove <number>` removes one by its number, for surfaces without the band. Removing a rule deletes its line from the file.
 
