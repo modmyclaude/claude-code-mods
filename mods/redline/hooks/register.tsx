@@ -82,6 +82,9 @@ export const register: Register = on => {
       name: 'redline',
       description: 'Context, tokens, cost, pace and plan limits in detail; "/redline band" toggles the gauge above the prompt',
       argumentHint: '[band]',
+      // Checking the gauge mid-turn is the point: run at once, never queued
+      // behind the turn. The hook reads only the gauge, never turn state.
+      immediate: true,
     })
     await safely($, 'start', async () => {
       const stored = await $.store.get(BAND_STORE_KEY)
@@ -172,24 +175,27 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A command's text is read by the model, so redline answers {} and speaks
+  // through toasts and its pane; text only where nothing can draw the pane.
   on('command.run', { command: 'redline' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'band') {
       const isOn = await setBand($, was => !was)
-      return {
-        text: isOn
-          ? 'Redline band is on, above the prompt. /redline band hides it again.'
-          : 'Redline band is off. /redline band shows it again.',
-      }
+      $.ui.toast(isOn ? 'Redline band is on, above the prompt. /redline band hides it.' : 'Redline band is off. /redline band shows it.')
+      return {}
     }
     if (arg !== '') {
-      return { text: 'Usage: /redline opens the detail view; /redline band toggles the gauge band above the prompt.' }
+      $.ui.toast('Redline: /redline opens the detail view; /redline band toggles the gauge above the prompt.')
+      return {}
     }
     const opened = await $.ui.open({ id: PANE, title: 'Redline', closeOnEscape: true })
     if (opened.isPlaced) return {}
     // Nothing places the pane here: print the same view as the command's text.
     return { text: detailText(await read($, gauge), await $.clock.now()) }
-  }).catch(() => ({ text: 'Redline could not open its detail view (run with --debug for the reason).' }))
+  }).catch($ => {
+    $.ui.toast('Redline could not open its detail view (run with --debug for the reason).')
+    return {}
+  })
 
   // The band above the prompt: the status line's gauge, in colour, drawn with
   // whatever other mods draw there (never in their place), after theirs, so a
