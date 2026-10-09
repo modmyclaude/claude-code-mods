@@ -316,7 +316,8 @@ describe('the model call', () => {
     expect(entered.text).toBe('no, use pnpm')
     await $.prompt.submit({ text: "don't add comments", ...PROMPT_FROM_PERSON })
     expect(w.calls).toHaveLength(2)
-    expect(w.logs.filter(l => l.includes('haiku model is not available here'))).toHaveLength(1)
+    const said = w.logs.flatMap((l, i) => (l.includes('haiku model is not available here') ? [w.sinks[i]] : []))
+    expect(said).toEqual(['transcript']) // once, and where the person sees it
   })
 
   test('the hook failing outright still lets the prompt through (the .catch path)', async ($, on) => {
@@ -344,14 +345,15 @@ describe('the model call', () => {
 
 describe('/rules', () => {
   test('is registered at session start', async ($, on) => {
-    const names: string[] = []
+    const specs: Array<{ name: string; immediate?: true }> = []
     on('command.register', ($, e) => {
-      names.push(e.name)
+      specs.push(e)
       return { value: { command: e.name } }
     })
     on('session.start', ($, e) => ({ cwd: e.cwd }))
     await $.session.start({ cwd: '/work/app', surface: 'terminal', isInteractive: true })
-    expect(names).toEqual(['rules'])
+    expect(specs.map(s => s.name)).toEqual(['rules'])
+    expect(specs[0]?.immediate).toBe(true) // a listing need not wait for the turn to end
   })
 
   for (const surface of SURFACES) {

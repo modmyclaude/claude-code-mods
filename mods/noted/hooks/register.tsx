@@ -477,7 +477,8 @@ export const register: Register = on => {
 
 // Texts the tests address sit in keyed Boxes: a Text carries no key of its
 // own. File-writing buttons have no hotkey, so a stray key in a focused band
-// never writes a file.
+// never writes a file, and the ring starts on the dismissing button (Skip,
+// OK, Done), so Enter right after taking the band writes nothing either.
 function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedBand) {
   const { Box, Text, Button, Input } = ui
   const close = () => update($, band, () => null)
@@ -490,7 +491,7 @@ function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedB
         <Box key="notice" flexShrink={1}>
           <Text color={shown.isError ? 'error' : undefined}>Noted: {clean(shown.text)}</Text>
         </Box>
-        <Button key="ok" label="OK" hotkey="o" role="dismiss" onPress={close} />
+        <Button key="ok" label="OK" hotkey="o" role="dismiss" autoFocus onPress={close} />
       </Box>
     )
   }
@@ -520,7 +521,7 @@ function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedB
             <Text dimColor>{clean(shown.message)}</Text>
           </Box>
         )}
-        <Button key="done" label="Done" hotkey="d" role="dismiss" onPress={close} />
+        <Button key="done" label="Done" hotkey="d" role="dismiss" autoFocus onPress={close} />
       </Box>
     )
   }
@@ -570,7 +571,7 @@ function bandTree($: Dollar, ui: Elements['terminal' | 'desktop'], shown: NotedB
             ]
           )}
           <Button key="edit" label="Edit" hotkey="e" onPress={() => setEditing(true)} />
-          <Button key="skip" label="Skip" hotkey="s" role="dismiss" onPress={close} />
+          <Button key="skip" label="Skip" hotkey="s" role="dismiss" autoFocus onPress={close} />
         </Box>
       )}
     </Box>

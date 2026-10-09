@@ -3,9 +3,10 @@
 // Rules read from CLAUDE.md files and the model's own rule are untrusted.
 
 import { describe, expect, test } from 'claude-code/testing'
+import type { Mounted } from 'claude-code/testing'
 
 import { clean } from '../hooks/text'
-import { BAND, GLOBAL, PROJECT, PROMPT_FROM_PERSON, SURFACES, verdict, world } from './world'
+import { BAND, GLOBAL, PRESENTATION, PROJECT, PROMPT_FROM_PERSON, SURFACES, verdict, world } from './world'
 
 const PNPM = 'Use pnpm, not npm, in this repo.'
 const CONTROLS = /[\u0000-\u001f\u007f-\u009f]/
@@ -63,6 +64,83 @@ describe('the band draws untrusted text without control characters', () => {
       expect((await ui.find({ key: 'rule' }))?.text).toBe(PNPM)
       await ui.press({ key: 'save-project' })
       expect(w.files[PROJECT]).toBe(`## House rules\n\n- ${PNPM}\n`)
+      await ui.unmount()
+    })
+  }
+})
+
+/** noted drew, and no Text or Button label holds a control character. */
+async function expectClean(ui: Mounted<(typeof SURFACES)[number], 'AbovePrompt'>, where: string) {
+  expect(await ui.find({ key: 'noted' }), `noted drawn: ${where}`).toBeDefined()
+  for (const t of await ui.findAll({ type: 'Text' })) expect(CONTROLS.test(t.text), `${where}: ${JSON.stringify(t.text)}`).toBe(false)
+  for (const b of await ui.findAll({ type: 'Button' })) expect(CONTROLS.test(String(b.props.label)), where).toBe(false)
+}
+
+// A config folder whose name holds ESC and BEL: every file label drawn from it.
+const HOSTILE_DIR = '/c\u001b[31mfg\u0007'
+const HOSTILE_FILE = `${HOSTILE_DIR}/CLAUDE.md`
+
+describe('file labels, stored rules and notes are drawn clean too', () => {
+  for (const surface of SURFACES) {
+    test(`a hostile CLAUDE_CONFIG_DIR in the conflict label and the replaced notice on ${surface}`, async ($, on) => {
+      const w = world(on, {
+        env: { CLAUDE_CONFIG_DIR: HOSTILE_DIR },
+        files: { [HOSTILE_FILE]: '## House rules\n\n- Use npm for installs.\n' },
+        reply: verdict(PNPM, { conflictsWith: 1 }),
+      })
+      await $.prompt.submit({ text: 'no, use pnpm', ...PROMPT_FROM_PERSON })
+      const ui = await $.ui.mount({ plugin: 'noted', surface, component: 'AbovePrompt', props: BAND })
+      expect((await ui.find({ key: 'conflict' }))?.text).toContain('Use npm for installs.')
+      await expectClean(ui, 'conflict')
+      await ui.press({ key: 'replace' })
+      expect(w.files[HOSTILE_FILE]).toBe(`## House rules\n\n- ${PNPM}\n`)
+      await expectClean(ui, 'replaced')
+      await ui.unmount()
+    })
+
+    test(`a hostile label in the vanished-conflict note on ${surface}`, async ($, on) => {
+      const w = world(on, {
+        env: { CLAUDE_CONFIG_DIR: HOSTILE_DIR },
+        files: { [HOSTILE_FILE]: '## House rules\n\n- Use npm.\n' },
+        reply: verdict(PNPM, { conflictsWith: 1 }),
+      })
+      await $.prompt.submit({ text: 'no, use pnpm', ...PROMPT_FROM_PERSON })
+      const ui = await $.ui.mount({ plugin: 'noted', surface, component: 'AbovePrompt', props: BAND })
+      w.files[HOSTILE_FILE] = '## House rules\n'
+      await ui.press({ key: 'replace' })
+      expect((await ui.find({ key: 'note' }))?.text).toContain('no longer in')
+      await expectClean(ui, 'vanished note')
+      await ui.unmount()
+    })
+
+    test(`a stored rule and label holding controls in the /rules list, its message and the command text on ${surface}`, async ($, on) => {
+      const w = world(on, {
+        env: { CLAUDE_CONFIG_DIR: HOSTILE_DIR },
+        files: { [HOSTILE_FILE]: '## House rules\n\n- Keep it small.\n- Never push to main.\n' },
+        store: {
+          learned: [
+            { id: 'a', rule: 'Keep \u001b[31mit\u001b[0m small.\u0085', scope: 'global', path: HOSTILE_FILE, addedAt: '2026-10-01T12:00:00.000Z' },
+            { id: 'b', rule: 'Never push to main.', scope: 'global', path: HOSTILE_FILE, addedAt: '2026-10-02T12:00:00.000Z' },
+          ],
+        },
+      })
+      const run = (args: string) => $.command.run({ command: 'rules', args, origin: { kind: 'composer' }, presentation: PRESENTATION })
+      const listed = await run('')
+      expect(listed.text).toContain('1. Keep it small.')
+      expect(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/.test(listed.text ?? '')).toBe(false)
+
+      const ui = await $.ui.mount({ plugin: 'noted', surface, component: 'AbovePrompt', props: BAND })
+      expect((await ui.findAll({ type: 'Button' })).filter(b => b.key?.startsWith('remove-'))).toHaveLength(2)
+      await expectClean(ui, '/rules list')
+      await ui.press({ key: 'remove-a' })
+      expect(w.files[HOSTILE_FILE]).toBe('## House rules\n\n- Never push to main.\n')
+      expect((await ui.find({ key: 'message' }))?.text).toContain('Removed from')
+      await expectClean(ui, '/rules after remove')
+
+      const out = await run('remove 1')
+      expect(out.text).toContain('Removed from')
+      expect(CONTROLS.test(out.text ?? '')).toBe(false)
+      await expectClean(ui, '/rules after command remove')
       await ui.unmount()
     })
   }
