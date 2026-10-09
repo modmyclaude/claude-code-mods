@@ -32,8 +32,9 @@ const TABLE: readonly Row[] = [
   { family: 'Opus 5.5', match: /opus-5-5/, input: 4, output: 20, read: 0.2 },
   { family: 'Opus 4.5 to 5', match: /opus-(5|4-[5-9])/, input: 5, output: 25, read: 0.5 },
   { family: 'Opus 4.1', match: /opus/, input: 15, output: 75, read: 1.5 },
-  { family: 'Sonnet 5', match: /sonnet-5/, input: 2, output: 10, read: 0.2 },
+  { family: 'Sonnet 5 and 5.5', match: /sonnet-5/, input: 2, output: 10, read: 0.2 },
   { family: 'Sonnet 4', match: /sonnet/, input: 3, output: 15, read: 0.3 },
+  // Haiku 5.5's cache-read rate is not published beside its prices: 0.1x input is assumed.
   {
     family: 'Haiku 5.5',
     match: /haiku-5/,

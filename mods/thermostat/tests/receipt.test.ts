@@ -49,7 +49,7 @@ test('a resume picks up how long ago the last reply was, and pins the window fro
   const receipt = await command($, 'thermostat')
   expect(receipt).toContain('Cache: cold for 25m (5m window, as Claude Code reported it)')
   // Sonnet 5.5: 120k x $2.50 (5-minute write) cold, x $0.20 warm.
-  expect(receipt).toContain('120k tokens at Sonnet 5 prices: the next send costs ~$0.30 instead of ~$0.02')
+  expect(receipt).toContain('120k tokens at Sonnet 5 and 5.5 prices: the next send costs ~$0.30 instead of ~$0.02')
   const held = await submit($, 'where were we')
   expect(held.drop).toContain('re-reads 120k tokens')
   expect(w.toasts).toEqual([])

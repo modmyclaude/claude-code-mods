@@ -172,3 +172,53 @@ test('subagent turns leave the clock alone, and a main turn stuck in a long tool
   await w.clock.advance(1 * MIN)
   expect(w.forks).toHaveLength(1)
 })
+
+test('a send the cache would have served anyway is not credited to the pings', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  w.fork = forkAnswer(149_000)
+  await command($, 'warm', '3h')
+  await w.clock.advance(58 * MIN + 30 * 1000)
+  expect(w.forks).toHaveLength(1)
+  // 59 minutes after the last real request: inside the 60-minute window without any ping.
+  await w.clock.advance(30 * 1000)
+  await step($, w, usage(149_000, 2_000))
+  expect(await command($, 'thermostat')).toContain('Sends that found the cache warm thanks to them: 0')
+})
+
+test('smart keep-warm weighs pings against what going cold adds, not the whole cold price', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000)) // cold $1.20, warm $0.03: going cold adds $1.17
+  // One dear ping (~$0.59) leaves 2 more (~$1.18): more than $1.17, less than $1.20.
+  w.fork = forkAnswer(149_000, { output_tokens: 28_000 })
+  await command($, 'warm', '3h')
+  await w.clock.advance(59 * MIN)
+  expect(w.forks).toHaveLength(1)
+  expect(w.logs.at(-1)).toContain('keep-warm stopped, 2 more pings (~$1.18) would cost more than the one cold re-read they save (~$1.17)')
+})
+
+test('another plugin cannot start paid pings', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  const ran = await $.command.run({
+    command: 'warm',
+    args: '24h',
+    origin: { kind: 'plugin', name: 'other' },
+    presentation: { isFullscreen: true, columns: 120 },
+  })
+  expect(ran.text).toBe('Keep-warm starts only from a /warm you type.')
+  expect(await command($, 'warm')).toContain('Keep-warm is off.')
+})
+
+test('the ticker stays modest: a few redraws a minute at most', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  const before = w.invalidates
+  await w.clock.advance(10 * MIN)
+  expect(w.invalidates - before).toBeGreaterThan(0)
+  expect(w.invalidates - before).toBeLessThanOrEqual(20)
+})

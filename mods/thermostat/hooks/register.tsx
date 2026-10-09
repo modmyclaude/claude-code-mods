@@ -396,7 +396,7 @@ async function onClear($: Dollar): Promise<void> {
   await stopWarm($, 'keep-warm stopped, /clear started a new conversation')
 }
 
-async function warmCommand($: Dollar, args: string): Promise<string> {
+async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promise<string> {
   const arg = args.trim().toLowerCase()
   if (arg === 'off' || arg === 'stop') {
     const warm = await read($, warmState)
@@ -410,6 +410,8 @@ async function warmCommand($: Dollar, args: string): Promise<string> {
       ? `Keep-warm is off. ${USAGE}`
       : `Keeping the cache warm for ${formatDuration(s.warm.until - s.now)} more. ${pingSummary(s.warm)} /warm off stops it.`
   }
+  // Pings cost money: only a person starts them, never another plugin's command.
+  if (!(await isPerson($, origin))) return 'Keep-warm starts only from a /warm you type.'
   const ms = parseDuration(arg)
   if (ms === null || ms < MINUTE || ms > MAX_WARM_MS) {
     return `Could not read "${args.trim()}" as a duration from 1m to 24h. ${USAGE}`
@@ -555,8 +557,9 @@ export const register: Register = (on, options) => {
     await update($, heldState, () => ({ spell, at: s.now, coldUsd: s.send.coldUsd }))
     await update($, receiptState, r => ({ ...r, held: r.held + 1 }))
     $.clock.after(0, () => void restoreDraft($, e.text))
+    const files = e.attachments?.length ? ' Attach your files again: only the text comes back.' : ''
     return {
-      drop: `Thermostat held this prompt once: ${why}. Send it again to go ahead, or /clear to start fresh.`,
+      drop: `Thermostat held this prompt once: ${why}. Send it again to go ahead, or /clear to start fresh.${files}`,
     }
   })
     // Fails open on purpose: if the estimate itself breaks, the prompt goes
@@ -606,7 +609,8 @@ export const register: Register = (on, options) => {
       await update($, engineTtlState, () => (e.cache_ttl === '1h' ? 60 : 5))
       // `default` means Claude Code did not know the new model's price either.
       if (e.pricing !== 'default') await learnEngineWrite($, e.to_model, e.estimated_cache_write_usd, e.context_tokens)
-      if (e.from_model !== e.to_model) {
+      // A resume restores the model the transcript was cached on: nothing is lost.
+      if (e.source !== 'resume' && e.from_model !== e.to_model) {
         await stopWarm($, 'keep-warm stopped, the model changed and its cache starts empty')
         await resetCache($)
       }
@@ -627,7 +631,7 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'warm' }, async ($, e) => ({ text: await warmCommand($, e.args) })).catch(() => ({
+  on('command.run', { command: 'warm' }, async ($, e) => ({ text: await warmCommand($, e.args, e.origin) })).catch(() => ({
     text: 'thermostat: /warm hit an error. Run /thermostat to see where keep-warm stands.',
   }))
 
