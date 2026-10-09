@@ -65,12 +65,78 @@ const REACH_RULES = [
   [/audio\.(play|speak)/, 'plays sound'],
 ]
 
+// Split a validator "hooks:" list on top-level ", " (matchers can hold commas inside braces).
+function splitTop(list) {
+  const out = []; let depth = 0; let cur = ''
+  for (let i = 0; i < list.length; i++) {
+    const ch = list[i]
+    if (ch === '{') depth++
+    if (ch === '}') depth--
+    if (depth === 0 && list.startsWith(', ', i)) { out.push(cur); cur = ''; i++; continue }
+    cur += ch
+  }
+  if (cur) out.push(cur)
+  return out
+}
+
+// "tool.call{tool=Bash}" -> "tool.call Bash", "command.run{command=rules}" -> "command.run /rules"
+function eventLabel(raw) {
+  const m = raw.match(/^([a-zA-Z.]+)(?:\{(.*)\})?$/)
+  if (!m) return raw
+  const [, name, matcher] = m
+  if (!matcher) return name
+  const first = matcher.match(/^(\w+)=([^,}\s]+)/)
+  if (!first) return name
+  return first[1] === 'command' ? `${name} /${first[2]}` : `${name} ${first[2]}`
+}
+
+// Slash commands as the mod registers them: $.command.register({ name, description }).
+function commandsOf(modDir) {
+  const hooks = join(modDir, 'hooks')
+  const out = []
+  for (const f of readdirSync(hooks).filter(f => /\.(tsx?|jsx?|mjs|cjs|mts|cts)$/.test(f))) {
+    const src = readFileSync(join(hooks, f), 'utf8')
+    for (const m of src.matchAll(/command\.register\(\s*\{([\s\S]*?)\}\s*\)/g)) {
+      const name = m[1].match(/name:\s*(['"`])([^'"`]+)\1/)?.[2]
+      const description = m[1].match(/description:\s*(['"`])((?:(?!\1)[\s\S])*)\1/)?.[2]?.replace(/\s+/g, ' ').trim()
+      if (name && !out.some(c => c.name === name)) out.push({ name, description: description ?? '' })
+    }
+  }
+  return out
+}
+
+const settingsOf = manifest => Object.entries(manifest.userConfig ?? {}).map(([key, f]) => ({
+  key, type: f.type ?? 'string', default: f.sensitive ? undefined : f.default, description: f.description ?? f.title ?? '',
+}))
+
+function testsOf(modDir) {
+  const dir = join(modDir, 'tests')
+  const files = existsSync(dir) ? readdirSync(dir).filter(f => /\.test\.tsx?$/.test(f)) : []
+  const text = files.map(f => readFileSync(join(dir, f), 'utf8')).join('\n')
+  const surfaces = ['terminal', 'desktop', 'vscode', 'mobile'].filter(s => text.includes(`'${s}'`) || text.includes(`"${s}"`))
+  let count = null
+  try {
+    const out = execFileSync(CC, ['plugin', 'test', modDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    count = Number(out.match(/(\d+) pass/)?.[1] ?? NaN) || null
+  } catch {}
+  return { count, surfaces }
+}
+
+const git = (...args) => { try { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim() } catch { return '' } }
+const gitInfo = rel => ({
+  added: git('log', '--diff-filter=A', '--format=%cs', '--', rel).split('\n').pop() || null,
+  updated: git('log', '-1', '--format=%cs', '--', rel) || null,
+  commit: git('log', '-1', '--format=%h', '--', rel) || null,
+})
+// Fields that legitimately differ after a squash merge or rebase; `--check` ignores them.
+const VOLATILE = ['added', 'updated', 'commit']
+
 function reachOf(modDir) {
   let report
   try {
     report = JSON.parse(execFileSync(CC, ['plugin', 'validate', '--json', modDir], { encoding: 'utf8' }))
   } catch (err) {
-    return { ok: false, badges: ['unverified'], gates: [], notes: [String(err.message).split('\n')[0]], touches: null }
+    return { ok: false, badges: ['unverified'], gates: [], notes: [String(err.message).split('\n')[0]], touches: null, events: [] }
   }
   const notes = report.contents.flatMap(c => c.notes || [])
   const calls = notes.filter(n => / calls: /.test(n)).join(' ')
@@ -86,7 +152,8 @@ function reachOf(modDir) {
     sound: /audio\.(play|speak)/.test(calls),
     hooks: [...new Set(gates.map(g => g.split('{')[0]))],
   }
-  return { ok: report.success, badges: badges.length ? badges : ['display only'], gates, notes, touches }
+  const events = [...new Set(notes.filter(n => / hooks: /.test(n)).flatMap(n => splitTop(n.split(' hooks: ')[1])).map(eventLabel))]
+  return { ok: report.success, badges: badges.length ? badges : ['display only'], gates, notes, touches, events }
 }
 
 // A mod is listed only once it is committed, so work in progress in a shared tree
@@ -124,6 +191,11 @@ function collect() {
       media: ['gif', 'png', 'webp'].map(ext => `${fm.mod}.${ext}`).find(f => existsSync(join(ROOT, 'site', 'media', f))) ?? null,
       readme: existsSync(join(ROOT, 'mods', fm.mod, 'README.md')) ? readFileSync(join(ROOT, 'mods', fm.mod, 'README.md'), 'utf8') : '',
       reach: reachOf(join(ROOT, 'mods', fm.mod)),
+      commands: commandsOf(join(ROOT, 'mods', fm.mod)),
+      settings: settingsOf(manifest),
+      tests: testsOf(join(ROOT, 'mods', fm.mod)),
+      license: manifest.license ?? null,
+      ...gitInfo(`mods/${fm.mod}`),
     })
   }
   return mods
@@ -180,7 +252,7 @@ const starters = existsSync(starterDir)
       return { name: fm.starter, title: fm.title, tagline: fm.tagline, prompt: promptText(text).replaceAll('ORG_TBD/REPO_TBD', `${ORG}/${REPO}`) }
     })
   : []
-const site = { org: ORG, repo: REPO, generated: 'by scripts/build-catalog.mjs', mods: mods.map(({ reach, ...m }) => ({ ...m, reach: reach.badges, touches: reach.touches })), starters }
+const site = { org: ORG, repo: REPO, generated: 'by scripts/build-catalog.mjs', mods: mods.map(({ reach, ...m }) => ({ ...m, reach: reach.badges, touches: reach.touches, events: reach.events })), starters }
 outputs.set('site/mods.json', JSON.stringify(site, null, 2) + '\n')
 const readmePath = join(ROOT, 'README.md')
 if (existsSync(readmePath)) {
@@ -190,11 +262,18 @@ if (existsSync(readmePath)) {
   if (next) outputs.set('README.md', next)
 }
 
+function stripVolatile(json) {
+  const data = JSON.parse(json)
+  for (const m of data.mods ?? []) for (const k of VOLATILE) delete m[k]
+  return JSON.stringify(data)
+}
+
 let stale = false
 for (const [rel, content] of outputs) {
   const path = join(ROOT, rel)
   const current = existsSync(path) ? readFileSync(path, 'utf8') : null
   if (current === content) continue
+  if (CHECK && rel === 'site/mods.json' && current !== null && stripVolatile(current) === stripVolatile(content)) continue
   if (CHECK) { console.error(`out of date: ${rel}`); stale = true; continue }
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, content)
