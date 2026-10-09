@@ -134,9 +134,19 @@ describe('the .env reader', () => {
   }
 
   const VALUES: [string, string, boolean][] = [
-    ['DB_PASSWORD', 'hunter2', true],
-    ['DB_PASSWORD', '12345678', true],
-    ['API_KEY', 'kz81-bb2', true],
+    ['DB_PASSWORD', 'fake-Kq7xW2pLm9', true],
+    ['API_KEY', 'Zq8-fakepw-4Lt7', true],
+    ['DB_PASSWORD', '73920184', true], // eight distinct digits under a password name
+    // Too short, too common or too plain to hide everywhere: caught only by shape (MM-074).
+    ['DB_PASSWORD', 'hunter2', false],
+    ['DB_PASSWORD', '12345678', false],
+    ['API_KEY', 'kz81-bb2', false],
+    ['POSTGRES_PASSWORD', 'postgres', false],
+    ['DB_PASSWORD', 'Postgres123!', false],
+    ['JWT_SECRET', 'supersecret', false],
+    ['ADMIN_PASSWORD', 'password1', false],
+    ['PASSWORD_STORE_DIR', '/Users/dev/.password-store', false],
+    ['SSH_KEY_PATH', '~/.ssh/id_ed25519', false],
     ['TOKEN_TTL', '86400', false],
     ['API_KEY', 'changeme', false],
     ['API_KEY', 'your-api-key-here', false],
