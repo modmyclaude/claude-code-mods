@@ -18,6 +18,7 @@ import { detailLines, detailText } from './detail'
 import type { Tone } from './detail'
 import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
 import type { Level, Reading } from './gauge'
+import type { RedlineGauge } from '../types'
 
 const PANE = 'redline'
 const BAND_STORE_KEY = 'isBandOn'
@@ -59,16 +60,32 @@ async function apply($: EngineInterface, reading: Reading): Promise<void> {
   // and just after the earliest plan window resets (a spent window means no
   // replies, so nothing else would). One shot each, re-armed by every reading:
   // nothing ticks while nothing happens.
-  const repaint = () =>
-    void safely($, 'repaint', async () => {
-      $.ui.status(gaugeLine(await read($, gauge), await $.clock.now()))
-      $.ui.invalidate('ui.render')
-    })
   idleRepaint?.cancel()
-  idleRepaint = $.clock.after(SPAN_MS + 1000, repaint)
+  idleRepaint = $.clock.after(SPAN_MS + 1000, () => repaint($))
+  armReset($, g, reading.now)
+}
+
+/** Paints every view again with no reading, then waits for the next reset. */
+function repaint($: EngineInterface): void {
+  void safely($, 'repaint', async () => {
+    const g = await read($, gauge)
+    const now = await $.clock.now()
+    $.ui.status(gaugeLine(g, now))
+    $.ui.invalidate('ui.render')
+    // Each reset re-arms for the next one: the weekly after the 5-hour.
+    armReset($, g, now)
+  })
+}
+
+/** One repaint just after the earliest plan window still to reset. */
+function armReset($: EngineInterface, g: RedlineGauge, now: number): void {
   resetRepaint?.cancel()
-  const nextReset = Math.min(...g.limits.map(l => Date.parse(l.resetsAt ?? '')).filter(t => t > reading.now))
-  resetRepaint = Number.isFinite(nextReset) ? $.clock.after(nextReset - reading.now + 1000, repaint) : undefined
+  const nextReset = Math.min(...g.limits.map(l => Date.parse(l.resetsAt ?? '')).filter(t => t > now))
+  // Held to what a timer holds (2147483647 ms, ~24.8 days): a far reset (a
+  // monthly spend limit) then re-arms once on the way, never in a loop.
+  resetRepaint = Number.isFinite(nextReset)
+    ? $.clock.after(Math.min(nextReset - now + 1000, 2_147_483_647), () => repaint($))
+    : undefined
 }
 
 /** Runs gauge work so a failure is logged and never stands in a turn's way. */
