@@ -39,7 +39,7 @@ hooks telemetry for: collector
 ## Install
 
 ```
-/plugin install cloakroom --marketplace ORG_TBD/REPO_TBD
+/plugin install cloakroom --marketplace modmyclaude/claude-code-mods
 ```
 
 ## Use it
