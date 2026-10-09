@@ -94,7 +94,7 @@ describe('a destructive command is held', () => {
     expect(seen.logs).toContain('Last Look: you cancelled: git reset --hard')
   })
 
-  test('Cancel holds the focus, so Enter cancels; hotkeys are letters, never digits', async ($, on) => {
+  test('Cancel holds the focus, so Enter cancels; only Cancel has a hotkey', async ($, on) => {
     const { seen } = setup(on)
     const call = bash($, 'rm -rf src')
     await until(() => seen.opened.length > 0, 'the pane to open')
@@ -104,14 +104,57 @@ describe('a destructive command is held', () => {
       expect(buttons.map(b => b.key)).toEqual(['cancel', 'proceed'])
       const [cancel, proceed] = buttons
       expect(cancel?.props.autoFocus).toBe(true)
+      expect(cancel?.props.hotkey).toBe('c')
       expect(proceed?.props.autoFocus).toBeUndefined()
-      for (const b of buttons) expect(String(b.props.hotkey)).toMatch(/^[a-z]$/)
+      expect(proceed?.props.hotkey).toBeUndefined()
+      expect(proceed?.props.action).toBeUndefined()
       await ui.unmount()
     }
     const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
     await ui.press({ key: 'cancel' })
-    expect(refusal(await call)).toBeDefined()
+    expect(refusal(await call)).toContain('chose Cancel')
   })
+
+  test('the pane never takes the keyboard on its own', async ($, on) => {
+    const { seen } = setup(on)
+    const call = bash($, 'rm -rf src')
+    await until(() => seen.opened.length > 0, 'the pane to open')
+    expect(seen.openArgs[0]?.focus).toBeUndefined()
+    expect(seen.openArgs[0]?.closeOnEscape).toBe(true)
+    const ui = await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+    await ui.press({ key: 'cancel' })
+    await call
+  })
+
+  for (const isPanePlaced of [true, false]) {
+    test(`typing any letter a-z at the ${isPanePlaced ? 'pane' : 'band'} never approves`, async ($, on) => {
+      const { seen, ran } = setup(on, { ...FILES, isPanePlaced })
+      for (const surface of SURFACES) {
+        const before = seen.opened.length
+        let settled: ToolCallResult | undefined
+        const call = bash($, 'rm -rf src').then(result => (settled = result))
+        await until(() => seen.opened.length > before, 'the hold')
+        const ui = isPanePlaced
+          ? await $.ui.mount({ plugin: 'last-look', surface, component: 'Pane', requestId: PANE, props: paneProps() })
+          : await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND })
+        // A letter key presses the Button whose hotkey it is, as the site does.
+        const typeLetter = async (letter: string) => {
+          for (const button of await ui.findAll({ type: 'Button' })) {
+            if (button.props.hotkey === letter && button.key) await ui.press({ key: button.key })
+          }
+        }
+        for (const letter of 'abdefghijklmnopqrstuvwxyz') await typeLetter(letter)
+        await sleep(50)
+        expect(settled, 'still held after every letter but c').toBeUndefined()
+        expect(ran).toEqual([])
+        await typeLetter('c')
+        await call
+        expect(refusal(settled as ToolCallResult)).toContain('chose Cancel')
+        expect(ran).toEqual([])
+        await ui.unmount()
+      }
+    })
+  }
 
   test('a long list is cut to the room it has, with "and N more"', async ($, on) => {
     const files: WorldSpec['files'] = {}
