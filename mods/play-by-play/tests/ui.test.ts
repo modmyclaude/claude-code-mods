@@ -243,7 +243,7 @@ describe('the replay pane', () => {
     await turn($, 't1', () => $.tool.call({ tool: 'Write', file_path: '/repo/first.txt', content: 'x\n' }))
     await turn($, 't2', () => $.tool.call({ tool: 'Write', file_path: '/repo/second.txt', content: 'x\n' }))
     for (const surface of ['terminal', 'desktop'] as const) {
-      expect(await runReplay($, '2')).toContain('Replaying turn 2 back: 1 edit · 1 file · +1 −0')
+      expect(await runReplay($, '2')).toBe('') // the pane is the answer; the model reads nothing
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PANE, props: PANE_PROPS })
       expect(await ui.find({ type: 'Text', text: 'first.txt' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /^Turn 2 of 2, newest first/ })).toBeDefined()
