@@ -12,12 +12,14 @@ Restyle Claude Code live, including colourblind-safe and high-contrast themes.
 
 | Command | What it does |
 | --- | --- |
-| `/wear` | Lists every theme with a one-line preview in its own colours (tool icons, an added and a removed diff chip) and marks the one you wear. |
+| `/wear` | Opens a pane listing every theme with a one-line preview in its own colours (tool icons, an added and a removed diff chip), the one you wear marked. Close it with its close mark or ctrl+x x. |
 | `/wear <theme>` | Switches now. Rows still live on screen redraw in the new look. |
 | `/wear auto` | A day theme by day and a night theme by night (see Settings). |
 | `/wear pin` | This project keeps what it wears now; other projects keep the global choice. While pinned, `/wear <theme>` changes this project's pin. |
 | `/wear unpin` | This project follows the global choice again. |
 | `/wear default` | Back to Claude Code's own drawing. |
+
+Each command answers in a toast (an unknown theme's message stays longer). Nothing `/wear` says is added to the conversation, so it costs no tokens and never reaches the model.
 
 Themes: `noir`, `paper` (light), `tokyo-night`, `dracula`, `catppuccin`, `solarized`, `nord`, `high-contrast`, `colorblind`. Short forms work too: `drac`, `hc`, `colourblind`, `tokyo night`.
 
@@ -68,6 +70,7 @@ Set these in `/config`. A time wardrobe cannot read falls back to its default, a
 - A pin belongs to the folder the session started in: a subfolder or a worktree of the same repo is pinned separately.
 - On the terminal's main screen, rows already printed keep their look; new rows, and everything in the fullscreen view, follow `/wear`.
 - VS Code and the mobile app are not restyled; `/wear` says so when one is attached.
+- Where nothing draws a toast or a pane (a `claude -p` run), `/wear` writes its words and the list to the log instead.
 - Auto mode checks the clock once a minute, so a switch can land up to a minute late. A choice made in another session reaches this one the same way.
 - Tool calls made before wardrobe loaded show no time, and a refused or failed call shows its status but no time.
 - Not verified: the paint itself in a real terminal and in the desktop app. The tests check the drawn trees against each surface's rules, not pixels.

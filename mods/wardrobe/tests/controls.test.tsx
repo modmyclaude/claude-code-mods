@@ -6,7 +6,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { RenderPropsOf } from 'claude-code'
 
 import { themeById } from '../hooks/themes'
-import { controlsIn, EDIT, ENGINE, start, SURFACES, TOOL_ROW, wear, world } from './setup'
+import { controlsIn, EDIT, ENGINE, PANE, start, SURFACES, TOOL_ROW, wear, world } from './setup'
 
 const dracula = themeById('dracula')!
 
@@ -101,13 +101,13 @@ for (const [name, control, kind] of CLASSES) {
     })
 
     test('in a setting: the list names it cleaned', { options: { dayStarts: `7${control}` } }, async ($, on) => {
-      world(on)
+      world(on, { surfaces: [] }) // the list as text, in the log
       await start($)
       const text = await wear($, '')
       expect(text).toContain('Setting: dayStarts "7')
       expect(controlsIn(text)).toEqual([])
       for (const surface of SURFACES) {
-        const ui = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'CommandOutput', props: { command: 'wear', args: '', text, isErrored: false } })
+        const ui = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'Pane', props: PANE, requestId: 'wardrobe' })
         expect(await ui.find({ type: 'Text', text: /Setting: dayStarts/ })).toBeDefined()
         expect(controlsIn(await ui.drawn())).toEqual([])
         await ui.unmount()
