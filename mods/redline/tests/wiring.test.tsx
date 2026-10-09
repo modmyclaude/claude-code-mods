@@ -349,6 +349,50 @@ describe('a spent window, idle past its reset', () => {
   })
 })
 
+/** The gauge's bar Text(s): one Text on the terminal, one-cell glyph Texts on the desktop (#40). */
+const barCells = <T extends { text: string }>(texts: T[]): T[] => {
+  const whole = texts.filter(t => /^[\u2580-\u259f]{2,}$/u.test(t.text))
+  return whole.length > 0 ? whole : texts.filter(t => /^[\u2580-\u259f]$/u.test(t.text))
+}
+const barOf = (texts: { text: string }[]) => barCells(texts).map(t => t.text).join('')
+
+describe('desktop: the bar apart from the words (API-GOTCHAS #40)', () => {
+  // The desktop draws a Text holding block characters in the code font, words and all, so
+  // a gauge row changed font and overflowed. There the bar is one-cell glyphs of its own.
+  const GLYPH = /[\u2580-\u259f]/u
+  const textsOf = (node: unknown, inCell = false, out: { text: string; inCell: boolean }[] = []) => {
+    if (node === null || typeof node !== 'object') return out
+    const n = node as { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+    const cell = inCell || (n.type === 'Box' && n.props?.width === 1)
+    if (n.type === 'Text') out.push({ text: (n.children ?? []).filter(c => typeof c === 'string').join(''), inCell: cell })
+    for (const c of n.children ?? []) textsOf(c, cell, out)
+    return out
+  }
+
+  test('band and detail pane draw the bar as one-cell glyphs; the terminal keeps one Text', async ($, on) => {
+    world(on, { rateLimits: [{ kind: 'five_hour', percentUsed: 40, resetsAt: new Date(T0 + 180 * MIN).toISOString() }] })
+    await runCommand($, 'band')
+    await request($, pct(55))
+    const band = await $.ui.mount({ plugin: 'redline', surface: 'desktop', component: 'AbovePrompt', props: BAND_PROPS })
+    const pane = await $.ui.mount({ plugin: 'redline', surface: 'desktop', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+    for (const ui of [band, pane]) {
+      const texts = textsOf(await ui.drawn())
+      expect(texts.some(t => GLYPH.test(t.text))).toBe(true)
+      for (const t of texts.filter(t => GLYPH.test(t.text))) {
+        expect(t.inCell, t.text).toBe(true)
+        expect([...t.text].length, t.text).toBe(1)
+      }
+    }
+    expect((await band.find({ key: 'gauge' }))?.text).toContain('55%')
+    expect((await pane.find({ key: 'limit-five_hour' }))?.text).toContain('40%')
+    await band.unmount()
+    await pane.unmount()
+    const term = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
+    expect(textsOf(await term.drawn()).some(t => GLYPH.test(t.text) && [...t.text].length > 1)).toBe(true)
+    await term.unmount()
+  })
+})
+
 describe('idle', () => {
   test('a band already drawn drops the pace too, once idle past 10 minutes', async ($, on) => {
     const w = world(on)
@@ -552,7 +596,7 @@ describe('band above the prompt', () => {
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: { ...BAND_PROPS, bodyColumns: 60 } })
       const texts = await ui.findAll({ type: 'Text' })
-      expect(texts.some(t => t.text === '████░')).toBe(true)
+      expect(barOf(texts)).toBe('████░')
       await ui.unmount()
     }
   })
@@ -580,7 +624,8 @@ describe('band above the prompt', () => {
       expect(gauge?.text).toContain(' · ≈$1.25 · ')
       // The bar and the level word are coloured by level (the innermost Texts).
       const texts = await ui.findAll({ type: 'Text' })
-      expect(texts.find(t => t.text === '█████████░')?.props.color).toBe('error')
+      expect(barOf(texts)).toBe('█████████░')
+      expect(barCells(texts).every(t => t.props.color === 'error')).toBe(true)
       expect(texts.find(t => t.text.trim() === 'RED')?.props.color).toBe('error')
 
       await ui.press({ key: 'hide' })

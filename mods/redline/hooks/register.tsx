@@ -15,6 +15,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput, ThemeKey, Timer } from 'claude-code'
 
 import { boltSprite } from './bolt-draw'
+import { glyphRow, mixedRow } from './cells'
 import { boltPose, detailLines, detailText } from './detail'
 import type { DetailLine, Tone } from './detail'
 import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
@@ -247,14 +248,29 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {below}
         <Box flexDirection="row" gap={1}>
-          <Box key="gauge" flexShrink={1}>
-            <Text wrap="truncate-end">
-              <Text bold>redline</Text> {p.context}{' '}
-              <Text color={LEVEL_COLOR[p.level]}>{p.percent === undefined ? '' : bar(p.percent, cells)}</Text>
-              {word ? <Text color={LEVEL_COLOR[p.level]} bold>{` ${word}`}</Text> : null}
-              <Text dimColor>{` · ${rest}`}</Text>
-            </Text>
-          </Box>
+          {e.surface === 'desktop' ? (
+            // The desktop draws a Text with block characters in the code font, words and all
+            // (API-GOTCHAS #40): the bar sits in its own one-cell glyphs between the words.
+            <Box key="gauge" flexDirection="row" flexShrink={1}>
+              <Text>
+                <Text bold>redline</Text> {p.context}{' '}
+              </Text>
+              {p.percent === undefined ? null : glyphRow({ Box, Text }, e.surface, bar(p.percent, cells), { color: LEVEL_COLOR[p.level] })}
+              <Text wrap="truncate-end">
+                {word ? <Text color={LEVEL_COLOR[p.level]} bold>{` ${word}`}</Text> : null}
+                <Text dimColor>{` · ${rest}`}</Text>
+              </Text>
+            </Box>
+          ) : (
+            <Box key="gauge" flexShrink={1}>
+              <Text wrap="truncate-end">
+                <Text bold>redline</Text> {p.context}{' '}
+                <Text color={LEVEL_COLOR[p.level]}>{p.percent === undefined ? '' : bar(p.percent, cells)}</Text>
+                {word ? <Text color={LEVEL_COLOR[p.level]} bold>{` ${word}`}</Text> : null}
+                <Text dimColor>{` · ${rest}`}</Text>
+              </Text>
+            </Box>
+          )}
           <Button key="hide" label="Hide" dimColor onPress={() => setBand($, () => false)} />
         </Box>
       </Box>
@@ -272,7 +288,7 @@ export const register: Register = on => {
       tone === 'title' ? { bold: true } : tone === 'dim' ? { dimColor: true } : tone === 'plain' ? {} : { color: LEVEL_COLOR[tone] }
     const row = (line: DetailLine) => (
       <Box key={line.key}>
-        <Text {...toneProps(line.tone)}>{line.text}</Text>
+        {mixedRow({ Box, Text }, e.surface, line.text, toneProps(line.tone))}
       </Box>
     )
     // Bolt keeps watch beside the context row (MM-091): a static sprite, crashed
