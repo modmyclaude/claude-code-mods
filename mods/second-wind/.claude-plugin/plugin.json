@@ -2,7 +2,7 @@
   "name": "second-wind",
   "version": "0.1.0",
   "description": "A breath, an eye rest or a stretch while Claude works, sized to the wait.",
-  "author": { "name": "ORG_TBD" },
+  "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["wellness", "breathing", "eye-rest", "stretch", "band", "spinner", "focus"],
   "types": "./types/index.d.ts",

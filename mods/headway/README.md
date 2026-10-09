@@ -9,7 +9,7 @@ Build · Wire the routes (2/6) ▰▰▱▱▱▱ ~3m left
 ## Install
 
 ```
-/plugin install headway --marketplace ORG_TBD/REPO_TBD
+/plugin install headway --marketplace modmyclaude/claude-code-mods
 ```
 
 ## Use it

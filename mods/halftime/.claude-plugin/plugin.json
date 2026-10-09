@@ -2,7 +2,7 @@
   "name": "halftime",
   "version": "0.1.0",
   "description": "Claude works, you play: four small games above the prompt, and a whistle that hands the keys back the moment Claude needs you.",
-  "author": { "name": "ORG_TBD" },
+  "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["games", "fun", "waiting", "band", "whistle", "daily"],
   "types": "./types/index.d.ts"
