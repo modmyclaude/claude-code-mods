@@ -24,7 +24,7 @@ type Props = {
   wait: string
   needClick: boolean
   showHint: boolean
-  pad: string[]
+  pad: [string, string][]
 }
 
 /** What this instance remembers between calls; dropped with the instance. */
@@ -163,11 +163,11 @@ export default function Board(props: Props, surface: Surface) {
           <Box flexDirection="row" columnGap={1}>
             <Text dimColor>{local.viaPad ? 'keys:' : 'no mouse? ctrl+x tab, then'}</Text>
             {props.pad
-              .filter(key => props.keys.includes(key))
-              .map(key => (
+              .filter(([key]) => props.keys.includes(key))
+              .map(([key, word]) => (
                 <Button
                   key={`pad:${key}`}
-                  label={key}
+                  label={word}
                   hotkey={key}
                   plain
                   onPress={() => {

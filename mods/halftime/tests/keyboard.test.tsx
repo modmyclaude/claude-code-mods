@@ -7,7 +7,7 @@ import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine, Plugin } from 'claude-code/testing'
 
-import { GAME_IDS } from '../hooks/games'
+import { GAME_IDS, gameOf } from '../hooks/games'
 import { padFor } from '../hooks/view'
 import { BAND, VIEWPORT, boardOf, fieldText, halftime, play, world } from './fixtures'
 
@@ -24,7 +24,7 @@ async function boardUp($: Engine, on: On, game: string) {
 test('MM-081: with no click, a pad letter takes the keys and a realtime run plays and ticks', async ($, on) => {
   const { clock, ui } = await boardUp($, on, 'cratehop')
   const pad = await ui.findAll({ type: 'Button', in: (await boardOf(ui))!.key })
-  expect(pad.map(button => [button.key, button.props.hotkey])).toEqual([['pad:w', 'w'], ['pad:p', 'p']])
+  expect(pad.map(button => [button.key, button.props.hotkey, button.props.label])).toEqual([['pad:w', 'w', 'jump'], ['pad:p', 'p', 'pause']])
   expect((await boardOf(ui))?.live).toBe(false)
 
   await ui.press({ key: 'pad:w' })
@@ -51,11 +51,14 @@ test('MM-081: a click takes the keys the usual way, and the pad steps aside', as
 test('MM-081: every pad is letters only, one per action, never y, n, Enter or a digit', () => {
   for (const game of GAME_IDS) {
     for (const status of ['ready', 'over'] as const) {
-      const pad = padFor({ game, status } as Parameters<typeof padFor>[0])
+      const pad = padFor({ game, status } as Parameters<typeof padFor>[0]).map(([key]) => key)
       expect(pad.length, game).toBeGreaterThan(1)
       for (const key of pad) expect(key, `${game} ${key}`).toMatch(/^[a-z]$/)
       for (const key of pad) expect(['y', 'n'], `${game} ${key}`).not.toContain(key)
       expect(new Set(pad).size, game).toBe(pad.length)
+      // Every action the game has is reachable from the pad, so no game ships unplayable from it.
+      const controls = gameOf(game).controls
+      expect(new Set(pad.filter(key => key in controls).map(key => controls[key])), game).toEqual(new Set(Object.values(controls)))
     }
   }
 })

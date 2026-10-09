@@ -24,20 +24,23 @@ export type BoardProps = {
   wait: string
   needClick: boolean
   showHint: boolean
-  /** The keyboard pad (MM-081): one letter per action, for a terminal that sends no clicks. */
-  pad: string[]
+  /** The keyboard pad (MM-081): [letter, word], one per action, for a terminal that sends no clicks. */
+  pad: [string, string][]
 }
 
 const PAD_ORDER = 'wasdxfpr'
+const PAD_WORDS: Readonly<Record<string, string>> = { w: 'up', a: 'left', s: 'down', d: 'right', x: 'open', f: 'flag', p: 'pause', r: 'again' }
 
-/** One letter per action (wasd before hjkl), then pause, or again once the run is over. */
-export function padFor(run: HalftimeRun): string[] {
+/** One letter per action (wasd before hjkl), then pause, or again once the run is over; each with its word. */
+export function padFor(run: HalftimeRun): [string, string][] {
   const byAction = new Map<string, string>()
   for (const [key, action] of Object.entries(gameOf(run.game).controls)) {
     if (/^[a-z]$/.test(key) && PAD_ORDER.includes(key) && !byAction.has(action)) byAction.set(action, key)
   }
-  const pad = [...byAction.values(), run.status === 'over' ? 'r' : 'p']
-  return pad.sort((a, b) => PAD_ORDER.indexOf(a) - PAD_ORDER.indexOf(b))
+  // A plain one-word action names itself (cratehop's jump); the rest take the letter's word.
+  const pad: [string, string][] = [...byAction].map(([action, key]) => [key, /^[a-z]+$/.test(action) && action !== 'reveal' ? action : PAD_WORDS[key] ?? key])
+  pad.push(run.status === 'over' ? ['r', 'again'] : ['p', 'pause'])
+  return pad.sort((a, b) => PAD_ORDER.indexOf(a[0]) - PAD_ORDER.indexOf(b[0]))
 }
 
 /** Keys a game's board may pass on: its controls plus pause and again (no map holds a forbidden key). */
