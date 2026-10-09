@@ -3,7 +3,7 @@
 // and the desktop alike.
 
 import { describe, expect, test } from 'claude-code/testing'
-import type { Engine, Mounted } from 'claude-code/testing'
+import type { Engine, Mounted, Plugin } from 'claude-code/testing'
 
 import { barWidth } from '../hooks/draw'
 import { DAY_MS, SURFACES, T0, lateTicks, neighbour, timerSpy, world } from './world'
@@ -558,4 +558,36 @@ describe('mobile and VS Code', () => {
     await w.clock.advance(20_000)
     expect(w.rec.statuses).toEqual([])
   })
+})
+
+// API-GOTCHAS #39 (MM-083): a live session refuses a band tree that puts the
+// engine's own node under a Box that sizes, hides or moves it, and draws its
+// own band instead. The kit does not check this, so the test walks the tree.
+const ENGINE_BENEATH: Plugin = {
+  name: 'engine-beneath',
+  tier: 'append',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+  },
+}
+const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+type DrawnNode = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+  if (node === null || typeof node !== 'object') return []
+  const n = node as DrawnNode
+  if (n.type === 'engine') return [around]
+  const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+  return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+}
+
+test('#39: the engine band beneath is never under a Box that sizes or hides it', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  const w = world(on)
+  await w.start($)
+  await w.clock.advance(3000 + 2000)
+  for (const surface of SURFACES) {
+    const ui = await w.band($, surface)
+    expect(await ui.find({ key: 'sw-breath' }), surface).toBeDefined()
+    expect(engineNodeConcealers(await ui.drawn()), surface).toEqual([[]])
+    await ui.unmount()
+  }
 })

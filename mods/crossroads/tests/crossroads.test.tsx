@@ -1231,3 +1231,34 @@ test('N3-2: a guess that is never shown never becomes option 1', { plugins: [HID
   expect(await labels(ui)).toEqual(THREE)
   expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBeUndefined()
 })
+
+// API-GOTCHAS #39 (MM-083): a live session refuses a band tree that puts the
+// engine's own node under a Box that sizes, hides or moves it, and draws its
+// own band instead. The kit does not check this, so the test walks the tree.
+const ENGINE_BENEATH: Plugin = {
+  name: 'engine-beneath',
+  tier: 'append',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+  },
+}
+const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+type DrawnNode = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+  if (node === null || typeof node !== 'object') return []
+  const n = node as DrawnNode
+  if (n.type === 'engine') return [around]
+  const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+  return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+}
+
+test('#39: the engine band beneath is never under a Box that sizes or hides it', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
+  await finishTurn($, seen)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    expect(await labels(ui), surface).toHaveLength(3)
+    expect(engineNodeConcealers(await ui.drawn()), surface).toEqual([[]])
+    await ui.unmount()
+  }
+})
