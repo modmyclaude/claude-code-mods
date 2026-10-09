@@ -3,8 +3,8 @@
 // through $.prompt.submit, the model and every other noun are answered
 // beneath the plugin, and the band is mounted and pressed on both surfaces.
 
-import { expect, mock, test } from 'claude-code/testing'
-import type { MockClock } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
+import type { Engine, MockClock, Plugin } from 'claude-code/testing'
 import type {
   AgentInfo,
   CommandInfo,
@@ -87,6 +87,10 @@ type Setup = {
   config?: readonly ConfigRow[]
   env?: Record<string, string>
   modelDelayMs?: number
+  /** Why the model call is refused, for `'deny'` answers. */
+  denyText?: string
+  /** Why a Send is dropped, while `isSubmitRefused`. */
+  dropText?: string
 }
 type World = {
   calls: ModelCompleteInput[]
@@ -148,7 +152,7 @@ function world(on: On, answers: Answer[] = [reply(THREE)], setup: Setup = {}): W
     seen.calls.push(e)
     const answer = answers[Math.min(seen.calls.length, answers.length) - 1] ?? reply(THREE)
     if (setup.modelDelayMs) await seen.clock.sleep(setup.modelDelayMs)
-    if (answer === 'deny') return { deny: 'model claude-haiku is not allowed here' }
+    if (answer === 'deny') return { deny: setup.denyText ?? 'model claude-haiku is not allowed here' }
 
     return { value: typeof answer === 'string' ? { isAnswered: true, text: answer, usage: USAGE } : answer }
   })
@@ -157,7 +161,7 @@ function world(on: On, answers: Answer[] = [reply(THREE)], setup: Setup = {}): W
   on('prompt.submit', ($, e) => {
     seen.submitted.push(e)
 
-    return seen.isSubmitRefused ? { drop: 'a policy hook refused it' } : { text: e.text }
+    return seen.isSubmitRefused ? { drop: setup.dropText ?? 'a policy hook refused it' } : { text: e.text }
   })
   on('prompt.suggest', ($, e) => (seen.ghosts.push(e), { isShown: true }))
   on('prompt.read', () => ({ value: { text: '', cursor: 0 } }))
@@ -660,4 +664,164 @@ test('a refused model with no fallback says so once and stops calling', async ($
   expect(seen.calls).toHaveLength(1)
   expect(seen.toasts).toHaveLength(1)
   expect(seen.toasts[0]).toContain('small model is not available')
+})
+
+// ---------------------------------------------------------------- control characters (API-GOTCHAS #31)
+
+// One control character in a drawn string and the engine refuses the whole
+// tree; this band composes the bands beneath it, so they would vanish too.
+const CONTROLS = [
+  ['BEL', '\u0007'],
+  ['ESC with a CSI sequence', '\u001b[2J'],
+  ['DEL', '\u007f'],
+  ['NUL', '\u0000'],
+  ['C1 CSI (U+009B)', '\u009b31m'],
+] as const
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
+
+/** Another mod's band beneath Crossroads: it must survive whatever Crossroads draws. */
+const NEIGHBOUR: Plugin = {
+  name: 'neighbour',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+      const { Box, Text } = $.ui.resolve(e)
+      const rest = await next(e)
+
+      return (
+        <Box key="neighbour" flexDirection="column">
+          <Text>neighbour band</Text>
+          {rest}
+        </Box>
+      )
+    })
+  },
+}
+
+/**
+ * Stands above Crossroads and dirties every suggestion it stores (every
+ * control class at once), as a list kept in $.state by an older version could
+ * be: what is drawn must be clean even when what is stored is not.
+ */
+const DIRTIER: Plugin = {
+  name: 'dirtier',
+  tier: 'prepend',
+  register(on) {
+    on('state.set', ($, e, next) => {
+      const write = e as unknown as { plugin: string; value: { items?: { text: string }[]; item?: { text: string } } | null }
+      const value = write.value
+      if (write.plugin !== 'crossroads' || value === null) return next(e)
+      const dirty = (text: string) => `${text}\u0007\u001b[2J\u007f\u0000\u009b31m`
+      const items = value.items?.map(item => ({ ...item, text: dirty(item.text) }))
+      const item = value.item ? { ...value.item, text: dirty(value.item.text) } : undefined
+
+      return next({ ...e, value: { ...value, ...(items ? { items } : {}), ...(item ? { item } : {}) } } as typeof e)
+    })
+  },
+}
+
+/** Every string anywhere in a drawn tree: texts, labels, alts, keys. */
+function strings(node: unknown, out: string[] = []): string[] {
+  if (typeof node === 'string') out.push(node)
+  else if (Array.isArray(node)) for (const child of node) strings(child, out)
+  else if (node !== null && typeof node === 'object') for (const value of Object.values(node)) strings(value, out)
+
+  return out
+}
+
+/**
+ * Mounts the band with the neighbour beneath. The kit rejects the mount when
+ * the engine refuses Crossroads' tree, so resolving is the first assertion.
+ */
+async function mountBand($: Engine, surface: (typeof SURFACES)[number]) {
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+  expect((await ui.find({ key: 'neighbour' }))?.text, surface).toContain('neighbour band')
+  for (const text of strings(await ui.drawn())) expect(text, surface).not.toMatch(CONTROL)
+
+  return ui
+}
+
+describe('control characters never take the band down (API-GOTCHAS #31)', () => {
+  for (const [name, c] of CONTROLS) {
+    test(`${name} in the model's suggestions`, { plugins: [NEIGHBOUR] }, async ($, on) => {
+      const dirty = [`run${c} the auth tests`, `add the guard ${c}to signup.ts`, `explain the ${c}null check`]
+      const seen = world(on, [reply(dirty)], { surfaces: ['desktop'] })
+      await finishTurn($, seen)
+      for (const surface of SURFACES) {
+        const ui = await mountBand($, surface)
+        expect(await labels(ui)).toEqual(['run the auth tests', 'add the guard to signup.ts', 'explain the null check'])
+        await ui.unmount()
+      }
+    })
+
+    test(`${name} in the engine's own guess: drawn, drafted and copied clean`, { plugins: [NEIGHBOUR] }, async ($, on) => {
+      const seen = world(on, [reply(['add the same guard to signup.ts', 'run the full test suite'])])
+      const dirty = `run the auth${c} tests again`
+      const shown = /^run the auth\uFFFD? tests again$/
+      for (const surface of SURFACES) {
+        await finishTurn($, seen)
+        expect((await $.prompt.suggest({ text: dirty, origin: ENGINE })).isShown).toBe(true)
+        await seen.clock.settle()
+        seen.fillResult = { isFilled: surface === 'terminal' }
+        const ui = await mountBand($, surface)
+        expect((await labels(ui))[0]).toMatch(shown)
+        await ui.press({ key: 'pick-1' })
+        if (surface === 'terminal') expect(seen.fills.at(-1)?.text).toMatch(shown)
+        else {
+          expect(seen.copies.at(-1)?.text).toMatch(shown)
+          // The copied line and its Send, on both surfaces.
+          for (const where of SURFACES) {
+            const copied = await mountBand($, where)
+            expect(await copied.find({ key: 'send' })).toBeDefined()
+            await copied.unmount()
+          }
+        }
+        await ui.unmount()
+      }
+      // The engine's own ghost text is its business: passed on exactly as it came.
+      expect(seen.ghosts.map(ghost => ghost.text)).toEqual([dirty, dirty])
+    })
+
+    test(`${name} in why the model was refused: the toast is clean`, async ($, on) => {
+      const seen = world(on, ['deny'], { surfaces: ['desktop'], denyText: `model${c} blocked here` })
+      await finishTurn($, seen)
+      expect(seen.toasts).toHaveLength(1)
+      expect(seen.toasts[0]).toContain('small model is not available')
+      expect(seen.toasts[0]).not.toMatch(CONTROL)
+    })
+
+    test(`${name} in why a Send was dropped: the toast is clean and the band still draws`, { plugins: [NEIGHBOUR] }, async ($, on) => {
+      const seen = world(on, [reply(THREE)], { surfaces: ['desktop'], dropText: `policy${c} says no` })
+      await finishTurn($, seen)
+      seen.fillResult = { isFilled: false }
+      seen.isSubmitRefused = true
+      const ui = await mountBand($, 'desktop')
+      await ui.press({ key: 'pick-1' })
+      await ui.press({ key: 'send' })
+      expect(seen.toasts).toHaveLength(1)
+      expect(seen.toasts[0]).toMatch(/^Crossroads: the prompt was not sent \(policy\uFFFD? says no\)\.$/)
+      await ui.unmount()
+      for (const surface of SURFACES) await (await mountBand($, surface)).unmount()
+    })
+  }
+
+  test('what is stored dirty is still drawn clean: the list and the copied line', { plugins: [DIRTIER, NEIGHBOUR] }, async ($, on) => {
+    const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
+    await finishTurn($, seen)
+    for (const surface of SURFACES) {
+      const ui = await mountBand($, surface)
+      const shown = await labels(ui)
+      expect(shown).toHaveLength(3)
+      for (const [index, label] of shown.entries()) expect(label.startsWith(THREE[index] ?? '?'), label).toBe(true)
+      await ui.unmount()
+    }
+    seen.fillResult = { isFilled: false }
+    const desk = await mountBand($, 'desktop')
+    await desk.press({ key: 'pick-1' })
+    await desk.unmount()
+    for (const surface of SURFACES) {
+      const ui = await mountBand($, surface)
+      expect(await ui.find({ type: 'Text', text: /^add the same guard to signup\.ts/ })).toBeDefined()
+      await ui.unmount()
+    }
+  })
 })
