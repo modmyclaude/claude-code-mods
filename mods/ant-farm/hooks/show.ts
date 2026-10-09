@@ -3,6 +3,20 @@
 
 import type { AntFarmAlarm, AntFarmAnt, AntFarmUsage, AntFarmView } from '../types'
 
+// ---------------------------------------------------------------- untrusted text
+
+// Task descriptions, agent types and model names come from the model and
+// other plugins. The engine refuses a drawn tree holding a control character
+// (and draws its own in its place, hiding every band beneath), so every such
+// text is cleaned where it is drawn: escape sequences removed, any other C0,
+// DEL or C1 character shown as U+FFFD.
+const ESCAPES = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[@-Z\\-_]|\x9b[0-?]*[ -/]*[@-~]/g
+const CONTROLS = /[\x00-\x1f\x7f-\x9f]/g
+
+export function clean(text: string): string {
+  return text.replace(ESCAPES, '').replace(CONTROLS, '\uFFFD')
+}
+
 // ---------------------------------------------------------------- numbers
 
 export function fmtTokens(n: number): string {

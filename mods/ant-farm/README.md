@@ -13,7 +13,8 @@ Watch your subagents work, and what they cost, live.
 - **The band.** While a turn runs, a slim line above the prompt shows the
   elapsed time, how many subagents are running and done, and the session's
   spend so far. It stays while background subagents still run. Other mods'
-  band lines keep drawing beneath it.
+  band lines keep drawing, above it, so a long ant list never pushes their
+  buttons out of view.
 - **The pane.** `/antfarm` opens the Ant farm pane (it also works mid-turn,
   and adds nothing to the conversation).
   At the top: the subagents' total estimated cost, total tokens and wall time,
@@ -105,6 +106,8 @@ Watch your subagents work, and what they cost, live.
   past 200 subagents in a session the oldest finished ones leave the farm,
   and with them the subagents' header totals (Claude Code's session total is
   unaffected).
+- Task descriptions, agent types and model names are drawn with escape
+  sequences removed and other control characters shown as U+FFFD.
 - Whether the pane may open on its own follows the surface that drew last;
   with a main-screen terminal and the desktop app both attached, that can be
   either.

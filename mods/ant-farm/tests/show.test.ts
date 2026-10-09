@@ -4,7 +4,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   ANT_WIDTH, antRows, bar, fmtCost, fmtDuration, fmtEta, fmtTokens, miniAnt, modelColors,
-  alarmText, nextAlarm, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts, viewAfterClose,
+  alarmText, clean, nextAlarm, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts, viewAfterClose,
 } from '../hooks/show'
 import type { AntFarmAnt } from '../types'
 
@@ -194,4 +194,19 @@ describe('labels and trimming', () => {
     expect(trimAnts(list, 9).map(a => a.id)).toEqual(['r1', 'd1', 'r2', 'f1', 'd2'])
     expect(trimAnts([ant({ id: 'a' }), ant({ id: 'b' })], 1).map(a => a.id)).toEqual(['b'])
   })
+})
+
+describe('clean', () => {
+  const R = '\uFFFD'
+  const cases: [string, string, string][] = [
+    ['plain text is kept', 'Map the auth flow · ≈ █', 'Map the auth flow · ≈ █'],
+    ['a colour sequence is removed', 'a\x1b[31;1mred\x1b[0m', 'ared'],
+    ['a title sequence is removed', 'x\x1b]0;evil\x07y', 'xy'],
+    ['a title sequence ended by ST is removed', 'x\x1b]0;evil\x1b\\y', 'xy'],
+    ['an 8-bit CSI is removed', 'x\u009b2Jy', 'xy'],
+    ['a lone ESC pair is removed', 'x\x1bMy', 'xy'],
+    ['BEL, NUL, DEL, tab, newline become U+FFFD', 'a\x07b\x00c\x7fd\te\nf', `a${R}b${R}c${R}d${R}e${R}f`],
+    ['C1 characters become U+FFFD', 'a\u0085b\u0080c\u009fd', `a${R}b${R}c${R}d`],
+  ]
+  for (const [name, input, output] of cases) test(name, () => expect(clean(input)).toBe(output))
 })

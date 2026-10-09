@@ -15,7 +15,7 @@ import type { AgentStatus, EngineInterface, Register, Timer, TurnStepResult } fr
 import type { AntFarmAnt, AntFarmLoops, AntFarmStatus, AntFarmUsage } from '../types'
 import { addRequest, budgetLevel, NO_USAGE, sumUsage } from './prices'
 import {
-  alarmText, ANT_WIDTH, antRows, bar, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt,
+  alarmText, ANT_WIDTH, antRows, bar, clean, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt,
   modelColors, nextAlarm, phaseOf, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts,
   viewAfterClose,
 } from './show'
@@ -46,6 +46,9 @@ const view = atom({ plugin: 'ant-farm', key: 'view' } as const, {
 })
 
 const isRunning = (a: AntFarmAnt) => a.status === 'running'
+// The untrusted texts of an ant, cleaned for drawing.
+const taskOf = (a: AntFarmAnt) => clean(a.task)
+const modelOf = (a: AntFarmAnt) => clean(shortModel(a.model) || a.type)
 
 function sessionTotal(list: readonly AntFarmAnt[], l: AntFarmLoops): AntFarmUsage {
   return sumUsage([...list.map(a => a.usage), l.main, l.other])
@@ -147,7 +150,7 @@ async function announce($: EngineInterface) {
   const text = statusText(spend, budgetUsd, level)
   if (text !== lastStatus) {
     lastStatus = text
-    $.ui.status(text)
+    $.ui.status(text === undefined ? undefined : clean(text))
   }
   // nextAlarm alone decides; the read first only skips a write that would change nothing.
   const stored = await read($, alarm)
@@ -159,7 +162,7 @@ async function announce($: EngineInterface) {
     toast = next.toast
     return next.alarm
   })
-  if (toast !== 0) $.ui.toast(alarmText(spend, budgetUsd, toast), { timeoutMs: 8000 })
+  if (toast !== 0) $.ui.toast(clean(alarmText(spend, budgetUsd, toast)), { timeoutMs: 8000 })
 }
 
 // Is this loop one of the session's agents? One the mod did not see start
@@ -269,7 +272,7 @@ export const register: Register = (on, options) => {
       return {}
     }
     await update($, view, v => ({ ...v, isListInBand: true }))
-    $.ui.toast(`The ant farm pane cannot be placed here (${opened.reason}). The band above the prompt lists the subagents instead.`)
+    $.ui.toast(clean(`The ant farm pane cannot be placed here (${opened.reason}). The band above the prompt lists the subagents instead.`))
     return {}
   })
 
@@ -376,11 +379,13 @@ export const register: Register = (on, options) => {
     const room = Math.max(1, e.props.maxRows - 2)
     const shown = showList ? items.slice(0, room) : []
     const hidden = showList ? items.length - shown.length : 0
-    // Other mods' bands draw beneath this one, never erased by it.
+    // Other mods' bands are never erased by this one, and they draw first: an
+    // overflowing ant list can then never push another mod's buttons out of view.
     const below = await next(e)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
+        {below}
         <Box flexDirection="row" key="band">
           <Box key="summary" flexGrow={1}>
             <Text wrap="truncate-end" {...tone}>
@@ -398,13 +403,12 @@ export const register: Register = (on, options) => {
             <Box flexDirection="row" key={`row-${a.id}`}>
               <Text color={colors.get(a.model) ?? 'subtle'}>{miniAnt(a.status, frame + phaseOf(a.id))}</Text>
               <Text wrap="truncate-end" dimColor={!isRunning(a)}>
-                {' '}{a.task} · {shortModel(a.model)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)} · {tail}
+                {' '}{taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)} · {tail}
               </Text>
             </Box>
           )
         })}
         {hidden > 0 ? <Text dimColor>+{hidden} more - /antfarm shows them all</Text> : null}
-        {below}
       </Box>
     )
   })
@@ -436,7 +440,7 @@ export const register: Register = (on, options) => {
       const p = progressOf(a, list, now)
       const rows = antRows(a.status, frame + phaseOf(a.id), lane)
       const meta = [
-        shortModel(a.model) || a.type,
+        modelOf(a),
         a.status,
         fmtDuration((a.endedAt ?? now) - a.startedAt),
         ...(p.etaMs !== null ? [fmtEta(p.etaMs)] : []),
@@ -449,7 +453,7 @@ export const register: Register = (on, options) => {
             ))}
           </Box>
           <Box flexDirection="column" flexGrow={1} marginLeft={1}>
-            <Text bold={isRunning(a)} wrap="truncate-end">{a.task}</Text>
+            <Text bold={isRunning(a)} wrap="truncate-end">{taskOf(a)}</Text>
             <Text dimColor wrap="truncate-end">{meta}</Text>
             <Text wrap="truncate-end" {...(a.status === 'failed' ? { color: 'error' } : { dimColor: !isRunning(a) })}>
               {bar(p.fraction, 12)} {a.usage.requests} req · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
@@ -463,7 +467,7 @@ export const register: Register = (on, options) => {
       <Box flexDirection="row" key={`line-${a.id}`}>
         <Text color={a.status === 'failed' ? 'error' : colors.get(a.model) ?? 'subtle'}>{miniAnt(a.status, 0)}</Text>
         <Text dimColor wrap="truncate-end">
-          {' '}{a.status} · {a.task} · {shortModel(a.model)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
+          {' '}{a.status} · {taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
         </Text>
       </Box>
     )

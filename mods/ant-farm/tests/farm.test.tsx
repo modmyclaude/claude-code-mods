@@ -472,16 +472,23 @@ describe('sharing the band', () => {
     },
   }
 
-  test('another mod band still draws beneath ours, busy or idle', { plugins: [STUB] }, async ($, on) => {
-    const w = world(on)
-    await w.spawn($, 'Busy')
+  test('another mod band still draws, ahead of ours, busy or idle', { plugins: [STUB] }, async ($, on) => {
+    const w = world(on, { placed: false })
+    const id = await w.spawn($, 'Busy')
+    // The compact list too, so an overflowing band is what follows the other mod.
+    await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
     for (const surface of SURFACES) {
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
       expect(await band.find({ key: 'summary' })).toBeDefined()
       expect((await band.find({ key: 'stub-band' }))?.text).toBe('another mod')
+      const order = (await band.findAll({ type: 'Box' })).map(b => b.key).filter(k => k === 'stub-band' || k === 'band' || k === `row-${id}`)
+      expect(order).toEqual(['stub-band', 'band', `row-${id}`])
       await band.unmount()
     }
     await w.finish($, 'agent-1')
+    const listed = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: bandProps({ isWorking: false }) })
+    await listed.press({ key: 'hide-list' })
+    await listed.unmount()
     for (const surface of SURFACES) {
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps({ isWorking: false }) })
       expect(await band.find({ key: 'summary' })).toBeUndefined()
@@ -590,6 +597,34 @@ describe('review cases', () => {
     for (let i = 0; i < 52; i += 1) await w.finish($, await w.spawn($, `Task ${i}`))
     const pane = await mountPane($, 'terminal')
     expect((await pane.find({ key: 'more-finished' }))?.text).toBe('+2 more finished')
+  })
+})
+
+describe('untrusted text', () => {
+  const NASTY = 'Bad\x1b[31m red\x07 bell\x00 nul\x7f del\u0085 nel\u009b2J csi\x1b]0;title\x07 end'
+  const SHOWN = 'Bad red\uFFFD bell\uFFFD nul\uFFFD del\uFFFD nel csi end'
+
+  test('control characters in a task, type or model never stop the band or the pane drawing', async ($, on) => {
+    const w = world(on, { placed: false })
+    engineBand(on)
+    const id = await w.spawn($, NASTY, { model: 'claude-haiku-5-5\x1b[0m', type: 'Explore\x07' })
+    const done = await w.spawn($, `${NASTY} 2`, { model: 'odd\x00model' })
+    await w.finish($, done)
+    await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
+    for (const surface of SURFACES) {
+      const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
+      expect((await band.find({ key: `row-${id}` }))?.text).toContain(`${SHOWN} · haiku-5-5 ·`)
+      expect(await band.find({ key: 'engine-band' })).toBeDefined()
+      await band.unmount()
+      const pane = await mountPane($, surface)
+      const each = await texts(pane)
+      const all = each.join(' | ')
+      expect(all).toContain(SHOWN)
+      expect(all).toContain(`done · ${SHOWN} 2 · odd\uFFFDmodel`)
+      expect(each.some(t => /[\x00-\x1f\x7f-\x9f]/.test(t))).toBe(false)
+      await pane.unmount()
+    }
+    expect(w.rec.toasts.every(t => !/[\x00-\x1f\x7f-\x9f]/.test(t))).toBe(true)
   })
 })
 
