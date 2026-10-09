@@ -156,6 +156,17 @@ export function shellChanges(
   return changes
 }
 
+/**
+ * The paths to stat after a Bash call: first those whose git status moved
+ * (appeared, cleared or changed code), then the ones dirty and unchanged, so a
+ * tree with hundreds of dirty files never pushes the command's own work past
+ * the stat cap.
+ */
+export function statOrder(before: Record<string, string>, after: Record<string, string>): string[] {
+  const all = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+  return [...all.filter(path => before[path] !== after[path]), ...all.filter(path => before[path] === after[path])]
+}
+
 // ---------------------------------------------------------------- marks
 
 /** True for a mark that says anything at all. */

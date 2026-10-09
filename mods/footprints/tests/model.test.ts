@@ -21,6 +21,7 @@ import {
   shellChanges,
   shimmerParts,
   startEdit,
+  statOrder,
   statusText,
   toAbs,
   type Row,
@@ -269,5 +270,14 @@ describe('clean', () => {
       ['ok \u00a0 é ▾', 'ok \u00a0 é ▾'], // printable non-ASCII stays
     ]
     for (const [raw, want] of cases) expect(clean(raw), JSON.stringify(raw)).toBe(want)
+  })
+})
+
+describe('statOrder', () => {
+  test('paths whose status moved come first, then the dirty ones that stayed', () => {
+    const before = { old1: '??', old2: '??', a: '.M', gone: '.M' }
+    const after = { old1: '??', old2: '??', a: 'M.', b: '.M' }
+    expect(statOrder(before, after)).toEqual(['a', 'gone', 'b', 'old1', 'old2'])
+    expect(statOrder({}, {})).toEqual([])
   })
 })

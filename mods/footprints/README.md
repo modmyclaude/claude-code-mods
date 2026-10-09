@@ -10,7 +10,7 @@ A live file tree beside the chat that shows where Claude has been.
 
 ## Use it
 
-- `/footprints` opens a pane with the project's file tree: docked beside the transcript in fullscreen, above the prompt otherwise. Because you asked, it opens at any terminal width.
+- `/footprints` opens a pane with the project's file tree: docked beside the transcript in fullscreen, above the prompt otherwise. Because you asked, it opens at any terminal width, and it works while Claude is mid-turn. It adds nothing to the transcript (the model never reads it); the pane, or a toast, is the answer.
 - As Claude works, names change color:
   - **blue** - read (Read, an @-mention; a folder Glob or Grep searched)
   - **amber** - edited; it shimmers while the edit is still running
@@ -30,19 +30,20 @@ None.
 
 ## What it can touch
 
-- **Reads**: file names and modification times only, never contents. Names come from `git ls-files` (or a folder listing outside git). Around a Bash call it also reads the modification time of each file git reports as changed, and for a Glob or Grep target, whether it is a folder.
+- **Reads**: file names and modification times only, never contents. Names come from `git ls-files` (or a folder listing outside git). Around a Bash call it also reads the modification time of each file git reports as changed (up to 400, the ones the call moved first). It also reads the project folder's real path, and for a Glob or Grep target, whether it is a folder.
 - **Runs** (all read-only, no index lock):
   - `git rev-parse --show-toplevel --show-prefix` to find the repo
-  - `git ls-files -z --cached --others --exclude-standard` when you open the pane, and after a commit or checkout while it is open
-  - `git --no-optional-locks status --porcelain=v2 ...` before and after each Bash call, once the pane is open or Claude has edited something (the "after" is skipped when the call was read-only). If one run takes over 2 seconds or times out, shell tracking pauses for the rest of the session and the transcript says so once: `Footprints: shell tracking paused, git status is slow in this repo`. Read and edit tracking keep working.
+  - `git ls-files -z --cached --others --exclude-standard -- . ':(exclude,glob)**/node_modules/**'` when you open the pane, and after a commit or checkout while it is open
+  - `git --no-optional-locks status --porcelain=v2 ... -- ':(top,exclude,glob)**/node_modules/**'` before and after each Bash call, pane open or not (the "after" is skipped when the call was read-only). If one run takes over 2 seconds or times out, shell tracking pauses for the rest of the session and the transcript says so once: `Footprints: shell tracking paused, git status is slow in this repo`. Read and edit tracking keep working.
 - **Writes**: nothing on disk; its marks live in the session's state.
 - **Network**: none. **Model calls**: none.
 
 ## Limits
 
-- Shell tracking starts once the pane is open or Claude has made its first edit, so a Bash change before either is not marked. In a repo where `git status` is slow (over 2 s), it pauses for the session.
+- In a repo where `git status` is slow (over 2 s), shell tracking pauses for the session.
+- `node_modules` is always skipped, even where `.gitignore` does not list it, so files Claude reads or writes there show only when touched by an edit tool or Read.
 - Shell changes need git. Outside a git repo the tree still works (a walk that skips `node_modules`, `.git` and a few cache folders, without `.gitignore`), but Bash changes are not marked.
-- Shell attribution compares `git status` before and after the call plus file times, so: a branch switch that leaves git clean on both sides is not marked; a file you save in your own editor while a Bash command runs can be counted as changed by the shell; a background Bash command is checked when it returns, not when it finishes.
+- Shell attribution compares `git status` before and after the call plus file times, so: a branch switch that leaves git clean on both sides is not marked; a file you save in your own editor while a Bash command runs can be counted as changed by the shell; changes made by a background Bash command are not marked. With more than 400 files dirty, a file that was already dirty and is changed again may be missed.
 - Green needs a Bash command that runs `git commit` and moves HEAD. Commits you make in your own terminal are not seen.
 - Files read through the shell (`cat`, `rg`) do not turn blue; only Read, Glob, Grep and @-mentions count. Native macOS and Linux builds of Claude Code have no Glob or Grep tools, so folder marks mostly come from builds that do.
 - `t` works only while the pane holds the keyboard; from the prompt, use `/footprints touched`.
