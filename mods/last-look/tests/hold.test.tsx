@@ -280,6 +280,38 @@ describe('the band, where the pane has no room', () => {
   })
 })
 
+describe('untrusted text', () => {
+  // The model writes the command; file names and git output come from disk.
+  const DIRTY = 'rm -rf src # \u001b[31mred\u001b[0m \u0007 \u0000 \u007f \u0085 \u009b2J \u001b]0;title\u0007'
+  const DIRTY_FILES: WorldSpec = { files: { 'src/a\u001b[1mb\u0007.ts': { size: 10, git: 'modified' } } }
+  const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
+
+  for (const isPanePlaced of [true, false]) {
+    test(`control characters never hide the hold (${isPanePlaced ? 'pane' : 'band'})`, async ($, on) => {
+      const { seen, ran } = setup(on, { ...DIRTY_FILES, isPanePlaced })
+      const call = bash($, DIRTY)
+      await until(() => seen.opened.length > 0, 'the hold')
+      for (const surface of SURFACES) {
+        const ui = isPanePlaced
+          ? await $.ui.mount({ plugin: 'last-look', surface, component: 'Pane', requestId: PANE, props: paneProps() })
+          : await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND })
+        expect(await ui.find({ key: 'cancel' })).toBeDefined()
+        expect(JSON.stringify(await ui.drawn())).not.toMatch(CONTROL)
+        expect((await ui.find({ key: 'command' }))?.text).toContain('rm -rf src')
+        if (isPanePlaced) expect(await ui.find({ type: 'Text', text: /src\/ab\uFFFD\.ts/ })).toBeDefined()
+        await ui.unmount()
+      }
+      for (const text of [...seen.status, ...seen.logs]) expect(String(text ?? '')).not.toMatch(CONTROL)
+      const ui = isPanePlaced
+        ? await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'Pane', requestId: PANE, props: paneProps() })
+        : await $.ui.mount({ plugin: 'last-look', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+      await ui.press({ key: 'cancel' })
+      expect(refusal(await call)).toContain('chose Cancel')
+      expect(ran).toEqual([])
+    })
+  }
+})
+
 describe('what passes untouched', () => {
   test('safe commands run as given, with nothing measured and nothing shown', async ($, on) => {
     const { seen, ran, world } = setup(on)
