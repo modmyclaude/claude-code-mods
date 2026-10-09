@@ -53,7 +53,7 @@ export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElemen
     const free = Math.max(0, room.rows - 5 - (room.queued > 0 ? 1 : 0))
     const shown = report.items.slice(0, free)
     return (
-      <Box flexDirection="column" width={width}>
+      <Box key="last-look" flexDirection="column" width={width}>
         <Box key="command" flexDirection="row">
           <Text bold color="warning">Last Look held: </Text>
           <Text wrap="truncate-end">{report.command}</Text>

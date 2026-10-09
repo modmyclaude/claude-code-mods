@@ -2,7 +2,7 @@
 // hook holding it, the pane or band drawn on each surface, a press deciding.
 
 import { describe, expect, test } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
+import type { Engine, Plugin } from 'claude-code/testing'
 import type { On, ToolCallResult } from 'claude-code'
 
 import { FOOTER } from '../hooks/view'
@@ -22,6 +22,21 @@ const FILES: WorldSpec = {
     'src/b.ts': { size: 10, git: 'untracked' },
     'src/c.ts': { size: 10, git: 'clean' },
     'dist/x.js': { size: 10, git: 'ignored' },
+  },
+}
+
+/** Another mod that draws in the band, to show last-look leaves it there. */
+const NEIGHBOUR: Plugin = {
+  name: 'neighbour',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box, Text } = $.ui.resolve(e)
+      return (
+        <Box key="neighbour">
+          <Text>neighbour band</Text>
+        </Box>
+      )
+    })
   },
 }
 
@@ -224,8 +239,7 @@ describe('the band, where the pane has no room', () => {
       const call = bash($, 'rm -rf src')
       await until(() => seen.opened.length > before, 'the hold')
       const ui = await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND, viewport: { columns: 200, rows: 50 } })
-      const drawn = await ui.drawn()
-      expect(drawn).toMatchObject({ props: { width: 64 } })
+      expect((await ui.find({ key: 'last-look' }))?.props.width).toBe(64)
       expect((await ui.find({ key: 'command' }))?.text).toContain('rm -rf src')
       expect((await ui.find({ key: 'headline' }))?.text).toBe('2 files have unsaved work you would lose')
       expect((await ui.find({ key: 'footer' }))?.text).toContain(FOOTER)
@@ -239,9 +253,25 @@ describe('the band, where the pane has no room', () => {
     expect(ran).toEqual(['rm -rf src'])
   })
 
+  test('other mods keep their band: the hold draws on top, theirs beneath', { plugins: [NEIGHBOUR] }, async ($, on) => {
+    const { seen, ran } = setup(on, { ...FILES, isPanePlaced: false })
+    for (const surface of SURFACES) {
+      const before = seen.opened.length
+      const call = bash($, 'rm -rf src')
+      await until(() => seen.opened.length > before, 'the hold')
+      const ui = await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND })
+      const keys = (await ui.findAll({ type: 'Box' })).map(box => box.key).filter(key => key === 'last-look' || key === 'neighbour')
+      expect(keys, 'both drawn, the hold first').toEqual(['last-look', 'neighbour'])
+      expect((await ui.find({ key: 'neighbour' }))?.text).toBe('neighbour band')
+      await ui.press({ key: 'cancel' })
+      expect(refusal(await call)).toContain('chose Cancel')
+      await ui.unmount()
+    }
+    expect(ran).toEqual([])
+  })
+
   test('with nothing held the band is left to the engine', async ($, on) => {
     setup(on)
-    on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'last-look', surface, component: 'AbovePrompt', props: BAND })
       expect(await ui.find({ key: 'cancel' })).toBeUndefined()

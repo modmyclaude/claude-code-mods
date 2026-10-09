@@ -236,6 +236,8 @@ export function makeWorld(spec: WorldSpec = {}) {
       seen.status.push(e.text)
       return { value: undefined }
     })
+    // The engine's own band, beneath every plugin: nothing of its own here.
+    on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
     on('ui.log', (_$, e) => {
       seen.logs.push(e.text)
       return { value: undefined }
