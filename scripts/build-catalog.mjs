@@ -275,6 +275,10 @@ function stripVolatile(json) {
   for (const m of data.mods ?? []) {
     for (const k of VOLATILE) delete m[k]
     if (m.tests) delete m.tests.count // counts move with every new test; refreshed with --counts
+    // README and prompt text change with routine docs edits; the next regen picks them up.
+    // Structure (names, taglines, categories, reach, events, commands, settings) stays strict.
+    delete m.readme
+    delete m.prompt
   }
   return JSON.stringify(data)
 }
