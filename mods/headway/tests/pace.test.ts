@@ -61,8 +61,10 @@ describe('estimate', () => {
     expect(estimate([0, M, 2 * M + 1])?.isSteady).toBe(false)
   })
 
-  test(`steadiness reads the last ${STEADY_WINDOW} step times; the median reads them all`, () => {
-    const quick = Array.from({ length: STEADY_WINDOW }, () => 20 * S)
+  // The README promises the last 8 step times, so the window is written out here, not read from STEADY_WINDOW.
+  test('steadiness reads the last 8 step times; the median reads them all', () => {
+    expect(STEADY_WINDOW).toBe(8)
+    const quick = [20 * S, 20 * S, 20 * S, 20 * S, 20 * S, 20 * S, 20 * S, 20 * S]
     const session = [20 * S, 20 * S, 300 * S, ...quick]
     expect(estimate(session)).toEqual({ perStepMs: 20 * S, isSteady: true })
     // One step fewer and the long one is still inside the window.

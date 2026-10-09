@@ -445,6 +445,12 @@ describe('/headway', () => {
     }
   })
 
+  test('is registered to run at once, so it works while Claude does (gotcha 33)', async ($, on) => {
+    const w = world(on)
+    await startSession($)
+    expect(w.registered.map(spec => [spec.name, spec.immediate])).toEqual([['headway', true]])
+  })
+
   test('the pane says so when there is no plan', async ($, on) => {
     world(on)
     await startSession($)

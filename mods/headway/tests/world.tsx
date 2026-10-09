@@ -4,7 +4,7 @@
 
 import { mock } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
-import type { On, RenderSurface } from 'claude-code'
+import type { CommandSpec, On, RenderSurface } from 'claude-code'
 
 export const PLUGIN = 'headway'
 export const ROOT = '/work/app'
@@ -29,6 +29,10 @@ export type World = {
   root: { deny?: string }
   /** What `$.session.surfaces()` answers; tests attach and detach by editing it. */
   surfaces: RenderSurface[]
+  /** Delays (clock ms), one per call, for the next `$.session.surfaces()` answers; each answers what was attached when asked. */
+  late: number[]
+  /** What Headway handed `$.command.register`. */
+  registered: CommandSpec[]
 }
 
 export function world(on: On, store: Record<string, unknown> = {}, surfaces: RenderSurface[] = ['terminal']): World {
@@ -38,6 +42,8 @@ export function world(on: On, store: Record<string, unknown> = {}, surfaces: Ren
   const tasks: World['tasks'] = []
   const todo: World['todo'] = {}
   const root: World['root'] = {}
+  const late: number[] = []
+  const registered: CommandSpec[] = []
   let periods = 0
   let taskId = 0
 
@@ -54,10 +60,18 @@ export function world(on: On, store: Record<string, unknown> = {}, surfaces: Ren
   mock.store(on, store)
 
   on('session.root', () => (root.deny === undefined ? { value: ROOT } : { deny: root.deny }))
-  on('session.surfaces', () => ({ value: [...surfaces] }))
+  on('session.surfaces', async () => {
+    const answer = [...surfaces]
+    const delay = late.shift()
+    if (delay !== undefined) await clock.sleep(delay)
+    return { value: answer }
+  })
   on('session.attach', ($, e) => ({ clientId: e.clientId }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('command.register', ($, e) => {
+    registered.push(e)
+    return { value: { command: e.name } }
+  })
   on('ui.toast', ($, e) => {
     toasts.push(e.text)
     return { value: undefined }
@@ -93,7 +107,7 @@ export function world(on: On, store: Record<string, unknown> = {}, surfaces: Ren
     text: 'User has approved your plan.',
   }))
 
-  return { clock, toasts, opened, periods: () => periods, plan, tasks, todo, root, stored, surfaces }
+  return { clock, toasts, opened, periods: () => periods, plan, tasks, todo, root, stored, surfaces, late, registered }
 }
 
 export type Todo = { content: string; status: 'pending' | 'in_progress' | 'completed' }

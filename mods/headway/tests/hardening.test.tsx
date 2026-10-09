@@ -186,6 +186,77 @@ describe('a plan Claude stops updating', () => {
     await expectBand($, 'Add the theme tokens (0/3) ▱▱▱')
   })
 
+  // Each source restarts the quiet count, not only TodoWrite: a plan moved by one tool alone stays.
+  const FOUR = ['One', 'Two', 'Three', 'Four']
+
+  test('turns that only call TaskUpdate keep a task plan', async ($, on) => {
+    world(on)
+    beneath(on)
+    await turnStart($)
+    for (const subject of FOUR) await $.tool.call({ tool: 'TaskCreate', subject, description: 'x' })
+    await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'in_progress' })
+    await turnEnd($)
+    for (let turn = 1; turn <= 3; turn += 1) {
+      await turnStart($)
+      await $.tool.call({ tool: 'TaskUpdate', taskId: String(turn), status: 'completed' })
+      await $.tool.call({ tool: 'TaskUpdate', taskId: String(turn + 1), status: 'in_progress' })
+      await turnEnd($)
+      expect(await bandText($, 'terminal'), `after turn ${turn}`).toStartWith(`${FOUR[turn]} (${turn}/4)`)
+    }
+  })
+
+  test('turns that only call TaskCreate keep a task plan', async ($, on) => {
+    world(on)
+    beneath(on)
+    await turnStart($)
+    await $.tool.call({ tool: 'TaskCreate', subject: 'One', description: 'x' })
+    await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'in_progress' })
+    await turnEnd($)
+    for (let turn = 1; turn <= 3; turn += 1) {
+      await turnStart($)
+      await $.tool.call({ tool: 'TaskCreate', subject: `More ${turn}`, description: 'x' })
+      await turnEnd($)
+      expect(await bandText($, 'terminal'), `after turn ${turn}`).toStartWith(`One (0/${turn + 1})`)
+    }
+  })
+
+  test('turns that only call TaskList keep a task plan', async ($, on) => {
+    const w = world(on)
+    beneath(on)
+    await turnStart($)
+    for (const [index, subject] of FOUR.entries()) {
+      w.tasks.push({ id: String(index + 1), subject, status: index === 0 ? 'in_progress' : 'pending', blockedBy: [] })
+    }
+    await $.tool.call({ tool: 'TaskList' })
+    await turnEnd($)
+    for (let turn = 1; turn <= 3; turn += 1) {
+      await turnStart($)
+      w.tasks[turn - 1]!.status = 'completed'
+      w.tasks[turn]!.status = 'in_progress'
+      await $.tool.call({ tool: 'TaskList' })
+      await turnEnd($)
+      expect(await bandText($, 'terminal'), `after turn ${turn}`).toStartWith(`${FOUR[turn]} (${turn}/4)`)
+    }
+  })
+
+  test('an outline approved after a quiet turn still stages the list two turns later', async ($, on) => {
+    const w = world(on)
+    beneath(on)
+    await turnStart($)
+    await todos($, list(['Old one', 'Old two', 'Old three'], 1))
+    await turnEnd($)
+    // Quiet for the list, but the approval is Claude moving its plan.
+    await turnStart($)
+    w.plan.text = '## Build\n- Add the theme tokens\n- Wire the toggle\n## Verify\n- Update the docs\n'
+    await $.tool.call({ tool: 'ExitPlanMode' })
+    await turnEnd($)
+    await turnStart($)
+    await turnEnd($)
+    await turnStart($)
+    await todos($, list(['Add the theme tokens', 'Wire the toggle', 'Update the docs'], 0))
+    await expectBand($, 'Build · Add the theme tokens (0/3) ▱▱▱')
+  })
+
   test('a resumed conversation does not inherit this one’s plan', async ($, on) => {
     world(on)
     beneath(on)
@@ -245,6 +316,30 @@ describe('the timer only where a band is drawn', () => {
     const before = w.periods()
     await w.clock.advance(30 * S)
     expect(w.periods(), 'stopped once nothing draws the band').toBe(before)
+  })
+
+  test('a late answer about the surfaces never overrules a newer one', async ($, on) => {
+    const w = world(on, {}, [])
+    beneath(on)
+    await turnStart($)
+    await todos($, list(SIX, 0))
+    expect(w.periods(), 'nothing draws the band yet').toBe(0)
+
+    // A plan update asks what draws the band while nothing does; that answer comes half a second late.
+    w.late.push(S / 2)
+    const update = todos($, list(SIX, 1))
+    await w.clock.settle()
+    // Meanwhile the desktop app attaches: the newer answer starts the timer.
+    w.surfaces.push('desktop')
+    await $.session.attach({ surface: 'desktop', clientId: 'app' })
+    expect(w.periods(), 'the timer starts on attach').toBeGreaterThan(0)
+
+    // The stale "nothing draws it" lands after: it must not stop the timer.
+    await w.clock.advance(S / 2)
+    await update
+    const before = w.periods()
+    await w.clock.advance(5 * S)
+    expect(w.periods() - before, 'still once a second').toBe(5)
   })
 
   test('VS Code and mobile draw no band: no timer', async ($, on) => {
