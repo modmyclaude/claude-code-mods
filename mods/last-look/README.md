@@ -1,6 +1,6 @@
 # Last Look
 
-Holds destructive commands and shows exactly what they would destroy.
+Holds destructive commands until you approve, and shows what they would destroy.
 
 ## Install
 

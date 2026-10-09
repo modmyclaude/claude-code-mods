@@ -1,7 +1,7 @@
 ---
 mod: last-look
 title: Last Look
-tagline: Holds destructive commands and shows exactly what they would destroy.
+tagline: Holds destructive commands until you approve, and shows what they would destroy.
 category: safety
 surfaces: [terminal, desktop]
 model_calls: none
@@ -9,29 +9,29 @@ model_calls: none
 
 # Last Look
 
-Holds destructive commands and shows exactly what they would destroy.
+Holds destructive commands until you approve, and shows what they would destroy.
 
 ## The prompt
 
 Paste this into Claude Code to build it yourself, or install the finished mod from this repo.
 
 ```text
-Build me a Claude Code mod called "last-look" that holds destructive commands until I approve them and shows exactly what they would destroy.
+Build me a Claude Code mod called "last-look" that holds destructive commands until I approve them and shows what they would destroy.
 
 What it catches (Bash tool calls)
-- rm -r / rm -rf, find ... -delete, git clean -fd(x), git reset --hard, git checkout -- . and git restore ., git push --force without --force-with-lease, git branch -D, and redirects that overwrite an existing file (> file).
+- rm -r / rm -rf, find ... -delete, git clean -fd(x), git reset --hard, git checkout -- . and git restore ., git push --force (even with --force-with-lease alongside), git branch -D, git worktree remove --force, and redirects that overwrite an existing file (> file). Parse `--` (end of options) in every git rule.
 
 What it shows
-- A side pane (a band above the prompt on narrow terminals) with the command, what it would affect (each file to be deleted and the total size, or the commits or branch to be lost) and two buttons, Proceed and Cancel. Cancel has focus, so Enter cancels.
+- A side pane (a band above the prompt on narrow terminals) with the command, what it would affect (each file to be deleted and the total size, or the commits or branch to be lost) and two buttons, Proceed and Cancel. Cancel is the default and Enter cancels. Proceed has no hotkey and the pane never takes the keyboard, so nothing I type can approve a command. While a hold is pending, draw it alone.
 
 What is new here
 - Git-aware: highlight files with uncommitted changes, because git cannot bring those back ("3 files have unsaved work you would lose").
 - Handles compound commands such as cd some/path && rm -rf build by measuring relative to the cd target.
-- An alwaysAllow setting for paths that are fine to delete without asking, e.g. dist, build, .next, coverage.
-- If it cannot measure a command, it still holds it and says "could not measure: review it yourself" instead of letting it through.
+- An alwaysAllow setting for paths that are fine to delete without asking, e.g. dist, build, .next, coverage: only for rm with plain literal paths whose real path is inside an allowed folder, never for find or anything that follows links.
+- The classifier decides whether to hold; measuring only fills in the details. If it cannot measure a command (globs, braces, variables, odd find options), it still holds it and says "could not measure: review it yourself". Skip a hold only on positive proof covering the whole command (e.g. a single redirect to a plain path that does not exist yet).
 
 Guardrails
-- A safety net, not a permission system: say so in the pane footer. Measure with read-only commands only (ls, du, find without -delete, git status, git log).
+- A safety net, not a permission system: say so in the pane footer. Measure with read-only commands only (ls, du, find without -delete or any write or exec option, git status, git log). Strip control characters from anything drawn.
 - If the mod itself errors, deny the command instead of letting it run.
 
 Build rules
