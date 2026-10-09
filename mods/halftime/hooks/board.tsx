@@ -104,7 +104,7 @@ function start(surface: Surface, props: Props): Local {
     const button = event.button ?? 'left'
     const g = local.props.grid
     if (!g) {
-      // A game with no field to aim at (hurdle): any click is its one action.
+      // A game with no field to aim at (cratehop): any click is its one action.
       queue(local, `click:0,0,${button}`)
     } else {
       // The field starts on the board's second row; turn the cell under the pointer into a field cell.

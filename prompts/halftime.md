@@ -19,7 +19,7 @@ Paste this into Claude Code to build it yourself, or install the finished mod fr
 Build me a Claude Code mod called "halftime": small games I can play above my prompt while Claude works, that hand the keyboard straight back the moment Claude needs me.
 
 The games (design all of them yourself: original names, art and colours; nothing that copies a famous game's name, pieces or look)
-- "hurdle": a one-button runner. Jump over obstacles; speed rises slowly.
+- "cratehop": a one-button runner where a courier jumps crates. Speed rises slowly.
 - "tailchase": a snake on a wide, short field that fits the band.
 - "merge": a 4x4 sliding tile board where equal tiles combine. Turn-based.
 - "sweep": a small mine field. Turn-based.
@@ -40,7 +40,7 @@ Fits any screen
 
 Daily and sharing
 - Each game has a daily board: the same seed for everyone that day.
-- After a run, a one-line result I can copy: "halftime daily 10-09 · hurdle 412 · played 3m of a 7m turn".
+- After a run, a one-line result I can copy: "halftime daily 10-09 · cratehop 412 · played 3m of a 7m turn".
 - Personal bests per game, safe when two sessions are open (re-read before saving so a lower score never overwrites a higher one). Also track total minutes played while waiting.
 
 Performance

@@ -1,12 +1,12 @@
-// hurdle: a one-button runner. The courier runs right on its own; one key
+// cratehop: a one-button runner. The courier runs right on its own; one key
 // jumps the crates. The course is laid out by distance from the seed alone,
 // so everyone's daily course is the same; speed rises with distance.
 
-import type { HalftimeHurdle } from '../../types'
+import type { HalftimeCratehop } from '../../types'
 import { rand } from '../rng'
 import { BOLD, DIM, clamp, hash2, paint, type Cell, type Drawn, type Game, type Seg } from './kit'
 
-export const HURDLE = {
+export const CRATEHOP = {
   /** The runner's screen column. */
   col: 6,
   v0: 14,
@@ -24,16 +24,16 @@ export const HURDLE = {
 
 /** Speed at a distance: rises slowly, then holds. */
 export function speedAt(x: number): number {
-  return Math.min(HURDLE.vmax, Math.sqrt(HURDLE.v0 * HURDLE.v0 + HURDLE.accel2 * Math.max(0, x)))
+  return Math.min(CRATEHOP.vmax, Math.sqrt(CRATEHOP.v0 * CRATEHOP.v0 + CRATEHOP.accel2 * Math.max(0, x)))
 }
 
 /** How far one jump carries at a speed. */
 export function airDistance(v: number): number {
-  return (v * 2 * HURDLE.jump) / HURDLE.gravity
+  return (v * 2 * CRATEHOP.jump) / CRATEHOP.gravity
 }
 
 /** Lays out crates until the course reaches `until`; depends on the seed and distance only. */
-function layout(s: HalftimeHurdle, until: number): HalftimeHurdle {
+function layout(s: HalftimeCratehop, until: number): HalftimeCratehop {
   let { rng, nextX } = s
   const obs = [...s.obs]
   while (nextX < until) {
@@ -52,8 +52,8 @@ function layout(s: HalftimeHurdle, until: number): HalftimeHurdle {
   return { ...s, rng, nextX, obs }
 }
 
-export function initHurdle(seed: number): HalftimeHurdle {
-  return layout({ rng: seed >>> 0, x: 0, y: 0, vy: 0, obs: [], nextX: 40, dead: false, buffered: false }, HURDLE.lookahead)
+export function initCratehop(seed: number): HalftimeCratehop {
+  return layout({ rng: seed >>> 0, x: 0, y: 0, vy: 0, obs: [], nextX: 40, dead: false, buffered: false }, CRATEHOP.lookahead)
 }
 
 /** Whether the runner, its feet at height y, overlaps a crate at distance x. */
@@ -64,49 +64,49 @@ export function hits(obs: readonly [number, number, number][], x: number, y: num
   return false
 }
 
-export function jumpHurdle(s: HalftimeHurdle): HalftimeHurdle {
+export function jumpCratehop(s: HalftimeCratehop): HalftimeCratehop {
   if (s.dead) return s
-  if (s.y === 0 && s.vy === 0) return { ...s, vy: HURDLE.jump }
+  if (s.y === 0 && s.vy === 0) return { ...s, vy: CRATEHOP.jump }
   // Pressed while coming down, close to the ground: take it on touchdown.
   if (s.vy < 0 && s.y < 0.8) return { ...s, buffered: true }
   return s
 }
 
 /** Advances real time: small fixed sub-steps, so the outcome barely depends on the frame rate. */
-export function stepHurdle(s: HalftimeHurdle, dtMs: number): HalftimeHurdle {
+export function stepCratehop(s: HalftimeCratehop, dtMs: number): HalftimeCratehop {
   if (s.dead) return s
   let { x, y, vy, buffered } = s
   let dead = false
-  let left = clamp(dtMs, 0, HURDLE.maxDtMs)
+  let left = clamp(dtMs, 0, CRATEHOP.maxDtMs)
   while (left > 0 && !dead) {
-    const h = Math.min(left, HURDLE.subStepMs)
+    const h = Math.min(left, CRATEHOP.subStepMs)
     left -= h
     const sec = h / 1000
     x += speedAt(x) * sec
     if (y > 0 || vy > 0) {
-      vy -= HURDLE.gravity * sec
+      vy -= CRATEHOP.gravity * sec
       y += vy * sec
       if (y <= 0) {
         y = 0
         vy = 0
         if (buffered) {
-          vy = HURDLE.jump
+          vy = CRATEHOP.jump
           buffered = false
         }
       }
     }
     dead = hits(s.obs, x, y)
   }
-  const kept = s.obs.filter(([ox, w]) => ox + w > x - HURDLE.col - 2)
-  return layout({ ...s, x, y, vy, buffered, dead, obs: kept }, x + HURDLE.lookahead)
+  const kept = s.obs.filter(([ox, w]) => ox + w > x - CRATEHOP.col - 2)
+  return layout({ ...s, x, y, vy, buffered, dead, obs: kept }, x + CRATEHOP.lookahead)
 }
 
-export function drawHurdle(s: HalftimeHurdle, cols: number): Drawn {
+export function drawCratehop(s: HalftimeCratehop, cols: number): Drawn {
   const width = clamp(cols, 16, 72)
-  const cam = Math.floor(s.x) - HURDLE.col
+  const cam = Math.floor(s.x) - CRATEHOP.col
   const runnerRow = 3 - clamp(Math.floor(s.y + 0.35), 0, 3)
   const rows: Seg[][] = []
-  for (let row = 0; row < HURDLE.rows; row += 1) {
+  for (let row = 0; row < CRATEHOP.rows; row += 1) {
     const cells: Cell[] = []
     for (let c = 0; c < width; c += 1) {
       const wc = cam + c
@@ -114,7 +114,7 @@ export function drawHurdle(s: HalftimeHurdle, cols: number): Drawn {
         cells.push([wc % 8 === 0 ? '┴' : '─', 'subtle', undefined, DIM])
         continue
       }
-      if (c === HURDLE.col && row === runnerRow) {
+      if (c === CRATEHOP.col && row === runnerRow) {
         cells.push(s.dead ? ['x', 'error', undefined, BOLD] : [s.y > 0 ? '^' : '@', 'suggestion', undefined, BOLD])
         continue
       }
@@ -124,7 +124,7 @@ export function drawHurdle(s: HalftimeHurdle, cols: number): Drawn {
         continue
       }
       // Far-off dots drift at half speed, so the course reads as moving even between crates.
-      const star = row < 2 && hash2(Math.floor(s.x / 2) - HURDLE.col + c, row) % 29 === 0
+      const star = row < 2 && hash2(Math.floor(s.x / 2) - CRATEHOP.col + c, row) % 29 === 0
       cells.push(star ? ['·', 'subtle', undefined, DIM] : [' '])
     }
     rows.push(paint(cells))
@@ -132,20 +132,20 @@ export function drawHurdle(s: HalftimeHurdle, cols: number): Drawn {
   return { rows }
 }
 
-export const hurdle: Game<HalftimeHurdle> = {
-  id: 'hurdle',
-  title: 'hurdle',
+export const cratehop: Game<HalftimeCratehop> = {
+  id: 'cratehop',
+  title: 'cratehop',
   realtime: true,
-  rows: HURDLE.rows,
+  rows: CRATEHOP.rows,
   tickMs: 60,
   better: 'higher',
   controls: { space: 'jump', up: 'jump', w: 'jump', k: 'jump' },
   hint: 'space or up: jump  ·  p: pause  ·  esc: keys back to the prompt',
-  init: initHurdle,
-  act: (s, action) => (action === 'jump' ? jumpHurdle(s) : s),
-  step: stepHurdle,
-  click: s => jumpHurdle(s),
+  init: initCratehop,
+  act: (s, action) => (action === 'jump' ? jumpCratehop(s) : s),
+  step: stepCratehop,
+  click: s => jumpCratehop(s),
   isOver: s => s.dead,
   score: s => Math.floor(s.x),
-  draw: (s, cols) => drawHurdle(s, cols),
+  draw: (s, cols) => drawCratehop(s, cols),
 }
