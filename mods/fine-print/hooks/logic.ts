@@ -138,35 +138,69 @@ const MAX_TARGET = 160
 export const MAX_TOOL_LINES = 40
 
 const HIDDEN = '[hidden]'
-// A name with a segment that says secret: DB_PASSWORD, PGPASSWORD, api_key,
-// x-api-key, GITHUB_TOKEN, client_secret. A segment must end in the word
-// (or be key, pwd, credentials), so max_tokens and keyboard_layout pass.
-const SECRET_NAME =
-  '\\b((?:[A-Za-z0-9]+[_.-])*(?:[A-Za-z0-9]*(?:passw(?:or)?d|secret|token)|api[_-]?key|apikey|accesskey|secretkey|privatekey|key|pwd|credentials?)(?:[_.-][A-Za-z0-9]+)*)'
+// Every pattern here is linear: no quantified group repeats characters
+// another quantifier beside it also takes, and a scan that starts inside a
+// run of the same characters is cut off by a lookbehind, so a long
+// repetitive target cannot stall the turn.
 const SECRET_PATTERNS: readonly [RegExp, string][] = [
   // Well-known key formats: Anthropic/OpenAI, Stripe, GitHub, Slack, AWS, Google, GitLab, npm.
   [
-    /\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{16,}|[sr]k_(?:live|test)_[A-Za-z0-9]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{30,})/g,
+    /\b(?:sk-[A-Za-z0-9_-]{16,}|[sr]k_(?:live|test)_[A-Za-z0-9]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{30,})/g,
     HIDDEN,
   ],
   // Credential headers, up to the closing quote.
-  [/\b(authorization|proxy-authorization|cookie|x-api-key)(\s*:\s*)[^"'\n]+/gi, `$1$2${HIDDEN}`],
+  [/\b(authorization|proxy-authorization|cookie|x-api-key)\s*:[^"'\n]*/gi, `$1: ${HIDDEN}`],
   [/\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, `$1 ${HIDDEN}`],
   // user:password@ in a URL.
   [/(\/\/[^\s/:@]+):[^\s/@]+@/g, `$1:${HIDDEN}@`],
-  // NAME=value, name: value, "name": "value", ?name=value.
-  [new RegExp(`${SECRET_NAME}("?\\s*[=:]\\s*)(?:"[^"]*"|'[^']*'|[^\\s&;,"'<>)]+)`, 'gi'), `$1$2${HIDDEN}`],
   // Long hex, and long base64 that mixes cases and digits (a path segment rarely does).
   [/\b[0-9a-f]{32,}\b/gi, HIDDEN],
   [/(?<![A-Za-z0-9+_-])(?=[A-Za-z0-9+_-]*\d)(?=[A-Za-z0-9+_-]*[A-Z])(?=[A-Za-z0-9+_-]*[a-z])[A-Za-z0-9+_-]{40,}={0,2}/g, HIDDEN],
 ]
+
+// A name followed by = or : (NAME=value, name: value, "name": "value",
+// ?name=value). It starts only where no name character precedes it, and
+// looks ahead no further than the separator; the value is read only for a
+// secret name.
+const PAIR_NAME = /(?<![A-Za-z0-9_.-])[A-Za-z0-9_.-]+(?="?\s*[=:])/g
+const PAIR_VALUE = /"?\s*[=:]\s*(?:"[^"]*"?|'[^']*'?|[^\s&;,"'<>)]+)?/y
+// A name is secret when one of its segments (split on _ . -) says so:
+// DB_PASSWORD, PGPASSWORD, api_key, x-api-key, GITHUB_TOKEN, client_secret.
+// max_tokens, keyboard_layout and monkey are left alone.
+const SECRET_ENDINGS = ['password', 'passwd', 'secret', 'token']
+const SECRET_SEGMENTS = new Set(['key', 'apikey', 'accesskey', 'secretkey', 'privatekey', 'pwd', 'credential', 'credentials'])
+
+function isSecretName(name: string): boolean {
+  return name
+    .toLowerCase()
+    .split(/[_.-]/)
+    .some(part => SECRET_SEGMENTS.has(part) || SECRET_ENDINGS.some(ending => part.endsWith(ending)))
+}
+
+function maskPairs(text: string): string {
+  let masked = ''
+  let from = 0
+  for (const match of text.matchAll(PAIR_NAME)) {
+    const start = match.index ?? 0
+    if (start < from || !isSecretName(match[0])) continue
+    const afterName = start + match[0].length
+    PAIR_VALUE.lastIndex = afterName
+    const pair = PAIR_VALUE.exec(text)?.[0] ?? ''
+    const separator = /^"?\s*[=:]\s*/.exec(pair)?.[0] ?? ''
+    if (pair.length === separator.length) continue
+    masked += `${text.slice(from, afterName)}${separator}${HIDDEN}`
+    from = afterName + pair.length
+  }
+
+  return masked + text.slice(from)
+}
 
 /**
  * Masks secret-shaped text in a command or target before it is sent: best
  * effort, erring toward hiding. The reply itself is sent as written.
  */
 export function maskSecrets(text: string): string {
-  return SECRET_PATTERNS.reduce((masked, [pattern, replacement]) => masked.replace(pattern, replacement), text)
+  return maskPairs(SECRET_PATTERNS.reduce((masked, [pattern, replacement]) => masked.replace(pattern, replacement), text))
 }
 
 /** One line per tool call: its name and targets, first line of each, capped. */
@@ -175,7 +209,7 @@ export function describeToolUse(use: ToolUseSummary): string {
     const value = use.input[key]
     if (typeof value !== 'string') return []
     // Masked before the cap, so a cut never leaves half a secret unmasked.
-    const line = clean(maskSecrets((value.split('\n')[0] ?? '').slice(0, 2000)), MAX_TARGET)
+    const line = clean(maskSecrets((value.split('\n')[0] ?? '').slice(0, 400)), MAX_TARGET)
 
     return line === '' ? [] : [`${key}: ${line}`]
   })

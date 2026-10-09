@@ -18,10 +18,10 @@ When it finds something, a band appears above the prompt:
 
 - a bold one-line headline and up to 4 bullets
 - **Got it** (`g`): you read it; the band closes
-- **Explain more** (`e`): sends a follow-up question into the chat, so Claude explains the note in plain words. The question is sent as the Fine Print plugin's message, not as yours: the transcript and the model both see that the plugin wrote it, at your press. Claude's answer to it is not checked again.
+- **Explain more** (click it, or Tab to it and Enter; it has no letter key, so a stray keystroke never sends a message): sends a follow-up question into the chat, so Claude explains the note in plain words. The question is sent as the Fine Print plugin's message, not as yours: the transcript and the model both see that the plugin wrote it, at your press. Claude's answer to it is not checked again.
 - **Dismiss** (`d`): closes the band without marking it read
 
-The letter keys work once the band has focus (a click, or ctrl+x tab). A newer note replaces the one on screen; the band then says how many older notes are still open.
+The letter keys (`g`, `d`) work once the band has focus (a click, or ctrl+x tab). A newer note replaces the one on screen; the band then says how many older notes are still open.
 
 `/fineprint` lists every note flagged this session, newest first, with what you did with it (open, got it, dismissed, asked to explain), how long ago, its topics, and how many checks were used.
 
@@ -53,6 +53,7 @@ Change them in `/config` (or on the install screen).
 - If the model cannot be reached (for example, an organization policy blocks `haiku`), Fine Print shows one toast per session and otherwise stays quiet.
 - The status line about the cap stays up for the rest of the session, unless you raise the cap or run `/clear`.
 - `/clear` starts fresh: the notes, the band and the check count are reset with the conversation.
+- Only the final message of a turn is read. A caveat in an earlier message of the same turn, followed by a short closing summary, is not seen.
 
 ## Built from a prompt
 
