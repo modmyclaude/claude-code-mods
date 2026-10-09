@@ -259,7 +259,9 @@ test("the engine's guess becomes option 1, passed through untouched, and only tw
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
     expect(await labels(ui)).toEqual(['run the auth tests again', 'review the same guard in signup.ts', 'run the full test suite'])
     expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
-    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBe('3')
+    // Only Claude Code's guess carries a digit; our two rows are click-only (MM-077).
+    expect((await ui.find({ key: 'pick-2' }))?.props.hotkey).toBeUndefined()
+    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'dismiss' }))?.props.hotkey).toBe('0')
     // The suggestions stack on top of what other mods draw; they never replace it.
     expect(await ui.find({ text: 'engine band' })).toBeDefined()
@@ -314,14 +316,16 @@ test('a guess that lands after the list takes option 1, so ghost and option 1 ag
   expect(seen.calls).toHaveLength(1)
 })
 
-test('a risky guess that lands late is kept from the ghost and displaces nothing', async ($, on) => {
+test('a risky guess that lands late is passed through and takes option 1, marked', async ($, on) => {
   const seen = world(on)
   await finishTurn($, seen)
   await seen.clock.advance(ENGINE_WAIT_MS)
 
-  expect((await $.prompt.suggest({ text: 'deploy it to production', origin: ENGINE })).isShown).toBe(false)
+  expect((await $.prompt.suggest({ text: 'deploy it to production', origin: ENGINE })).isShown).toBe(true)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
-  expect(await labels(ui)).toEqual(THREE)
+  expect(await labels(ui)).toEqual(['deploy it to production', ...THREE.slice(0, 2)])
+  expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
+  expect((await ui.find({ type: 'Text', text: '(deploys)' }))?.props.color).toBe('warning')
 })
 
 test('a guess made while a turn still runs is not taken for the finished turn', async ($, on) => {
@@ -337,7 +341,7 @@ test('a guess made while a turn still runs is not taken for the finished turn', 
   expect(seen.calls[0]?.prompt).not.toContain('stale guess')
 })
 
-test('a risky suggestion is amber with its note and never option 1', async ($, on) => {
+test('a risky suggestion is amber with its note and sorts last', async ($, on) => {
   const seen = world(on, [reply(['push to main', 'run the auth tests', 'review the guard in signup.ts'])], { surfaces: ['desktop'] })
   await finishTurn($, seen)
 
@@ -346,37 +350,37 @@ test('a risky suggestion is amber with its note and never option 1', async ($, o
     expect(await labels(ui)).toEqual(['run the auth tests', 'review the guard in signup.ts', 'push to main'])
     const note = await ui.find({ type: 'Text', text: '(pushes)' })
     expect(note?.props.color).toBe('warning')
-    // Safe items keep their digit; the risky one is click-only.
-    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
-    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
+    // No engine guess: every row is ours, so none carries a digit (MM-077).
+    for (const n of ['1', '2', '3']) expect((await ui.find({ key: `pick-${n}` }))?.props.hotkey).toBeUndefined()
     await ui.unmount()
   }
 })
 
-test("a risky guess from the engine is never the ghost text, and never option 1", async ($, on) => {
+test("a risky guess from the engine is passed through untouched: ghost text and option 1, marked", async ($, on) => {
   const seen = world(on, [reply(['run the auth tests', 'review the guard in signup.ts'])])
   await finishTurn($, seen)
 
   const shown = await $.prompt.suggest({ text: 'git push origin main', origin: ENGINE })
-  expect(shown.isShown).toBe(false)
-  expect(seen.ghosts).toEqual([])
+  expect(shown.isShown).toBe(true)
+  expect(seen.ghosts.map(ghost => ghost.text)).toEqual(['git push origin main'])
   await seen.clock.settle()
 
   expect(seen.calls[0]?.prompt).toContain('2 different next prompts')
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
-  expect(await labels(ui)).toEqual(['run the auth tests', 'review the guard in signup.ts', 'git push origin main'])
+  expect(await labels(ui)).toEqual(['git push origin main', 'run the auth tests', 'review the guard in signup.ts'])
+  expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
+  expect((await ui.find({ key: 'pick-2' }))?.props.hotkey).toBeUndefined()
   expect((await ui.find({ type: 'Text', text: '(pushes)' }))?.props.color).toBe('warning')
 })
 
-test('a safe guess still reaches the box; a failing guard hides the ghost rather than risk it', async ($, on) => {
+test("the engine's guess always reaches the box, even when the guard fails", async ($, on) => {
   const seen = world(on)
   expect((await $.prompt.suggest({ text: 'run the tests', origin: ENGINE })).isShown).toBe(true)
-  // Another plugin's suggestion is never judged.
   expect((await $.prompt.suggest({ text: 'git push', origin: { kind: 'plugin', name: 'other' } })).isShown).toBe(true)
 
   seen.isStoreBroken = true
-  expect((await $.prompt.suggest({ text: 'run the tests', origin: ENGINE })).isShown).toBe(false)
-  expect(seen.ghosts.map(ghost => ghost.text)).toEqual(['run the tests', 'git push'])
+  expect((await $.prompt.suggest({ text: 'git push', origin: ENGINE })).isShown).toBe(true)
+  expect(seen.ghosts.map(ghost => ghost.text)).toEqual(['run the tests', 'git push', 'git push'])
 })
 
 test('when Claude ends with numbered options, the digit keys are left to answer it', async ($, on) => {
@@ -775,21 +779,21 @@ describe('control characters never take the band down (API-GOTCHAS #31)', () => 
       }
     })
 
-    test(`${name} in the engine's own guess: never the ghost or digit-armed, but drawn, drafted and copied clean`, { plugins: [NEIGHBOUR] }, async ($, on) => {
+    test(`${name} in the engine's own guess: passed through, marked, and drawn, drafted and copied clean`, { plugins: [NEIGHBOUR] }, async ($, on) => {
       const seen = world(on, [reply(['review the same guard in signup.ts', 'run the full test suite'])])
       const dirty = `run the auth${c} tests again`
       const shown = /^run the auth\uFFFD? tests again$/
       for (const surface of SURFACES) {
         await finishTurn($, seen)
-        // A control inside the raw guess (N-5): off the safe set, so Claude Code's ghost text is hidden.
-        expect((await $.prompt.suggest({ text: dirty, origin: ENGINE })).isShown).toBe(false)
+        // A control inside the raw guess (N-5): Claude Code's ghost text is untouched; our copy is marked.
+        expect((await $.prompt.suggest({ text: dirty, origin: ENGINE })).isShown).toBe(true)
         await seen.clock.settle()
         seen.fillResult = { isFilled: surface === 'terminal' }
         const ui = await mountBand($, surface)
-        expect((await labels(ui))[2]).toMatch(shown)
-        expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
+        expect((await labels(ui))[0]).toMatch(shown)
+        expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
         expect((await ui.find({ type: 'Text', text: '(unusual letters)' }))?.props.color).toBe('warning')
-        await ui.press({ key: 'pick-3' })
+        await ui.press({ key: 'pick-1' })
         if (surface === 'terminal') expect(seen.fills.at(-1)?.text).toMatch(shown)
         else {
           expect(seen.copies.at(-1)?.text).toMatch(shown)
@@ -802,7 +806,7 @@ describe('control characters never take the band down (API-GOTCHAS #31)', () => 
         }
         await ui.unmount()
       }
-      expect(seen.ghosts).toEqual([])
+      expect(seen.ghosts.map(ghost => ghost.text)).toEqual([dirty, dirty])
     })
 
     test(`${name} in why the model was refused: the toast is clean`, async ($, on) => {
@@ -854,78 +858,21 @@ describe('control characters never take the band down (API-GOTCHAS #31)', () => 
 
 const SAFE_TWO = ['run the auth tests', 'review the guard in signup.ts']
 
-test("the engine's \"ship it to production\" is never the ghost text, never option 1, never digit-armed", async ($, on) => {
-  const seen = world(on, [reply(['git reset --hard origin/main', 'run the auth tests'])])
-  await finishTurn($, seen)
-
-  expect((await $.prompt.suggest({ text: 'ship it to production', origin: ENGINE })).isShown).toBe(false)
-  expect(seen.ghosts).toEqual([])
-  await seen.clock.settle()
-
-  expect(seen.calls[0]?.prompt).toContain('2 different next prompts')
-  for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
-    expect(await labels(ui)).toEqual(['run the auth tests', 'ship it to production', 'git reset --hard origin/main'])
-    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
-    expect((await ui.find({ key: 'pick-2' }))?.props.hotkey).toBeUndefined()
-    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
-    expect((await ui.find({ type: 'Text', text: '(deploys)' }))?.props.color).toBe('warning')
-    expect((await ui.find({ type: 'Text', text: '(discards work)' }))?.props.color).toBe('warning')
-    await ui.unmount()
-  }
-})
-
-test('the review probe: three risky suggestions are all marked and none is digit-armed', async ($, on) => {
+test("the review probe: three risky suggestions are all marked; only the engine's carries a digit", async ($, on) => {
   const seen = world(on, [reply(['redeploy the auth service', 'git reset --hard origin/main'])])
   await finishTurn($, seen)
-  expect((await $.prompt.suggest({ text: 'ship it to production', origin: ENGINE })).isShown).toBe(false)
+  expect((await $.prompt.suggest({ text: 'ship it to production', origin: ENGINE })).isShown).toBe(true)
   await seen.clock.settle()
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
     const picks = (await ui.findAll({ type: 'Button' })).filter(button => button.key?.startsWith('pick-'))
     expect(picks).toHaveLength(3)
-    for (const pick of picks) expect(pick.props.hotkey, pick.text).toBeUndefined()
+    for (const pick of picks) expect(pick.props.hotkey, pick.text).toBe(pick.key === 'pick-1' ? '1' : undefined)
     const notes = (await ui.findAll({ type: 'Text' })).filter(text => text.props.color === 'warning').map(text => text.text.trim())
     expect(notes).toEqual(['(deploys)', '(deploys)', '(discards work)'])
     await ui.unmount()
   }
-})
-
-test("every risky phrasing in the review's table, as the engine's guess: kept from the ghost, marked, click-only", async ($, on) => {
-  const seen = world(on, REVIEW_RISKY.map(() => reply(SAFE_TWO)))
-  for (const [text, note] of REVIEW_RISKY) {
-    await finishTurn($, seen)
-    expect((await $.prompt.suggest({ text, origin: ENGINE })).isShown, text).toBe(false)
-    await seen.clock.settle()
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
-    expect(await labels(ui), text).toHaveLength(3)
-    expect((await labels(ui))[0], text).toBe(SAFE_TWO[0])
-    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey, text).toBeUndefined()
-    expect((await ui.find({ type: 'Text', text: `(${note})` }))?.props.color, text).toBe('warning')
-    await ui.unmount()
-  }
-  // Not one of them reached the prompt box as ghost text.
-  expect(seen.ghosts).toEqual([])
-  // The safe set's still do, untouched; an ordinary edit off the safe set does not.
-  for (const text of SAFE_SET) expect((await $.prompt.suggest({ text, origin: ENGINE })).isShown, text).toBe(true)
-  expect(seen.ghosts).toHaveLength(SAFE_SET.length)
-  for (const text of PLAIN_UNSAFE) expect((await $.prompt.suggest({ text, origin: ENGINE })).isShown, text).toBe(false)
-  expect(seen.ghosts).toHaveLength(SAFE_SET.length)
-})
-
-test("every risky phrasing in the review's table, written by the model: moved last, marked, click-only", async ($, on) => {
-  const seen = world(on, REVIEW_RISKY.map(([text]) => reply([text, ...SAFE_TWO])), { surfaces: ['desktop'] })
-  for (const [text, note] of REVIEW_RISKY) {
-    await finishTurn($, seen)
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
-    expect((await labels(ui)).slice(0, 2), text).toEqual(SAFE_TWO)
-    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey, text).toBe('1')
-    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey, text).toBeUndefined()
-    expect((await ui.find({ type: 'Text', text: `(${note})` }))?.props.color, text).toBe('warning')
-    await ui.unmount()
-  }
-  expect(seen.calls).toHaveLength(REVIEW_RISKY.length)
 })
 
 // ---------------------------------------------------------------- surfaces that draw no band (R-crossroads-5)
@@ -947,17 +894,6 @@ test('a drawing surface beside one that draws nothing still gets its list', asyn
 })
 
 // ---------------------------------------------------------------- the cross-review's seven (mutants M1..M7)
-
-test('a risky guess that lands during the call displaces nothing', async ($, on) => {
-  const seen = world(on, [reply(THREE)], { modelDelayMs: 3000 })
-  await finishTurn($, seen)
-  await seen.clock.advance(ENGINE_WAIT_MS)
-  expect(seen.calls).toHaveLength(1)
-  expect((await $.prompt.suggest({ text: 'deploy it to production', origin: ENGINE })).isShown).toBe(false)
-  await seen.clock.advance(3000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
-  expect(await labels(ui)).toEqual(THREE)
-})
 
 test('prompts from other plugins and task notifications are never learned from', async ($, on) => {
   const seen = world(on, [reply(THREE)], { surfaces: ['desktop'] })
@@ -1028,22 +964,6 @@ test("the band yields while an agent's transcript is on screen", async ($, on) =
 
 // ---------------------------------------------------------------- privilege by allowlist (MM-068)
 
-test("the engine's 'Run the migration on production' (no keyword knows it): not the ghost, not option 1, no digit", async ($, on) => {
-  const seen = world(on, [reply(SAFE_TWO)])
-  await finishTurn($, seen)
-  expect((await $.prompt.suggest({ text: 'Run the migration on production', origin: ENGINE })).isShown).toBe(false)
-  expect(seen.ghosts).toEqual([])
-  await seen.clock.settle()
-  for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
-    expect(await labels(ui)).toEqual([...SAFE_TWO, 'Run the migration on production'])
-    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
-    expect((await ui.find({ key: 'pick-2' }))?.props.hotkey).toBe('2')
-    expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
-    await ui.unmount()
-  }
-})
-
 test("the model's own tag marks what no keyword knows; such rows are click-only", async ($, on) => {
   const seen = world(on, [
     tagged([
@@ -1057,7 +977,7 @@ test("the model's own tag marks what no keyword knows; such rows are click-only"
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
     expect((await labels(ui))[0]).toBe('run the auth tests')
-    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
+    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'pick-2' }))?.props.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
     expect((await ui.find({ type: 'Text', text: '(deletes infra)' }))?.props.color).toBe('warning')
@@ -1098,35 +1018,52 @@ test('a late tagged list keeps its tags when a safe engine guess merges in', asy
   expect((await ui.find({ type: 'Text', text: '(hits prod)' }))?.props.color).toBe('warning')
 })
 
-test('nothing on the safe set: no digit anywhere, no ghost, 0 still dismisses', async ($, on) => {
-  const seen = world(on, [reply(['fix the failing test in auth.ts', 'refactor the parser'])])
-  await finishTurn($, seen)
-  expect((await $.prompt.suggest({ text: 'commit the fix', origin: ENGINE })).isShown).toBe(false)
-  await seen.clock.settle()
-  for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+// ---------------------------------------------------------------- no privilege for our own rows (MM-077)
+
+// Two allowlist rounds still let 35 of 75 fresh risky phrasings through, so
+// v1 privileges nothing Crossroads writes, whatever the words.
+const EVERY_PHRASING = [...BATTERY_RISKY.map(row => row[1]), ...REVIEW_RISKY.map(row => row[0]), ...PLAIN_UNSAFE, ...SAFE_SET, ...RU_EL_SAFE]
+const FILLER = ['tidy the wording in the README', 'rename the helper in utils.ts']
+
+test('MM-077: a suggestion of ours never carries a digit, whatever its words', async ($, on) => {
+  const seen = world(on, EVERY_PHRASING.map(text => reply([text, ...FILLER])), { surfaces: ['desktop'] })
+  for (const text of EVERY_PHRASING) {
+    await finishTurn($, seen)
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
     const picks = (await ui.findAll({ type: 'Button' })).filter(button => button.key?.startsWith('pick-'))
-    expect(picks).toHaveLength(3)
-    for (const pick of picks) expect(pick.props.hotkey, pick.text).toBeUndefined()
-    expect((await ui.findAll({ type: 'Text' })).filter(text => text.props.color === 'warning')).toEqual([])
-    expect((await ui.find({ key: 'dismiss' }))?.props.hotkey).toBe('0')
+    expect(picks, text).toHaveLength(3)
+    for (const pick of picks) expect(pick.props.hotkey, `${text} / ${pick.text}`).toBeUndefined()
+    expect((await ui.find({ key: 'dismiss' }))?.props.hotkey, text).toBe('0')
     await ui.unmount()
   }
-  expect(seen.ghosts).toEqual([])
+  expect(seen.calls).toHaveLength(EVERY_PHRASING.length)
 })
 
-test("bot-1's 74-phrase battery as the engine's guess: never the ghost text, never digit-armed", async ($, on) => {
-  const seen = world(on, BATTERY_RISKY.map(() => reply(SAFE_TWO)))
-  for (const [category, text] of BATTERY_RISKY) {
+test("MM-077: Claude Code's own guess, whatever its words, is passed through and is the only row with a digit", async ($, on) => {
+  const seen = world(on, EVERY_PHRASING.map(() => reply(FILLER)))
+  for (const text of EVERY_PHRASING) {
     await finishTurn($, seen)
-    expect((await $.prompt.suggest({ text, origin: ENGINE })).isShown, `${category} ${text}`).toBe(false)
+    expect((await $.prompt.suggest({ text, origin: ENGINE })).isShown, text).toBe(true)
     await seen.clock.settle()
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
-    expect((await labels(ui))[0], text).toBe(SAFE_TWO[0])
+    expect((await ui.find({ key: 'pick-1' }))?.props.hotkey, text).toBe('1')
+    expect((await ui.find({ key: 'pick-2' }))?.props.hotkey, text).toBeUndefined()
     expect((await ui.find({ key: 'pick-3' }))?.props.hotkey, text).toBeUndefined()
     await ui.unmount()
   }
-  expect(seen.ghosts).toEqual([])
+  expect(seen.ghosts.map(ghost => ghost.text)).toEqual(EVERY_PHRASING)
+})
+
+test('a risky guess that lands during the call still takes option 1, marked', async ($, on) => {
+  const seen = world(on, [reply(THREE)], { modelDelayMs: 3000 })
+  await finishTurn($, seen)
+  await seen.clock.advance(ENGINE_WAIT_MS)
+  expect(seen.calls).toHaveLength(1)
+  expect((await $.prompt.suggest({ text: 'deploy it to production', origin: ENGINE })).isShown).toBe(true)
+  await seen.clock.advance(3000)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  expect(await labels(ui)).toEqual(['deploy it to production', ...THREE.slice(0, 2)])
+  expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
 })
 
 // ---------------------------------------------------------------- Russian and Greek (MM-069)
@@ -1141,7 +1078,7 @@ test("a Russian or Greek engine guess is Claude Code's ghost text and option 1, 
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
       expect((await labels(ui))[0], text).toBe(text)
       expect((await ui.find({ key: 'pick-1' }))?.props.hotkey, text).toBe('1')
-      expect((await ui.find({ key: 'pick-2' }))?.props.hotkey, text).toBe('2')
+      expect((await ui.find({ key: 'pick-2' }))?.props.hotkey, text).toBeUndefined()
       expect(await ui.find({ type: 'Text', text: '(unusual letters)' }), text).toBeUndefined()
       await ui.unmount()
     }

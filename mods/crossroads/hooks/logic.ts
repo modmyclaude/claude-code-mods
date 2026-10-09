@@ -268,84 +268,8 @@ export function riskOf(text: string): string | null {
   return null
 }
 
-// ---------------------------------------------------------------- privilege: the safe set
-
-// Privilege (option 1, a digit key, staying as Claude Code's ghost text) is
-// an ALLOWLIST, not a blocklist: risk is open-ended, so no list of risky words
-// can cover it. A suggestion is privileged only when every clause starts with
-// a read, inspect, test, explain or review verb AND nothing in it names a
-// risky target. Everything else is a plain, click-only row.
-
-// Raw text holding a control, an invisible or bidi character, or an escape is never privileged.
+// Raw text holding a control, an invisible or bidi character, or an escape is marked.
 const NOT_PLAIN = new RegExp(`${CONTROL.source}|${INVISIBLE.source}|\\u001b`, 'u')
-// Letters a privileged suggestion may use: ASCII Latin, plus Cyrillic or
-// Greek for a Russian or Greek sentence. Any other script (Armenian, small
-// capitals, dotless i...) may be a lookalike the fold table does not know.
-const FOREIGN_LETTER = /(?![a-z\u0370-\u03ff\u0400-\u052f])\p{L}/iu
-
-const POLITE = /^(?:(?:please|pls|ok(?:ay)?|now|next|first|also|can you|could you|would you|let'?s|go ahead and)[\s,]+)+/
-const TEST_THING = String.raw`(?:tests?|specs?|suites?|linter|lint|type[- ]?check\w*|tsc|pytest|jest|vitest|mocha|rspec|phpunit|unittest|eslint|ruff|mypy|clippy)\b`
-const SAFE_LEADS: readonly RegExp[] = [
-  // Running tests, linters and type checks: "run the auth tests", "rerun npm test".
-  new RegExp(String.raw`^(?:re-?)?run\s+(?:[\w./:@=-]+\s+){0,4}?${TEST_THING}`),
-  new RegExp(String.raw`^(?:(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|lint|type-?check)|pytest|go\s+test|cargo\s+(?:test|check|clippy)|make\s+(?:test|check|lint)|tsc\b)`),
-  // Reading, inspecting, explaining, reviewing.
-  /^(?:show|display|print|list|read|view|explain|describe|summari[sz]e|review|inspect|investigate|diagnose|find|search|grep|locate|trace|diff|compare|outline|analy[sz]e|verify|confirm|test|count)\b/,
-  /^check\b(?!\s*-?\s*(?:out|in)\b)/,
-  /^(?:look\s+(?:at|into|over|for)|walk\s+(?:me\s+)?through|tell\s+me)\b/,
-  // Adding or writing a test: "add a test for ...", "write unit tests for ...".
-  /^(?:add|write)\s+(?:a\s+|an\s+|some\s+|more\s+)?(?:[\w-]+\s+){0,2}?(?:tests?|specs?|test\s+cases?)\b/,
-  /^git\s+(?:status|log|diff|show|blame)\b/,
-  // A question to the assistant: "why does the auth test fail?"
-  /^(?:what|why|how|where|which|who|when|is|are|does|do|did|was|were)\b[^?]*\?$/,
-  // Russian: run the tests, show, explain, check, read, find.
-  /^(?:\u0437\u0430\u043f\u0443\u0441\u0442\u0438|\u043f\u0440\u043e\u0433\u043e\u043d\u0438)\s+(?:\S+\s+){0,2}?\u0442\u0435\u0441\u0442/,
-  /^(?:\u043f\u043e\u043a\u0430\u0436\u0438|\u043e\u0431\u044a\u044f\u0441\u043d\u0438|\u043f\u0440\u043e\u0432\u0435\u0440\u044c|\u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0439|\u043d\u0430\u0439\u0434\u0438)(?![\p{L}])/u,
-  // Greek (accents already dropped): run the tests, explain, show, check.
-  /^\u03c4\u03c1\u03b5\u03be\u03b5\s+(?:\S+\s+){0,2}?\u03c4\u03b5\u03c3\u03c4/,
-  /^(?:\u03b5\u03be\u03b7\u03b3\u03b7\u03c3\u03b5|\u03b4\u03b5\u03b9\u03be\u03b5|\u03b5\u03bb\u03b5\u03b3\u03be\u03b5)(?![\p{L}])/u,
-]
-// Clause joiners: each clause after one must start with a safe verb, or
-// continue the noun ("explain the diff between auth.ts and the old one").
-const JOINERS = /\s*(?:&&|\|\|?|;|,|\b(?:and\s+then|and|then|after\s+that|afterwards)\b|\s(?:\u0438|\u0437\u0430\u0442\u0435\u043c|\u043f\u043e\u0442\u043e\u043c|\u03ba\u03b1\u03b9|\u03bc\u03b5\u03c4\u03b1)\s)\s*/
-const CONTINUES = /^(?:the|a|an|my|our|its|their|this|that|these|those|all|both|each|every|any|some|how|what|why|where|which|whether|if|step|line|one|two|three|\d|`|[\w-]*[./][\w./-]*)\b|^$/
-// Risky nouns and contexts anywhere in the text, on the folded letters.
-const RISKY_CONTEXT: readonly RegExp[] = [
-  // Shared targets
-  /\b(?:prod|production|live|main|master|releas\w*|origin|upstream|public|staging|customers?|clients?|vendors?|on-?call)\b/,
-  // Shipping
-  /\b(?:re|pre|un)?(?:deploy\w*|publish\w*|push\w*|merg\w*|ship\w*|promot\w*|apply\w*|submit\w*|upload\w*)|\broll\s*(?:out|back)\b|\brollout\b|\bgo\s+live\b|--prod\b/,
-  // Deleting, overwriting, forcing
-  /\b(?:delet\w*|drop|drops|dropped|dropping|dropdb|dropdatabase|remov\w*|wip(?:e|es|ed|ing)|purg\w*|truncat\w*|eras\w*|destroy\w*|nuk\w*|flush\w*|reset\w*|overwrit\w*|discard\w*|terminat\w*|kill\w*|rm|rmdir|unlink\w*|clean|force\w*)\b|--force|--no-verify|\s-[a-z]*f[a-z]*\b|deletemany|flushall/,
-  // Shared data
-  /\b(?:migrat\w*|seed\w*|database|db)\b/,
-  // Money
-  /\b(?:money|pay|pays|paid|payments?|payouts?|charg\w*|refund\w*|invoic\w*|billing|stripe|transfer\w*|funds?|cards?|wallets?)\b|\$\d/,
-  // Credentials
-  /\b(?:credential\w*|secrets?|tokens?|keys?|api[-_ ]?keys?|passw\w*|passphrase|ssh|certificat\w*|rotat\w*|revok\w*|private)\b|(?:^|[\s/])\.env\b/,
-  // Infrastructure
-  /\b(?:terraform|tf|kubectl|k8s|helm|aws|gcloud|gcp|azure|az|pulumi|ansible|dns|firewall|iptables|cluster|ec2|s3|rds|bucket\w*|sudo|chmod|chown|systemctl|vercel|netlify|heroku|eas|twine|pypi|testflight|restart\w*|reboot\w*|shut\s*down|shutdown)\b/,
-  // Sending to people
-  /\b(?:send\w*|sent|e-?mail\w*|mail\w*|notify\w*|post|posts|posted|posting|tweet\w*|slack|dms?|repl(?:y|ies|ied)|ping\w*|share\w*|invit\w*|approv\w*|close[sd]?|webhooks?|curl|wget)\b|\bcomment\s+on\b|@\w|\bgh\s+\w+\s+(?:create|merge|close|comment|edit|delete|review|ready)\b/,
-]
-
-/**
- * True only for a clearly safe suggestion: plain letters, no keyword risk,
- * every clause led by a read, inspect, test, explain or review verb, and no
- * risky target named anywhere. Only these may be option 1, carry a digit key
- * or stay as Claude Code's ghost text.
- */
-export function isSafe(text: string): boolean {
-  if (NOT_PLAIN.test(text) || riskOf(text) !== null) return false
-  const plain = plainLetters(text).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
-  if (plain === '' || FOREIGN_LETTER.test(plain)) return false
-  const folded = plain.replace(/\S+/g, foldWord)
-  if (RISKY_CONTEXT.some(pattern => pattern.test(folded))) return false
-  const clauses = plain.replace(/[.!]+$/, '').split(JOINERS)
-  const isLed = (clause: string) => SAFE_LEADS.some(lead => lead.test(clause.replace(POLITE, '')))
-
-  return isLed(clauses[0] ?? '') && clauses.slice(1).every(clause => isLed(clause) || CONTINUES.test(clause))
-}
 
 // ---------------------------------------------------------------- kinds
 
@@ -648,18 +572,14 @@ export function parseReply(raw: string, want: number): Suggestion[] | null {
 
 // ---------------------------------------------------------------- the list
 
-/**
- * The engine's own guess (the dim ghost text). It has no model tag, so the
- * safe set and the keywords decide: `isSafe` keeps it as ghost text.
- */
-export type EngineGuess = { text: string; risk: string | null; isSafe: boolean }
+/** The engine's own guess (the dim ghost text). It has no model tag, so the keywords mark it. */
+export type EngineGuess = { text: string; risk: string | null }
 
-/** Judges the engine's guess on its RAW text (a control or invisible character inside a word is never privileged). */
+/** Judges the engine's guess on its RAW text (a control or invisible character inside a word is marked). */
 export function judgeGuess(raw: string): EngineGuess {
   const text = clean(raw)
-  const risk = riskOf(text) ?? (NOT_PLAIN.test(raw) ? 'unusual letters' : null)
 
-  return { text, risk, isSafe: risk === null && isSafe(raw) }
+  return { text, risk: riskOf(text) ?? (NOT_PLAIN.test(raw) ? 'unusual letters' : null) }
 }
 
 /** The note a generated suggestion carries: the model's tag first, the keywords as the backstop. */
@@ -671,22 +591,19 @@ export function noteFor(suggestion: Suggestion): string | null {
 }
 
 /**
- * The band's list, at most three: privileged (safe-set) items first, so only
- * a clearly safe suggestion can be option 1 or carry a digit; then plain
- * rows; then the marked ones last. The engine's guess leads its group when it
- * is there, so a safe ghost text and option 1 agree.
+ * The band's list, at most three. Crossroads gives its own suggestions no
+ * privilege (MM-077): only Claude Code's guess may lead and carry a digit, as
+ * it is already one Tab away as ghost text. Our rows follow, plain rows
+ * before marked ones; every one of them is click-only.
  */
 export function arrange(engine: EngineGuess | null, generated: readonly Suggestion[]): CrossroadsItem[] {
   const items: CrossroadsItem[] = []
-  if (engine) {
-    items.push({ text: engine.text, kind: guessKind(engine.text), risk: engine.risk, isSafe: engine.isSafe && engine.risk === null, fromEngine: true })
-  }
+  if (engine) items.push({ text: engine.text, kind: guessKind(engine.text), risk: engine.risk, fromEngine: true })
   for (const suggestion of generated) {
     if (items.some(item => sameText(item.text, suggestion.text))) continue
-    const risk = noteFor(suggestion)
-    items.push({ text: suggestion.text, kind: suggestion.kind, risk, isSafe: risk === null && isSafe(suggestion.text), fromEngine: false })
+    items.push({ text: suggestion.text, kind: suggestion.kind, risk: noteFor(suggestion), fromEngine: false })
   }
-  const rank = (item: CrossroadsItem) => (item.isSafe ? 0 : item.risk === null ? 1 : 2)
+  const rank = (item: CrossroadsItem) => (item.fromEngine ? 0 : item.risk === null ? 1 : 2)
 
   return items.slice(0, 3).sort((a, b) => rank(a) - rank(b))
 }
