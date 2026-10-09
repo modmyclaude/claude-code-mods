@@ -8,7 +8,8 @@
 //
 // Reach badges come from the validator's report of what each mod hooks and calls,
 // never from hand-written claims. Run with CLAUDE_BIN pointing at Claude Code 2.1.287+.
-// `--check` exits 1 if any generated file is out of date (for CI).
+// `--check` exits 1 if any generated file is out of date (for CI); `--counts` re-runs every
+// mod's tests to refresh the published test counts (slow).
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
@@ -109,13 +110,20 @@ const settingsOf = manifest => Object.entries(manifest.userConfig ?? {}).map(([k
   key, type: f.type ?? 'string', default: f.sensitive ? undefined : f.default, description: f.description ?? f.title ?? '',
 }))
 
-function testsOf(modDir) {
+// Test counts take a full test run per mod, so they refresh only with --counts;
+// otherwise the count already published in site/mods.json is kept.
+const COUNTS = process.argv.includes('--counts')
+const PUBLISHED = (() => {
+  try { return Object.fromEntries(JSON.parse(readFileSync(join(ROOT, 'site', 'mods.json'), 'utf8')).mods.map(m => [m.name, m.tests?.count ?? null])) } catch { return {} }
+})()
+
+function testsOf(modDir, name) {
   const dir = join(modDir, 'tests')
   const files = existsSync(dir) ? readdirSync(dir).filter(f => /\.test\.tsx?$/.test(f)) : []
   const text = files.map(f => readFileSync(join(dir, f), 'utf8')).join('\n')
   const surfaces = ['terminal', 'desktop', 'vscode', 'mobile'].filter(s => text.includes(`'${s}'`) || text.includes(`"${s}"`))
-  let count = null
-  try {
+  let count = PUBLISHED[name] ?? null
+  if (COUNTS || count === null) try {
     const out = execFileSync(CC, ['plugin', 'test', modDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     count = Number(out.match(/(\d+) pass/)?.[1] ?? NaN) || null
   } catch {}
@@ -193,7 +201,7 @@ function collect() {
       reach: reachOf(join(ROOT, 'mods', fm.mod)),
       commands: commandsOf(join(ROOT, 'mods', fm.mod)),
       settings: settingsOf(manifest),
-      tests: testsOf(join(ROOT, 'mods', fm.mod)),
+      tests: testsOf(join(ROOT, 'mods', fm.mod), fm.mod),
       license: manifest.license ?? null,
       ...gitInfo(`mods/${fm.mod}`),
     })
@@ -264,7 +272,10 @@ if (existsSync(readmePath)) {
 
 function stripVolatile(json) {
   const data = JSON.parse(json)
-  for (const m of data.mods ?? []) for (const k of VOLATILE) delete m[k]
+  for (const m of data.mods ?? []) {
+    for (const k of VOLATILE) delete m[k]
+    if (m.tests) delete m.tests.count // counts move with every new test; refreshed with --counts
+  }
   return JSON.stringify(data)
 }
 
