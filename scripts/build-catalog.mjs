@@ -11,7 +11,7 @@
 // `--check` exits 1 if any generated file is out of date (for CI); `--counts` re-runs every
 // mod's tests to refresh the published test counts (slow).
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -124,7 +124,10 @@ function testsOf(modDir, name) {
   const surfaces = ['terminal', 'desktop', 'vscode', 'mobile'].filter(s => text.includes(`'${s}'`) || text.includes(`"${s}"`))
   let count = PUBLISHED[name] ?? null
   if (COUNTS || count === null) try {
-    const out = execFileSync(CC, ['plugin', 'test', modDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    // The runner may print its summary on either stream, so read both; trust only a clean exit.
+    const run = spawnSync(CC, ['plugin', 'test', modDir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 })
+    if (run.status !== 0) throw new Error(`plugin test exited ${run.status}`)
+    const out = `${run.stdout}\n${run.stderr}`
     // Only a positive count replaces the published one, so a flaky or killed run never blanks it.
     const ran = Number(out.match(/(\d+) pass/)?.[1] ?? NaN)
     if (ran > 0) count = ran
