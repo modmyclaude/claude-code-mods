@@ -645,3 +645,90 @@ describe('detail view', () => {
     expect(w.closed).toEqual(['redline', 'redline'])
   })
 })
+
+const FIVE_OUT = (resetMin: number) => ({ kind: 'five_hour', percentUsed: 100, resetsAt: new Date(T0 + resetMin * MIN).toISOString() })
+
+describe('repaint at every plan window reset', () => {
+  test('a band and a pane left open repaint at the reset, with no reading', async ($, on) => {
+    const w = world(on, { rateLimits: [FIVE_OUT(80)] })
+    await runCommand($, 'band')
+    await request($, pct(20))
+    const bands = []
+    const panes = []
+    for (const surface of SURFACES) {
+      bands.push(await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS }))
+      panes.push(await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS }))
+    }
+    await w.clock.advance(81 * MIN) // rate-limited: no reply, no measurement
+    expect(w.status()).toContain('5h reset')
+    for (const band of bands) {
+      const text = (await band.find({ key: 'gauge' }))?.text ?? ''
+      expect(text).toContain('5h reset')
+      expect(text).not.toContain('OUT')
+    }
+    for (const pane of panes) {
+      const text = (await pane.find({ key: 'limit-five_hour' }))?.text ?? ''
+      expect(text).toContain('reset <1m ago')
+      expect(text).not.toContain('used up')
+    }
+  })
+
+  test('a reset due before the idle repaint is armed by the reading itself', async ($, on) => {
+    const w = world(on, { rateLimits: [FIVE_OUT(5)] })
+    await request($, pct(20))
+    expect(w.status()).toContain('5h OUT, resets in ~5m')
+    await w.clock.advance(6 * MIN) // before the 10-minute idle repaint
+    expect(w.status()).toContain('5h reset')
+  })
+
+  test('the weekly window resets first, then the spent 5-hour one: both repaint', async ($, on) => {
+    const w = world(on, { rateLimits: [FIVE_OUT(80), { kind: 'seven_day', percentUsed: 60, resetsAt: new Date(T0 + 30 * MIN).toISOString() }] })
+    await request($, pct(20))
+    await w.clock.advance(31 * MIN)
+    expect(w.status()).toContain('7d reset')
+    expect(w.status()).toContain('5h OUT, resets in ~50m')
+    await w.clock.advance(50 * MIN)
+    expect(w.status()).not.toContain('OUT')
+    expect(w.status()).toContain('5h reset')
+  })
+
+  test('locked out for the week, the 5-hour window resets first: the weekly still repaints', async ($, on) => {
+    const w = world(on, {
+      rateLimits: [{ kind: 'five_hour', percentUsed: 30, resetsAt: new Date(T0 + 120 * MIN).toISOString() }, { kind: 'seven_day', percentUsed: 100, resetsAt: new Date(T0 + 3 * 24 * 60 * MIN).toISOString() }],
+    })
+    await request($, pct(20))
+    expect(w.status()).toContain('7d OUT, resets in ~3d')
+    await w.clock.advance(3 * 24 * 60 * MIN + MIN)
+    expect(w.status()).not.toContain('OUT')
+    expect(w.status()).toContain('7d reset')
+  })
+})
+
+describe('the recent rate everywhere', () => {
+  const burst = async ($: Engine, w: World, between?: () => Promise<unknown>) => {
+    const resetsAt = new Date(T0 + 30 * MIN).toISOString()
+    const measure = (percentUsed: number) =>
+      $.session.measure({ context: { window: WINDOW, tokens: pct(20), percent: 20 }, rateLimits: [{ kind: 'five_hour', percentUsed, resetsAt }], cost: { usd: 2 }, changed: ['rateLimits'] })
+    await measure(20)
+    if (between) await between()
+    await w.clock.advance(10 * MIN)
+    await measure(50)
+  }
+
+  test('the pane judges the run-out on the recent rate too, and says so', async ($, on) => {
+    const w = world(on)
+    await burst($, w)
+    expect(w.status()).toContain('5h 50% out in ~17m')
+    for (const surface of SURFACES) {
+      const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+      expect((await pane.find({ key: 'limit-five_hour' }))?.text).toContain("out in ~17m at the last 15 minutes' rate")
+      await pane.unmount()
+    }
+  })
+
+  test('a /clear keeps the plan windows readings (they belong to the account)', async ($, on) => {
+    const w = world(on)
+    await burst($, w, () => $.session.end({ reason: 'clear', sessionId: 'abc', resume: { id: 'abc' } }))
+    expect(w.status()).toContain('5h 50% out in ~17m')
+  })
+})
