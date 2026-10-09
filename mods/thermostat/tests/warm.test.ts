@@ -12,7 +12,7 @@ test('/warm keeps a subscription cache warm with a ping just before each expiry,
   await step($, w, usage(140_000, 9_000)) // 150k tokens at T0
   w.fork = forkAnswer(149_000)
 
-  const started = await command($, 'warm', '3h')
+  const started = await command($, w, 'warm', '3h')
   // Expiry at 60m, then a ping every 58m (2m lead) until 3h is covered: 3 pings.
   expect(started).toContain('Keeping the cache warm for 3h: about 3 pings at ~$0.03 each')
   expect(started).toContain('~$1.17')
@@ -25,7 +25,7 @@ test('/warm keeps a subscription cache warm with a ping just before each expiry,
 
   // Past the original expiry, the ping has kept it warm.
   await w.clock.advance(4 * MIN)
-  expect(await command($, 'thermostat')).toContain('Cache: warm, 56m left')
+  expect(await command($, w, 'thermostat')).toContain('Cache: warm, 56m left')
 
   await w.clock.advance(120 * MIN)
   expect(w.forks).toHaveLength(3)
@@ -33,7 +33,7 @@ test('/warm keeps a subscription cache warm with a ping just before each expiry,
 
   // Coming back after 3h, the send reads the cache the pings kept.
   await step($, w, usage(149_000, 2_000))
-  const receipt = await command($, 'thermostat')
+  const receipt = await command($, w, 'thermostat')
   expect(receipt).toContain('Keep-warm pings: 3 (~$0.09)')
   expect(receipt).toContain('Sends that found the cache warm thanks to them: 1 (~$1.16 not spent)')
   expect(receipt).toContain('Estimated saved: ~$1.07')
@@ -45,7 +45,7 @@ test('smart keep-warm refuses a window whose pings would cost more than one cold
   await start($)
   await step($, w, usage(90_000, 9_000)) // 100k tokens, 5-minute window
 
-  const refused = await command($, 'warm', '3h')
+  const refused = await command($, w, 'warm', '3h')
   expect(refused).toContain('Not started')
   expect(refused).toContain('about 44 pings (~$1.06), more than the one cold re-read it would save (~$0.48)')
   await w.clock.advance(10 * MIN)
@@ -56,7 +56,7 @@ test('smart keep-warm stops mid-window once measured pings cost more than the re
   const w = world(on, API_KEY)
   await start($)
   await step($, w, usage(90_000, 9_000))
-  expect(await command($, 'warm', '30m')).toContain('Keeping the cache warm for 30m: about 7 pings')
+  expect(await command($, w, 'warm', '30m')).toContain('Keeping the cache warm for 30m: about 7 pings')
 
   // The first ping turns out dear (the model thought at length): ~$0.12.
   w.fork = forkAnswer(99_000, { output_tokens: 5_000 })
@@ -75,12 +75,12 @@ test('/warm off stops the pings', SLOW, async ($, on) => {
   await start($)
   await step($, w, usage(140_000, 9_000))
   w.fork = forkAnswer(149_000)
-  await command($, 'warm', '2h')
-  expect(await command($, 'warm')).toContain('Keeping the cache warm for 2h more')
-  expect(await command($, 'warm', 'off')).toBe('Keep-warm off. 0 pings sent, ~$0.00.')
+  await command($, w, 'warm', '2h')
+  expect(await command($, w, 'warm')).toContain('Keeping the cache warm for 2h more')
+  expect(await command($, w, 'warm', 'off')).toBe('Keep-warm off. 0 pings sent, ~$0.00.')
   await w.clock.advance(70 * MIN)
   expect(w.forks).toEqual([])
-  expect(await command($, 'warm', 'off')).toBe('Keep-warm is not on.')
+  expect(await command($, w, 'warm', 'off')).toBe('thermostat: Keep-warm is not on.')
 })
 
 test('keep-warm gives up after three failed pings in a row', SLOW, async ($, on) => {
@@ -94,7 +94,7 @@ test('keep-warm gives up after three failed pings in a row', SLOW, async ($, on)
     error: 'overloaded',
     usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
   }
-  await command($, 'warm', '2h')
+  await command($, w, 'warm', '2h')
   await w.clock.advance(59 * MIN)
   expect(w.forks).toHaveLength(3)
   expect(w.logs.at(-1)).toContain('keep-warm stopped, 3 pings in a row failed (api-error)')
@@ -105,12 +105,12 @@ test('keep-warm gives up after three failed pings in a row', SLOW, async ($, on)
 test('/warm explains itself when there is nothing to keep warm or the input is not a duration', SLOW, async ($, on) => {
   const w = world(on)
   await start($)
-  expect(await command($, 'warm', '90m')).toContain('Nothing is cached yet')
+  expect(await command($, w, 'warm', '90m')).toContain('Nothing is cached yet')
   await step($, w, usage(140_000, 9_000))
-  expect(await command($, 'warm', 'soon')).toContain('Could not read "soon" as a duration')
-  expect(await command($, 'warm', '30m')).toContain('No pings needed: the cache stays warm 60m on its own')
+  expect(await command($, w, 'warm', 'soon')).toContain('Could not read "soon" as a duration')
+  expect(await command($, w, 'warm', '30m')).toContain('No pings needed: the cache stays warm 60m on its own')
   await w.clock.advance(61 * MIN)
-  expect(await command($, 'warm', '90m')).toContain('already cold')
+  expect(await command($, w, 'warm', '90m')).toContain('already cold')
   expect(w.forks).toEqual([])
 })
 
@@ -118,7 +118,7 @@ test('a model switch stops keep-warm and starts the new cache empty, with the en
   const w = world(on, API_KEY)
   await start($)
   await step($, w, usage(140_000, 9_000))
-  await command($, 'warm', '20m')
+  await command($, w, 'warm', '20m')
   await $.classic.PostModelSwitch({
     from_model: 'claude-opus-5-5',
     to_model: 'claude-sonnet-5-5',
@@ -132,7 +132,7 @@ test('a model switch stops keep-warm and starts the new cache empty, with the en
   })
   expect(w.logs.at(-1)).toContain('keep-warm stopped, the model changed')
   // An API key login, but Claude Code reported a 1-hour window.
-  expect(await command($, 'thermostat')).toContain('Cache: nothing cached yet (60m window, as Claude Code reported it)')
+  expect(await command($, w, 'thermostat')).toContain('Cache: nothing cached yet (60m window, as Claude Code reported it)')
   await w.clock.advance(30 * MIN)
   expect(w.forks).toEqual([])
 })
@@ -143,13 +143,13 @@ test('a ping that did not read the conversation back from the cache stops keep-w
   await step($, w, usage(140_000, 9_000))
   // The fork read almost nothing and wrote the rest: it was not this conversation's cache entry.
   w.fork = forkAnswer(2_000, { cache_creation_input_tokens: 148_000 })
-  await command($, 'warm', '3h')
+  await command($, w, 'warm', '3h')
   await w.clock.advance(58 * MIN)
   expect(w.forks).toHaveLength(1)
   expect(w.logs.at(-1)).toContain('the ping read only 2k of 150k tokens from the cache, so it was not keeping this conversation warm')
   // Its clock did not move: the cache still goes cold at the first expiry.
   await w.clock.advance(3 * MIN)
-  expect(await command($, 'thermostat')).toContain('Cache: cold for 1m')
+  expect(await command($, w, 'thermostat')).toContain('Cache: cold for 1m')
   expect(w.forks).toHaveLength(1)
 })
 
@@ -158,7 +158,7 @@ test('subagent turns leave the clock alone, and a main turn stuck in a long tool
   await start($)
   await step($, w, usage(140_000, 9_000))
   w.fork = forkAnswer(149_000)
-  await command($, 'warm', '2h')
+  await command($, w, 'warm', '2h')
   await $.turn.start({ text: 'run the full build', turnId: 'main' })
 
   // A subagent works and finishes inside the main turn: its own prefix, its own cache.
@@ -178,13 +178,13 @@ test('a send the cache would have served anyway is not credited to the pings', S
   await start($)
   await step($, w, usage(140_000, 9_000))
   w.fork = forkAnswer(149_000)
-  await command($, 'warm', '3h')
+  await command($, w, 'warm', '3h')
   await w.clock.advance(58 * MIN + 30 * 1000)
   expect(w.forks).toHaveLength(1)
   // 59 minutes after the last real request: inside the 60-minute window without any ping.
   await w.clock.advance(30 * 1000)
   await step($, w, usage(149_000, 2_000))
-  expect(await command($, 'thermostat')).toContain('Sends that found the cache warm thanks to them: 0')
+  expect(await command($, w, 'thermostat')).toContain('Sends that found the cache warm thanks to them: 0')
 })
 
 test('smart keep-warm weighs pings against what going cold adds, not the whole cold price', SLOW, async ($, on) => {
@@ -193,7 +193,7 @@ test('smart keep-warm weighs pings against what going cold adds, not the whole c
   await step($, w, usage(140_000, 9_000)) // cold $1.20, warm $0.03: going cold adds $1.17
   // One dear ping (~$0.59) leaves 2 more (~$1.18): more than $1.17, less than $1.20.
   w.fork = forkAnswer(149_000, { output_tokens: 28_000 })
-  await command($, 'warm', '3h')
+  await command($, w, 'warm', '3h')
   await w.clock.advance(59 * MIN)
   expect(w.forks).toHaveLength(1)
   expect(w.logs.at(-1)).toContain('keep-warm stopped, 2 more pings (~$1.18) would cost more than the one cold re-read they save (~$1.17)')
@@ -210,14 +210,14 @@ test('another plugin cannot start paid pings', SLOW, async ($, on) => {
     presentation: { isFullscreen: true, columns: 120 },
   })
   expect(ran.text).toBe('Keep-warm changes only with a /warm you type.')
-  expect(await command($, 'warm')).toContain('Keep-warm is off.')
+  expect(await command($, w, 'warm')).toContain('Keep-warm is off.')
 })
 
 test('another plugin cannot stop keep-warm either; the person can', SLOW, async ($, on) => {
   const w = world(on)
   await start($)
   await step($, w, usage(140_000, 9_000))
-  await command($, 'warm', '2h')
+  await command($, w, 'warm', '2h')
   const ran = await $.command.run({
     command: 'warm',
     args: 'off',
@@ -225,8 +225,8 @@ test('another plugin cannot stop keep-warm either; the person can', SLOW, async 
     presentation: { isFullscreen: true, columns: 120 },
   })
   expect(ran.text).toBe('Keep-warm changes only with a /warm you type.')
-  expect(await command($, 'warm')).toContain('Keeping the cache warm for 2h more')
-  expect(await command($, 'warm', 'off')).toContain('Keep-warm off.')
+  expect(await command($, w, 'warm')).toContain('Keeping the cache warm for 2h more')
+  expect(await command($, w, 'warm', 'off')).toContain('Keep-warm off.')
 })
 
 test('the ticker stays modest: a few redraws a minute at most', SLOW, async ($, on) => {
@@ -237,4 +237,28 @@ test('the ticker stays modest: a few redraws a minute at most', SLOW, async ($, 
   await w.clock.advance(10 * MIN)
   expect(w.invalidates - before).toBeGreaterThan(0)
   expect(w.invalidates - before).toBeLessThanOrEqual(20)
+})
+
+test('/warm confirms with a toast and refuses with a transcript note, telling the model nothing', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  expect(await command($, w, 'warm', 'soon')).toBe(
+    'thermostat: Could not read "soon" as a duration from 1m to 24h. Use /warm 90m (or 2h, 1h30m, 45) to keep the cache warm while you are away, and /warm off to stop.',
+  )
+  expect(w.toasts).toEqual([])
+  await command($, w, 'warm', '3h')
+  expect(w.toasts).toEqual([expect.stringContaining('Keeping the cache warm for 3h')])
+  expect(w.logs).toHaveLength(1)
+})
+
+test('/warm refuses up front when its pings would cost more than what going cold adds', { ...SLOW, options: { cacheMinutes: 30 } }, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000)) // cold $1.20, warm $0.03: going cold adds $1.17
+  // A 30-minute window pings every 28 minutes: 35 pings (~$1.20) to cover 16h30m.
+  // More than the $1.17 going cold adds, though less than the whole $1.20 cold price.
+  expect(await command($, w, 'warm', '16h30m')).toContain('Not started: keeping 150k tokens warm for 16h30m takes about 35 pings (~$1.20)')
+  await w.clock.advance(30 * MIN)
+  expect(w.forks).toEqual([])
 })

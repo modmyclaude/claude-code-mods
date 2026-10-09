@@ -46,6 +46,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await step($, w, usage(140_000, 9_000))
     const ui = await $.ui.mount({ ...FOOTER, surface, props: { modes: ['focus'] } })
     const texts = (await ui.findAll({ type: 'Text' })).map(one => one.text)
+    // The engine's own labels stay, drawn first.
+    expect(texts).toContain('focus')
     expect(texts.at(-2)).toBe(' & ')
     expect(texts.at(-1)).toBe('cache warm · 60m left')
     await ui.unmount()

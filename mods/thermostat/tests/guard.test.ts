@@ -130,7 +130,7 @@ test('a hold answered with /clear is counted as money not spent', SLOW, async ($
   await submit($, 'big question')
   await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
 
-  const receipt = await command($, 'thermostat')
+  const receipt = await command($, w, 'thermostat')
   expect(receipt).toContain('Prompts held: 1, followed by /clear instead: 1 (~$1.20 not spent)')
   expect(receipt).toContain('Cache: nothing cached yet')
 })
@@ -289,7 +289,7 @@ test('a /warm argument with control characters is echoed back clean', SLOW, asyn
   const w = world(on)
   await start($)
   await step($, w, CONVERSATION)
-  const answer = await command($, 'warm', 'soon\x1b[31m\x07\x9b')
+  const answer = await command($, w, 'warm', 'soon\x1b[31m\x07\x9b')
   expect(answer).toContain('Could not read "soon\uFFFD\uFFFD" as a duration')
   expect(CONTROL_CHARS.test(answer)).toBe(false)
 })
