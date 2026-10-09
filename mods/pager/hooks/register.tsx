@@ -16,6 +16,7 @@ import {
   assetFor,
   clean,
   formatDuration,
+  formatWindow,
   isPack,
   isPerson,
   isQuiet,
@@ -45,6 +46,7 @@ const NO_PLAYER =
 /** The settings, read once per load, and the little memory one load keeps. */
 type Pager = {
   minMs: number
+  /** quietHours as shown: `22:00-07:00` when it parses, else the setting cleaned (#31). */
   quietText: string
   quiet: QuietHours | null | undefined
   topic: string | null | undefined
@@ -206,11 +208,12 @@ async function runCommand($: EngineInterface, pager: Pager, args: string, from: 
 
 export const register: Register = (on, options) => {
   const minSeconds = Number(options.minDuration)
-  const quietText = typeof options.quietHours === 'string' ? options.quietHours.trim() : ''
+  const quietRaw = typeof options.quietHours === 'string' ? options.quietHours.trim() : ''
+  const quiet = parseQuietHours(quietRaw)
   const pager: Pager = {
     minMs: (Number.isFinite(minSeconds) && minSeconds >= 0 ? minSeconds : 20) * 1000,
-    quietText,
-    quiet: parseQuietHours(quietText),
+    quietText: quiet ? formatWindow(quiet) : clean(quietRaw.slice(0, 40)),
+    quiet,
     topic: parseTopic(options.ntfyTopic),
     lastSoundAt: -Infinity,
     title: undefined,
@@ -225,7 +228,7 @@ export const register: Register = (on, options) => {
     })
     // Say a bad setting once, here, instead of failing quietly at every alert.
     if (pager.quiet === undefined) {
-      $.ui.log(`pager: quietHours "${quietText}" is not like 22:00-07:00, so quiet hours are off.`)
+      $.ui.log(`pager: quietHours "${pager.quietText}" is not like 22:00-07:00, so quiet hours are off.`)
     }
     if (pager.topic === undefined) {
       $.ui.log('pager: ntfyTopic must be 1-64 letters, digits, - or _, so phone push is off.')

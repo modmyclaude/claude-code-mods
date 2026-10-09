@@ -6,6 +6,7 @@ import {
   assetFor,
   clean,
   formatDuration,
+  formatWindow,
   isPerson,
   isQuiet,
   notificationAlert,
@@ -104,6 +105,11 @@ describe('quiet hours', () => {
       [12 * 60, false],
     ]
     for (const [minute, want] of cases) expect(isQuiet(night, minute), String(minute)).toBe(want)
+  })
+
+  test('a window is shown the same way however it was typed', () => {
+    expect(formatWindow(parseQuietHours('22-7')!)).toBe('22:00-07:00')
+    expect(formatWindow(parseQuietHours('9:05 - 17:30')!)).toBe('09:05-17:30')
   })
 
   test('a daytime window, and off', () => {

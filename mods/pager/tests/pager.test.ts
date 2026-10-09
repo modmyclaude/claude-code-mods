@@ -17,6 +17,8 @@ type Post = { url: string; method?: string; headers?: Record<string, string>; bo
 type World = {
   options?: {
     play?: 'ok' | 'fails'
+    /** Why the player refuses, when it does. */
+    playError?: string
     fetch?: 'ok' | 'fails'
     now?: number
     /** What draws the session; a plain `claude -p` run has nothing. */
@@ -37,7 +39,7 @@ function world(on: On, { options = {} }: World = {}) {
   let overlapped = false
 
   on('audio.play', async (_$, e) => {
-    if (options.play === 'fails') return { deny: 'no device' }
+    if (options.play === 'fails') return { deny: options.playError ?? 'no device' }
     // Take a little while, as a real clip does, so clips started together overlap.
     if (++playing > 1) overlapped = true
     for (let i = 0; i < 20; i++) await Promise.resolve()
@@ -206,7 +208,9 @@ describe('alerts', () => {
 
   test('a session the desktop app draws pages like a terminal one', async ($, on) => {
     const w = world(on, { options: { surfaces: ['desktop'] } })
-    await start($, w)
+    // As the desktop app starts it: headless at start (gotcha #28), the window attached after.
+    await $.session.start({ cwd: ROOT, surface: null, isInteractive: false })
+    await w.clock.settle()
     await endTurn($, w, 30_000)
     expect(w.plays).toEqual(['sounds/classic/done.wav'])
   })
@@ -546,5 +550,46 @@ describe('phone push', () => {
     await endTurn($, w, 30_000)
     expect(w.plays).toEqual(['sounds/classic/done.wav'])
     expect(w.logs.some(l => l.to === 'debug' && l.text.includes('ntfy.sh push failed'))).toBe(true)
+  })
+})
+
+describe('untrusted text everywhere it is shown (gotcha #31)', () => {
+  const NASTY = 'a\u0007\u001b[31mb\u007f\u0000\u009bc'
+  const CONTROLS = /[\u0000-\u001f\u007f-\u009f]/
+
+  test(
+    'echoed arguments, a stranger refusal, a player error and a bad quietHours setting are all cleaned',
+    { options: { quietHours: NASTY } },
+    async ($, on) => {
+      const w = world(on, { options: { play: 'fails', playError: NASTY } })
+      await start($, w)
+      const shown = [
+        await pager($, w, `mute ${NASTY}`),
+        await pager($, w, NASTY),
+        await pager($, w, `pack ${NASTY}`),
+        await pager($, w, NASTY, { kind: 'peer' }),
+        await pager($, w, 'test'),
+        ...w.logs.filter(l => l.to !== 'debug').map(l => l.text),
+      ]
+      expect(shown.some(t => t.includes('quietHours "a'))).toBe(true)
+      expect(shown.some(t => t.includes('Done: $.audio.play: a'))).toBe(true)
+      for (const text of shown) expect(CONTROLS.test(text), JSON.stringify(text)).toBe(false)
+    },
+  )
+
+  test('a quietHours setting typed with tabs is shown in its plain form', { options: { quietHours: '22:00\t-\t07:00' } }, async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    expect(await pager($, w, '')).toContain('Quiet hours: 22:00-07:00.')
+  })
+})
+
+describe('commands never push', () => {
+  test('with a topic set, no /pager command sends anything', { options: { ntfyTopic: 'pager-test' } }, async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    for (const args of ['test', '', 'mute 5m', 'unmute', 'pack zen', 'status', 'nonsense']) await pager($, w, args)
+    expect(w.plays).toHaveLength(3)
+    expect(w.posts).toEqual([])
   })
 })

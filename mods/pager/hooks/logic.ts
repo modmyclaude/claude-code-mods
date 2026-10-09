@@ -46,7 +46,8 @@ export function turnAlert(
  * The engine's own Notification types that mean "a dialog is waiting on you".
  * Claude Code raises them once a permission prompt, question, plan approval or
  * MCP input request has waited about six seconds without a keypress. Left out
- * on purpose: idle_prompt (it follows a finished turn, which already paged),
+ * on purpose: idle_prompt (it follows a finished turn: a long one already paged,
+ * and a short one means you were there),
  * agent_completed, auth and the rest.
  */
 const NEEDS_YOU = new Set([
@@ -97,6 +98,12 @@ export function parseQuietHours(text: string): QuietHours | null | undefined {
   const end = minute(m[3]!, m[4])
   if (Number.isNaN(start) || Number.isNaN(end) || start === end) return undefined
   return { start, end }
+}
+
+/** A window as `22:00-07:00`, however it was typed. */
+export function formatWindow(window: QuietHours): string {
+  const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  return `${hhmm(window.start)}-${hhmm(window.end)}`
 }
 
 export function isQuiet(window: QuietHours | null | undefined, minuteOfDay: number): boolean {
