@@ -268,7 +268,7 @@ export class Vault {
     this.byTicket.set(entry.ticket, entry)
     this.ignored.delete(value)
     this.evict()
-    if (isLearnable(value)) {
+    if (isLearnable(value, label.split('#')[0])) {
       this.matcher = undefined
       this.grown = true
     }
@@ -309,7 +309,7 @@ export class Vault {
     const matcher = new Matcher()
     for (const entry of this.byValue.values()) {
       // A path, a short value or a common default is hidden only where a detector finds it.
-      if (!isLearnable(entry.value)) continue
+      if (!isLearnable(entry.value, entry.label.split('#')[0])) continue
       matcher.add(entry.value, entry)
       for (const form of encodedForms(entry.value)) matcher.add(form, entry)
     }

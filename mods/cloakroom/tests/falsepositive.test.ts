@@ -15,6 +15,19 @@ import { bash, cloakroom, HOME, ROOT, runBash, start, stdoutOf, TICKET, world } 
 const PW = 'fake-Kq7xW2pLm9'
 const KEY = ['sk', '_test_', alnum(24, 740)].join('')
 
+/**
+ * Made-up base64 secrets that start with `/`, as 1 in 64 random ones do, each
+ * under a secret name: [.env name, the line a tool prints, the value].
+ */
+const SLASHED: [string, string, string][] = [
+  ['AWS_SECRET_ACCESS_KEY', 'AWS_SECRET_ACCESS_KEY=', `/FAKEaws${alnum(24, 750)}+${alnum(8, 751)}`],
+  // Short segments between slashes, so only its secret name says it is no path.
+  ['aws_secret_access_key', 'aws_secret_access_key = ', `/fakeAws/${alnum(12, 752)}/${alnum(12, 753)}/${alnum(6, 759)}`],
+  ['password', '{"password": "', `/FAKEpw${alnum(21, 754)}/${alnum(10, 755)}=`],
+  ['JWT_SECRET', 'JWT_SECRET=', `/Xk9FAKE${alnum(28, 756)}=`],
+  ['GITHUB_TOKEN', 'export GITHUB_TOKEN=', `/fake+${alnum(30, 757)}/${alnum(4, 758)}`],
+]
+
 describe('a path next to a password-like name is not a secret', () => {
   const NAMED: [string, string, boolean][] = [
     ['PWD', `${ROOT}`, false],
@@ -30,9 +43,43 @@ describe('a path next to a password-like name is not a secret', () => {
   ]
   for (const [name, value, expected] of NAMED) {
     test(`${name}=${value} is ${expected ? '' : 'not '}a secret`, () => {
-      expect(namedValueLooksSecret(classifyName(name), value, false)).toBe(expected)
+      expect(namedValueLooksSecret(classifyName(name), value, false, name)).toBe(expected)
     })
   }
+})
+
+describe('a secret that starts with a slash is still a secret', () => {
+  for (const [name, , value] of SLASHED) {
+    test(`${name}=${value.slice(0, 12)}... is a secret and learned`, () => {
+      expect(namedValueLooksSecret(classifyName(name), value, false, name)).toBe(true)
+      expect(isLearnable(value, name)).toBe(true)
+    })
+  }
+
+  test('seeded from .env and hidden later in unrelated text', async ($, on) => {
+    const w = world(on, { [`${ROOT}/.env`]: SLASHED.map(([name, , value]) => `${name}=${value}`).join('\n') + '\n' })
+    await start($)
+    expect(await cloakroom($)).toMatch(/5 tickets/)
+    for (const [, , value] of SLASHED) {
+      w.answer.Bash = () => bash(`retrying with ${value} in 5s`)
+      const seen = stdoutOf(await runBash($, 'tail app.log'))
+      expect(seen.includes(value)).toBe(false)
+      expect(seen).toMatch(TICKET)
+    }
+  })
+
+  test('hidden next to its name in a tool call, then learned', async ($, on) => {
+    const w = world(on)
+    await start($)
+    for (const [, line, value] of SLASHED) {
+      w.answer.Bash = () => bash(`${line}${value}${line.endsWith('"') ? '"}' : ''}`)
+      const seen = stdoutOf(await runBash($, 'cat config'))
+      expect(seen.includes(value)).toBe(false)
+      expect(seen).toMatch(TICKET)
+      w.answer.Bash = () => bash(`auth failed for ${value}`)
+      expect(stdoutOf(await runBash($, 'tail auth.log')).includes(value)).toBe(false)
+    }
+  })
 })
 
 describe('which values are learned', () => {
