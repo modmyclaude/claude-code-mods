@@ -8,7 +8,7 @@
 // shared evenly when several finish together.
 
 import type { HeadwayDone, HeadwayOutline, HeadwayPlan, HeadwayPrior, HeadwayRun, HeadwayStep, HeadwayStepStatus } from '../types'
-import { pairKeys, pairTitles, type Pairing } from './match'
+import { WORDS_MIN, pairKeys, pairTitles, wordOverlap, type Pairing } from './match'
 import { stageList, stageOfTitle } from './outline'
 import { MIN_FINISHED, estimate, formatDuration, formatLeft, isRunningLong, receiptText, timeLeft } from './pace'
 
@@ -23,6 +23,8 @@ export const MAX_SESSION_DURATIONS = 200
 export const MAX_AGENT_IDS = 50
 /** The bar is one cell per step up to this many, then scaled. */
 export const BAR_CELLS = 10
+/** Claude's turns with no plan update after which an unfinished plan has been left behind. */
+export const QUIET_TURNS = 2
 
 export const EMPTY_RUN: HeadwayRun = {
   plan: null,
@@ -34,6 +36,7 @@ export const EMPTY_RUN: HeadwayRun = {
   durations: [],
   hidden: false,
   seq: 0,
+  quiet: 0,
 }
 
 export type Item = { title: string; status: HeadwayStepStatus; key?: string }
@@ -110,8 +113,15 @@ export function reduce(run: HeadwayRun, event: HeadwayEvent, wall: number): { ru
   switch (event.kind) {
     case 'turn':
       if (run.turn !== event.isRunning) patch(ctx, { turn: event.isRunning })
-      // An approved plan with no todo or task list has nothing left to show once its turn ends.
-      if (!event.isRunning && ctx.run.plan?.source === 'outline') setPlan(ctx, null)
+      if (event.isRunning) {
+        // One more of Claude's turns since the plan last moved (`|| 0` covers state from before `quiet`).
+        if (canGoStale(run)) patch(ctx, { quiet: (run.quiet || 0) + 1 })
+      } else if (ctx.run.plan?.source === 'outline') {
+        // An approved plan with no todo or task list has nothing left to show once its turn ends.
+        setPlan(ctx, null)
+      } else if (run.quiet >= QUIET_TURNS) {
+        expire(ctx)
+      }
       break
     case 'agent-start':
       agentStart(ctx, event.id)
@@ -121,14 +131,17 @@ export function reduce(run: HeadwayRun, event: HeadwayEvent, wall: number): { ru
       break
     case 'todos':
       mainLoop(ctx)
+      heard(ctx)
       applyList(ctx, event.items, 'todo')
       break
     case 'task-list':
       mainLoop(ctx)
+      heard(ctx)
       applyList(ctx, event.items, 'task')
       break
     case 'task-create':
       mainLoop(ctx)
+      heard(ctx)
       taskCreate(ctx, event.id, event.title)
       break
     case 'task-update':
@@ -137,6 +150,7 @@ export function reduce(run: HeadwayRun, event: HeadwayEvent, wall: number): { ru
       break
     case 'outline':
       mainLoop(ctx)
+      heard(ctx)
       applyOutline(ctx, event.outline)
       break
     case 'hidden': {
@@ -162,6 +176,28 @@ export function reduce(run: HeadwayRun, event: HeadwayEvent, wall: number): { ru
   const clock = syncClock(ctx.run.clock, isWorking(ctx.run), wall)
   if (clock !== ctx.run.clock) patch(ctx, { clock })
   return { run: ctx.run, effects: ctx.effects }
+}
+
+/** Claude updated its plan: whatever it shows is live again. */
+function heard(ctx: Ctx): void {
+  if (ctx.run.quiet !== 0) patch(ctx, { quiet: 0 })
+}
+
+/** An unfinished plan, or an approved outline waiting for its list: what a quiet spell can leave behind. */
+function canGoStale(run: HeadwayRun): boolean {
+  const plan = run.plan
+  return (plan !== null && plan.finishedAt === undefined && plan.source !== 'outline') || run.outline !== null
+}
+
+/**
+ * Claude has gone QUIET_TURNS turns without touching its plan (the person
+ * interrupted, changed topic, or the last items were never marked): the plan
+ * leaves quietly, with no receipt and no history, and its outline with it.
+ */
+function expire(ctx: Ctx): void {
+  const plan = ctx.run.plan
+  if (plan && plan.finishedAt === undefined && plan.source !== 'outline') setPlan(ctx, null)
+  patch(ctx, { outline: null, quiet: 0 })
 }
 
 function agentStart(ctx: Ctx, id: string): void {
@@ -256,8 +292,11 @@ function revise(ctx: Ctx, old: HeadwayPlan, items: readonly Item[], pairing: Pai
       return { key: item.key ?? `t${nextKey++}`, title: item.title, stage, status: item.status }
     }
     previousStage = before.stage
-    // A renamed step that was done stays done; an exact title (or task id) trusts the new status.
-    const status = before.status === 'done' && !pairing.isExact[j] ? 'done' : item.status
+    // A reworded step that was done stays done while it keeps its words ("Wire up the routes");
+    // a sibling that only reads alike ("...for the UI" after "...for the API") and an exact
+    // title (or task id) trust the new status.
+    const keepsDone = before.status === 'done' && !pairing.isExact[j] && wordOverlap(before.title, item.title) >= WORDS_MIN
+    const status = keepsDone ? 'done' : item.status
     const step: HeadwayStep = { key: before.key, title: item.title, stage: before.stage, status }
     if (before.status === 'done' && status === 'done') {
       wasDone.add(before.key)
@@ -352,6 +391,7 @@ function taskUpdate(ctx: Ctx, event: Extract<HeadwayEvent, { kind: 'task-update'
   if (!plan || plan.source !== 'task' || plan.finishedAt !== undefined) return
   const key = `task:${event.id}`
   if (!plan.steps.some(step => step.key === key)) return
+  heard(ctx)
   const items = itemsOf(plan).flatMap(item => {
     if (item.key !== key) return [item]
     if (event.status === 'deleted') return []
@@ -455,16 +495,36 @@ export function bandView(run: HeadwayRun, wall: number): BandView | null {
   }
 }
 
-function width(text: string): number {
-  return [...text].length
+// Two cells: East Asian wide and fullwidth characters (Hangul, CJK, kana,
+// fullwidth forms) and emoji shown as emoji. None: combining marks and
+// variation selectors. Everything else, one.
+const WIDE =
+  /[\u1100-\u115f\u2329\u232a\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6\u{16fe0}-\u{18aff}\u{1b000}-\u{1b2ff}\u{1f200}-\u{1f2ff}\u{20000}-\u{3fffd}]|\p{Emoji_Presentation}/u
+const NO_WIDTH = /[\p{Mn}\p{Me}]/u
+
+function cells(char: string): number {
+  return NO_WIDTH.test(char) ? 0 : WIDE.test(char) ? 2 : 1
+}
+
+/** How many terminal cells text takes. */
+export function width(text: string): number {
+  let total = 0
+  for (const char of text) total += cells(char)
+  return total
 }
 
 /** Cuts text to `room` cells, ending with an ellipsis when cut. */
 export function fit(text: string, room: number): string {
-  const chars = [...text]
-  if (chars.length <= room) return text
-  if (room <= 1) return chars.slice(0, Math.max(0, room)).join('')
-  return chars.slice(0, room - 1).join('') + '…'
+  if (width(text) <= room) return text
+  const limit = room <= 1 ? Math.max(0, room) : room - 1
+  let out = ''
+  let used = 0
+  for (const char of text) {
+    if (used + cells(char) > limit) break
+    out += char
+    used += cells(char)
+  }
+  return room <= 1 ? out : out + '…'
 }
 
 export function barCells(done: number, total: number): { on: number; off: number } {
@@ -474,24 +534,27 @@ export function barCells(done: number, total: number): { on: number; off: number
 }
 
 const MIN_TITLE = 12
+/** In a very narrow band, time left and then the count give way before the title drops under this. */
+const MIN_TITLE_NARROW = 6
 
 /**
- * The band as one line of parts within `columns`. When room is short it
- * drops, in order, the stage, the extras (revision note, agents chip), then
- * the bar, and cuts the title last.
+ * The band as one line of parts within `columns` terminal cells. When room is
+ * short it drops, in order, the stage, the extras (revision note, agents
+ * chip) and the bar, and cuts the title; only in a very narrow band do the
+ * time left and then the count give way too.
  */
 export function layoutBand(view: BandView, columns: number): Part[] {
   const chip = view.agents > 0 ? plural(view.agents, 'agent') : ''
   if (view.kind === 'summary') {
-    const tail = chip === '' ? '' : ` · ${chip}`
+    const tail = chip === '' || columns - width(` · ${chip}`) < MIN_TITLE ? '' : ` · ${chip}`
     const parts: Part[] = [{ key: 'summary', text: fit(view.text, Math.max(1, columns - width(tail))), tone: 'dim' }]
-    if (tail !== '' && columns - width(tail) >= MIN_TITLE) parts.push({ key: 'agents', text: tail, tone: 'dim' })
+    if (tail !== '') parts.push({ key: 'agents', text: tail, tone: 'dim' })
     return parts
   }
   const accent: Tone = view.tone === 'done' ? 'done' : view.tone === 'long' ? 'long' : 'plain'
   const { on, off } = barCells(view.done, view.total)
-  const count = ` (${view.done}/${view.total})`
-  const right = view.right === undefined ? '' : ` ${view.right}`
+  let count = ` (${view.done}/${view.total})`
+  let right = view.right === undefined ? '' : ` ${view.right}`
   const note = view.note === undefined ? '' : ` · ${view.note}`
   const agents = chip === '' ? '' : ` · ${chip}`
   let stage = view.stage === undefined ? '' : `${view.stage} · `
@@ -501,11 +564,13 @@ export function layoutBand(view: BandView, columns: number): Part[] {
   if (room() < MIN_TITLE) stage = ''
   if (room() < MIN_TITLE) extras = ''
   if (room() < MIN_TITLE) bar = ''
+  if (room() < MIN_TITLE_NARROW) right = ''
+  if (room() < MIN_TITLE_NARROW) count = ''
   const title = fit(view.title, Math.max(1, room()))
   const parts: Part[] = []
   if (stage !== '') parts.push({ key: 'stage', text: stage, tone: 'dim' })
   parts.push({ key: 'title', text: title, tone: accent })
-  parts.push({ key: 'count', text: count, tone: 'dim' })
+  if (count !== '') parts.push({ key: 'count', text: count, tone: 'dim' })
   if (bar !== '') {
     parts.push({ key: 'bar-done', text: ` ${'▰'.repeat(on)}`, tone: accent })
     if (off > 0) parts.push({ key: 'bar-left', text: '▱'.repeat(off), tone: 'dim' })

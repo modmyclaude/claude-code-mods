@@ -21,6 +21,8 @@ const done = atom({ plugin: 'headway', key: 'done' } as const, null)
 // The one timer. Module state on purpose: a reload drops the timer with the
 // old environment, and the next event starts a fresh one.
 let timer: Timer | null = null
+// Each syncTimer call takes a number; after its await only the newest acts, so two never start two timers.
+let timerSeq = 0
 
 function styleOf(tone: Tone): { dimColor?: boolean; color?: string } {
   if (tone === 'dim') return { dimColor: true }
@@ -43,7 +45,7 @@ async function dispatch($: EngineInterface, event: HeadwayEvent): Promise<Headwa
   const wall = await $.clock.now()
   const current = await read($, run)
   if (reduce(current, event, wall).run === current) {
-    syncTimer($, current, wall)
+    await syncTimer($, current, wall)
     return current
   }
   let effects: Effect[] = []
@@ -54,7 +56,7 @@ async function dispatch($: EngineInterface, event: HeadwayEvent): Promise<Headwa
   })
   // One effect failing (say the store) must not skip the others or leave the timer wrong.
   for (const effect of effects) await safely($, () => carryOut($, effect, wall))
-  syncTimer($, next, wall)
+  await syncTimer($, next, wall)
   return next
 }
 
@@ -76,8 +78,21 @@ async function carryOut($: EngineInterface, effect: Effect, wall: number): Promi
   }
 }
 
-function syncTimer($: EngineInterface, value: HeadwayRun, wall: number): void {
-  const wants = wantsTimer(value, wall)
+/**
+ * True while a surface that draws the band (the terminal or the desktop app)
+ * is attached. Not isInteractive: that is false under the SDK, which is how
+ * the desktop app runs a session. VS Code, mobile and a `-p` run draw no band.
+ */
+async function isDrawn($: EngineInterface): Promise<boolean> {
+  const surfaces = await $.session.surfaces().catch(() => [])
+  return surfaces.some(surface => surface === 'terminal' || surface === 'desktop')
+}
+
+/** Starts or stops the one timer: a plan to keep current, on a surface that draws it. */
+async function syncTimer($: EngineInterface, value: HeadwayRun, wall: number): Promise<void> {
+  const seq = ++timerSeq
+  const wants = wantsTimer(value, wall) && (await isDrawn($))
+  if (seq !== timerSeq) return // a newer call decides
   if (wants && timer === null) {
     timer = $.clock.every(TICK_MS, () => void tick($))
   } else if (!wants && timer !== null) {
@@ -105,9 +120,18 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A /clear or a resumed conversation is a different conversation: its plan is not this one's.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear') await safely($, () => dispatch($, { kind: 'clear' }))
+    if (e.reason === 'clear' || e.reason === 'resume') await safely($, () => dispatch($, { kind: 'clear' }))
     return next(e)
+  })
+
+  // The desktop app attaches after the session starts: the timer follows what draws the band.
+  // (A detach needs no hook: the next tick finds nothing drawing and stops it.)
+  on('session.attach', async ($, e, next) => {
+    const attached = await next(e)
+    await safely($, async () => syncTimer($, await read($, run), await $.clock.now()))
+    return attached
   })
 
   on('turn.start', async ($, e, next) => {
@@ -159,7 +183,8 @@ export const register: Register = on => {
     return {}
   })
 
-  // The band: one line above the prompt, drawn on top of whatever other mods draw there.
+  // The band: one line above the prompt, beneath whatever other mods draw there. Theirs comes
+  // first, so when the band overflows its rows the scroll cuts Headway's line, never their buttons.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const value = await read($, run)
@@ -170,12 +195,12 @@ export const register: Register = on => {
     const below = await next(e)
     return (
       <Box flexDirection="column">
+        {below}
         <Box key="headway" flexDirection="row">
           {parts.map(part => (
             <Text {...styleOf(part.tone)}>{part.text}</Text>
           ))}
         </Box>
-        {below}
       </Box>
     )
   })

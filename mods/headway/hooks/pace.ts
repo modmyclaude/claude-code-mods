@@ -8,9 +8,15 @@ export const MIN_FINISHED = 2
 /**
  * Step times vary too much to be honest when their coefficient of variation
  * (sample standard deviation / mean) is above this. At 1.0, two steps hide the
- * estimate when one took roughly ten times the other.
+ * estimate when one took roughly six times the other (3 + 2·√2, about 5.8).
  */
 export const SPREAD_MAX = 1.0
+/**
+ * Steadiness reads only this many of the latest step times, so one long step
+ * (a full test run among quick edits) stops hiding time left once it ages out.
+ * The per-step median still uses the whole session.
+ */
+export const STEADY_WINDOW = 8
 /** Project history weighs at most as much as this many steps of this session. */
 export const PRIOR_WEIGHT_MAX = 3
 /** A step running past this many times its estimate turns amber. */
@@ -41,7 +47,8 @@ export type Estimate = {
 
 /**
  * The per-step estimate: the median of this session's step times, blended
- * with the project's history (which counts as up to PRIOR_WEIGHT_MAX steps).
+ * with the project's history (which counts as up to PRIOR_WEIGHT_MAX steps),
+ * steady when the last STEADY_WINDOW times agree well enough.
  * Null with fewer than MIN_FINISHED session times.
  */
 export function estimate(session: readonly number[], prior?: HeadwayPrior): Estimate | null {
@@ -49,7 +56,7 @@ export function estimate(session: readonly number[], prior?: HeadwayPrior): Esti
   const own = median(session)
   const weight = prior && prior.medianMs > 0 ? Math.min(prior.count, PRIOR_WEIGHT_MAX) : 0
   const perStepMs = weight > 0 && prior ? (session.length * own + weight * prior.medianMs) / (session.length + weight) : own
-  return { perStepMs, isSteady: spread(session) <= SPREAD_MAX }
+  return { perStepMs, isSteady: spread(session.slice(-STEADY_WINDOW)) <= SPREAD_MAX }
 }
 
 /** Time left: the rest of the current step (none once past its estimate) plus every step after it. */

@@ -134,7 +134,7 @@ describe('a todo list (TodoWrite)', () => {
     await w.clock.advance(M)
     await expectBand($, 'Wire the routes (2/6) ▰▰▱▱▱▱ ~3m left')
 
-    // Headway draws above the other mod's line and passes it through.
+    // Headway passes the other mod's line through and draws its own beneath it.
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
       expect(await ui.find({ type: 'Text', text: "another mod's line" })).toBeDefined()
