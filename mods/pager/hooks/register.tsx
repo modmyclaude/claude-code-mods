@@ -14,8 +14,10 @@ import {
   LABEL,
   PACKS,
   assetFor,
+  clean,
   formatDuration,
   isPack,
+  isPerson,
   isQuiet,
   minuteOfDay,
   notificationAlert,
@@ -80,11 +82,13 @@ async function nameOf($: EngineInterface, pager: Pager): Promise<string> {
 
 /** The one network call Pager makes, and only when ntfyTopic is set. */
 function push($: EngineInterface, topic: string, kind: Kind, durationMs: number | undefined) {
+  // Fixed words today; cleaned anyway, since a header or body holding a
+  // control character would be refused.
   const { title, body } = pushFor(kind, durationMs)
   // Not awaited: a slow push never holds up the turn; a failed one only
   // reaches the debug log.
   void $.http
-    .fetch(`https://ntfy.sh/${topic}`, { method: 'POST', headers: { Title: title }, body })
+    .fetch(`https://ntfy.sh/${topic}`, { method: 'POST', headers: { Title: clean(title) }, body: clean(body) })
     .then(res => (res.ok ? undefined : debug($, `ntfy.sh answered ${res.status}`)))
     .catch(err => debug($, `ntfy.sh push failed: ${reason(err)}`))
 }
@@ -128,7 +132,7 @@ async function status($: EngineInterface, pager: Pager, now: number): Promise<st
 async function choosePack($: EngineInterface, arg: string): Promise<string> {
   if (arg === '') return `Pack: ${await currentPack($)}. Packs: ${PACKS.join(', ')}.`
   const name = arg.toLowerCase()
-  if (!isPack(name)) return `No pack called "${arg.slice(0, 40)}". Packs: ${PACKS.join(', ')}.`
+  if (!isPack(name)) return `No pack called "${clean(arg.slice(0, 40))}". Packs: ${PACKS.join(', ')}.`
   await $.store.set(PACK_KEY, name)
   return `Pack set to ${name}. Run /pager test to hear it.`
 }
@@ -157,7 +161,7 @@ async function testPack($: EngineInterface, pager: Pager, now: number): Promise<
 async function mute($: EngineInterface, arg: string, now: number): Promise<string> {
   const ms = arg === '' ? DEFAULT_MUTE_MS : parseDuration(arg)
   if (ms === undefined) {
-    return `Could not read "${arg.slice(0, 40)}" as a duration. Try /pager mute 30m, 2h or 1h30m (up to 7d).`
+    return `Could not read "${clean(arg.slice(0, 40))}" as a duration. Try /pager mute 30m, 2h or 1h30m (up to 7d).`
   }
   await $.store.set(MUTED_KEY, now + ms)
   return `Muted for ${formatDuration(ms)}, until ${untilText(now, now + ms)}. Toasts still show. /pager unmute ends it early.`
@@ -169,11 +173,18 @@ async function unmute($: EngineInterface, now: number): Promise<string> {
   return typeof until === 'number' && now < until ? 'Unmuted. Sounds are back on.' : 'Pager was not muted.'
 }
 
-async function runCommand($: EngineInterface, pager: Pager, args: string): Promise<string> {
+async function runCommand($: EngineInterface, pager: Pager, args: string, from: { kind: string }): Promise<string> {
   const [verb = '', ...rest] = args.trim().split(/\s+/).filter(Boolean)
   const arg = rest.join(' ')
   const now = await $.clock.now()
-  switch (verb.toLowerCase()) {
+  const name = verb.toLowerCase()
+  // Status is read-only and open to anyone. Everything else changes what you
+  // hear, so a peer session, a channel relay, a task or another plugin cannot
+  // mute your alerts or switch them: only the person can.
+  if (name !== '' && name !== 'status' && !isPerson(from)) {
+    return `/pager ${clean(name.slice(0, 40))} only runs when you type it (this run came from ${clean(from.kind)}); nothing changed.`
+  }
+  switch (name) {
     case '':
     case 'status':
       return status($, pager, now)
@@ -186,7 +197,7 @@ async function runCommand($: EngineInterface, pager: Pager, args: string): Promi
     case 'unmute':
       return unmute($, now)
     default:
-      return `Unknown: "${verb.slice(0, 40)}". ${COMMANDS}.`
+      return `Unknown: "${clean(verb.slice(0, 40))}". ${COMMANDS}.`
   }
 }
 
@@ -247,5 +258,5 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'pager' }, async ($, e) => ({ text: await runCommand($, pager, e.args) }))
+  on('command.run', { command: 'pager' }, async ($, e) => ({ text: await runCommand($, pager, e.args, e.origin) }))
 }
