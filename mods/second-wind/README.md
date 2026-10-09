@@ -5,7 +5,7 @@ A breath, an eye rest or a stretch while Claude works, sized to the wait.
 ## Install
 
 ```
-/plugin install second-wind --marketplace ORG_TBD/REPO_TBD
+/plugin install second-wind --marketplace modmyclaude/claude-code-mods
 ```
 
 ## Use it

@@ -2,7 +2,7 @@
   "name": "headway",
   "version": "0.1.0",
   "description": "See how far along Claude is, and when it will land. Zero tokens.",
-  "author": { "name": "ORG_TBD" },
+  "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["progress", "plan", "todo", "tasks", "eta", "band", "visibility"],
   "types": "./types/index.d.ts"

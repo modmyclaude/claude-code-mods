@@ -11,7 +11,7 @@ line says `whistle: Claude needs you`. When Claude gets going again you get a
 ## Install
 
 ```
-/plugin install halftime --marketplace ORG_TBD/REPO_TBD
+/plugin install halftime --marketplace modmyclaude/claude-code-mods
 ```
 
 ## Use it
