@@ -4,7 +4,7 @@
 
 import type { HalftimeSweep } from '../../types'
 import { randInt } from '../rng'
-import { BOLD, DIM, INVERSE, paint, windowStart, type Cell, type Drawn, type Game, type Seg } from './kit'
+import { BOLD, INVERSE, frame, windowStart, type Cell, type Drawn, type Game } from './kit'
 
 export const SWEEP = { w: 16, h: 6, mines: 14, cellCols: 2 } as const
 
@@ -125,30 +125,38 @@ export function clickSweep(s: HalftimeSweep, cx: number, cy: number, button: str
 
 const NUMBER_COLORS = ['', '#5b8def', '#4caf72', '#e05d5d', '#a46be0', '#e8804b', '#3fb6a8', '#d45ca6', '#9aa0a6']
 
+/** Unopened cells are raised slabs in two close greys (a checker, so each cell reads on its own); opened ones are the dark floor. */
+export const SLAB = ['#5f6773', '#535a66'] as const
+export const FLOOR = '#252a32'
+
 export function drawSweep(s: HalftimeSweep, cols: number, rows: number): Drawn {
   const cw = SWEEP.cellCols
-  const fitW = Math.max(4, Math.floor(cols / cw))
+  // The two side rails take two columns of the band.
+  const fitW = Math.max(4, Math.floor((cols - 2) / cw))
   const fitH = Math.max(3, rows)
   const ox = windowStart(s.w, fitW, s.cur[0])
   const oy = windowStart(s.h, fitH, s.cur[1])
+  const vw = Math.min(s.w, ox + fitW) - ox
   const over = s.dead || s.won
-  const out: Seg[][] = []
+  const field: Cell[][] = []
   for (let y = oy; y < Math.min(s.h, oy + fitH); y += 1) {
     const cells: Cell[] = []
-    for (let x = ox; x < Math.min(s.w, ox + fitW); x += 1) {
+    for (let x = ox; x < ox + vw; x += 1) {
       const i = y * s.w + x
       const cursor = !over && s.cur[0] === x && s.cur[1] === y ? INVERSE : 0
+      const slab = SLAB[(x + y) % 2]
       let cell: Cell
-      if (s.flag[i]) cell = [' ▲', 'warning', undefined, BOLD]
-      else if (s.dead && s.mines[i]) cell = [' *', 'error', undefined, BOLD | (i === s.boom ? INVERSE : 0)]
-      else if (!s.open[i]) cell = ['░░', 'subtle', undefined, DIM]
-      else if (s.adj[i] === 0) cell = ['  ']
-      else cell = [` ${s.adj[i]}`, NUMBER_COLORS[s.adj[i]!] ?? 'text', undefined, BOLD]
+      if (s.flag[i]) cell = [' ▲', 'warning', slab, BOLD]
+      else if (s.dead && s.mines[i]) cell = [' ✶', 'error', FLOOR, BOLD | (i === s.boom ? INVERSE : 0)]
+      else if (!s.open[i]) cell = ['  ', undefined, slab]
+      else if (s.adj[i] === 0) cell = ['  ', undefined, FLOOR]
+      else cell = [` ${s.adj[i]}`, NUMBER_COLORS[s.adj[i]!] ?? 'text', FLOOR, BOLD]
       cells.push(cursor ? [cell[0], cell[1], cell[2], (cell[3] ?? 0) | INVERSE] : cell)
     }
-    out.push(paint(cells))
+    field.push(cells)
   }
-  return { rows: out, grid: { x: 0, cw, ox, oy, w: s.w, h: s.h } }
+  const framed = frame(field, vw * cw, cols)
+  return { rows: framed.rows, grid: { x: framed.x, cw, ox, oy, w: s.w, h: s.h, vw } }
 }
 
 export const sweep: Game<HalftimeSweep> = {

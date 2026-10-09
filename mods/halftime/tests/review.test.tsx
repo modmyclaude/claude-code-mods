@@ -11,7 +11,7 @@ import type { RenderSurface } from 'claude-code'
 import { IDLE_PAUSE_MS } from '../hooks/engine'
 import { initSweep } from '../hooks/games/sweep'
 import { dailySeed } from '../hooks/rng'
-import { BAND, METER, SURFACES, VIEWPORT, bandText, boardOf, fieldText, halftime, meterCount, play, said, world } from './fixtures'
+import { BAND, METER, SURFACES, VIEWPORT, bandText, boardOf, cellAt, fieldText, halftime, meterCount, play, said, world } from './fixtures'
 
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 const turnDone = (turnId: string, agentId?: string) => ({
@@ -135,7 +135,7 @@ test('R-4 (#22): a copy with no clipboard in the whistle line leaves the result 
   await ui.pointer({ type: 'down', x: 0, y: 1, button: 'left' })
   const field = initSweep(dailySeed('sweep', '2026-10-09'))
   const mine = field.mines.indexOf(1)
-  await ui.pointer({ type: 'down', x: (mine % field.w) * 2, y: Math.floor(mine / field.w) + 1, button: 'left' })
+  await ui.pointer({ type: 'down', ...cellAt((await boardOf(ui))!, mine % field.w, Math.floor(mine / field.w)), button: 'left' })
   await $.turn.complete(turnDone('main-1'))
   expect(await bandText(ui)).toContain('whistle: Claude needs you')
   await ui.press({ key: 'copy' })
@@ -215,7 +215,7 @@ test('M4: the share line counts the main turn a run overlapped, even after that 
   await ui.pointer({ type: 'down', x: 0, y: 1, button: 'left' })
   const field = initSweep(dailySeed('sweep', '2026-10-09'))
   const mine = field.mines.indexOf(1)
-  await ui.pointer({ type: 'down', x: (mine % field.w) * 2, y: Math.floor(mine / field.w) + 1, button: 'left' })
+  await ui.pointer({ type: 'down', ...cellAt((await boardOf(ui))!, mine % field.w, Math.floor(mine / field.w)), button: 'left' })
   expect(await bandText(ui)).toContain('of a 2m turn')
 })
 

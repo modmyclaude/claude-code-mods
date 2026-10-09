@@ -10,7 +10,7 @@ import type { ClientKeyEvent, ClientPointerEvent, ClientSurface } from 'claude-c
 
 /** [text, color, background, flags]: '' and 0 for none; flags 1 bold, 2 dim, 4 inverse. */
 type Seg = [string, string, string, number]
-type Grid = { x: number; cw: number; ox: number; oy: number; w: number; h: number }
+type Grid = { x: number; cw: number; ox: number; oy: number; w: number; h: number; vw?: number }
 type Props = {
   rid: number
   live: boolean
@@ -117,11 +117,14 @@ function start(surface: Surface, props: Props): Local {
       // A game with no field to aim at (cratehop): any click is its one action.
       queue(local, `click:0,0,${button}`)
     } else {
-      // The field starts on the board's second row; turn the cell under the pointer into a field cell.
+      // The field starts on the board's second row, `g.x` columns in (the centering pad and the rail);
+      // turn the cell under the pointer into a field cell. The pad, the rails and any cell the band
+      // has scrolled out of view are not the field.
       const row = event.y - 1
-      const cx = Math.floor((event.x - g.x) / g.cw) + g.ox
+      const col = event.x - g.x
+      const cx = Math.floor(col / g.cw) + g.ox
       const cy = row + g.oy
-      if (row < 0 || row >= local.props.rows.length || cx < 0 || cy < 0 || cx >= g.w || cy >= g.h) return
+      if (col < 0 || row < 0 || row >= local.props.rows.length || cx - g.ox >= (g.vw ?? g.w) || cx < 0 || cy < 0 || cx >= g.w || cy >= g.h) return
       queue(local, `click:${cx},${cy},${button}`)
     }
     send(surface, local, false)
@@ -151,10 +154,11 @@ export default function Board(props: Props, surface: Surface) {
   // The desktop app draws Text in a proportional font, so a row of glyphs drifts and
   // wraps (MM-084). A Box's width is in the surface's code-font cells: one cell per
   // character keeps every column where the game put it; a run of spaces is one gap.
+  // A gap that is painted (a background, or inverse) still takes one cell per space, so its paint shows.
   const cellRow = (segs: Seg[]) => (
     <Box flexDirection="row" flexWrap="nowrap">
       {segs.flatMap(s =>
-        /^ +$/.test(s[0])
+        /^ +$/.test(s[0]) && !s[2] && !(s[3] & INVERSE)
           ? [<Box width={s[0].length} />]
           : [...s[0]].map(ch => <Box width={1}>{seg([ch, s[1], s[2], s[3]])}</Box>),
       )}

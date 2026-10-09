@@ -4,7 +4,7 @@
 
 import type { HalftimeMerge } from '../../types'
 import { rand, randInt } from '../rng'
-import { BOLD, DIM, clamp, paint, type Cell, type Drawn, type Game, type Seg } from './kit'
+import { BOLD, frame, type Cell, type Drawn, type Game } from './kit'
 
 export const SIZE = 4
 
@@ -95,22 +95,26 @@ const TIER_BG = ['#6c8ebf', '#4fa3a5', '#62b37a', '#a9b84f', '#d9b44a', '#e39552
 
 export const tierLabel = (tier: number) => (tier <= 26 ? String.fromCharCode(64 + tier) : '+')
 
+/** An empty place on the board: a dark well, so the 4x4 grid reads even before it fills. */
+export const WELL = '#2c313a'
+
 export function drawMerge(s: HalftimeMerge, cols: number): Drawn {
-  const tw = clamp(Math.floor((cols - (SIZE - 1)) / SIZE), 3, 7)
-  const rows: Seg[][] = []
+  // Odd widths, so a letter sits dead center; the two side rails take two columns of the band.
+  const tw = Math.floor((cols - 2 - (SIZE - 1)) / SIZE) >= 5 ? 5 : 3
+  const field: Cell[][] = []
   for (let r = 0; r < SIZE; r += 1) {
     const cells: Cell[] = []
     for (let c = 0; c < SIZE; c += 1) {
       const tier = s.cells[r * SIZE + c] ?? 0
-      const left = Math.floor((tw - 1) / 2)
-      const face = ' '.repeat(left) + (tier > 0 ? tierLabel(tier) : '·') + ' '.repeat(tw - 1 - left)
-      if (tier > 0) cells.push([face, '#111418', TIER_BG[(tier - 1) % TIER_BG.length], BOLD])
-      else cells.push([face, 'subtle', undefined, DIM])
+      const mid = (tw - 1) / 2
+      if (tier > 0) {
+        cells.push([' '.repeat(mid) + tierLabel(tier) + ' '.repeat(mid), '#111418', TIER_BG[(tier - 1) % TIER_BG.length], BOLD])
+      } else cells.push([' '.repeat(tw), undefined, WELL])
       if (c < SIZE - 1) cells.push([' '])
     }
-    rows.push(paint(cells))
+    field.push(cells)
   }
-  return { rows }
+  return { rows: frame(field, SIZE * tw + (SIZE - 1), cols).rows }
 }
 
 const go = (dir: Direction) => `move:${dir}`

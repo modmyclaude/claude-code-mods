@@ -39,12 +39,12 @@ prompts.
 
 The games (all original):
 
-- **cratehop** - a courier runs on its own; `space`, `up`, `w` or a click jumps the crates. Speed rises slowly with distance. Score: distance.
+- **cratehop** - a courier runs on its own; `space`, `up`, `w` or a click jumps the crates. The first crate is about three seconds out, and there is always room to land between crates. Speed rises slowly with distance. A crash bursts red where the courier was. Score: distance.
 - **tailchase** - steer a snake on a wide, short field with the arrows, `wasd` or `hjkl`. The edges wrap; biting yourself ends the run. Score: pips eaten.
 - **merge** - slide a 4x4 board of lettered tiers (arrows, `wasd`, `hjkl`); two equal letters make the next one, once per tile per move. Score: points.
 - **sweep** - a 16x6 mine field with 14 mines. Arrows move, `space` or `x` opens, `f` flags, or click / right-click a cell. It opens with a safe pocket. Score: seconds to clear (lower is better).
 
-Every game: `p` pauses and resumes, `r` starts again after a run ends.
+Every game's field is drawn centered between two dim rails, on a clear background: solid blocks for the snake, crates and tiles, raised slabs for sweep's closed cells. Every game: `p` pauses and resumes, `r` starts again after a run ends.
 
 **Daily boards.** Each game's daily board comes from the date alone, so
 everyone gets the same board that day. After a run, the result line reads like

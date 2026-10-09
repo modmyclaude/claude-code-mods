@@ -6,7 +6,8 @@ import { expect, test } from 'claude-code/testing'
 
 import { initSweep } from '../hooks/games/sweep'
 import { dailySeed } from '../hooks/rng'
-import { BAND, ENGINE_BAND, SURFACES, T0, VIEWPORT, bandText, boardOf, fieldText, halftime, play, said, titleText, world } from './fixtures'
+import { BAND, ENGINE_BAND, SURFACES, T0, VIEWPORT, bandText, boardOf, cellAt, fieldText, halftime, play, said, titleText, world } from './fixtures'
+import type { BoardSeen } from './fixtures'
 
 const DAY = '2026-10-09'
 
@@ -57,14 +58,15 @@ for (const surface of SURFACES) {
     await ui.pointer({ type: 'down', x: 0, y: 1, button: 'left' })
     // Plant a flag with a right click, lift it again.
     const mine = field.mines.indexOf(1)
-    await ui.pointer({ type: 'down', x: (mine % field.w) * 2, y: Math.floor(mine / field.w) + 1, button: 'right' })
+    const at = async (i: number) => cellAt((await boardOf(ui))!, i % field.w, Math.floor(i / field.w))
+    await ui.pointer({ type: 'down', ...(await at(mine)), button: 'right' })
     expect(titleText((await boardOf(ui))!)).toContain('1/14 flagged')
-    await ui.pointer({ type: 'down', x: (mine % field.w) * 2, y: Math.floor(mine / field.w) + 1, button: 'right' })
+    await ui.pointer({ type: 'down', ...(await at(mine)), button: 'right' })
 
     await clock.advance(46_600)
     for (let i = 0; i < field.mines.length; i += 1) {
       if (field.mines[i] || field.open[i]) continue
-      await ui.pointer({ type: 'down', x: (i % field.w) * 2, y: Math.floor(i / field.w) + 1, button: 'left' })
+      await ui.pointer({ type: 'down', ...(await at(i)), button: 'left' })
     }
     const won = await boardOf(ui)
     expect(won?.live).toBe(false)
@@ -82,7 +84,7 @@ for (const surface of SURFACES) {
     expect(again?.rid).toBe(2)
     expect(titleText(again!)).toContain('best 47s')
     await ui.pointer({ type: 'down', x: 0, y: 1, button: 'left' })
-    await ui.pointer({ type: 'down', x: (mine % field.w) * 2, y: Math.floor(mine / field.w) + 1, button: 'left' })
+    await ui.pointer({ type: 'down', ...(await at(mine)), button: 'left' })
     const lost = await boardOf(ui)
     expect(lost?.wait).toContain('boom')
     expect(await bandText(ui)).toContain('halftime daily 10-09 · sweep lost · played 0s')
@@ -107,6 +109,61 @@ for (const surface of SURFACES) {
     expect(fieldText(wide!)[4]!.length).toBeGreaterThan(fieldText(small!)[4]!.length)
     for (const row of fieldText(wide!)) expect(row.length).toBeLessThanOrEqual(64)
   })
+}
+
+/** Where the cursor cell is drawn, read off the art alone: its first column, and its pointer row (the field starts on the board's second row). */
+function cursorSpot(b: BoardSeen): { x: number; y: number } | undefined {
+  for (const [r, row] of b.rows.entries()) {
+    let col = 0
+    for (const seg of row) {
+      if ((seg[3] & 4) !== 0) return { x: col, y: r + 1 }
+      col += [...seg[0]].length
+    }
+  }
+  return undefined
+}
+
+// The field is centered between two rails, so a cell is no longer where its column times its width
+// says: a click must still land on the cell drawn under it, and never on the pad or a rail.
+for (const surface of SURFACES) {
+  for (const bodyColumns of [70, 30]) {
+    test(`sweep: a click lands on the cell drawn under it, centered or scrolled (${surface}, ${bodyColumns} columns)`, async ($, on) => {
+      world(on)
+      await $.command.run(halftime('sweep'))
+      const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: { ...BAND, bodyColumns }, viewport: VIEWPORT })
+      await ui.pointer({ type: 'down', x: 0, y: 1, button: 'left' })
+      const field = initSweep(dailySeed('sweep', DAY))
+      const before = (await boardOf(ui))!
+      const anchor = cursorSpot(before)!
+      const g = before.grid!
+      expect(g.x, 'padding and a rail come before the field').toBeGreaterThan(0)
+      expect(anchor.x, 'the grid agrees with the art').toBe(g.x + (field.cur[0] - g.ox) * g.cw)
+      if (bodyColumns === 30) expect(g.ox, 'scrolled').toBeGreaterThan(0)
+
+      // The pad, the rails and a click past either rail are not the field.
+      for (const x of [0, g.x - 1, g.x + g.vw * g.cw, g.x + g.vw * g.cw + 3]) {
+        await ui.pointer({ type: 'down', x, y: anchor.y, button: 'right' })
+        expect(fieldText((await boardOf(ui))!), `x=${x}`).toEqual(fieldText(before))
+      }
+      expect(titleText((await boardOf(ui))!)).toContain('0/14 flagged')
+
+      // A closed cell in view, aimed at from the art alone: the cursor's spot plus whole cells.
+      const i = field.open.findIndex((o, k) => !o && k % field.w >= g.ox && k % field.w < g.ox + g.vw && Math.floor(k / field.w) < g.oy + before.rows.length)
+      const [cx, cy] = [i % field.w, Math.floor(i / field.w)]
+      const spot = { x: anchor.x + (cx - field.cur[0]) * g.cw, y: anchor.y + (cy - field.cur[1]) }
+      await ui.pointer({ type: 'down', ...spot, button: 'right' })
+      const after = (await boardOf(ui))!
+      expect(titleText(after)).toContain('1/14 flagged')
+      // The click moved the cursor onto the flag it planted: that cell is the one that was aimed at.
+      const now = cursorSpot(after)!
+      expect(fieldText(after)[now.y - 1]!.slice(now.x, now.x + g.cw)).toBe(' ▲')
+      expect(after.grid!.ox + (now.x - after.grid!.x) / g.cw).toBe(cx)
+      expect(after.grid!.oy + now.y - 1).toBe(cy)
+      // Unscrolled, the flag is drawn exactly where the pointer went.
+      if (bodyColumns === 70) expect(fieldText(after)[spot.y - 1]!.slice(spot.x, spot.x + g.cw)).toBe(' ▲')
+      await ui.unmount()
+    })
+  }
 }
 
 test('a tight band keeps the field: the hint folds into the title and the field scrolls with the snake', async ($, on) => {

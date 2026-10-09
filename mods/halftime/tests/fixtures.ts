@@ -159,6 +159,8 @@ export type BoardSeen = {
   ack: [string, number]
   title: [string, string, string, number][]
   rows: [string, string, string, number][][]
+  /** Field geometry for clicks (tailchase, sweep); null for a game with no field to aim at. */
+  grid: { x: number; cw: number; ox: number; oy: number; w: number; h: number; vw: number } | null
   wait: string
   hint: string
 }
@@ -168,6 +170,16 @@ export async function boardOf(ui: { drawn: () => Promise<unknown> }): Promise<Bo
   const client = findClient(await ui.drawn())
   if (!client) return undefined
   return { key: String(client.props?.key), ...(client.props?.props as Omit<BoardSeen, 'key'>) }
+}
+
+/**
+ * Where on the board a field cell is drawn, as a pointer position (the field starts on the
+ * board's second row). It reads the board's own grid, so a click here is a click on that cell
+ * wherever the field was centered; `fieldAnchors` (ui.test) pins the grid to the drawn art.
+ */
+export function cellAt(b: BoardSeen, cx: number, cy: number): { x: number; y: number } {
+  const g = b.grid!
+  return { x: g.x + (cx - g.ox) * g.cw, y: cy - g.oy + 1 }
 }
 
 export const titleText = (b: BoardSeen) => b.title.map(s => s[0]).join('')

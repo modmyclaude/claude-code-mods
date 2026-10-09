@@ -4,7 +4,7 @@
 
 import type { HalftimeCratehop } from '../../types'
 import { rand } from '../rng'
-import { BOLD, DIM, clamp, hash2, paint, type Cell, type Drawn, type Game, type Seg } from './kit'
+import { BOLD, DIM, clamp, frame, type Cell, type Drawn, type Game } from './kit'
 
 export const CRATEHOP = {
   /** The runner's screen column. */
@@ -16,6 +16,8 @@ export const CRATEHOP = {
   jump: 13,
   gravity: 38,
   lookahead: 110,
+  /** Crate-free cells at the start: about three seconds at the start speed. */
+  runUp: 44,
   /** The longest stretch of time one tick may advance (a stalled frame never teleports). */
   maxDtMs: 250,
   subStepMs: 8,
@@ -32,8 +34,17 @@ export function airDistance(v: number): number {
   return (v * 2 * CRATEHOP.jump) / CRATEHOP.gravity
 }
 
+/**
+ * The least clear ground after a crate, given the speed reached there: well
+ * over one jump's air distance (the runner is a little faster by the next
+ * crate), so there is always room to land, breathe and jump again.
+ */
+export function minGap(v: number): number {
+  return Math.ceil(airDistance(v) * 1.3) + 2
+}
+
 /** Lays out crates until the course reaches `until`; depends on the seed and distance only. */
-function layout(s: HalftimeCratehop, until: number): HalftimeCratehop {
+export function layout(s: HalftimeCratehop, until: number): HalftimeCratehop {
   let { rng, nextX } = s
   const obs = [...s.obs]
   while (nextX < until) {
@@ -46,14 +57,15 @@ function layout(s: HalftimeCratehop, until: number): HalftimeCratehop {
     const tall = r1 < Math.min(0.45, 0.18 + nextX / 6000)
     const w = tall ? (r2 < 0.4 ? 2 : 1) : 1 + Math.floor(r2 * 3)
     obs.push([nextX, w, tall ? 2 : 1])
-    // The gap after a crate always leaves room to land and jump again at the speed reached there.
-    nextX += w + Math.ceil(airDistance(speedAt(nextX)) * 0.9) + Math.floor(r3 * 10)
+    // The gap after a crate always leaves room to land and jump again; the random stretch grows with speed, so it is the same in seconds.
+    const v = speedAt(nextX + w + 40)
+    nextX += w + minGap(v) + Math.floor(r3 * Math.ceil(v * 0.6))
   }
   return { ...s, rng, nextX, obs }
 }
 
 export function initCratehop(seed: number): HalftimeCratehop {
-  return layout({ rng: seed >>> 0, x: 0, y: 0, vy: 0, obs: [], nextX: 40, dead: false, buffered: false }, CRATEHOP.lookahead)
+  return layout({ rng: seed >>> 0, x: 0, y: 0, vy: 0, obs: [], nextX: CRATEHOP.runUp, dead: false, buffered: false }, CRATEHOP.lookahead)
 }
 
 /** Whether the runner, its feet at height y, overlaps a crate at distance x. */
@@ -102,34 +114,35 @@ export function stepCratehop(s: HalftimeCratehop, dtMs: number): HalftimeCrateho
 }
 
 export function drawCratehop(s: HalftimeCratehop, cols: number): Drawn {
-  const width = clamp(cols, 16, 72)
+  const width = clamp(cols - 2, 14, 70)
   const cam = Math.floor(s.x) - CRATEHOP.col
-  const runnerRow = 3 - clamp(Math.floor(s.y + 0.35), 0, 3)
-  const rows: Seg[][] = []
+  const feet = 3 - clamp(Math.floor(s.y + 0.35), 0, 3)
+  // The courier is two cells tall, a head over a body; its legs swap every couple of cells run.
+  const body = s.y > 0 ? '█' : Math.floor(s.x / 2) % 2 === 0 ? '▟' : '▙'
+  const field: Cell[][] = []
   for (let row = 0; row < CRATEHOP.rows; row += 1) {
     const cells: Cell[] = []
     for (let c = 0; c < width; c += 1) {
       const wc = cam + c
       if (row === 4) {
-        cells.push([wc % 8 === 0 ? '┴' : '─', 'subtle', undefined, DIM])
+        // The track: a solid floor, with a brighter mark every eight cells so the ground is seen to move.
+        cells.push(wc % 8 === 0 ? ['▀', 'text', undefined, DIM] : ['▀', 'subtle'])
         continue
       }
-      if (c === CRATEHOP.col && row === runnerRow) {
-        cells.push(s.dead ? ['x', 'error', undefined, BOLD] : [s.y > 0 ? '^' : '@', 'suggestion', undefined, BOLD])
+      if (s.dead && row === feet && Math.abs(c - CRATEHOP.col) <= 1) {
+        cells.push([['\\', '✶', '/'][c - CRATEHOP.col + 1]!, 'error', undefined, BOLD])
+        continue
+      }
+      if (!s.dead && c === CRATEHOP.col && (row === feet || row === feet - 1)) {
+        cells.push(row === feet ? [body, 'suggestion', undefined, BOLD] : ['▄', 'suggestion', undefined, BOLD])
         continue
       }
       const crate = s.obs.find(([ox, w]) => wc >= ox && wc < ox + w)
-      if (crate && (row === 3 || (row === 2 && crate[2] === 2))) {
-        cells.push([row === 3 && crate[2] === 2 ? '█' : '▆', 'warning'])
-        continue
-      }
-      // Far-off dots drift at half speed, so the course reads as moving even between crates.
-      const star = row < 2 && hash2(Math.floor(s.x / 2) - CRATEHOP.col + c, row) % 29 === 0
-      cells.push(star ? ['·', 'subtle', undefined, DIM] : [' '])
+      cells.push(crate && (row === 3 || (row === 2 && crate[2] === 2)) ? ['█', 'warning'] : [' '])
     }
-    rows.push(paint(cells))
+    field.push(cells)
   }
-  return { rows }
+  return { rows: frame(field, width, cols).rows }
 }
 
 export const cratehop: Game<HalftimeCratehop> = {

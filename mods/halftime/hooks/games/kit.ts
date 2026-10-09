@@ -16,9 +16,11 @@ export const INVERSE = 4
 /**
  * Where the game's field sits inside the drawn rows, so a click can be turned
  * back into a cell: field cell (cx, cy) is drawn at column x + (cx - ox) * cw
- * of row (cy - oy), counting from the first field row.
+ * of row (cy - oy), counting from the first field row. `x` already counts the
+ * centering pad and the side rail; `w` x `h` is the whole field, `vw` how many
+ * of its columns (cells) are drawn when a narrow band scrolls it.
  */
-export type Grid = { x: number; cw: number; ox: number; oy: number; w: number; h: number }
+export type Grid = { x: number; cw: number; ox: number; oy: number; w: number; h: number; vw: number }
 
 export type Drawn = { rows: Seg[][]; grid?: Grid }
 
@@ -76,6 +78,19 @@ export function paint(cells: readonly Cell[]): Seg[] {
     else out.push([text, fg, bg, flags])
   }
   return out
+}
+
+/**
+ * The play window: a field's rows centered in `cols` with a dim rail on each
+ * side, and no extra rows. `width` is the field's width in terminal columns;
+ * `x` is the column where the field's first column is drawn (pad and rail
+ * counted), which is what a Grid's `x` must be.
+ */
+export function frame(field: readonly (readonly Cell[])[], width: number, cols: number): { rows: Seg[][]; x: number } {
+  const left = Math.max(0, Math.floor((cols - width - 2) / 2))
+  const rail: Cell = ['│', 'subtle', undefined, DIM]
+  const pad: Cell[] = left > 0 ? [[' '.repeat(left)]] : []
+  return { rows: field.map(cells => paint([...pad, rail, ...cells, rail])), x: left + 1 }
 }
 
 /** A small stable integer hash, for decoration that must not touch the game's randomness. */

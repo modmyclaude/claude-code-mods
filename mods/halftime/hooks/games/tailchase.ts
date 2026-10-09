@@ -3,7 +3,7 @@
 
 import type { HalftimeTailchase } from '../../types'
 import { randInt } from '../rng'
-import { BOLD, DIM, paint, windowStart, type Cell, type Drawn, type Game, type Seg } from './kit'
+import { BOLD, frame, windowStart, type Cell, type Drawn, type Game } from './kit'
 
 export const TAILCHASE = {
   w: 28,
@@ -80,23 +80,26 @@ export function stepTailchase(s: HalftimeTailchase, dtMs: number): HalftimeTailc
 
 export function drawTailchase(s: HalftimeTailchase, cols: number, rows: number): Drawn {
   const cw = TAILCHASE.cellCols
-  const fitW = Math.max(4, Math.floor(cols / cw))
+  // The two side rails take two columns of the band.
+  const fitW = Math.max(4, Math.floor((cols - 2) / cw))
   const fitH = Math.max(3, rows)
   const head = s.body[0]!
   const ox = windowStart(s.w, fitW, head[0])
   const oy = windowStart(s.h, fitH, head[1])
-  const out: Seg[][] = []
+  const vw = Math.min(s.w, ox + fitW) - ox
+  const field: Cell[][] = []
   for (let y = oy; y < Math.min(s.h, oy + fitH); y += 1) {
     const cells: Cell[] = []
-    for (let x = ox; x < Math.min(s.w, ox + fitW); x += 1) {
-      if (head[0] === x && head[1] === y) cells.push(['██', s.dead ? 'error' : 'success', undefined, BOLD])
-      else if (occupied(s.body, x, y)) cells.push(['▓▓', 'success'])
-      else if (s.food && s.food[0] === x && s.food[1] === y) cells.push(['▐▌', 'error'])
-      else cells.push([' ·', 'subtle', undefined, DIM])
+    for (let x = ox; x < ox + vw; x += 1) {
+      if (head[0] === x && head[1] === y) cells.push(['██', s.dead ? 'error' : 'suggestion', undefined, BOLD])
+      else if (occupied(s.body, x, y)) cells.push(['██', 'success'])
+      else if (s.food && s.food[0] === x && s.food[1] === y) cells.push(['██', 'warning'])
+      else cells.push(['  '])
     }
-    out.push(paint(cells))
+    field.push(cells)
   }
-  return { rows: out, grid: { x: 0, cw, ox, oy, w: s.w, h: s.h } }
+  const framed = frame(field, vw * cw, cols)
+  return { rows: framed.rows, grid: { x: framed.x, cw, ox, oy, w: s.w, h: s.h, vw } }
 }
 
 const turn = (dir: number) => `turn:${dir}`

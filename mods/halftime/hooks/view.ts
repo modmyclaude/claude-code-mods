@@ -99,7 +99,7 @@ export function boardView(run: HalftimeRun, stats: HalftimeStats, cols: number, 
   const title: Seg[] = paint([
     [game.title, 'text', undefined, BOLD],
     ['  '],
-    [liveScore(run, now), 'text'],
+    [liveScore(run, now), 'suggestion', undefined, BOLD],
     [`  best ${scoreText(run.game, best ?? null)}`, 'subtle', undefined, DIM],
     [run.mode === 'daily' ? `  daily ${run.day.slice(5)}` : '  practice', 'subtle', undefined, DIM],
   ])

@@ -4,13 +4,13 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { HalftimeCratehop, HalftimeTailchase } from '../types'
-import { CRATEHOP, airDistance, hits, initCratehop, jumpCratehop, speedAt, stepCratehop } from '../hooks/games/cratehop'
+import type { HalftimeCratehop, HalftimeSweep, HalftimeTailchase } from '../types'
+import { CRATEHOP, airDistance, hits, initCratehop, jumpCratehop, layout, minGap, speedAt, stepCratehop } from '../hooks/games/cratehop'
 import { GAME_IDS, beats, gameOf, scoreText } from '../hooks/games'
-import { isForbiddenKey, normalizeKey } from '../hooks/games/kit'
-import { canMove, initMerge, moveMerge, slide, slideLine, spawn } from '../hooks/games/merge'
+import { INVERSE, isForbiddenKey, normalizeKey, type Seg } from '../hooks/games/kit'
+import { WELL, canMove, initMerge, moveMerge, slide, slideLine, spawn } from '../hooks/games/merge'
 import { TAILCHASE, initTailchase, moveTailchase, stepMs, stepTailchase, turnTailchase } from '../hooks/games/tailchase'
-import { countAdjacent, flagAt, flood, initSweep, neighbors, revealAt } from '../hooks/games/sweep'
+import { FLOOR, SLAB, countAdjacent, flagAt, flood, initSweep, neighbors, revealAt } from '../hooks/games/sweep'
 import { SHARED_KEYS } from '../hooks/engine'
 import { dailySeed, dayKey, fnv1a, rand, randInt } from '../hooks/rng'
 import { duration, scorecard, shareLine } from '../hooks/share'
@@ -136,14 +136,44 @@ describe('cratehop', () => {
     expect(hits([[5, 1, 1]], 3, 0)).toBe(false)
   })
 
-  test('the course comes from the seed alone and leaves room to land between crates', () => {
+  test('the course comes from the seed alone, however far it was laid out at once', () => {
     const a = initCratehop(123)
     expect(a.obs).toEqual(initCratehop(123).obs)
     expect(a.obs).not.toEqual(initCratehop(124).obs)
-    for (let i = 1; i < a.obs.length; i += 1) {
-      const [px, pw] = a.obs[i - 1]!
-      const gap = a.obs[i]![0] - (px + pw)
-      expect(gap).toBeGreaterThanOrEqual(Math.ceil(airDistance(speedAt(px)) * 0.9))
+    // Laying out further only extends the course; what was laid out before never changes.
+    const far = layout(a, 4000).obs
+    expect(far.slice(0, a.obs.length)).toEqual(a.obs)
+    expect(layout(layout(a, 1500), 4000).obs).toEqual(far)
+  })
+
+  test('a three-second crate-free run-up, then always comfortably more than one jump between crates', () => {
+    expect(CRATEHOP.runUp).toBeGreaterThanOrEqual(42)
+    for (const seed of [1, 2, 123, 5, 20261009, 0xdeadbeef]) {
+      const course = layout(initCratehop(seed), 7000).obs
+      expect(course.length, `seed ${seed}`).toBeGreaterThan(60)
+      expect(course[0]![0], `seed ${seed}`).toBeGreaterThanOrEqual(42)
+      for (let i = 1; i < course.length; i += 1) {
+        const [px, pw] = course[i - 1]!
+        const ox = course[i]![0]
+        const gap = ox - (px + pw)
+        // At least the floor for the speed reached there ...
+        expect(gap, `seed ${seed} crate ${i}`).toBeGreaterThanOrEqual(minGap(speedAt(px)))
+        // ... and, at the (faster) speed where the next crate stands, still well over one jump's air distance.
+        expect(gap, `seed ${seed} crate ${i}`).toBeGreaterThan(airDistance(speedAt(ox)) * 1.2)
+      }
+    }
+  })
+
+  test('every crate of the course can be cleared: a player who centers each jump over its crate never crashes', () => {
+    for (const seed of [1, 2, 3, 123, 20261009, 999]) {
+      let s = initCratehop(seed)
+      while (!s.dead && s.x < 3000) {
+        const next = s.obs.find(([ox, w]) => ox + w > s.x)
+        // Takes off so the arc's peak sits over the middle of the crate's hit box.
+        if (next && s.y === 0 && s.vy === 0 && next[0] + next[1] / 2 - 0.5 - s.x <= airDistance(speedAt(s.x)) / 2) s = jumpCratehop(s)
+        s = stepCratehop(s, 16)
+      }
+      expect(s.dead, `seed ${seed} crashed at ${Math.round(s.x)}`).toBe(false)
     }
   })
 
@@ -337,5 +367,236 @@ describe('words', () => {
     const line = scorecard({ auto: false, last: null, best: { cratehop: 412, sweep: 47 }, daily: {}, playedMs: 0, waitPlayedMs: 2_220_000, runs: 3 })
     expect(line).toBe('halftime · cratehop 412 · tailchase - · merge - · sweep 47s · 37m played while waiting')
     expect(line.includes('\n')).toBe(false)
+  })
+})
+
+// The art: every game's field is a centered play window between two dim rails, on a clean
+// background, drawn in single-cell glyphs only, and its Grid says exactly where the field is.
+
+describe('drawing', () => {
+  const rowText = (row: Seg[]) => row.map(seg => seg[0]).join('')
+  /** [first column, seg] for every run in a row (every glyph here is one cell wide). */
+  const runs = (row: Seg[]): [number, Seg][] => {
+    let col = 0
+    return row.map(seg => {
+      const at: [number, Seg] = [col, seg]
+      col += [...seg[0]].length
+      return at
+    })
+  }
+  /** The run drawn over a column of a row. */
+  const segAt = (row: Seg[], col: number) => runs(row).find(([at, seg]) => at <= col && col < at + [...seg[0]].length)![1]
+  /** What lies between the two rails of a row. */
+  const inside = (row: Seg[]) => row.slice(row.findIndex(seg => seg[0] === '│') + 1, -1)
+  /** Box drawing, block elements, printable ASCII, and the two geometric marks the art uses. */
+  const ALLOWED = /^[\u0020-\u007e\u2500-\u257f\u2580-\u259f\u2736\u25b2]*$/
+  const draws = (id: (typeof GAME_IDS)[number], cols: number) => {
+    const game = gameOf(id)
+    return game.draw(game.init(20261009), cols, game.rows)
+  }
+
+  for (const id of GAME_IDS) {
+    for (const cols of [48, 70, 100, 140]) {
+      test(`${id} at ${cols} columns: centered between two dim rails, every Seg whole, single-cell glyphs only`, () => {
+        const { rows } = draws(id, cols)
+        expect(rows.length).toBeGreaterThan(0)
+        for (const row of rows) {
+          for (const seg of row) {
+            expect(seg.length).toBe(4)
+            expect(typeof seg[0]).toBe('string')
+            expect(typeof seg[1]).toBe('string')
+            expect(typeof seg[2]).toBe('string')
+            expect(typeof seg[3]).toBe('number')
+          }
+          const text = rowText(row)
+          expect(text, `${id} ${cols}`).toMatch(ALLOWED)
+          const width = text.length
+          expect(width).toBeLessThanOrEqual(cols)
+          // The rails are the first and last cells after the pad, drawn dim.
+          const pad = width - text.trimStart().length
+          expect(runs(row).find(([at]) => at === pad)![1], `${id} ${cols}`).toEqual(['│', 'subtle', '', 2])
+          expect(row[row.length - 1], `${id} ${cols}`).toEqual(['│', 'subtle', '', 2])
+          // Centered: what is left of the band is split evenly (an odd column goes to the right).
+          expect(pad, `${id} ${cols}`).toBe(Math.floor((cols - width + pad) / 2))
+          expect(Math.abs(pad - (cols - width)), `${id} ${cols}`).toBeLessThanOrEqual(1)
+        }
+        // Every row is as wide as the others, so the rails line up.
+        expect(new Set(rows.map(row => rowText(row).length)).size).toBe(1)
+      })
+    }
+  }
+
+  test('a wide band leaves room on both sides of a fixed-size field', () => {
+    for (const id of ['tailchase', 'merge', 'sweep'] as const) {
+      const text = rowText(draws(id, 100).rows[0]!)
+      expect(text.length - text.trimStart().length, id).toBeGreaterThan(10)
+      expect(100 - text.length, id).toBeGreaterThan(10)
+    }
+  })
+
+  test('the empty field is blank: no dot fill in any game', () => {
+    for (const id of GAME_IDS) for (const row of draws(id, 100).rows) expect(rowText(row), id).not.toContain('·')
+    // Besides the snake, the pip and the rails, every tailchase cell is a space.
+    const rows = gameOf('tailchase').draw(initTailchase(3), 100, TAILCHASE.h).rows
+    expect(rows.map(rowText).join('').replace(/[│█]/g, '').trim()).toBe('')
+  })
+
+  describe('tailchase', () => {
+    const state = (over: Partial<HalftimeTailchase> = {}): HalftimeTailchase => ({ ...initTailchase(9), food: [10, 1], ...over })
+    /** The run over a field cell, and the two columns of text it takes. */
+    const cell = (s: HalftimeTailchase, cx: number, cy: number) => {
+      const d = gameOf('tailchase').draw(s, 100, TAILCHASE.h)
+      const g = d.grid!
+      const row = d.rows[cy - g.oy]!
+      const col = g.x + (cx - g.ox) * g.cw
+      return { seg: segAt(row, col), text: rowText(row).slice(col, col + g.cw) }
+    }
+
+    test('a uniform solid body, a bold head in the suggestion color, a pip in the warning color', () => {
+      const s = state()
+      const [hx, hy] = s.body[0]!
+      expect(cell(s, hx, hy).text).toBe('██')
+      expect(cell(s, hx, hy).seg.slice(1)).toEqual(['suggestion', '', 1])
+      for (const [bx, by] of s.body.slice(1)) {
+        expect(cell(s, bx, by).text, `${bx},${by}`).toBe('██')
+        expect(cell(s, bx, by).seg.slice(1), `${bx},${by}`).toEqual(['success', '', 0])
+      }
+      expect(cell(s, 10, 1).text).toBe('██')
+      expect(cell(s, 10, 1).seg.slice(1)).toEqual(['warning', '', 0])
+    })
+
+    test('a dead head turns error red', () => {
+      const s = state({ dead: true })
+      const [hx, hy] = s.body[0]!
+      expect(cell(s, hx, hy).seg.slice(1)).toEqual(['error', '', 1])
+    })
+
+    test('the grid says where each field cell is drawn: centered, and scrolled in a narrow band', () => {
+      for (const cols of [100, 70, 30]) {
+        const s = state({ body: [[20, 3], [19, 3], [18, 3]] })
+        const d = gameOf('tailchase').draw(s, cols, TAILCHASE.h)
+        const g = d.grid!
+        const row = d.rows[3 - g.oy]!
+        const head = runs(row).find(([, seg]) => seg[1] === 'suggestion')!
+        expect(head[0], `${cols} cols`).toBe(g.x + (20 - g.ox) * g.cw)
+        // The rails stand just outside the grid's window, which fits the band.
+        expect(rowText(row)[g.x - 1], `${cols} cols`).toBe('│')
+        expect(rowText(row)[g.x + g.vw * g.cw], `${cols} cols`).toBe('│')
+        expect(g.x + g.vw * g.cw + 1, `${cols} cols`).toBeLessThanOrEqual(cols)
+        expect(g.vw).toBeLessThanOrEqual(g.w)
+      }
+    })
+  })
+
+  describe('cratehop', () => {
+    const run = (over: Partial<HalftimeCratehop> = {}): HalftimeCratehop => ({
+      rng: 1, x: 100.5, y: 0, vy: 0, obs: [], nextX: 1e9, dead: false, buffered: false, ...over,
+    })
+    const drawn = (s: HalftimeCratehop) => gameOf('cratehop').draw(s, 100, CRATEHOP.rows).rows
+    /** The courier's runs in each row (the only suggestion-colored thing in this field). */
+    const courier = (rows: Seg[][]) => rows.map(row => runs(row).filter(([, seg]) => seg[1] === 'suggestion'))
+
+    test('on the ground the courier is a head over a body, in bold suggestion', () => {
+      const found = courier(drawn(run()))
+      expect(found[2]!.length).toBe(1)
+      expect(found[3]!.length).toBe(1)
+      expect(found[2]![0]![1][0]).toBe('▄')
+      expect(found[3]![0]![1][0]).toMatch(/^[▟▙]$/)
+      expect(found[2]![0]![0]).toBe(found[3]![0]![0])
+      expect(found[2]![0]![1][3]).toBe(1)
+      expect(found[3]![0]![1][3]).toBe(1)
+    })
+
+    test('in the air the whole courier rises together, at the same column', () => {
+      const ground = courier(drawn(run()))
+      const air = courier(drawn(run({ y: 1.6, vy: 5 })))
+      const used = air.flatMap((r, i) => (r.length ? [i] : []))
+      expect(used).toEqual([1, 2])
+      for (const i of used) expect(air[i]![0]![0]).toBe(ground[3]![0]![0])
+    })
+
+    test('crates are solid blocks, tall ones two cells high', () => {
+      const rows = drawn(run({ obs: [[106, 2, 1], [112, 1, 2]] }))
+      expect(rowText(rows[3]!)).toContain('██')
+      expect(rows[3]!.filter(seg => seg[0].includes('█')).every(seg => seg[1] === 'warning')).toBe(true)
+      const tall = rows[2]!.filter(seg => seg[0].includes('█'))
+      expect(tall.map(seg => seg[0])).toEqual(['█'])
+      expect(tall[0]![1]).toBe('warning')
+      expect(rowText(rows[1]!)).not.toContain('█')
+    })
+
+    test('a crash is a three-cell burst in bold error red where the courier was, and the courier is gone', () => {
+      const bodyCol = courier(drawn(run()))[3]![0]![0]
+      const rows = drawn(run({ dead: true }))
+      const burst = rows.flatMap(row => runs(row).filter(([, seg]) => seg[1] === 'error'))
+      expect(burst.map(([at, seg]) => [at, seg[0], seg[3]])).toEqual([[bodyCol - 1, '\\✶/', 1]])
+      expect(courier(rows).flat().length).toBe(0)
+    })
+
+    test('the sky is clear: nothing but the courier and the crates above the floor', () => {
+      for (const x of [0, 33.3, 250.7, 1999]) {
+        for (const row of drawn(run({ x, obs: [] })).slice(0, 4)) expect(rowText(row).replace(/[│▄▟▙█]/g, '').trim(), `x=${x}`).toBe('')
+      }
+    })
+  })
+
+  describe('merge', () => {
+    test('tiles are solid blocks of color with a bold dark letter dead center; empty places are wells', () => {
+      const s = { ...initMerge(4), cells: [1, 0, 3, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2] }
+      const places = inside(gameOf('merge').draw(s, 100, 4).rows[0]!).filter(seg => seg[2] !== '')
+      // Four places in the row (three tiles and a well): each one solid, all the same width, all different colors.
+      expect(places.length).toBe(4)
+      expect(new Set(places.map(seg => seg[0].length)).size).toBe(1)
+      expect(new Set(places.map(seg => seg[2])).size).toBe(4)
+      const letters = places.filter(seg => seg[0].trim() !== '')
+      expect(letters.map(seg => seg[0].trim())).toEqual(['A', 'C', 'L'])
+      for (const seg of letters) {
+        expect(seg[1]).toBe('#111418')
+        expect(seg[3]).toBe(1)
+        expect(seg[0].indexOf(seg[0].trim())).toBe((seg[0].length - 1) / 2)
+      }
+      expect(places.filter(seg => seg[2] === WELL).map(seg => seg[0].trim())).toEqual([''])
+    })
+  })
+
+  describe('sweep', () => {
+    const field = (): HalftimeSweep => initSweep(dailySeed('sweep', '2026-10-09'))
+
+    test('every cell is painted: closed cells are slabs in two close greys, opened ones the dark floor', () => {
+      const cells = gameOf('sweep').draw(field(), 100, 6).rows.flatMap(inside)
+      for (const seg of cells) expect([...SLAB, FLOOR], seg[0]).toContain(seg[2])
+      expect(new Set(cells.map(seg => seg[2]))).toEqual(new Set([...SLAB, FLOOR]))
+    })
+
+    test('the cursor, flags and mines sit where the grid says', () => {
+      const s = field()
+      const d = gameOf('sweep').draw(s, 100, 6)
+      const g = d.grid!
+      const cursor = runs(d.rows[s.cur[1] - g.oy]!).find(([, seg]) => (seg[3] & INVERSE) !== 0)!
+      expect(cursor[0]).toBe(g.x + (s.cur[0] - g.ox) * g.cw)
+      expect(cursor[1][0].length).toBe(g.cw)
+      // A flag on the first closed cell is drawn exactly in its place.
+      const i = s.open.indexOf(0)
+      const [fx, fy] = [i % s.w, Math.floor(i / s.w)]
+      const df = gameOf('sweep').draw({ ...s, flag: s.flag.map((f, k) => (k === i ? 1 : f)) }, 100, 6)
+      const at = g.x + (fx - g.ox) * g.cw
+      expect(rowText(df.rows[fy - g.oy]!).slice(at, at + g.cw)).toBe(' ▲')
+      // A lost field shows its mines as bold red burst marks, the one that went off inverted.
+      const dl = gameOf('sweep').draw(revealAt(s, s.mines.indexOf(1)), 100, 6)
+      const marks = dl.rows.flatMap(row => row.filter(seg => /^( ✶)+$/.test(seg[0])))
+      expect(marks.length).toBeGreaterThan(0)
+      expect(marks.every(seg => seg[1] === 'error' && (seg[3] & 1) !== 0)).toBe(true)
+      expect(marks.filter(seg => (seg[3] & INVERSE) !== 0).map(seg => seg[0])).toEqual([' ✶'])
+    })
+
+    test('a narrow band scrolls the field inside the rails and the grid still matches', () => {
+      const s = { ...field(), cur: [15, 5] as [number, number] }
+      const d = gameOf('sweep').draw(s, 30, 6)
+      const g = d.grid!
+      expect(g.ox).toBeGreaterThan(0)
+      expect(g.vw * g.cw + 2).toBeLessThanOrEqual(30)
+      const cursor = runs(d.rows[5 - g.oy]!).find(([, seg]) => (seg[3] & INVERSE) !== 0)!
+      expect(cursor[0]).toBe(g.x + (15 - g.ox) * g.cw)
+    })
   })
 })
