@@ -16,7 +16,8 @@ import type { AntFarmAnt, AntFarmLoops, AntFarmStatus, AntFarmUsage } from '../t
 import { addRequest, budgetLevel, NO_USAGE, sumUsage } from './prices'
 import {
   alarmText, ANT_WIDTH, antRows, bar, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt,
-  modelColors, phaseOf, progressOf, shortModel, spendOf, statusText, viewAfterClose,
+  modelColors, nextAlarm, phaseOf, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts,
+  viewAfterClose,
 } from './show'
 import type { Spend } from './show'
 
@@ -27,11 +28,15 @@ const TICK_MS = 500
 /** Every this many ticks, running ants are checked against the engine's agent list. */
 const RECONCILE_TICKS = 20
 const MAX_ANTS = 200
+/** The finished subagents the pane lists one by one; the rest are counted. */
+const MAX_FINISHED_SHOWN = 50
+/** A running ant silent this long (no request) no longer keeps the clock ticking on its own. */
+const STALL_MS = 10 * 60_000
 
 const ants = atom({ plugin: 'ant-farm', key: 'ants' } as const, [])
 const loops = atom({ plugin: 'ant-farm', key: 'loops' } as const, { main: NO_USAGE, other: NO_USAGE })
 const turn = atom({ plugin: 'ant-farm', key: 'turn' } as const, { isRunning: false, startedAt: 0 })
-const alarm = atom({ plugin: 'ant-farm', key: 'alarm' } as const, 0)
+const alarm = atom({ plugin: 'ant-farm', key: 'alarm' } as const, { level: 0, budgetUsd: -1 })
 const engineUsd = atom({ plugin: 'ant-farm', key: 'engineUsd' } as const, null)
 const view = atom({ plugin: 'ant-farm', key: 'view' } as const, {
   isListInBand: false,
@@ -85,7 +90,10 @@ async function tick($: EngineInterface) {
   ticks += 1
   try {
     if (ticks % RECONCILE_TICKS === 0) await reconcile($)
-    const busy = (await read($, turn)).isRunning || (await read($, ants)).some(isRunning)
+    const now = await $.clock.now()
+    const busy =
+      (await read($, turn)).isRunning ||
+      (await read($, ants)).some(a => isRunning(a) && now - (a.lastActiveAt ?? a.startedAt) < STALL_MS)
     if (!busy) stopTicker()
     $.ui.invalidate('ui.render')
   } catch {
@@ -130,8 +138,10 @@ async function sessionSpend($: EngineInterface): Promise<Spend> {
 // The status line and the alarm, after every counted request and turn end.
 async function announce($: EngineInterface) {
   const usd = await engineTotal($)
-  // Compared by value: state crosses as JSON.
-  if (usd !== (await read($, engineUsd))) await update($, engineUsd, () => usd)
+  // A failed read keeps the last good total, so one hiccup cannot drop the
+  // figure to the estimate and re-arm the alarm. Compared by value: state
+  // crosses as JSON.
+  if (usd !== null && usd !== (await read($, engineUsd))) await update($, engineUsd, () => usd)
   const spend = await sessionSpend($)
   const level = budgetLevel(spend.usd, budgetUsd)
   const text = statusText(spend, budgetUsd, level)
@@ -139,11 +149,17 @@ async function announce($: EngineInterface) {
     lastStatus = text
     $.ui.status(text)
   }
-  // Levels are plain numbers, so the skip compares by value.
-  if (level === (await read($, alarm))) return
-  let before = 0
-  await update($, alarm, old => ((before = old), level))
-  if (level > before) $.ui.toast(alarmText(spend, budgetUsd, level === 2 ? 2 : 1), { timeoutMs: 8000 })
+  // nextAlarm alone decides; the read first only skips a write that would change nothing.
+  const stored = await read($, alarm)
+  const preview = nextAlarm(stored, level, budgetUsd)
+  if (preview.toast === 0 && preview.alarm.level === stored.level && preview.alarm.budgetUsd === stored.budgetUsd) return
+  let toast = 0 as 0 | 1 | 2
+  await update($, alarm, a => {
+    const next = nextAlarm(a, level, budgetUsd)
+    toast = next.toast
+    return next.alarm
+  })
+  if (toast !== 0) $.ui.toast(alarmText(spend, budgetUsd, toast), { timeoutMs: 8000 })
 }
 
 // Is this loop one of the session's agents? One the mod did not see start
@@ -160,9 +176,9 @@ async function knowAnt($: EngineInterface, id: string): Promise<boolean> {
   const now = await $.clock.now()
   const ant: AntFarmAnt = {
     id, task: info.description || info.type, type: info.type, model: '', status: 'running',
-    startedAt: now, usage: NO_USAGE,
+    startedAt: now, lastActiveAt: now, usage: NO_USAGE,
   }
-  await update($, ants, list => (list.some(a => a.id === id) ? list : [...list, ant].slice(-MAX_ANTS)))
+  await update($, ants, list => (list.some(a => a.id === id) ? list : trimAnts([...list, ant], MAX_ANTS)))
   return true
 }
 
@@ -172,11 +188,12 @@ async function recordStep($: EngineInterface, agentId: string | undefined, reque
   if (agentId === undefined) {
     await update($, loops, l => ({ ...l, main: addRequest(l.main, model, r.usage) }))
   } else if (await knowAnt($, agentId)) {
+    const now = await $.clock.now()
     await update($, ants, list =>
       list.map(a => {
         if (a.id !== agentId) return a
         const { endedAt: _, ...rest } = a
-        return { ...rest, model, status: 'running' as const, usage: addRequest(a.usage, model, r.usage) }
+        return { ...rest, model, status: 'running' as const, lastActiveAt: now, usage: addRequest(a.usage, model, r.usage) }
       }),
     )
     startTicker($)
@@ -226,15 +243,16 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // A /clear starts the session over, as /cost does.
+  // A /clear starts the session over, as /cost does; so does another session
+  // taking this one's place.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear') {
+    if (e.reason === 'clear' || e.reason === 'resume') {
       stopTicker()
       notAgents.clear()
       await update($, ants, () => [])
       await update($, loops, () => ({ main: NO_USAGE, other: NO_USAGE }))
       await update($, turn, () => ({ isRunning: false, startedAt: 0 }))
-      await update($, alarm, () => 0)
+      await update($, alarm, () => ({ level: 0, budgetUsd: -1 }))
       await update($, engineUsd, () => null)
       lastStatus = undefined
       $.ui.status(undefined)
@@ -242,14 +260,17 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // No transcript text: the model would read it. The pane is the answer; a
+  // pane that cannot be placed is explained in a toast.
   on('command.run', { command: 'antfarm' }, async $ => {
     const opened = await $.ui.open({ id: PANE, title: TITLE })
     if (opened.isPlaced) {
       await update($, view, v => ({ ...v, isListInBand: false, isClosedByHand: false }))
-      return { text: 'Ant farm open.' }
+      return {}
     }
     await update($, view, v => ({ ...v, isListInBand: true }))
-    return { text: `The ant farm pane cannot be placed here (${opened.reason}). The band above the prompt lists the subagents instead.` }
+    $.ui.toast(`The ant farm pane cannot be placed here (${opened.reason}). The band above the prompt lists the subagents instead.`)
+    return {}
   })
 
   // An observer, never a gate: it lets the spawn run first, then records the
@@ -258,17 +279,19 @@ export const register: Register = (on, options) => {
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
     if (result.deny !== undefined || result.agentId === undefined) return result
+    const now = await $.clock.now()
     const ant: AntFarmAnt = {
       id: result.agentId,
       task: e.description || e.subagentType,
       type: e.subagentType,
       model: result.model,
       status: 'running',
-      startedAt: await $.clock.now(),
+      startedAt: now,
+      lastActiveAt: now,
       usage: NO_USAGE,
       ...(e.workflow !== undefined ? { isWorkflow: true } : {}),
     }
-    await update($, ants, list => [...list.filter(a => a.id !== ant.id), ant].slice(-MAX_ANTS))
+    await update($, ants, list => trimAnts([...list.filter(a => a.id !== ant.id), ant], MAX_ANTS))
     startTicker($)
     await openUnasked($)
     return result
@@ -346,13 +369,15 @@ export const register: Register = (on, options) => {
       ...(since !== undefined ? [fmtDuration(now - since)] : []),
       `${running.length} running / ${finished.length - failed} done`,
       ...(failed > 0 ? [`${failed} failed`] : []),
-      `${spend.text} session`,
+      spendLabel(spend),
     ].join(' · ')
 
     const items = [...running, ...finished]
     const room = Math.max(1, e.props.maxRows - 2)
     const shown = showList ? items.slice(0, room) : []
     const hidden = showList ? items.length - shown.length : 0
+    // Other mods' bands draw beneath this one, never erased by it.
+    const below = await next(e)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
@@ -379,6 +404,7 @@ export const register: Register = (on, options) => {
           )
         })}
         {hidden > 0 ? <Text dimColor>+{hidden} more - /antfarm shows them all</Text> : null}
+        {below}
       </Box>
     )
   })
@@ -475,7 +501,12 @@ export const register: Register = (on, options) => {
             />
           </Box>
         ) : null}
-        {finished.slice(0, 50).map(a => (v.isFinishedExpanded ? card(a) : line(a)))}
+        {finished.slice(0, MAX_FINISHED_SHOWN).map(a => (v.isFinishedExpanded ? card(a) : line(a)))}
+        {finished.length > MAX_FINISHED_SHOWN ? (
+          <Box key="more-finished">
+            <Text dimColor>+{finished.length - MAX_FINISHED_SHOWN} more finished</Text>
+          </Box>
+        ) : null}
       </Box>
     )
   })
@@ -495,7 +526,7 @@ export const register: Register = (on, options) => {
         <Box key="budget-mark">
           <Text color={level === 2 ? 'error' : 'warning'}>
             {e.props.modes.length > 0 ? ' · ' : ''}
-            {spend.text} {level === 2 ? 'past 2x budget' : 'over budget'}
+            {spend.isEngine ? `Claude Code total ${spend.text}` : spend.text} {level === 2 ? 'past 2x budget' : 'over budget'}
           </Text>
         </Box>
       </Box>

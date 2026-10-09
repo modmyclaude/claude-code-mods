@@ -10,7 +10,7 @@
     "budgetUsd": {
       "type": "number",
       "title": "Session budget (USD)",
-      "description": "When the session's estimated spend reaches this, ant-farm shows a toast and turns its budget mark amber; past twice it, red. 0 turns the alarm off.",
+      "description": "When the session's spend (Claude Code's own total, else the price-table estimate) reaches this, ant-farm shows a toast and turns its budget mark amber; past twice it, red. 0 turns the alarm off.",
       "default": 2
     }
   }

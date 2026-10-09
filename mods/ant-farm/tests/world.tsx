@@ -37,7 +37,8 @@ export function world(on: On, setup: { placed?: boolean; reason?: string } = {})
     /** The chunks of the last model request, as they reached the test. */
     chunks: [] as unknown[],
   }
-  const stepUsage: (TurnUsage | null)[] = []
+  // What each model request answers: usage, a response with none, or no response at all.
+  const stepUsage: (TurnUsage | null | 'no-response')[] = []
   const placed = setup.placed ?? true
   const reason = setup.reason ?? 'waits for 144 columns, the terminal has 120'
 
@@ -92,11 +93,14 @@ export function world(on: On, setup: { placed?: boolean; reason?: string } = {})
   })
   // Each model request answers with the usage the test queued for it.
   on('turn.step', async function* ($, e) {
-    const usage = stepUsage.shift() ?? null
+    const queued = stepUsage.shift() ?? null
+    if (queued === 'no-response') {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: null, usage: null }
+    }
     yield { kind: 'text', index: 0, text: `reply ${e.index}` }
     return {
       turnId: e.turnId, index: e.index, answer: '', toolUses: [],
-      stopReason: 'end_turn', usage,
+      stopReason: 'end_turn', usage: queued,
     }
   })
 
@@ -114,7 +118,7 @@ export function world(on: On, setup: { placed?: boolean; reason?: string } = {})
       return r.agentId ?? ''
     },
     /** One model request in a loop (`agentId` absent: the main loop), with its usage. */
-    async step($: Engine, agentId: string | undefined, usage: TurnUsage | null, model = 'claude-haiku-5-5') {
+    async step($: Engine, agentId: string | undefined, usage: TurnUsage | null | 'no-response', model = 'claude-haiku-5-5') {
       stepUsage.push(usage)
       const stream = $.turn.step({
         turnId: `turn-${agentId ?? 'main'}`, index: 0, model, messageCount: 1,
