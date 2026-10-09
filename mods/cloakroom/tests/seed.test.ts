@@ -1,13 +1,14 @@
 // Session start: the project's .env files teach cloakroom their secret-named
-// values, so a short password echoed back later, in any common spelling, is
-// hidden though no pattern would catch it. And nothing of it is kept on disk.
+// values, so a password echoed back later, in any common spelling, is hidden
+// though no pattern would catch it. And nothing of it is kept on disk.
 
 import { describe, expect, test } from 'claude-code/testing'
 
 import { alnum } from './corpus'
 import { bash, cloakroom, ROOT, runBash, start, stdoutOf, TICKET, TICKETS, world } from './world'
 
-const PW = 'hunter2'
+/** A made-up password: long and varied enough to learn (see isLearnable). */
+const PW = 'fake-Kq7xW2pLm9'
 const KEY = ['sk', '_live_', alnum(24, 900)].join('')
 
 describe('seeding from .env files', () => {
@@ -35,7 +36,7 @@ describe('seeding from .env files', () => {
     expect(await cloakroom($)).toMatch(/no tickets yet/)
   })
 
-  test('a seeded short password is hidden in every spelling a tool hands back', async ($, on) => {
+  test('a seeded password is hidden in every spelling a tool hands back', async ($, on) => {
     const w = world(on, { [`${ROOT}/.env`]: `DB_PASSWORD=${PW}\nPORT=3000\n` })
     await start($)
     const spellings = [

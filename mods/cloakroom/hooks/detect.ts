@@ -75,6 +75,51 @@ export function isPlaceholder(value: string): boolean {
   return false
 }
 
+/**
+ * A filesystem path: `/Users/dev/app`, `~/x`, `./x`, `../x`, `C:\x`, or
+ * folders then a file name (`certs/dev.pem`). `PWD`, `OLDPWD` and
+ * `PASSWORD_STORE_DIR` hold one, and a path is never the secret itself.
+ */
+export function isPathLike(value: string): boolean {
+  if (/^(?:~|\.{1,2})?[\\/]|^~$|^[A-Za-z]:[\\/]/.test(value)) return true
+  const parts = value.split('/')
+  return parts.length > 1 && parts.every(p => /^[\w-][\w.-]*$/.test(p)) && /\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(value)
+}
+
+/** Defaults people leave in dev .env files, compared without case or a trailing `123`/`!`. */
+const COMMON_DEFAULTS = new Set([
+  'postgres', 'postgresql', 'mysql', 'mariadb', 'mongodb', 'redis', 'rabbitmq', 'docker', 'password', 'passw0rd',
+  'admin', 'administrator', 'root', 'toor', 'guest', 'user', 'secret', 'supersecret', 'mysecret', 'secretkey',
+  'changeme', 'example', 'test', 'testing', 'localhost', 'development', 'production', 'staging', 'default',
+  'true', 'false', 'null', 'undefined', 'letmein', 'welcome', 'qwerty', 'qwertyuiop', 'iloveyou', 'trustno1',
+])
+
+/** Shortest value hidden everywhere it appears; a shorter one is hidden only where a detector finds it. */
+export const MIN_LEARN_CHARS = 8
+/**
+ * Shannon entropy of a value's own characters is at most log2(length), so at
+ * the 8-character floor 3.0 bits means eight distinct characters. Words and
+ * defaults score under it (postgres 2.75, localhost 2.73, supersecret 2.66,
+ * password1 2.95), while a random 12-character token from a 36-symbol
+ * alphabet averages 3.3 (about 1 in 20 falls under 3.0 and is then hidden
+ * only by shape) and longer or richer tokens score higher still.
+ */
+export const MIN_LEARN_ENTROPY = 3.0
+
+/**
+ * Whether a value may be learned: matched everywhere it appears for the rest
+ * of the session, not only where a detector finds it. A path, a short value, a
+ * common default or a low-entropy word would mask unrelated text (the project
+ * path in every build log, `postgres` in every image name), so it is not.
+ */
+export function isLearnable(value: string): boolean {
+  if (value.length < MIN_LEARN_CHARS || isPathLike(value)) return false
+  if ('01234567890'.includes(value) || '9876543210'.includes(value)) return false // 12345678
+  const word = value.toLowerCase()
+  if (COMMON_DEFAULTS.has(word) || COMMON_DEFAULTS.has(word.replace(/[^a-z]+$/, ''))) return false // Postgres123!
+  return entropy(value) >= MIN_LEARN_ENTROPY - 1e-9 // eight distinct characters score exactly 3.0
+}
+
 /** A value written next to a name may also be code that reads one. */
 function isPlaceholderOrCode(value: string): boolean {
   return isPlaceholder(value) || CODE_REF.test(value)
@@ -496,7 +541,8 @@ const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 
 /** Whether `value`, written next to a name of class `cls`, looks like the secret itself. */
 export function namedValueLooksSecret(cls: NameClass, value: string, isQuoted: boolean): boolean {
-  if (cls === null || isPlaceholderOrCode(value)) return false
+  // `PWD=/Users/dev/app` (a `pwd` name), `PASSWORD_STORE_DIR=~/.password-store`: a path, not the secret.
+  if (cls === null || isPlaceholderOrCode(value) || isPathLike(value)) return false
   const isBareWord = !isQuoted && IDENTIFIER.test(value)
   switch (cls) {
     case 'password':

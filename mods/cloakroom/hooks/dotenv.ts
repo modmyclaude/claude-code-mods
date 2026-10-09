@@ -1,7 +1,7 @@
 // .env files: which ones to read at session start, how to parse them, and
 // which of their values are worth hiding everywhere for the session.
 
-import { isPlaceholder } from './detect'
+import { isLearnable, isPlaceholder } from './detect'
 
 /** `.env`, `.env.local`, `.env.production`: the names cloakroom reads. */
 export function isEnvFileName(name: string): boolean {
@@ -23,15 +23,15 @@ export function isSecretName(name: string): boolean {
 }
 
 /**
- * Whether a .env value is worth hiding everywhere it appears this session.
- * Short or plain passwords count (that is the point of reading .env): only
- * placeholders, flags, paths and bare numbers under non-password names are left.
+ * Whether a .env value is worth hiding everywhere it appears this session: a
+ * learnable value (see isLearnable: not a path, a short value, a common default
+ * like `postgres` or a low-entropy word), not a placeholder, and not a bare
+ * number under a non-password name. A weak one is still hidden where it sits
+ * next to its name (`DB_PASSWORD=hunter2`), by shape.
  */
 export function isWorthHiding(name: string, value: string): boolean {
-  if (value.length < 6) return false
-  if (isPlaceholder(value)) return false
-  if (/^(?:\.{1,2}|~)\//.test(value)) return false // a relative path
-  if (/^\d+$/.test(value) && !PASSWORD_NAME.test(name)) return false // TOKEN_TTL=86400
+  if (!isLearnable(value) || isPlaceholder(value)) return false
+  if (/^\d+$/.test(value) && !PASSWORD_NAME.test(name)) return false // TOKEN_TTL=86400000
   return true
 }
 

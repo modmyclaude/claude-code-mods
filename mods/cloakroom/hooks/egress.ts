@@ -16,7 +16,7 @@ const NET = new Set([
 /** git subcommands that reach a remote. */
 const GIT_NET = new Set(['push', 'fetch', 'pull', 'clone', 'ls-remote', 'remote', 'send-email', 'request-pull', 'submodule'])
 /** Words that run the next word as the command. */
-const WRAPPERS = new Set(['sudo', 'doas', 'env', 'exec', 'command', 'builtin', 'nohup', 'time', 'nice', 'stdbuf', 'timeout', 'xargs', 'then', 'do', 'else', '!'])
+const WRAPPERS = new Set(['sudo', 'doas', 'env', 'exec', 'command', 'builtin', 'nohup', 'time', 'nice', 'stdbuf', 'timeout', 'xargs', 'busybox', 'then', 'do', 'else', '!'])
 
 const URL_RE = /\bhttps?:\/\/[^\s'"<>|;&)`\\]{1,2048}/g
 

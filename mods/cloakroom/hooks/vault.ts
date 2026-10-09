@@ -9,7 +9,7 @@
 // crypto.getRandomValues. Nothing in a ticket is computed from the value, and
 // the same value keeps the same ticket for the life of the vault.
 
-import { detect, type Hit } from './detect'
+import { detect, isLearnable, type Hit } from './detect'
 
 export type Entry = {
   ticket: string
@@ -37,8 +37,6 @@ export class ScanError extends Error {
 export const MAX_SCAN_CHARS = 16 * 1024 * 1024
 /** Wall-clock cap for one scan; past it the text is withheld. */
 export const SCAN_BUDGET_MS = 4000
-/** Shorter known values are hidden where a detector finds them, not everywhere. */
-export const MIN_KNOWN_CHARS = 6
 const MAX_ENTRIES = 2000
 
 export const TICKET = /\[secret:[A-Z0-9_]{1,48}#[a-z2-7]{6}\]/g
@@ -270,7 +268,7 @@ export class Vault {
     this.byTicket.set(entry.ticket, entry)
     this.ignored.delete(value)
     this.evict()
-    if (value.length >= MIN_KNOWN_CHARS) {
+    if (isLearnable(value)) {
       this.matcher = undefined
       this.grown = true
     }
@@ -310,7 +308,8 @@ export class Vault {
     if (this.matcher) return this.matcher
     const matcher = new Matcher()
     for (const entry of this.byValue.values()) {
-      if (entry.value.length < MIN_KNOWN_CHARS) continue
+      // A path, a short value or a common default is hidden only where a detector finds it.
+      if (!isLearnable(entry.value)) continue
       matcher.add(entry.value, entry)
       for (const form of encodedForms(entry.value)) matcher.add(form, entry)
     }

@@ -9,7 +9,7 @@ import { alnum } from './corpus'
 import { BAND, bash, cloakroom, HOME, ROOT, runBash, start, stdoutOf, SURFACES, TICKET, world, type World } from './world'
 
 const KEY = ['sk', '_live_', alnum(24, 700)].join('')
-const PASSWORD = 'hunter2'
+const PASSWORD = 'Zq8-fakepw-4Lt7'
 const ENV = `STRIPE_SECRET_KEY=${KEY}\nDB_PASSWORD=${PASSWORD}\nPORT=3000\n`
 
 async function setUp($: Engine, on: On, files: Record<string, string> = {}): Promise<World> {
@@ -158,7 +158,7 @@ describe('/cloakroom audit', () => {
     expect(text).toContain('cloakroom audit (read-only): 4 of 4 transcripts in ~/.claude/projects checked')
     expect(text).toContain(`- GitHub token: ghp_...${GH.slice(-3)} (GITHUB_TOKEN) - 2 transcripts, 2026-09-12 to 2026-10-01`)
     expect(text).toContain(`- From a .env file: sk_live_...${KEY.slice(-3)} (STRIPE_SECRET_KEY) - 1 transcript, 2026-10-02`)
-    expect(text).toContain('- From a .env file: (7 chars) (DB_PASSWORD) - 1 transcript, 2026-10-01')
+    expect(text).toContain('- From a .env file: (15 chars) (DB_PASSWORD) - 1 transcript, 2026-10-01')
     for (const secret of [GH, KEY, PASSWORD]) expect(text).not.toContain(secret)
     expect(w.writes).toEqual([])
     // Values found in old transcripts are reported, not learned.
