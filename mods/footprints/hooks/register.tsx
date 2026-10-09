@@ -156,9 +156,10 @@ function stopShimmer(): void {
 /** One frame: the only place the timer stops, so a call that never reported back cannot leave it running. */
 async function tick($: Engine): Promise<void> {
   if (!Object.values(await read($, marksAtom)).some(isEditing)) return stopShimmer()
-  // Frames matter only to a pane on screen: no state writes while it is closed or behind a tab.
+  // Frames matter only to a pane on screen: stop while it is closed or behind a tab (opening it starts them again).
   const isShown = (await $.ui.panes()).some(pane => pane.id === PANE && pane.isShown)
-  if (isShown) await update($, phaseAtom, phase => (phase + 1) % 10000)
+  if (!isShown) return stopShimmer()
+  await update($, phaseAtom, phase => (phase + 1) % 10000)
 }
 
 // ---------------------------------------------------------------- git and the disk
@@ -182,7 +183,7 @@ async function gitStatus($: Engine, repo: Repo): Promise<Porcelain | null> {
   const out = await $.process.run(
     [
       'git', '--no-optional-locks', '-C', repo.root, 'status', '--porcelain=v2', '-z', '--branch',
-      '--untracked-files=all', '--no-renames', '--', NO_NODE_MODULES_ANYWHERE,
+      '--untracked-files=all', '--no-renames', '--', ':/', NO_NODE_MODULES_ANYWHERE,
     ],
     { timeoutMs: SLOW_GIT_MS + 1000 },
   )
@@ -289,6 +290,7 @@ async function rescan($: Engine): Promise<void> {
 async function openPane($: Engine): Promise<boolean> {
   const opened = await $.ui.open({ id: PANE, title: 'Footprints' })
   if (!opened.isPlaced) $.ui.toast(clean(`Footprints cannot show its pane here: ${opened.reason}`))
+  if (Object.values(await read($, marksAtom)).some(isEditing)) startShimmer($) // an edit already running shimmers
   await quietly(rescan($))
   return opened.isPlaced
 }
@@ -327,7 +329,9 @@ async function afterShell($: Engine, watch: Watch, command: string, ran: ToolCal
       const next = { ...current }
       for (const [path, change] of changes) {
         const abs = toAbs(repo, path)
-        next[abs] = applyShell(next[abs], change)
+        const mark = orNothing(applyShell(next[abs], change))
+        if (mark) next[abs] = mark
+        else delete next[abs]
       }
       if (isCommit) {
         for (const [abs, mark] of Object.entries(next)) {
@@ -412,7 +416,15 @@ export const register: Register = on => {
     } else if (arg !== '') {
       $.ui.toast('Footprints: /footprints opens the pane, /footprints touched toggles touched-only')
     } else {
+      await $.state.set(SHELL_PAUSED, false) // asking again is the person's go-ahead to retry a slow git
       await openPane($)
+    }
+    return {}
+  }).catch($ => {
+    try {
+      $.ui.toast('Footprints could not open its pane here.')
+    } catch {
+      // nothing more to say where even a toast is refused
     }
     return {}
   })

@@ -157,6 +157,9 @@ describe('marks', () => {
     expect(applyShell({ read: true }, 'new')).toEqual({ read: true, edited: true, isNew: true, viaShell: true })
     expect(applyShell({ edited: true, committed: true }, 'deleted')).toEqual({ edited: true, deleted: true })
     expect(applyShell({ edited: true, deleted: true, viaShell: true }, 'new')).toEqual({ edited: true, isNew: true, viaShell: true })
+    // created this session, then removed again: no trace but the read
+    expect(applyShell({ edited: true, isNew: true }, 'deleted')).toEqual({})
+    expect(applyShell({ read: true, edited: true, isNew: true, viaShell: true }, 'deleted')).toEqual({ read: true })
   })
 
   test('a search marks a folder; a read marks a file', () => {
