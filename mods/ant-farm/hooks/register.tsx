@@ -14,6 +14,7 @@ import type { AgentStatus, EngineInterface, Register, Timer, TurnStepResult } fr
 
 import type { AntFarmAnt, AntFarmLoops, AntFarmStatus, AntFarmUsage } from '../types'
 import { addRequest, budgetLevel, NO_USAGE, sumUsage } from './prices'
+import { boltSprite } from './bolt-draw'
 import {
   alarmText, ANT_WIDTH, antRows, bar, clean, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt,
   modelColors, nextAlarm, phaseOf, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts,
@@ -25,6 +26,8 @@ const PANE = 'ant-farm'
 const TITLE = 'Ant farm'
 /** One frame of the ants, and of every elapsed time shown. */
 const TICK_MS = 500
+/** Narrower than this, the pane keeps every column for the farm and Bolt steps out. */
+const BOLT_MIN_COLUMNS = 40
 /** Every this many ticks, running ants are checked against the engine's agent list. */
 const RECONCILE_TICKS = 20
 const MAX_ANTS = 200
@@ -484,25 +487,45 @@ export const register: Register = (on, options) => {
       </Box>
     )
 
+    // Bolt keeps the farm (MM-091): a static sprite beside the totals, and asleep
+    // while the farm is empty; only where the pane has room for it.
+    const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
+    const totals = (
+      <Box key="totals">
+        <Text bold wrap="truncate-end">
+          Subagents {fmtCost(subagents)} · {fmtTokens(subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
+        </Text>
+      </Box>
+    )
+    const budgetRow = (
+      <Box key="budget">
+        <Text wrap="truncate-end" {...(level === 2 ? { color: 'error' } : level === 1 ? { color: 'warning' } : { dimColor: true })}>
+          {budgetLine}
+        </Text>
+      </Box>
+    )
+
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
-        <Box key="totals">
-          <Text bold wrap="truncate-end">
-            Subagents {fmtCost(subagents)} · {fmtTokens(subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
-          </Text>
-        </Box>
-        <Box key="budget">
-          <Text wrap="truncate-end" {...(level === 2 ? { color: 'error' } : level === 1 ? { color: 'warning' } : { dimColor: true })}>
-            {budgetLine}
-          </Text>
-        </Box>
+        {roomy ? (
+          <Box key="head" flexDirection="row" gap={1}>
+            {list.length > 0 ? boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'idle' }) : null}
+            <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+              {totals}
+              {budgetRow}
+            </Box>
+          </Box>
+        ) : (
+          [totals, budgetRow]
+        )}
         <Box key="counts" marginBottom={1}>
           <Text dimColor wrap="truncate-end">
             {running.length} running · {finished.length - failed} done · {failed} failed
           </Text>
         </Box>
         {list.length === 0 ? (
-          <Box key="empty">
+          <Box key="empty" flexDirection="row" gap={2} alignItems="center">
+            {roomy ? boltSprite($.ui.resolve(e), e.surface, { size: 'small', pose: 'sleep' }) : null}
             <Text dimColor>No subagents yet this session. Each one gets an ant here when it starts.</Text>
           </Box>
         ) : null}

@@ -6,6 +6,8 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
+import { boltOf, rasterCells } from '../hooks/bolt-draw'
+
 import {
   DOCKED, NARROW, PANE, PLUGIN, SURFACES, bandProps, engineBand, paneProps, usage, world,
 } from './world'
@@ -372,6 +374,56 @@ describe('band', () => {
 })
 
 describe('pane and the narrow fallback', () => {
+  // Bolt (MM-091): asleep in the empty farm, the small keeper beside the totals once
+  // ants arrive, and out of the way in a narrow pane. A Raster on the terminal, one
+  // code-font cell per character on the desktop.
+  type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  const under = (node: unknown, key: string): Drawn | undefined => {
+    if (node === null || typeof node !== 'object') return undefined
+    const n = node as Drawn
+    if (n.key === key || n.props?.key === key) return n
+    for (const c of n.children ?? []) {
+      const hit = under(c, key)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
+  /** Bolt's size as cells: a Raster's columns x rows, or the desktop's rows of one-cell Boxes. */
+  const boltSize = (bolt: Drawn | undefined) => {
+    if (bolt === undefined) return undefined
+    if (bolt.type === 'Raster') return [bolt.props?.columns, bolt.props?.rows]
+    const rows = (bolt.children ?? []) as Drawn[]
+    return [(rows[0]?.children ?? []).length, rows.length]
+  }
+
+  test('Bolt sleeps in the empty farm and keeps it once ants arrive; a narrow pane leaves it out', async ($, on) => {
+    const w = world(on)
+    for (const surface of SURFACES) {
+      const pane = await mountPane($, surface)
+      const tree = await pane.drawn()
+      expect(boltSize(under(under(tree, 'empty'), 'bolt'))).toEqual([10, 5])
+      if (surface === 'terminal') expect(under(tree, 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'small', pose: 'sleep' })))
+      expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
+      expect(under(tree, 'head')).toBeDefined()
+      expect(under(under(tree, 'head'), 'bolt')).toBeUndefined()
+      await pane.unmount()
+      const narrow = await mountPane($, surface, 30)
+      expect(await narrow.find({ key: 'bolt' })).toBeUndefined()
+      expect((await narrow.find({ key: 'empty' }))?.text).toContain('No subagents yet')
+      await narrow.unmount()
+    }
+    await w.spawn($, 'Busy')
+    for (const surface of SURFACES) {
+      const pane = await mountPane($, surface)
+      const tree = await pane.drawn()
+      expect(boltSize(under(under(tree, 'head'), 'bolt'))).toEqual([3, 2])
+      if (surface === 'terminal') expect(under(under(tree, 'head'), 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'tiny', pose: 'idle' })))
+      expect(under(tree, 'empty')).toBeUndefined()
+      expect((await pane.find({ key: 'totals' }))?.text).toContain('Subagents')
+      await pane.unmount()
+    }
+  })
+
   test('/antfarm opens the pane', async ($, on) => {
     const w = world(on)
     await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
