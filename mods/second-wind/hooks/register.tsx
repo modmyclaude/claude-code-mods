@@ -47,6 +47,8 @@ let isHealing = false
 let lastStatus: string | null = null
 let isMirroring = false
 let typingShown: boolean | undefined
+// The main turn in flight, so a surface that attaches mid-turn can still arm it.
+let mainTurn: { id: string; startedAt: number } | null = null
 
 /** The one timer a run needs next: none when idle, a tick only while it moves. */
 export function timerFor(r: SecondWindRun | null, now: number, tickMs: number): Spec | null {
@@ -295,28 +297,56 @@ async function breathe($: EngineInterface, args: string): Promise<{ text: string
   }
 }
 
-/** A main turn began: arm a run, or keep the one already breathing. */
+/** A main turn began: clear an unanswered card, and arm the turn's run. */
 async function begin($: EngineInterface, turnId: string): Promise<void> {
+  mainTurn = { id: turnId, startedAt: await $.clock.now() }
+  if ((await read($, card)) !== null) await $.state.set(CARD, null)
+  await arm($)
+}
+
+/**
+ * Arms the main turn's run once something can draw it; safe to call again.
+ * A plain -p run or an SDK host with no client attached draws nothing, so it
+ * gets no run: no timer and no counts (API-GOTCHAS #28). A surface that
+ * attaches mid-turn arms it then, and its breath starts no earlier than that.
+ */
+async function arm($: EngineInterface): Promise<void> {
+  const t = mainTurn
+  if (t === null) return
   const now = await $.clock.now()
   if (!isOn(await loadSwitch($), localDay(now))) return
-  if ((await read($, card)) !== null) await $.state.set(CARD, null)
+  if ((await $.session.surfaces()).length === 0) return
   const fresh: SecondWindRun = {
-    id: turnId, phase: 'waiting', turnStartedAt: now, breathStartedAt: now + settings.delayMs,
+    id: t.id, phase: 'waiting', turnStartedAt: t.startedAt, breathStartedAt: Math.max(t.startedAt + settings.delayMs, now),
     plan: planOf(settings), isLong: false, finish: null, fold: null,
   }
   await changeRun($, cur => {
-    if (cur !== null && (cur.phase === 'waiting' || cur.phase === 'breathing')) return cur // already breathing: never restart
-    if (cur !== null && cur.phase === 'finishing') return { ...cur, phase: 'breathing', finish: null } // asked again mid-exhale: carry on
+    // Main turns never overlap and a subagent raises no turn.start, so a run
+    // still waiting or breathing for another turn lost its turn.complete: it
+    // is dropped uncounted, never inherited.
+    if (cur !== null && (cur.phase === 'waiting' || cur.phase === 'breathing')) return cur.id === t.id ? cur : fresh
+    // Asked again mid-exhale: carry on, now for this turn.
+    if (cur !== null && cur.phase === 'finishing') return { ...cur, id: t.id, phase: 'breathing', finish: null }
     return fresh
   })
   await pump($)
 }
 
+/** Drops a run that no surface can show, or whose turn is gone, counting nothing. */
+async function drop($: EngineInterface, r: SecondWindRun): Promise<void> {
+  await changeRun($, cur => (cur?.id === r.id && cur.phase === r.phase ? null : cur))
+  await pump($)
+}
+
 /** The main turn answered (or was interrupted): finish softly, or drop a run that never showed. */
-async function end($: EngineInterface, isAborted: boolean): Promise<void> {
+async function end($: EngineInterface, turnId: string, isAborted: boolean): Promise<void> {
+  mainTurn = null
   const now = await $.clock.now()
   const r = await read($, run)
   if (r === null || (r.phase !== 'waiting' && r.phase !== 'breathing')) return
+  // Breaths count only for the turn that armed them: a run left over from a
+  // turn whose own turn.complete never came is dropped, not folded in here.
+  if (r.id !== turnId) return drop($, r)
   const isQuick = r.phase === 'waiting'
   const finish = softFinish(r.plan, now - r.breathStartedAt, isAborted)
   await changeRun($, cur => {
@@ -335,6 +365,7 @@ export const register: Register = (on, options) => {
   lastStatus = null
   isMirroring = false
   typingShown = undefined
+  mainTurn = null
 
   on('session.start', async ($, e, next) => {
     try {
@@ -350,9 +381,38 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'breathe' }, ($, e) => breathe($, e.args)).catch(() => ({
-    text: 'Second Wind could not answer that just now.',
-  }))
+  // The answer is for the person, not the model (API-GOTCHAS #18): a dim
+  // transcript line Claude never reads, and an empty result.
+  on('command.run', { command: 'breathe' }, async ($, e) => {
+    $.ui.log((await breathe($, e.args)).text)
+    return {}
+  }).catch(($) => {
+    $.ui.log('Second Wind could not answer that just now.')
+    return {}
+  })
+
+  // A client joining mid-turn (the desktop app, a phone) arms the turn it can now
+  // show; one leaving the session with nothing attached drops the run uncounted.
+  on('session.attach', async ($, e, next) => {
+    const r = await next(e)
+    try {
+      await arm($)
+    } catch {
+      // The band waits for the next turn instead.
+    }
+    return r
+  })
+
+  on('session.detach', async ($, e, next) => {
+    const r = await next(e)
+    try {
+      const cur = await read($, run)
+      if (cur !== null && (cur.phase === 'waiting' || cur.phase === 'breathing') && (await $.session.surfaces()).length === 0) await drop($, cur)
+    } catch {
+      // The turn's end clears it instead.
+    }
+    return r
+  })
 
   // Only the main conversation raises turn.start: a subagent's run never does.
   on('turn.start', async ($, e, next) => {
@@ -369,7 +429,7 @@ export const register: Register = (on, options) => {
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) {
       try {
-        await end($, e.isAborted)
+        await end($, e.turnId, e.isAborted)
       } catch {
         // The answer shows whatever happens here.
       }
@@ -377,8 +437,19 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // The band shrinks to one line while the person types. Never awaited: the
-  // edit passes through untouched and at once.
+  // The band shrinks to one line while the person types. The prompt line says
+  // whether the box holds a draft on the terminal and the desktop alike; the
+  // desktop app draws its own composer and raises no prompt.edit (API-GOTCHAS
+  // #32). A render hook cannot write state, so the write waits one clock turn.
+  on('ui.render', { component: 'PromptHint' }, ($, e, next) => {
+    const isDraft = e.props.isDraft
+    if (isDraft !== typingShown) $.clock.after(0, () => noteTyping($, isDraft))
+    return next(e)
+  })
+
+  // The terminal's own prompt box also reports each edit as it lands, a beat
+  // before its prompt line redraws. Never awaited: the edit passes through
+  // untouched and at once.
   on('prompt.edit', ($, e, next) => {
     noteTyping($, draftAfter(e).length > 0)
     return next(e)
@@ -395,12 +466,16 @@ export const register: Register = (on, options) => {
     const now = await read($, clock)
     const isTyping = await read($, typing)
     const offered = await read($, card)
-    heal($, r)
+    // A run still `breathing` while no turn works lost its turn.complete (a
+    // reload at the wrong moment, a mod above that kept it): draw nothing for
+    // it and stop its clock. A draw while a turn works wakes it; the next
+    // turn.start drops it uncounted.
+    const isOrphan = r !== null && r.phase === 'breathing' && !e.props.isWorking
+    if (isOrphan) want($, null)
+    else heal($, r)
     const rest = await next(e)
 
-    // A run still `breathing` while no turn works was orphaned (a reload at the
-    // wrong moment): draw nothing for it.
-    const frame = r !== null && !(r.phase === 'breathing' && !e.props.isWorking) ? frameAt(r, now) : null
+    const frame = r !== null && !isOrphan ? frameAt(r, now) : null
     const folded = r !== null && r.phase === 'folded' ? r.fold : null
     if (frame === null && folded === null && offered === null) return rest
 
@@ -410,11 +485,13 @@ export const register: Register = (on, options) => {
     const rows: RenderNode[] = []
 
     if (offered !== null) {
+      // Click, or Tab and Enter: no hotkeys, as d and s are other band mods'
+      // Dismiss, Deny, Done and Skip.
       rows.push(
         <Box key="sw-card" flexDirection="row" gap={1}>
           <Text bold color={ACCENT} wrap="truncate-end">{CARD_TEXT[offered.kind]}</Text>
-          <Button key="sw-did" label="Did it" hotkey="d" variant="primary" onPress={() => answerCard($, true)} />
-          <Button key="sw-skip" label="Skip" hotkey="s" onPress={() => answerCard($, false)} />
+          <Button key="sw-did" label="Did it" variant="primary" onPress={() => answerCard($, true)} />
+          <Button key="sw-skip" label="Skip" onPress={() => answerCard($, false)} />
         </Box>,
       )
     }

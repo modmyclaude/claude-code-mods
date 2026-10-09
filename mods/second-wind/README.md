@@ -46,7 +46,7 @@ Breathe in 4  physiological sigh
 
 ### Movement card (off by default)
 
-Turn on `movementCard` and every fifth long turn offers a card above the prompt, "Stand up and stretch" or "10 squats", with **Did it** and **Skip** buttons (keys `d` and `s` once the band has focus: click it, or ctrl+x tab). It never blocks the prompt: keep typing and answer it whenever you like. It goes away when you press a button or start your next turn. **Did it** counts a move for today.
+Turn on `movementCard` and every fifth long turn offers a card above the prompt, "Stand up and stretch" or "10 squats", with **Did it** and **Skip** buttons (click one, or Tab to it and press Enter; there are no letter keys, so they never clash with other mods' buttons). It never blocks the prompt: keep typing and answer it whenever you like. It goes away when you press a button or start your next turn. **Did it** counts a move for today.
 
 Breathe gently and never strain. If you feel lightheaded, stop and breathe normally.
 
@@ -68,7 +68,9 @@ Change them in `/config`.
 - **Store:** its own store keeps counts and dates only: breaths, eye rests, stretches and moves for today and in all, the day they belong to, the streak and its last day, how many long turns there were, and whether you turned it off or snoozed it (and which day).
 - **Session state:** the breath in progress, the time it was last drawn, whether you are typing, and an offered card. Nothing of your prompt is kept: typing is read only as "the box is empty or not".
 - **Clipboard:** only when you run `/breathe card`.
-- **Timers:** one, and only while the band is visible: 8 redraws a second for `full`, 2 for `gentle`, 1 for `still`. While the fold line shows it waits without ticking. Between turns no timer runs.
+- **Commands:** `/breathe` writes its answer as a dim transcript note for you. Claude never reads it, so it costs no tokens.
+- **Status line:** on mobile and in VS Code only, the current cue (see Limits).
+- **Timers:** one, and only while a turn runs and something can show the band: 8 redraws a second for `full`, 2 for `gentle`, 1 for `still`. While the fold line shows it waits without ticking. Between turns no timer runs, and a run whose turn ended unseen stops at the band's next draw. In a plain `-p` run, or with no window or phone attached, it does nothing at all and counts nothing.
 - **Files, processes, network, model calls:** none.
 
 ## Limits
@@ -76,7 +78,8 @@ Change them in `/config`.
 - **Surfaces:** the band and the spinner are drawn by Claude Code in the terminal and the desktop app only. On mobile and in VS Code mods get neither, so there Second Wind puts the current cue in its status line instead, and only when no terminal or desktop window is attached to the session.
 - **The desktop circle** is an SVG picture, which cannot use theme keys. It is a soft blue at partial opacity that follows the app's light or dark mode. Everything else uses your theme's colours. The circle animates each step of the breath by itself, so if the band first appears mid-step, that one step plays from its start; the next step is back in time.
 - **Days** are your computer's local calendar days. Flying west so the date goes back never breaks a streak.
-- **Typing:** the band shrinks when the prompt box has text after an edit, and grows back when it is emptied or a prompt is sent. A draft cleared without an edit (rare) keeps the band small until you send something.
+- **Typing:** the band shrinks while the prompt box holds a draft and grows back when it is emptied or sent, in the terminal and the desktop app alike. It reads this from the hint line under the prompt, so it follows a beat after that line redraws.
+- **Counts:** breaths count only for the turn that showed them. If a turn's end never reaches the mod (another mod held it, or a reload landed at that moment), that turn's breaths are dropped rather than added to the next turn. In the terminal and the desktop app its clock stops at once; on mobile or in VS Code alone it runs on until your next turn starts.
 - **Reloads:** changing a setting reloads the mod. A breath already running keeps its old settings until the turn ends, and its animation resumes on the band's next draw.
 
 ## Built from a prompt

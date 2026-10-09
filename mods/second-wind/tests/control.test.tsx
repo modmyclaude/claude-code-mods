@@ -59,7 +59,7 @@ describe('control characters (API-GOTCHAS #31)', () => {
   for (const [name, c] of CONTROLS) {
     test(`${name} in a word typed after /breathe is repeated clean`, async ($, on) => {
       const w = world(on)
-      const text = (await w.breathe($, `loud${c}`)).text ?? ''
+      const text = (await w.say($, `loud${c}`)).text ?? ''
       expect(text).not.toMatch(CONTROL)
       expect(text).toMatch(/^Second Wind does not know "loud�?"\. Use \/breathe/)
     })
@@ -111,7 +111,11 @@ describe('control characters (API-GOTCHAS #31)', () => {
         await ui.unmount()
       }
 
-      for (const args of ['', 'card', 'help']) expect((await w.breathe($, args)).text ?? '').not.toMatch(CONTROL_BUT_NEWLINE)
+      for (const args of ['', 'card', 'help']) {
+        const said = (await w.say($, args)).text
+        expect(said).toBeDefined()
+        expect(said ?? '').not.toMatch(CONTROL_BUT_NEWLINE)
+      }
       expect(w.rec.copies).toHaveLength(1)
       for (const copied of w.rec.copies) expect(copied).not.toMatch(CONTROL_BUT_NEWLINE)
     },
