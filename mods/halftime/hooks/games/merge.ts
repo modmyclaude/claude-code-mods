@@ -1,12 +1,27 @@
 // merge: a 4x4 board of lettered tiers. Slide everything one way; two equal
 // tiers that meet become the next letter, once per tile per move. A new A
 // (sometimes a B) lands after every move that changed the board.
+//
+// Easy to start, a little harder as it goes (MM-089):
+//  - The deal is two A's in one row or column, so the first slide along that
+//    line already makes a B. A board with two tiles on sixteen cells always
+//    has a move, so a start is never dead.
+//  - For the first 12 moves only A's are dealt. After that a B appears with a
+//    chance that climbs 0.4 points per move up to the original 1 in 8.
+//  - The game can still end, but never in the opening: every move adds one
+//    tile at most, so a full board (which a dead board needs) takes 14 moves.
 
 import type { HalftimeMerge } from '../../types'
 import { rand, randInt } from '../rng'
-import { BOLD, frame, type Cell, type Drawn, type Game } from './kit'
+import { BOLD, clamp, frame, type Cell, type Drawn, type Game } from './kit'
 
 export const SIZE = 4
+
+/** Moves at the start that deal nothing but the lowest tile. */
+export const OPENING_MOVES = 12
+
+/** The chance a spawn is a tier-2 tile after `moves` moves: none in the opening, then up 0.4 points a move to 1 in 8. */
+export const highChance = (moves: number) => clamp((moves - OPENING_MOVES) * 0.004, 0, 0.125)
 
 export type Direction = 'left' | 'right' | 'up' | 'down'
 
@@ -65,28 +80,39 @@ export function canMove(cells: readonly number[]): boolean {
   return (['left', 'right', 'up', 'down'] as const).some(dir => slide(cells, dir).moved)
 }
 
-/** A new tile on an empty cell: tier 1, or tier 2 one time in eight. */
-export function spawn(cells: readonly number[], rng: number): { cells: number[]; rng: number } {
+/** A new tile on an empty cell: tier 1, or tier 2 with the chance `highChance` gives after `moves` moves. */
+export function spawn(cells: readonly number[], rng: number, moves: number = 0): { cells: number[]; rng: number } {
   const empty = cells.flatMap((v, i) => (v === 0 ? [i] : []))
   if (empty.length === 0) return { cells: [...cells], rng }
   const [pick, r1] = randInt(rng, empty.length)
   const [roll, r2] = rand(r1)
   const next = [...cells]
-  next[empty[pick]!] = roll < 0.125 ? 2 : 1
+  next[empty[pick]!] = roll < highChance(moves) ? 2 : 1
   return { cells: next, rng: r2 }
 }
 
+/** Two A's on one row or column: the first slide along it makes a B, and a board this empty can always move. */
 export function initMerge(seed: number): HalftimeMerge {
-  const first = spawn(new Array<number>(SIZE * SIZE).fill(0), seed >>> 0)
-  const second = spawn(first.cells, first.rng)
-  return { cells: second.cells, rng: second.rng, points: 0, moves: 0, over: false }
+  const [first, r1] = randInt(seed >>> 0, SIZE * SIZE)
+  const row = Math.floor(first / SIZE)
+  const col = first % SIZE
+  const mates: number[] = []
+  for (let k = 0; k < SIZE; k += 1) {
+    if (k !== col) mates.push(row * SIZE + k)
+    if (k !== row) mates.push(k * SIZE + col)
+  }
+  const [pick, r2] = randInt(r1, mates.length)
+  const cells = new Array<number>(SIZE * SIZE).fill(0)
+  cells[first] = 1
+  cells[mates[pick]!] = 1
+  return { cells, rng: r2, points: 0, moves: 0, over: false }
 }
 
 export function moveMerge(s: HalftimeMerge, dir: Direction): HalftimeMerge {
   if (s.over) return s
   const slid = slide(s.cells, dir)
   if (!slid.moved) return s
-  const placed = spawn(slid.cells, s.rng)
+  const placed = spawn(slid.cells, s.rng, s.moves)
   return { cells: placed.cells, rng: placed.rng, points: s.points + slid.gained, moves: s.moves + 1, over: !canMove(placed.cells) }
 }
 

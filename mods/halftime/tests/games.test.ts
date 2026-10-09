@@ -10,7 +10,7 @@ import { GAME_IDS, beats, gameOf, scoreText } from '../hooks/games'
 import { INVERSE, isForbiddenKey, normalizeKey, type Seg } from '../hooks/games/kit'
 import { WELL, canMove, initMerge, moveMerge, slide, slideLine, spawn } from '../hooks/games/merge'
 import { TAILCHASE, initTailchase, moveTailchase, stepMs, stepTailchase, turnTailchase } from '../hooks/games/tailchase'
-import { FLOOR, SLAB, countAdjacent, flagAt, flood, initSweep, neighbors, revealAt } from '../hooks/games/sweep'
+import { FLOOR, SLAB, SWEEP, countAdjacent, flagAt, flood, initSweep, neighbors, revealAt } from '../hooks/games/sweep'
 import { SHARED_KEYS } from '../hooks/engine'
 import { dailySeed, dayKey, fnv1a, rand, randInt } from '../hooks/rng'
 import { duration, scorecard, shareLine } from '../hooks/share'
@@ -129,11 +129,22 @@ describe('cratehop', () => {
     expect(s.x).toBeGreaterThan(12)
   })
 
-  test('collision is the overlap of runner and crate below its top', () => {
-    expect(hits([[5, 1, 1]], 5, 0)).toBe(true)
-    expect(hits([[5, 1, 1]], 5, 1.2)).toBe(false)
-    expect(hits([[5, 1, 2]], 5, 1.2)).toBe(true)
+  test('collision is the overlap of runner and crate below its top, in boxes smaller than the art', () => {
+    // The courier is drawn in cell floor(x), so x = 5.5 is it standing on a crate drawn in cell 5.
+    expect(hits([[5, 1, 1]], 5.5, 0)).toBe(true)
+    expect(hits([[5, 1, 1]], 5.5, 1.2)).toBe(false)
+    expect(hits([[5, 1, 2]], 5.5, 1.2)).toBe(true)
     expect(hits([[5, 1, 1]], 3, 0)).toBe(false)
+    // Forgiving: a graze of the drawn crate's edge, either side, is not a hit.
+    expect(hits([[5, 1, 1]], 4.9, 0)).toBe(false)
+    expect(hits([[5, 1, 1]], 6.05, 0)).toBe(false)
+    expect(hits([[5, 3, 1]], 5.1, 0)).toBe(false)
+    expect(hits([[5, 3, 1]], 7.95, 0)).toBe(false)
+    // ... and the crate's top counts a little lower than drawn: feet at 0.65 are drawn one row up.
+    expect(hits([[5, 1, 1]], 5.5, 0.6)).toBe(true)
+    expect(hits([[5, 1, 1]], 5.5, 0.7)).toBe(false)
+    expect(hits([[5, 1, 2]], 5.5, 1.6)).toBe(true)
+    expect(hits([[5, 1, 2]], 5.5, 1.7)).toBe(false)
   })
 
   test('the course comes from the seed alone, however far it was laid out at once', () => {
@@ -146,12 +157,12 @@ describe('cratehop', () => {
     expect(layout(layout(a, 1500), 4000).obs).toEqual(far)
   })
 
-  test('a three-second crate-free run-up, then always comfortably more than one jump between crates', () => {
-    expect(CRATEHOP.runUp).toBeGreaterThanOrEqual(42)
+  test('a crate-free run-up of four and a half seconds, then always comfortably more than one jump between crates', () => {
+    expect(CRATEHOP.runUp / CRATEHOP.v0).toBeGreaterThanOrEqual(4.5)
     for (const seed of [1, 2, 123, 5, 20261009, 0xdeadbeef]) {
       const course = layout(initCratehop(seed), 7000).obs
       expect(course.length, `seed ${seed}`).toBeGreaterThan(60)
-      expect(course[0]![0], `seed ${seed}`).toBeGreaterThanOrEqual(42)
+      expect(course[0]![0], `seed ${seed}`).toBeGreaterThanOrEqual(CRATEHOP.runUp)
       for (let i = 1; i < course.length; i += 1) {
         const [px, pw] = course[i - 1]!
         const ox = course[i]![0]
@@ -225,11 +236,11 @@ describe('tailchase', () => {
     expect(moveTailchase(line({ body: square, dir: 2, grow: 1 })).dead).toBe(true)
   })
 
-  test('a reversal is ignored; turns queue two deep', () => {
+  test('a reversal is ignored; turns queue three deep', () => {
     let s = line()
     expect(turnTailchase(s, 3).queue).toEqual([])
-    s = turnTailchase(turnTailchase(turnTailchase(s, 0), 3), 2)
-    expect(s.queue).toEqual([0, 3])
+    s = turnTailchase(turnTailchase(turnTailchase(turnTailchase(s, 0), 3), 2), 1)
+    expect(s.queue).toEqual([0, 3, 2])
   })
 
   test('steps come from real time and quicken with every pip', () => {
@@ -325,7 +336,7 @@ describe('sweep', () => {
   test('the daily field opens with the same safe pocket for everyone', () => {
     const a = initSweep(dailySeed('sweep', '2026-10-09'))
     expect(a.open.reduce((n, o) => n + o, 0)).toBeGreaterThan(0)
-    expect(a.mines.reduce((n, m) => n + m, 0)).toBe(14)
+    expect(a.mines.reduce((n, m) => n + m, 0)).toBe(SWEEP.mines)
     expect(a.open.some((o, i) => o === 1 && a.mines[i] === 1)).toBe(false)
   })
 })

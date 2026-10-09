@@ -4,7 +4,8 @@
 
 import { expect, test } from 'claude-code/testing'
 
-import { initSweep } from '../hooks/games/sweep'
+import { CRATEHOP } from '../hooks/games/cratehop'
+import { SWEEP, initSweep } from '../hooks/games/sweep'
 import { dailySeed } from '../hooks/rng'
 import { BAND, ENGINE_BAND, SURFACES, T0, VIEWPORT, bandText, boardOf, cellAt, fieldText, halftime, play, said, titleText, world } from './fixtures'
 import type { BoardSeen } from './fixtures'
@@ -60,7 +61,7 @@ for (const surface of SURFACES) {
     const mine = field.mines.indexOf(1)
     const at = async (i: number) => cellAt((await boardOf(ui))!, i % field.w, Math.floor(i / field.w))
     await ui.pointer({ type: 'down', ...(await at(mine)), button: 'right' })
-    expect(titleText((await boardOf(ui))!)).toContain('1/14 flagged')
+    expect(titleText((await boardOf(ui))!)).toContain(`1/${SWEEP.mines} flagged`)
     await ui.pointer({ type: 'down', ...(await at(mine)), button: 'right' })
 
     await clock.advance(46_600)
@@ -145,7 +146,7 @@ for (const surface of SURFACES) {
         await ui.pointer({ type: 'down', x, y: anchor.y, button: 'right' })
         expect(fieldText((await boardOf(ui))!), `x=${x}`).toEqual(fieldText(before))
       }
-      expect(titleText((await boardOf(ui))!)).toContain('0/14 flagged')
+      expect(titleText((await boardOf(ui))!)).toContain(`0/${SWEEP.mines} flagged`)
 
       // A closed cell in view, aimed at from the art alone: the cursor's spot plus whole cells.
       const i = field.open.findIndex((o, k) => !o && k % field.w >= g.ox && k % field.w < g.ox + g.vw && Math.floor(k / field.w) < g.oy + before.rows.length)
@@ -153,7 +154,7 @@ for (const surface of SURFACES) {
       const spot = { x: anchor.x + (cx - field.cur[0]) * g.cw, y: anchor.y + (cy - field.cur[1]) }
       await ui.pointer({ type: 'down', ...spot, button: 'right' })
       const after = (await boardOf(ui))!
-      expect(titleText(after)).toContain('1/14 flagged')
+      expect(titleText(after)).toContain(`1/${SWEEP.mines} flagged`)
       // The click moved the cursor onto the flag it planted: that cell is the one that was aimed at.
       const now = cursorSpot(after)!
       expect(fieldText(after)[now.y - 1]!.slice(now.x, now.x + g.cw)).toBe(' ▲')
@@ -206,14 +207,14 @@ test('the score follows the real clock, not the frame count', async ($, on) => {
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
   // A slow surface: one board frame for every 150 ms of real time. The first frame sets the
-  // baseline, the next six cover 900 ms, so the runner covers about 0.9 s at ~14 cells/s.
+  // baseline, the next six cover 900 ms, so the runner covers about 0.9 s at the start speed.
   for (let frame = 0; frame < 7; frame += 1) {
     await clock.advance(150)
     await ui.advance(60)
   }
   const score = Number((await boardOf(ui))?.title[2]?.[0])
-  expect(score).toBeGreaterThanOrEqual(11)
-  expect(score).toBeLessThanOrEqual(13)
+  expect(score).toBeGreaterThanOrEqual(Math.floor(CRATEHOP.v0 * 0.9) - 1)
+  expect(score).toBeLessThanOrEqual(Math.ceil(CRATEHOP.v0 * 0.9) + 1)
 })
 
 test('every game: Enter, y, n and digits never reach the game', async ($, on) => {

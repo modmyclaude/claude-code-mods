@@ -39,10 +39,10 @@ prompts.
 
 The games (all original):
 
-- **cratehop** - a courier runs on its own; `space`, `up`, `w` or a click jumps the crates. The first crate is about three seconds out, and there is always room to land between crates. Speed rises slowly with distance. A crash bursts red where the courier was. Score: distance.
-- **tailchase** - steer a snake on a wide, short field with the arrows, `wasd` or `hjkl`. The edges wrap; biting yourself ends the run. Score: pips eaten.
-- **merge** - slide a 4x4 board of lettered tiers (arrows, `wasd`, `hjkl`); two equal letters make the next one, once per tile per move. Score: points.
-- **sweep** - a 16x6 mine field with 14 mines. Arrows move, `space` or `x` opens, `f` flags, or click / right-click a cell. It opens with a safe pocket. Score: seconds to clear (lower is better).
+- **cratehop** - a courier runs on its own; `space`, `up`, `w` or a click jumps the crates. The first ten seconds are gentle: a slow start (10 cells a second), a 4.5 second run-up to the first crate, low crates and wide gaps. Then it speeds up by about 0.18 cells a second every second, to a cap of 24 cells a second about a minute and a half in, and holds there. Every gap is a full jump plus a quarter second to react, every crate leaves a timing window of 250 ms or more, crates hurt a little less than they look (a graze is safe), and a jump pressed up to 120 ms before landing fires on touchdown. A crash bursts red where the courier was. Score: distance.
+- **tailchase** - steer a snake on a wide, short field with the arrows, `wasd` or `hjkl`. The edges wrap; biting yourself ends the run. It starts slow (about 4 steps a second) and speeds up a little with every pip, to a cap of about 8 a second at 37 pips. A pip only ever lands on a cell your head can reach. Up to three turns wait in line for their step, and a step that would bite is held back for 100 ms, so a late turn still saves you. Score: pips eaten.
+- **merge** - slide a 4x4 board of lettered tiers (arrows, `wasd`, `hjkl`); two equal letters make the next one, once per tile per move. It deals two A's in one line, so the first slide already makes a B; only A's are dealt for the first 12 moves, then an occasional B creeps in. A game can end, but never before move 14. Score: points.
+- **sweep** - a 16x6 mine field with 12 mines. Arrows move, `space` or `x` opens, `f` flags, or click / right-click a cell. It opens with a safe pocket, and every board is checked by a solver before it is dealt: the single-cell rules plus the subset rule clear it from the opening, so you never have to guess. Score: seconds to clear (lower is better).
 
 Every game's field is drawn centered between two dim rails, on a clear background: solid blocks for the snake, crates and tiles, raised slabs for sweep's closed cells. Every game: `p` pauses and resumes, `r` starts again after a run ends.
 
@@ -105,6 +105,7 @@ session.
 - Copy works in the terminal; a surface without a clipboard path says so, and
   the line stays on screen to select.
 - The daily board follows your machine's calendar day.
+- cratehop's top speed leaves a quarter second to see and answer a crate on a band at least 24 columns wide; on a narrower one the courier sees too little of the course to be fair at the cap.
 - Drawing is verified against the plugin test kit, not a real terminal's paint.
 
 ## Built from a prompt
