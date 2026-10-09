@@ -483,6 +483,8 @@ describe('sharing the band', () => {
       expect((await band.find({ key: 'stub-band' }))?.text).toBe('another mod')
       const order = (await band.findAll({ type: 'Box' })).map(b => b.key).filter(k => k === 'stub-band' || k === 'band' || k === `row-${id}`)
       expect(order).toEqual(['stub-band', 'band', `row-${id}`])
+      // Painted in that order too: a reversed column would draw the other mod last.
+      expect(await band.drawn()).toMatchObject({ type: 'Box', props: { flexDirection: 'column' } })
       await band.unmount()
     }
     await w.finish($, 'agent-1')
@@ -524,6 +526,50 @@ describe('alarm repeats', () => {
     w.rec.engineUsd = 4.5
     await w.step($, id, usage('claude-haiku-5-5', 10, 10))
     expect(w.rec.toasts).toEqual(['Claude Code\'s estimate ≈$4.40 is past 2x your $2.00 budget.'])
+  })
+})
+
+describe('counting off the response path', () => {
+  test('the response goes back before the request is counted', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Quick')
+    const pane = await mountPane($, 'terminal')
+    const response = await w.request($, id, usage('claude-haiku-5-5', 1000, 0))
+    expect(response.usage?.input_tokens).toBe(1000)
+    expect((await texts(pane)).join(' | ')).toContain('0 req · 0 tok')
+    await w.clock.settle()
+    expect((await texts(pane)).join(' | ')).toContain('1 req · 1k tok')
+  })
+
+  test('a count that lands after its run ended leaves the ant finished', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Last word')
+    await w.request($, id, usage('claude-haiku-5-5', 1000, 0))
+    await w.finish($, id)
+    await w.clock.settle()
+    const pane = await mountPane($, 'terminal')
+    expect((await pane.find({ key: 'counts' }))?.text).toBe('0 running · 1 done · 0 failed')
+    expect((await pane.find({ key: `line-${id}` }))?.text).toContain('1k tok')
+  })
+
+  test("a teammate's next turn wakes its finished ant", async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Teammate')
+    await w.finish($, id)
+    await w.clock.advance(1000)
+    await w.step($, id, usage('claude-haiku-5-5', 1000, 0))
+    const pane = await mountPane($, 'terminal')
+    expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
+  })
+
+  test('two subagents crossing the budget at the same moment toast once', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'One')
+    const b = await w.spawn($, 'Two')
+    w.rec.engineUsd = 2.5
+    // Two turn ends at once each read the total and announce, interleaved.
+    await Promise.all([w.finish($, a), w.finish($, b)])
+    expect(w.rec.toasts).toHaveLength(1)
   })
 })
 
@@ -635,14 +681,24 @@ describe('session', () => {
     expect(w.rec.registered).toEqual([{ name: 'antfarm', immediate: true }])
   })
 
-  test('/clear starts the farm over', async ($, on) => {
+  for (const reason of ['clear', 'resume'] as const) {
+    test(`a session end by ${reason} starts the farm over`, async ($, on) => {
+      const w = world(on)
+      const id = await w.spawn($, 'Before', { model: 'claude-opus-5-5' })
+      await w.step($, id, usage('claude-opus-5-5', 1_000_000, 0), 'claude-opus-5-5')
+      await $.session.end({ reason, sessionId: 's', resume: { id: 's' } })
+      expect(w.rec.statuses.at(-1)).toBeUndefined()
+      const pane = await mountPane($, 'terminal')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$0.00 of $2.00 budget')
+      expect(await pane.find({ key: 'empty' })).toBeDefined()
+    })
+  }
+
+  test('a session end on exit keeps the farm as it is', async ($, on) => {
     const w = world(on)
-    const id = await w.spawn($, 'Before clear', { model: 'claude-opus-5-5' })
-    await w.step($, id, usage('claude-opus-5-5', 1_000_000, 0), 'claude-opus-5-5')
-    await $.session.end({ reason: 'clear', sessionId: 's', resume: { id: 's' } })
-    expect(w.rec.statuses.at(-1)).toBeUndefined()
+    await w.spawn($, 'Kept')
+    await $.session.end({ reason: 'prompt_input_exit', sessionId: 's', resume: { id: 's' } })
     const pane = await mountPane($, 'terminal')
-    expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$0.00 of $2.00 budget')
-    expect(await pane.find({ key: 'empty' })).toBeDefined()
+    expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
   })
 })

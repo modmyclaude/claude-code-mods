@@ -185,21 +185,29 @@ async function knowAnt($: EngineInterface, id: string): Promise<boolean> {
   return true
 }
 
-async function recordStep($: EngineInterface, agentId: string | undefined, requested: string, r: TurnStepResult) {
+// Counts one finished request. It runs just after the response is handed
+// back, so it may land after that loop's turn.complete: `at` (when the
+// response ended) tells a late count of a finished run, which leaves the ant
+// finished, from a teammate's next turn, which wakes it.
+async function recordStep(
+  $: EngineInterface, agentId: string | undefined, requested: string, r: TurnStepResult, at: number,
+) {
   if (r.usage === null && r.stopReason === null) return // no response arrived
   const model = r.usage?.model ?? requested
   if (agentId === undefined) {
     await update($, loops, l => ({ ...l, main: addRequest(l.main, model, r.usage) }))
   } else if (await knowAnt($, agentId)) {
-    const now = await $.clock.now()
     await update($, ants, list =>
       list.map(a => {
         if (a.id !== agentId) return a
+        const usage = addRequest(a.usage, model, r.usage)
+        const lastActiveAt = Math.max(a.lastActiveAt ?? a.startedAt, at)
+        if (a.endedAt !== undefined && at <= a.endedAt) return { ...a, model, lastActiveAt, usage }
         const { endedAt: _, ...rest } = a
-        return { ...rest, model, status: 'running' as const, lastActiveAt: now, usage: addRequest(a.usage, model, r.usage) }
+        return { ...rest, model, status: 'running' as const, lastActiveAt, usage }
       }),
     )
-    startTicker($)
+    if ((await read($, ants)).some(a => a.id === agentId && isRunning(a))) startTicker($)
   } else {
     await update($, loops, l => ({ ...l, other: addRequest(l.other, model, r.usage) }))
   }
@@ -308,15 +316,14 @@ export const register: Register = (on, options) => {
     return started
   })
 
-  // The stream passes through untouched; the response's usage is counted
-  // once it is whole. Counting never gets to break a model request.
+  // The stream passes through untouched. The response goes back at once; its
+  // usage is counted just after, on the clock, so counting (a dozen host
+  // calls) never delays a model request, and a count that fails is only
+  // missing from the estimate.
   on('turn.step', async function* ($, e, next) {
     const response = yield* next(e)
-    try {
-      await recordStep($, e.agentId, e.model, response)
-    } catch {
-      // A request the mod failed to count is only missing from its estimate.
-    }
+    const at = await $.clock.now()
+    $.clock.after(0, () => void recordStep($, e.agentId, e.model, response, at).catch(() => undefined))
     return response
   })
 
