@@ -212,3 +212,55 @@ describe('who is held: each prompt origin on each kind of session', () => {
     })
   }
 })
+
+test('a new cold spell is held again, even within 10 minutes of the last hold', SLOW, async ($, on) => {
+  const w = world(on, API_KEY)
+  await start($)
+  await step($, w, CONVERSATION)
+  await w.clock.advance(6 * MIN)
+  expect((await submit($, 'one')).drop).toBeDefined()
+  expect((await submit($, 'one')).drop).toBeUndefined()
+  await step($, w, CONVERSATION)
+  // Cold again 6 minutes later: a different spell, so the old confirmation does not carry over.
+  await w.clock.advance(6 * MIN)
+  expect((await submit($, 'two')).drop).toBeDefined()
+})
+
+test('a held prompt with attachments says the files must be attached again', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, CONVERSATION)
+  await w.clock.advance(61 * MIN)
+  const held = await $.prompt.submit({
+    text: 'what is wrong in this screenshot',
+    attachments: [{ type: 'image', mediaType: 'image/png' }],
+    wait: false,
+    origin: PERSON,
+  })
+  expect(held.drop).toContain('Attach your files again: only the text comes back.')
+  expect((await submit($, 'no files')).drop).toBeUndefined()
+})
+
+test('a resume that restores its own model keeps the resumed cache', SLOW, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await $.classic.SessionStart({
+    source: 'resume',
+    model: 'claude-opus-5-5',
+    seconds_since_last_response: 2 * 60 * 60,
+    context_tokens: 150_000,
+    prompt_cache_likely_expired: true,
+  })
+  await $.classic.PostModelSwitch({
+    from_model: 'claude-sonnet-5-5',
+    to_model: 'claude-opus-5-5',
+    requested_model: null,
+    source: 'resume',
+    context_tokens: 150_000,
+    prompt_cache_warm: false,
+    cache_ttl: '1h',
+    estimated_cache_write_usd: 1.2,
+    pricing: 'catalog',
+  })
+  expect((await submit($, 'where were we')).drop).toContain('re-reads 150k tokens')
+})

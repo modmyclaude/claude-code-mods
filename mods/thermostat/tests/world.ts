@@ -33,6 +33,8 @@ export type World = {
   usage: TurnUsage | null
   /** The surfaces the session draws on, as `$.session.surfaces()` answers. */
   surfaces: RenderSurface[]
+  /** How many times the mod asked for a redraw. */
+  invalidates: number
   /** The session's total as /cost would show it. */
   sessionUsd: number
   /** Makes every `$.state` read fail, to break the mod's own logic. */
@@ -71,6 +73,7 @@ export function world(on: On, auth: SessionAuthorization = SUBSCRIPTION): World 
     fork: forkAnswer(0),
     usage: null,
     surfaces: ['terminal'],
+    invalidates: 0,
     sessionUsd: 4.2,
     isStateBroken: false,
   }
@@ -79,6 +82,10 @@ export function world(on: On, auth: SessionAuthorization = SUBSCRIPTION): World 
   on('session.authorize', () => ({ value: auth }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('session.surfaces', () => ({ value: w.surfaces }))
+  on('ui.invalidate', ($, e, next) => {
+    w.invalidates += 1
+    return next(e)
+  })
   on('session.usage', () => ({
     value: { startedAt: T0, context: { window: 1_000_000 }, rateLimits: [], cost: { usd: w.sessionUsd } },
   }))
