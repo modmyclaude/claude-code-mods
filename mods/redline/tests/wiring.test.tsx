@@ -485,6 +485,38 @@ describe('band shares the slot', () => {
       await ui.unmount()
     }
   })
+
+  // A session refuses a tree that puts the engine's own node under a Box that
+  // sizes, hides or moves it ("engine node under a Box with prop ..."), and draws
+  // its own band instead. The kit does not check this, so the test walks the tree.
+  const ENGINE_BENEATH = {
+    name: 'engine-beneath',
+    tier: 'append' as const,
+    register(on: On) {
+      on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+    },
+  }
+  const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+  type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+    if (node === null || typeof node !== 'object') return []
+    const n = node as Node
+    if (n.type === 'engine') return [around]
+    const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+    return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+  }
+
+  test('the engine band beneath the gauge is never under a Box that sizes or hides it', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+    world(on)
+    await request($, pct(85))
+    await runCommand($, 'band')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect((await ui.find({ key: 'gauge' }))?.text).toContain('ctx 85%')
+      expect(engineNodeConcealers(await ui.drawn())).toEqual([[]])
+      await ui.unmount()
+    }
+  })
 })
 
 describe('band above the prompt', () => {

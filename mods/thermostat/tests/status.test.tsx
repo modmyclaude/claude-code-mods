@@ -3,6 +3,7 @@
 // in where no footer draws.
 
 import { expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
 import { API_KEY, MIN, SLOW, start, step, usage, world } from './world'
 
@@ -82,4 +83,36 @@ test('with no footer drawing, the plain status line carries the countdown, and s
   await w.clock.advance(30 * 1000)
   expect(w.statuses.at(-1)).toBeUndefined()
   await ui.unmount()
+})
+
+// A session refuses a tree that puts the engine's own node under a Box that
+// sizes, hides or moves it ("engine node under a Box with prop ..."), and draws
+// its own footer instead. The kit does not check this, so the test walks the tree.
+const ENGINE_BENEATH = {
+  name: 'engine-beneath',
+  tier: 'append' as const,
+  register(on: On) {
+    on('ui.render', { component: 'SessionMode' }, () => ({ type: 'engine', ref: 0 }) as never)
+  },
+}
+const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+  if (node === null || typeof node !== 'object') return []
+  const n = node as Node
+  if (n.type === 'engine') return [around]
+  const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+  return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+}
+
+test('the engine mode labels beside the countdown are never under a Box that sizes or hides them', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await step($, w, usage(140_000, 9_000))
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...FOOTER, surface, props: { modes: ['focus'] } })
+    expect((await ui.find({ key: 'thermostat' }))?.text).toBe('cache warm · 60m left')
+    expect(engineNodeConcealers(await ui.drawn())).toEqual([[]])
+    await ui.unmount()
+  }
 })

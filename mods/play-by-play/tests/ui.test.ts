@@ -58,6 +58,26 @@ const OTHER_BAND = {
   },
 }
 
+// A session refuses a tree that puts the engine's own node under a Box that
+// sizes, hides or moves it ("engine node under a Box with prop ..."), and draws
+// its own band instead. The kit does not check this, so the test walks the tree.
+const ENGINE_BENEATH = {
+  name: 'engine-beneath',
+  tier: 'append' as const,
+  register(on: On) {
+    on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+  },
+}
+const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+  if (node === null || typeof node !== 'object') return []
+  const n = node as Node
+  if (n.type === 'engine') return [around]
+  const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+  return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+}
+
 describe('the hint above the prompt', () => {
   test('composes with other mods: their band line is drawn first, the hint after it', { plugins: [OTHER_BAND] }, async ($, on) => {
     await threeStepTurn($, on)
@@ -76,6 +96,16 @@ describe('the hint above the prompt', () => {
     await ui.press({ key: 'hide' })
     expect(await ui.find({ type: 'Box', key: 'play-by-play' })).toBeUndefined()
     expect(await ui.find({ type: 'Box', key: 'other-band' })).toBeDefined()
+  })
+
+  test('the engine band beneath the hint is never under a Box that sizes or hides it', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+    await threeStepTurn($, on)
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: BAND_PROPS })
+      expect(await ui.find({ type: 'Box', key: 'play-by-play' })).toBeDefined()
+      expect(engineNodeConcealers(await ui.drawn())).toEqual([[]])
+      await ui.unmount()
+    }
   })
 
   test('shows after a turn with changes, opens the pane, hides on both surfaces', async ($, on) => {

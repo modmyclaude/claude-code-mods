@@ -509,6 +509,7 @@ describe('sharing the band', () => {
     tier: 'append' as const,
     register(on: On) {
       on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+      on('ui.render', { component: 'SessionMode' }, () => ({ type: 'engine', ref: 0 }) as never)
     },
   }
   const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
@@ -530,6 +531,18 @@ describe('sharing the band', () => {
       expect(await band.find({ key: 'summary' })).toBeDefined()
       expect(engineNodeConcealers(await band.drawn())).toEqual([[]])
       await band.unmount()
+    }
+  })
+
+  test('the engine mode labels beside the budget mark are never under a Box that sizes or hides them', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Spender', { model: 'claude-opus-5-5' })
+    await w.step($, id, usage('claude-opus-5-5', 550_000, 0), 'claude-opus-5-5') // ≈$2.20: over budget, so the mark draws
+    for (const surface of SURFACES) {
+      const modes = await $.ui.mount({ plugin: PLUGIN, surface, component: 'SessionMode', props: { modes: ['focus'] } })
+      expect(await modes.find({ key: 'budget-mark' })).toBeDefined()
+      expect(engineNodeConcealers(await modes.drawn())).toEqual([[]])
+      await modes.unmount()
     }
   })
 })

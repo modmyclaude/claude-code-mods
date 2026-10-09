@@ -600,6 +600,39 @@ test('a note keeps other mods\' bands, drawn above it, on both surfaces', { plug
   }
 })
 
+// A session refuses a tree that puts the engine's own node under a Box that
+// sizes, hides or moves it ("engine node under a Box with prop ..."), and draws
+// its own band instead. The kit does not check this, so the test walks the tree.
+const ENGINE_BENEATH = {
+  name: 'engine-beneath',
+  tier: 'append',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+  },
+} satisfies Plugin
+const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+  if (node === null || typeof node !== 'object') return []
+  const n = node as Node
+  if (n.type === 'engine') return [around]
+  const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+
+  return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+}
+
+test('the engine band beneath the note is never under a Box that sizes or hides it', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  const seen = world(on, [JSON.stringify(FLAG)])
+  await endTurn($, seen, turn(LONG_REPLY))
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    expect(await ui.find({ type: 'Text', text: FLAG.headline })).toBeDefined()
+    expect(engineNodeConcealers(await ui.drawn())).toEqual([[]])
+    await ui.unmount()
+  }
+})
+
 // Model text with every kind of control character the engine refuses to draw.
 const DIRTY = {
   flag: true,

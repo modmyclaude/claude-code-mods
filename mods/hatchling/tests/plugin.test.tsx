@@ -644,6 +644,39 @@ describe('the band', () => {
     }
   })
 
+  // A session refuses a tree that puts the engine's own node under a Box that
+  // sizes, hides or moves it ("engine node under a Box with prop ..."), and draws
+  // its own band instead. The kit does not check this, so the test walks the tree.
+  const engineBeneath = {
+    name: 'engine-beneath',
+    tier: 'append' as const,
+    register: (on: On) => {
+      on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+    },
+  }
+  const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+  type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+    if (node === null || typeof node !== 'object') return []
+    const n = node as Node
+    if (n.type === 'engine') return [around]
+    const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+    return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+  }
+
+  test('the engine band beneath the pet is never under a Box that sizes or hides it, on every layout', { plugins: [engineBeneath] }, async ($, on) => {
+    world(on, { pet: savedPet() })
+    await start($)
+    for (const surface of SURFACES) {
+      for (const props of [{}, { bodyColumns: 24 }]) {
+        const ui = await band($, surface, props)
+        expect(await ui.find({ key: 'band' }), `${surface} ${JSON.stringify(props)}`).toBeDefined()
+        expect(engineNodeConcealers(await ui.drawn()), `${surface} ${JSON.stringify(props)}`).toEqual([[]])
+        await ui.unmount()
+      }
+    }
+  })
+
   test('yields to a survey', async ($, on) => {
     world(on, { pet: savedPet() })
     await start($)

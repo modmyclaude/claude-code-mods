@@ -292,3 +292,47 @@ describe('falling back to the engine', () => {
     }
   })
 })
+
+describe('the engine row inside ours', () => {
+  // A session refuses a tree that puts the engine's own node under a Box that
+  // sizes, hides or moves it ("engine node under a Box with prop ..."), and draws
+  // its own row instead. The kit does not check this, so the test walks the tree;
+  // the world beneath already answers every component with the engine's node.
+  const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+  type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+    if (node === null || typeof node !== 'object') return []
+    const n = node as Node
+    if (n.type === 'engine') return [around]
+    const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+    return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+  }
+  const group: RenderPropsOf['ToolGroup'] = {
+    calls: [{ tool_use_id: 't', tool: 'Read', input: {}, isRunning: false, isErrored: false, isInterrupted: false }],
+    isActive: false,
+    isExpanded: false,
+  }
+  const spinner: RenderPropsOf['Spinner'] = { word: 'Sauteing', message: null, suffix: '…', mode: 'thinking' }
+
+  test('is never under a Box that sizes or hides it: tool rows, folded groups and the spinner', async ($, on) => {
+    world(on)
+    await start($)
+    await wear($, 'dracula')
+    for (const surface of SURFACES) {
+      const row = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'ToolUse', props: TOOL_ROW })
+      expect(await row.find({ key: 'icon' })).toBeDefined()
+      expect(engineNodeConcealers(await row.drawn())).toEqual([[]])
+      await row.unmount()
+
+      const folded = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'ToolGroup', props: group })
+      expect(await folded.find({ key: 'icons' })).toBeDefined()
+      expect(engineNodeConcealers(await folded.drawn())).toEqual([[]])
+      await folded.unmount()
+    }
+    // The spinner wraps the engine's line on the terminal alone.
+    const line = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'Spinner', props: spinner })
+    expect(await line.find({ key: 'mode' })).toBeDefined()
+    expect(engineNodeConcealers(await line.drawn())).toEqual([[]])
+    await line.unmount()
+  })
+})
