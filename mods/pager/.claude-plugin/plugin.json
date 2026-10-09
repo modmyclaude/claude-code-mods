@@ -1,0 +1,30 @@
+{
+  "name": "pager",
+  "version": "0.1.0",
+  "description": "Plays a sound when Claude finishes, needs you or hits an error.",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["alerts", "sound", "notifications", "ntfy", "mute", "quiet-hours"],
+  "userConfig": {
+    "minDuration": {
+      "type": "number",
+      "title": "Minimum turn length (seconds)",
+      "description": "Skip the done sound for turns shorter than this. Errors and needs-you always page.",
+      "default": 20,
+      "min": 0,
+      "max": 3600
+    },
+    "quietHours": {
+      "type": "string",
+      "title": "Quiet hours",
+      "description": "No sound or phone push in this local time window, e.g. 22:00-07:00 (it may wrap midnight). Empty means off.",
+      "default": ""
+    },
+    "ntfyTopic": {
+      "type": "string",
+      "title": "ntfy.sh topic (optional)",
+      "description": "Also send each alert to https://ntfy.sh/<topic> as one HTTPS POST with a fixed title and short text, never conversation content. Empty means off.",
+      "sensitive": true
+    }
+  }
+}
