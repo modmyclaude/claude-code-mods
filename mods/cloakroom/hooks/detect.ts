@@ -76,14 +76,38 @@ export function isPlaceholder(value: string): boolean {
 }
 
 /**
- * A filesystem path: `/Users/dev/app`, `~/x`, `./x`, `../x`, `C:\x`, or
- * folders then a file name (`certs/dev.pem`). `PWD`, `OLDPWD` and
- * `PASSWORD_STORE_DIR` hold one, and a path is never the secret itself.
+ * A value that is plainly a filesystem path on its own: `~/x`, `./x`, `../x`,
+ * `C:\x`, two or more `/` between path-like segments (`/Users/dev/app`), or
+ * folders then a file name (`certs/dev.pem`). A run of 20 or more base64
+ * characters is key material, not a folder name, so `/wJ9r...` (1 in 64
+ * random base64 secrets starts with `/`) is never a path by shape alone.
  */
 export function isPathLike(value: string): boolean {
-  if (/^(?:~|\.{1,2})?[\\/]|^~$|^[A-Za-z]:[\\/]/.test(value)) return true
+  if (/[A-Za-z0-9+=]{20,}/.test(value)) return false
+  if (/^(?:~|\.{1,2})[\\/]|^~$|^[A-Za-z]:\\/.test(value)) return true // ~, . and \ are not base64
   const parts = value.split('/')
-  return parts.length > 1 && parts.every(p => /^[\w-][\w.-]*$/.test(p)) && /\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(value)
+  const inner = parts.filter((p, i) => p !== '' || (i > 0 && i < parts.length - 1))
+  if (parts.length < 2 || !inner.every(p => /^[\w.@-]+$/.test(p))) return false
+  return parts.length >= 3 || /\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(value)
+}
+
+/** Variables whose value is a path: `PWD`, `TMPDIR`, `*_DIR`, `*_FILE`, `PATH` and `*PATH` lists. */
+const PATH_NAME = /^(?:PWD|OLDPWD|HOME|TMPDIR|PASSWORD_STORE_DIR|GOOGLE_APPLICATION_CREDENTIALS)$|_(?:DIR|HOME|FILE|ROOT)$|PATH$/
+/** A name that says its value is secret (`DB_PWD`, `JWT_SECRET`), unless it names where the secret lives. */
+const SECRET_WORD = /KEY|SECRET|TOKEN|PASS|PWD|CREDENTIAL|PRIVATE|DSN|AUTH/
+const NAMES_A_LOCATION = /^(?:PWD|OLDPWD|GOOGLE_APPLICATION_CREDENTIALS)$|_(?:DIR|FILE|PATH)$/
+
+/**
+ * Whether `value`, held by variable `name` (or by no name), is a path and so
+ * never a secret. Only for a path-valued name (`PWD=/work/app`,
+ * `PASSWORD_STORE_DIR=~/.password-store`) or a plain path, and never for a
+ * secret name: `AWS_SECRET_ACCESS_KEY=/wJ9r...` is the key itself.
+ */
+export function isPathFor(name: string, value: string): boolean {
+  const label = name ? labelOf(name) : ''
+  if (SECRET_WORD.test(label) && !NAMES_A_LOCATION.test(label)) return false
+  if (PATH_NAME.test(label) && /^(?:~|\.{1,2})?[\\/]|^~$|^[A-Za-z]:[\\/]/.test(value)) return true
+  return isPathLike(value)
 }
 
 /** Defaults people leave in dev .env files, compared without case or a trailing `123`/`!`. */
@@ -112,8 +136,8 @@ export const MIN_LEARN_ENTROPY = 3.0
  * common default or a low-entropy word would mask unrelated text (the project
  * path in every build log, `postgres` in every image name), so it is not.
  */
-export function isLearnable(value: string): boolean {
-  if (value.length < MIN_LEARN_CHARS || isPathLike(value)) return false
+export function isLearnable(value: string, name = ''): boolean {
+  if (value.length < MIN_LEARN_CHARS || isPathFor(name, value)) return false
   if ('01234567890'.includes(value) || '9876543210'.includes(value)) return false // 12345678
   const word = value.toLowerCase()
   if (COMMON_DEFAULTS.has(word) || COMMON_DEFAULTS.has(word.replace(/[^a-z]+$/, ''))) return false // Postgres123!
@@ -540,9 +564,9 @@ const AUTH_SCHEMES = /^(?:bearer|basic|token|digest|negotiate|ntlm|hoba|mutual|a
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 
 /** Whether `value`, written next to a name of class `cls`, looks like the secret itself. */
-export function namedValueLooksSecret(cls: NameClass, value: string, isQuoted: boolean): boolean {
+export function namedValueLooksSecret(cls: NameClass, value: string, isQuoted: boolean, name: string): boolean {
   // `PWD=/Users/dev/app` (a `pwd` name), `PASSWORD_STORE_DIR=~/.password-store`: a path, not the secret.
-  if (cls === null || isPlaceholderOrCode(value) || isPathLike(value)) return false
+  if (cls === null || isPlaceholderOrCode(value) || isPathFor(name, value)) return false
   const isBareWord = !isQuoted && IDENTIFIER.test(value)
   switch (cls) {
     case 'password':
@@ -657,7 +681,7 @@ function findNamed(text: string, out: Hit[]): void {
       while (end > span.start && text[end - 1] === '.') end-- // a sentence's full stop
     }
     const value = text.slice(span.start, end)
-    if (!namedValueLooksSecret(cls, value, span.isQuoted)) continue
+    if (!namedValueLooksSecret(cls, value, span.isQuoted, rawName)) continue
     out.push({ start: span.start, end, name: labelOf(rawName), kind: 'Secret named in text', rank: RANK_NAMED })
     hiddenTo = end
   }
@@ -676,7 +700,7 @@ function findFlags(text: string, out: Hit[]): void {
     const end = m.index + m[0].length - (isQuoted ? 1 : 0)
     const name = m[1] ?? 'secret'
     if (!isQuoted && value.startsWith('-')) continue // the next flag, not a value
-    if (!namedValueLooksSecret(classifyName(name), value, isQuoted)) continue
+    if (!namedValueLooksSecret(classifyName(name), value, isQuoted, name)) continue
     out.push({ start: end - value.length, end, name: labelOf(name), kind: 'Secret named in text', rank: RANK_NAMED })
   }
 }

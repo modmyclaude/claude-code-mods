@@ -24,13 +24,13 @@ export function isSecretName(name: string): boolean {
 
 /**
  * Whether a .env value is worth hiding everywhere it appears this session: a
- * learnable value (see isLearnable: not a path, a short value, a common default
+ * learnable value (see isLearnable: not a path under a non-secret name, a short value, a common default
  * like `postgres` or a low-entropy word), not a placeholder, and not a bare
  * number under a non-password name. A weak one is still hidden where it sits
  * next to its name (`DB_PASSWORD=hunter2`), by shape.
  */
 export function isWorthHiding(name: string, value: string): boolean {
-  if (!isLearnable(value) || isPlaceholder(value)) return false
+  if (!isLearnable(value, name) || isPlaceholder(value)) return false
   if (/^\d+$/.test(value) && !PASSWORD_NAME.test(name)) return false // TOKEN_TTL=86400000
   return true
 }
