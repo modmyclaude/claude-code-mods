@@ -14,7 +14,10 @@ Replays every change Claude made in a turn, shell edits included.
   `4 edits · 3 files · +38 −12 · press r or /replay`, with a **Replay** and a **Hide** button.
   `r` and `x` press them once the band has the keyboard (click it, or ctrl+x tab).
 - `/replay` opens a pane on the latest turn. `/replay <n>` opens an earlier one: 1 is the latest,
-  up to 10 turns that changed files are kept.
+  up to 10 turns that changed files are kept. It runs at once, even while Claude is working, and shows
+  only finished turns: a turn still running is never shown half done (the pane says one is in progress),
+  and an open pane stays on its turn when the running one ends. The command answers the model nothing;
+  its messages are toasts. A headless run, with no pane, gets the steps as text.
 - The pane shows, top to bottom:
   - a scoreboard: files touched, lines added and removed, edit count, and the file with the biggest change;
   - a jump list of the files, numbered 1-9 in the order they were first changed;

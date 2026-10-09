@@ -117,6 +117,8 @@ async function finishTurn($: $) {
   const turn = taken.turn
   if (turn === null || turn.steps.length + turn.dropped === 0) return
   await update($, turns, list => [...list, turn].slice(-MAX_TURNS))
+  // An open pane keeps showing the turn it was on, now one further back.
+  await update($, view, at => ({ ...at, back: Math.min(MAX_TURNS, at.back + 1) }))
   await update($, hint, () => true)
 }
 
@@ -129,22 +131,37 @@ async function go($: $, nav: Nav) {
   })
 }
 
-/** Opens the pane on a kept turn; the answer is the command's output line. */
-async function openReplay($: $, back: number): Promise<string> {
+/** A short message for the person alone: the model never reads a toast. */
+function tell($: $, text: string) {
+  try {
+    $.ui.toast(`play-by-play: ${text}`)
+  } catch {
+    // best effort, as with debug()
+  }
+}
+
+/**
+ * Opens the pane on a kept turn. Only finished turns are kept, so a turn
+ * still running is never shown half done (the pane says one is running).
+ * Answers text only where no surface places the pane (a headless run), since
+ * a command's text is read by the model and the pane is the answer.
+ */
+async function openReplay($: $, back: number): Promise<string | undefined> {
   const list = await read($, turns)
   const turn = list[list.length - back]
   if (turn === undefined) {
-    return list.length === 0
-      ? 'Nothing to replay yet: no turn has changed files.'
-      : `Only ${list.length} turn${list.length === 1 ? '' : 's'} with changes kept; try /replay 1 to ${list.length}.`
+    tell(
+      $,
+      list.length === 0
+        ? 'nothing to replay yet: no finished turn has changed files.'
+        : `only ${list.length} turn${list.length === 1 ? '' : 's'} with changes kept; try /replay 1 to ${list.length}.`,
+    )
+    return undefined
   }
   await update($, view, () => ({ back, step: 0 }))
   const opened = await $.ui.open({ id: PANE, title: TITLE, focus: true, closeOnEscape: true })
+  if (opened.isPlaced) return undefined
   const which = back === 1 ? 'the latest turn' : `turn ${back} back`
-  if (opened.isPlaced) {
-    return `Replaying ${which}: ${summaryLine(turn)}. n/p or the arrows step, 1-9 jump to a file, q closes.`
-  }
-  // No surface places a pane here (a headless run): list the steps instead.
   const lines = turn.steps.map(
     (step, index) =>
       `${index + 1}. ${cleanName(stepTitle(step))} (${step.kind}) ${plusMinus(step.added, step.removed)}${step.via === 'shell' ? ' via shell' : ''}`,
@@ -159,6 +176,8 @@ export const register: Register = on => {
         name: 'replay',
         description: 'Step through the file changes of a turn, shell edits included',
         argumentHint: '[n]',
+        // Runs at once, mid-turn too, to replay earlier turns while Claude works.
+        immediate: true,
       })
     } catch (error) {
       debug($, `could not register /replay: ${String(error)}`)
@@ -250,8 +269,12 @@ export const register: Register = on => {
 
   on('command.run', { command: 'replay' }, async ($, e) => {
     const back = parseBack(e.args)
-    if (back === null) return { text: `Usage: /replay [n], where n is 1 (the latest turn) to ${MAX_TURNS}.` }
-    return { text: await openReplay($, back) }
+    if (back === null) {
+      tell($, `usage: /replay [n], where n is 1 (the latest turn) to ${MAX_TURNS}.`)
+      return {}
+    }
+    const text = await openReplay($, back)
+    return text === undefined ? {} : { text }
   })
 
   // The hint in the band above the prompt after a turn that changed files.
@@ -325,6 +348,9 @@ export const register: Register = on => {
       ? ` · biggest: ${cleanName(short(board.biggest.file, Math.floor(width / 2)))} ${plusMinus(board.biggest.added, board.biggest.removed)}`
       : ''
     const dropped = turn.dropped > 0 ? ` · ${turn.dropped} more not kept` : ''
+    // A turn still running is never replayed half done; say that one is.
+    const running = await read($, current)
+    const inFlight = running !== null && running.steps.length > 0
 
     return (
       <Box flexDirection="column">
@@ -332,6 +358,9 @@ export const register: Register = on => {
           {where}
           {turn.prompt ? ` · "${cleanName(turn.prompt)}"` : ''}
         </Text>
+        {inFlight ? (
+          <Text color="warning">A turn in progress has changed files; its steps show here once it ends.</Text>
+        ) : null}
         <Text bold wrap="truncate-end">
           {`${board.files} file${board.files === 1 ? '' : 's'} · ${plusMinus(board.added, board.removed)} · ${board.edits} edit${board.edits === 1 ? '' : 's'}${biggest}${dropped}`}
         </Text>

@@ -8,6 +8,8 @@ import {
   DIFF_AFTER,
   fakeGit,
   fileTools,
+  NOTHING,
+  USAGE,
   panes,
   repo,
   runReplay,
@@ -22,7 +24,7 @@ const replay = runReplay
 test('Edit, Write, then a Bash that changes a file: three steps in order, right counts', async ($, on) => {
   const git = repo()
   const ran: string[] = []
-  const { logs, opened } = session(on)
+  const { logs, opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   fileTools(on, git, ran)
@@ -44,7 +46,7 @@ test('Edit, Write, then a Bash that changes a file: three steps in order, right 
 })
 
 test('a denied or failed file tool records nothing', async ($, on) => {
-  const { logs, opened } = session(on)
+  const { logs, opened, toasts } = session(on)
   panes(on, false, opened)
   on('tool.call', { tool: 'Edit' }, () => ({ deny: 'not here' }))
   on('tool.call', { tool: 'Write' }, () => ({ isError: true, result: 'disk full', text: 'disk full' }))
@@ -56,13 +58,14 @@ test('a denied or failed file tool records nothing', async ($, on) => {
   })
   // The deny passes through untouched.
   expect(denied).toMatchObject({ deny: 'not here' })
-  expect(await replay($)).toBe('Nothing to replay yet: no turn has changed files.')
+  expect(await replay($)).toBe('') // the model reads nothing
+  expect(toasts.pop()).toBe(NOTHING)
   expect(logs).toEqual([])
 })
 
 test('a denied Bash takes no second snapshot and records nothing', async ($, on) => {
   const git = repo()
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   on('tool.call', { tool: 'Bash' }, () => ({ deny: 'blocked' }))
@@ -70,12 +73,13 @@ test('a denied Bash takes no second snapshot and records nothing', async ($, on)
   await turn($, 't1', () => $.tool.call({ tool: 'Bash', command: 'rm -rf build' }))
   const diffs = git.calls.filter(argv => argv.includes('diff-index'))
   expect(diffs).toHaveLength(1)
-  expect(await replay($)).toBe('Nothing to replay yet: no turn has changed files.')
+  expect(await replay($)).toBe('') // the model reads nothing
+  expect(toasts.pop()).toBe(NOTHING)
 })
 
 test('a failed Bash still records what it changed', async ($, on) => {
   const git = repo()
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   on('tool.call', { tool: 'Bash' }, () => {
@@ -89,7 +93,7 @@ test('a failed Bash still records what it changed', async ($, on) => {
 
 test('outside a git repository the command runs and nothing is recorded', async ($, on) => {
   const git = repo({ isRepo: false })
-  const { logs, opened } = session(on)
+  const { logs, opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   const ran: string[] = []
@@ -105,12 +109,13 @@ test('outside a git repository the command runs and nothing is recorded', async 
   expect(ran).toEqual(['Bash'])
   expect(result).toMatchObject({ text: 'hi' })
   expect(git.calls).toHaveLength(1) // rev-parse alone
-  expect(await replay($)).toBe('Nothing to replay yet: no turn has changed files.')
+  expect(await replay($)).toBe('') // the model reads nothing
+  expect(toasts.pop()).toBe(NOTHING)
   expect(logs).toEqual([])
 })
 
 test('when git cannot run at all the command still runs untouched', async ($, on) => {
-  const { logs, debugLines, opened } = session(on)
+  const { logs, debugLines, opened, toasts } = session(on)
   panes(on, false, opened)
   on('process.run', () => ({ deny: 'process is off here' }))
   const ran: string[] = []
@@ -138,7 +143,7 @@ test('shell: a new untracked file, a plain mv, and a git add that changes nothin
     untracked: { 'staged-later.txt': '1275430f1765c63e539cb0452565563bd6aef6a6', 'old-name.txt': 'bbbb2222' },
     base: {},
   })
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   on('tool.call', { tool: 'Bash' }, () => {
@@ -168,7 +173,7 @@ test('shell: a new untracked file, a plain mv, and a git add that changes nothin
 test('a shell edit to a file a tool just wrote diffs against the tool\'s text', async ($, on) => {
   const written = 'alpha\nbeta\n'
   const git = repo({ diff: '', base: {} })
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   on('tool.call', { tool: 'Write' }, () => {
@@ -198,7 +203,7 @@ test('a shell edit to a file a tool just wrote diffs against the tool\'s text', 
 
 test('an untracked file changed by a command, with no trusted earlier copy, shows without lines', async ($, on) => {
   const git = repo({ diff: '', base: {}, untracked: { 'log.txt': 'eeee5555' } })
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   on('tool.call', { tool: 'Bash' }, () => {
@@ -212,16 +217,18 @@ test('an untracked file changed by a command, with no trusted earlier copy, show
 })
 
 test('/replay argument errors and the turn window', async ($, on) => {
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   await start($)
-  expect(await replay($, 'abc')).toBe('Usage: /replay [n], where n is 1 (the latest turn) to 10.')
-  expect(await replay($, '11')).toBe('Usage: /replay [n], where n is 1 (the latest turn) to 10.')
+  expect(await replay($, 'abc')).toBe('')
+  expect(toasts.pop()).toBe(USAGE)
+  expect(await replay($, '11')).toBe('')
+  expect(toasts.pop()).toBe(USAGE)
   expect(opened).toEqual([])
 })
 
 test('only the last 10 turns with changes are kept; turns without changes are skipped', async ($, on) => {
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   on('tool.call', { tool: 'Write' }, ($, e) => ({
     result: { type: 'create', filePath: e.file_path, content: 'x\n', structuredPatch: [], originalFile: null },
@@ -235,11 +242,12 @@ test('only the last 10 turns with changes are kept; turns without changes are sk
   expect(await replay($, '1')).toContain('1. f12.txt (create)')
   expect(await replay($, '10')).toContain('1. f3.txt (create)')
   expect(await replay($, '10')).toContain('turn 10 back')
-  expect(await replay($, '11')).toContain('Usage')
+  expect(await replay($, '11')).toBe('')
+  expect(toasts.pop()).toBe(USAGE)
 })
 
 test('a subagent finishing mid-turn neither ends nor splits the main turn', async ($, on) => {
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   on('tool.call', { tool: 'Write' }, ($, e) => ({
     result: { type: 'create', filePath: e.file_path, content: 'x\n', structuredPatch: [], originalFile: null },
@@ -254,7 +262,8 @@ test('a subagent finishing mid-turn neither ends nor splits the main turn', asyn
   await $.tool.call({ tool: 'Write', file_path: '/repo/by-agent.txt', content: 'x\n' })
   await $.turn.complete({ answer: 'sub done', durationMs: 5, isAborted: false, turnId: 'sub', agentId: 'agent-1', reason: 'answer' })
   // The hint does not come up while the main turn still runs.
-  expect(await replay($)).toBe('Nothing to replay yet: no turn has changed files.')
+  expect(await replay($)).toBe('') // the model reads nothing
+  expect(toasts.pop()).toBe(NOTHING)
   await $.tool.call({ tool: 'Write', file_path: '/repo/after.txt', content: 'x\n' })
   await $.turn.complete({ answer: 'done', durationMs: 50, isAborted: false, turnId: 'main', reason: 'answer' })
   expect(await replay($)).toBe(
@@ -265,12 +274,13 @@ test('a subagent finishing mid-turn neither ends nor splits the main turn', asyn
       '3. after.txt (create) +1 −0',
     ].join('\n'),
   )
-  expect(await replay($, '2')).toBe('Only 1 turn with changes kept; try /replay 1 to 1.')
+  expect(await replay($, '2')).toBe('')
+  expect(toasts.pop()).toBe('play-by-play: only 1 turn with changes kept; try /replay 1 to 1.')
 })
 
 test('shell: a staged git mv that also edits shows as one rename with its line changes', async ($, on) => {
   const git = repo({ diff: '', base: { 'old.ts': 'keep\nold line\n' } })
-  const { opened } = session(on)
+  const { opened, toasts } = session(on)
   panes(on, false, opened)
   fakeGit(on, git)
   on('tool.call', { tool: 'Bash' }, () => {

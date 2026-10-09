@@ -7,6 +7,8 @@ import type { Engine, MockClock } from 'claude-code/testing'
 
 export const PLUGIN = 'play-by-play'
 export const PANE = 'play-by-play'
+export const NOTHING = 'play-by-play: nothing to replay yet: no finished turn has changed files.'
+export const USAGE = 'play-by-play: usage: /replay [n], where n is 1 (the latest turn) to 10.'
 /** HEAD of the fake repository. */
 export const HEAD_SHA = '1234567890abcdef1234567890abcdef12345678'
 
@@ -156,8 +158,17 @@ export function session(on: On) {
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
   on('session.cwd', () => ({ value: '/repo' }))
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  const registered: { name: string; immediate?: true }[] = []
+  on('command.register', ($, e) => {
+    registered.push({ name: e.name, ...(e.immediate ? { immediate: e.immediate } : {}) })
+    return { value: { command: e.name } }
+  })
   const debugLines: string[] = []
+  const toasts: string[] = []
+  on('ui.toast', ($, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
   on('ui.log', ($, e) => {
     ;(e.to === 'debug' ? debugLines : logs).push(e.text)
     return { value: undefined }
@@ -166,7 +177,7 @@ export function session(on: On) {
     closed.push(e.id)
     return { value: undefined }
   })
-  return { logs, debugLines, opened, closed, clock }
+  return { logs, debugLines, toasts, opened, closed, clock, registered }
 }
 
 /** Panes open placed, or wait (a headless run lists the steps instead). */
