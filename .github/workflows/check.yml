@@ -1,0 +1,31 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 9 * * *' # daily: catch mods API changes in new Claude Code releases
+
+jobs:
+  mods:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        claude: ['2.1.293', 'latest']
+    continue-on-error: ${{ matrix.claude == 'latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm install -g @anthropic-ai/claude-code@${{ matrix.claude }}
+      - name: Validate (strict) and test every mod
+        run: STRICT=1 CLAUDE_BIN=claude scripts/check.sh
+      - name: Generated files are up to date
+        run: CLAUDE_BIN=claude node scripts/build-catalog.mjs --check
+      - name: House style (no em dashes)
+        run: "! grep -rn $'\\u2014' --include='*.md' --include='*.ts' --include='*.tsx' --include='*.json' mods prompts README.md CONTRIBUTING.md"
+        shell: bash
