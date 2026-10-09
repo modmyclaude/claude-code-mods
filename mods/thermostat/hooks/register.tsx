@@ -399,6 +399,9 @@ async function onClear($: Dollar): Promise<void> {
 
 async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promise<string> {
   const arg = args.trim().toLowerCase()
+  // Pings cost money and stopping them can cost a cold re-read: only a person
+  // starts or stops keep-warm, never another plugin's command. Anyone may ask where it stands.
+  if (arg !== '' && !(await isPerson($, origin))) return 'Keep-warm changes only with a /warm you type.'
   if (arg === 'off' || arg === 'stop') {
     const warm = await read($, warmState)
     if (warm === null) return 'Keep-warm is not on.'
@@ -411,8 +414,6 @@ async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promi
       ? `Keep-warm is off. ${USAGE}`
       : `Keeping the cache warm for ${formatDuration(s.warm.until - s.now)} more. ${pingSummary(s.warm)} /warm off stops it.`
   }
-  // Pings cost money: only a person starts them, never another plugin's command.
-  if (!(await isPerson($, origin))) return 'Keep-warm starts only from a /warm you type.'
   const ms = parseDuration(arg)
   if (ms === null || ms < MINUTE || ms > MAX_WARM_MS) {
     return `Could not read "${clean(args.trim())}" as a duration from 1m to 24h. ${USAGE}`
@@ -450,7 +451,7 @@ async function warmCommand($: Dollar, args: string, origin: PromptOrigin): Promi
   )
 }
 
-/** The session's real total as /cost counts it, when the host keeps one. */
+/** Claude Code's own estimate of the session's cost (list or managed prices, as /cost sums them), when it keeps one. */
 async function sessionTotalUsd($: Dollar): Promise<number | undefined> {
   try {
     return (await $.session.usage()).cost?.usd
@@ -503,7 +504,7 @@ async function receiptText($: Dollar): Promise<string> {
       : `Estimated saved: -${formatUsd(-saved)} so far (the pings cost more than they saved).`,
   )
   const total = await sessionTotalUsd($)
-  if (total !== undefined) lines.push(`Session total so far: ~${formatUsd(total)}, as /cost counts it.`)
+  if (total !== undefined) lines.push(`Session total so far: ≈${formatUsd(total)} (Claude Code's estimate).`)
   const plan = s.auth === 'bearer' ? ' On a subscription these measure plan usage, not a bill.' : ''
   lines.push(`Guard: ${live.settings.guard}. Dollars are API list prices.${plan}`)
   return lines.join('\n')
