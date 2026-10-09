@@ -18,7 +18,7 @@ import {
   resume, setPractice, showBoard, startGame, turnComplete, turnStart, unsaved, workAgain,
 } from './engine'
 import { GAME_IDS, gameOf, isGameId } from './games'
-import { scorecard } from './share'
+import { clean, scorecard } from './share'
 import { boardView } from './view'
 
 const EMPTY_STATS: HalftimeStats = { auto: false, last: null, best: {}, daily: {}, playedMs: 0, waitPlayedMs: 0, runs: 0 }
@@ -325,9 +325,10 @@ export const register: Register = on => {
     const props = boardView(run, st, cols, boardRows, now)
     return stack(
       <Box flexDirection="column">
+        {/* The reason is the surface's words, quoting what the board threw: untrusted. */}
         {broken && broken.surface === e.surface ? (
           <Text dimColor wrap="truncate-end">
-            halftime: the board could not run here ({broken.reason}). {scorecard(st)}
+            halftime: the board could not run here ({clean(broken.reason)}). {scorecard(st)}
           </Text>
         ) : (
           <Client key={`board-${run.id}-${run.epoch}`} module="./board.tsx" props={props} />
