@@ -482,14 +482,19 @@ test('/fineprint opens a pane and answers no text, so the model never reads the 
   expect(seen.logs).toEqual([])
 })
 
-test('where no surface seats a pane, the list is a transcript line the model does not read', async ($, on) => {
-  const seen = world(on, [JSON.stringify(FLAG)], { panes: false })
-  await endTurn($, seen, turn(LONG_REPLY))
+test('where no surface seats a pane, the list is transcript lines the model does not read, one per note', async ($, on) => {
+  const seen = world(on, [JSON.stringify(FLAG), JSON.stringify({ ...FLAG, headline: 'Second note' })], { panes: false })
+  await endTurn($, seen, turn(LONG_REPLY, 'a'))
+  await endTurn($, seen, turn(LONG_REPLY, 'b'))
 
   expect(await $.command.run(FINEPRINT)).toEqual({})
-  expect(seen.logs).toHaveLength(1)
-  expect(seen.logs[0]).toContain(`1. ${FLAG.headline} (open`)
-  expect(seen.logs[0]).toContain('Checks used this session: 1 of 30.')
+  expect(seen.logs).toEqual([
+    'Fine Print: 2 notes this session, newest first.',
+    expect.stringContaining('1. Second note (open'),
+    expect.stringContaining(`2. ${FLAG.headline} (open`),
+    'Checks used this session: 2 of 30.',
+  ])
+  expect(seen.logs[1]).toContain(`   - ${FLAG.bullets[1]}`)
 })
 
 test('Explain more says so when the question could not be sent', async ($, on) => {
@@ -621,6 +626,24 @@ test('a verdict full of control characters still draws the note and its buttons'
   const listed = await fineprint($)
   expect(listed).toContain('Billing is on')
   expect(CONTROL_CHARS.test(listed)).toBe(false)
+})
+
+test('a model error with control characters toasts cleanly', async ($, on) => {
+  // The type promises a classified kind; a hook beneath could still hand back
+  // any text, so the toast must be drawable whatever arrives.
+  const failure = {
+    isAnswered: false,
+    reason: 'api-error',
+    status: 500,
+    error: 'over\u001b[31m\u0007lo\u0000ad\u007fed\u009b2J',
+    usage: ZERO,
+  } as unknown as ModelCompleteResult
+  const seen = world(on, [failure])
+  await endTurn($, seen, turn(LONG_REPLY))
+
+  expect(seen.toasts).toHaveLength(1)
+  expect(seen.toasts[0]).toContain('model error: over\ufffdlo\ufffdad\ufffded)')
+  expect(CONTROL_CHARS.test(seen.toasts[0] ?? '')).toBe(false)
 })
 
 test('a refusal reason with control characters toasts cleanly', async ($, on) => {

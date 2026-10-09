@@ -15,6 +15,7 @@ import {
   formatNotes,
   isOwnQuestion,
   maskSecrets,
+  noteBlocks,
   parseMaxChecks,
   parseVerdict,
   parseWatchFor,
@@ -23,6 +24,18 @@ import {
 } from '../hooks/logic'
 
 const ALL = [...TOPICS]
+
+// The fastest of three runs, in ms: a busy machine slows one run, not all three,
+// while a super-linear pattern is slow every time.
+function bestOfThree(run: () => unknown): number {
+  return Math.min(
+    ...[0, 1, 2].map(() => {
+      const started = performance.now()
+      run()
+      return performance.now() - started
+    }),
+  )
+}
 
 describe('parseWatchFor', () => {
   const cases: [unknown, FinePrintTopic[]][] = [
@@ -191,9 +204,7 @@ describe('maskSecrets hides secret-shaped text', () => {
   ]
   for (const [name, input] of adversarial) {
     test(`stays fast on ${input.length} characters of ${name}`, () => {
-      const started = Date.now()
-      maskSecrets(input)
-      expect(Date.now() - started).toBeLessThan(200)
+      expect(bestOfThree(() => maskSecrets(input))).toBeLessThan(200)
     })
   }
 
@@ -294,10 +305,8 @@ describe('drawable', () => {
   })
 
   test('stays fast on 50000 characters of escapes', () => {
-    const started = Date.now()
-    drawable('\u001b]'.repeat(25_000))
-    drawable('\u001b['.repeat(25_000))
-    expect(Date.now() - started).toBeLessThan(200)
+    expect(bestOfThree(() => drawable('\u001b]'.repeat(25_000)))).toBeLessThan(200)
+    expect(bestOfThree(() => drawable('\u001b['.repeat(25_000)))).toBeLessThan(200)
   })
 })
 
@@ -368,6 +377,17 @@ test('formatNotes lists newest first with status, age and spend', () => {
 test('formatNotes keeps notes of the same moment newest first', () => {
   const text = formatNotes([note('first', 5, 'open'), note('second', 5, 'open')], 5, 2, 30)
   expect(text.indexOf('Headline second')).toBeLessThan(text.indexOf('Headline first'))
+})
+
+test('noteBlocks gives one block per note, each with its bullets', () => {
+  const blocks = noteBlocks([note('old', 0, 'dismissed'), note('new', 600_000, 'open')], 660_000, 2, 30)
+  expect(blocks).toEqual([
+    'Fine Print: 2 notes this session, newest first.',
+    '1. Headline new (open, 1 min ago; cost)\n   - Bullet new',
+    '2. Headline old (dismissed, 11 min ago; cost)\n   - Bullet old',
+    'Checks used this session: 2 of 30.',
+  ])
+  expect(noteBlocks([], 0, 0, 30)).toEqual(['Fine Print has flagged nothing this session. Checks used this session: 0 of 30.'])
 })
 
 test('formatNotes says when nothing was flagged', () => {
