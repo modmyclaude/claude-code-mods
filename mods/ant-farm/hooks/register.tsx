@@ -388,34 +388,39 @@ export const register: Register = (on, options) => {
     const hidden = showList ? items.length - shown.length : 0
     // Other mods' bands are never erased by this one, and they draw first: an
     // overflowing ant list can then never push another mod's buttons out of view.
+    // What is beneath may be the engine's own node, which the engine refuses
+    // under a Box that sizes, hides or moves it (width, height, display,
+    // overflow, position): only our own rows carry the band's width.
     const below = await next(e)
 
     return (
-      <Box flexDirection="column" width={e.props.bodyColumns}>
+      <Box flexDirection="column">
         {below}
-        <Box flexDirection="row" key="band">
-          <Box key="summary" flexGrow={1}>
-            <Text wrap="truncate-end" {...tone}>
-              {miniAnt(running.length > 0 ? 'running' : 'done', frame)} {summary}
-            </Text>
-          </Box>
-          {showList ? (
-            <Button key="hide-list" label="Hide" onPress={() => update($, view, x => ({ ...x, isListInBand: false }))} />
-          ) : null}
-        </Box>
-        {shown.map(a => {
-          const p = progressOf(a, list, now)
-          const tail = isRunning(a) ? (p.etaMs !== null ? fmtEta(p.etaMs) : 'running') : a.status
-          return (
-            <Box flexDirection="row" key={`row-${a.id}`}>
-              <Text color={colors.get(a.model) ?? 'subtle'}>{miniAnt(a.status, frame + phaseOf(a.id))}</Text>
-              <Text wrap="truncate-end" dimColor={!isRunning(a)}>
-                {' '}{taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)} · {tail}
+        <Box flexDirection="column" key="ant-farm" width={e.props.bodyColumns}>
+          <Box flexDirection="row" key="band">
+            <Box key="summary" flexGrow={1}>
+              <Text wrap="truncate-end" {...tone}>
+                {miniAnt(running.length > 0 ? 'running' : 'done', frame)} {summary}
               </Text>
             </Box>
-          )
-        })}
-        {hidden > 0 ? <Text dimColor>+{hidden} more - /antfarm shows them all</Text> : null}
+            {showList ? (
+              <Button key="hide-list" label="Hide" onPress={() => update($, view, x => ({ ...x, isListInBand: false }))} />
+            ) : null}
+          </Box>
+          {shown.map(a => {
+            const p = progressOf(a, list, now)
+            const tail = isRunning(a) ? (p.etaMs !== null ? fmtEta(p.etaMs) : 'running') : a.status
+            return (
+              <Box flexDirection="row" key={`row-${a.id}`}>
+                <Text color={colors.get(a.model) ?? 'subtle'}>{miniAnt(a.status, frame + phaseOf(a.id))}</Text>
+                <Text wrap="truncate-end" dimColor={!isRunning(a)}>
+                  {' '}{taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)} · {tail}
+                </Text>
+              </Box>
+            )
+          })}
+          {hidden > 0 ? <Text dimColor>+{hidden} more - /antfarm shows them all</Text> : null}
+        </Box>
       </Box>
     )
   })

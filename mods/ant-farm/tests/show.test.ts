@@ -56,12 +56,12 @@ describe('format', () => {
     const est = (costUsd: number, tokens = 10) => spendOf(null, { requests: 1, tokens, costUsd, unpricedTokens: 0 })
     const real = (usd: number) => spendOf(usd, { requests: 1, tokens: 10, costUsd: 0, unpricedTokens: 0 })
     expect(statusText(est(0, 0), 2, 0)).toBeUndefined()
-    expect(statusText(est(0.5), 2, 0)).toBe('ant-farm ≈$0.50 of $2.00 budget')
-    expect(statusText(est(2.5), 2, 1)).toBe('ant-farm ≈$2.50 of $2.00 budget - over budget')
-    expect(statusText(est(2.5), 1, 2)).toBe('ant-farm ≈$2.50 of $1.00 budget - past 2x the budget')
-    expect(statusText(est(2.5), 0, 0)).toBe('ant-farm ≈$2.50 this session')
-    expect(statusText(real(2.5), 2, 1)).toBe('ant-farm ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
-    expect(statusText(real(2.5), 0, 0)).toBe('ant-farm ≈$2.50 this session (Claude Code\'s estimate)')
+    expect(statusText(est(0.5), 2, 0)).toBe('≈$0.50 of $2.00 budget')
+    expect(statusText(est(2.5), 2, 1)).toBe('≈$2.50 of $2.00 budget - over budget')
+    expect(statusText(est(2.5), 1, 2)).toBe('≈$2.50 of $1.00 budget - past 2x the budget')
+    expect(statusText(est(2.5), 0, 0)).toBe('≈$2.50 this session')
+    expect(statusText(real(2.5), 2, 1)).toBe('≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
+    expect(statusText(real(2.5), 0, 0)).toBe('≈$2.50 this session (Claude Code\'s estimate)')
   })
 
   test('alarm text names where the figure came from', () => {

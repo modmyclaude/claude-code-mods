@@ -58,9 +58,10 @@ export function fmtUsd(usd: number): string {
 export function statusText(spend: Spend, budgetUsd: number, level: 0 | 1 | 2): string | undefined {
   if (!spend.isAny) return undefined
   const source = spend.isEngine ? " (Claude Code's estimate)" : ''
-  if (!(budgetUsd > 0)) return `ant-farm ${spend.text} this session${source}`
+  // Claude Code already labels a plugin's status line with its name.
+  if (!(budgetUsd > 0)) return `${spend.text} this session${source}`
   const over = level === 2 ? ' - past 2x the budget' : level === 1 ? ' - over budget' : ''
-  return `ant-farm ${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${over}`
+  return `${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${over}`
 }
 
 /**

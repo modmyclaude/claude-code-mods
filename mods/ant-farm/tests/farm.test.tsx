@@ -54,7 +54,7 @@ describe('counting', () => {
     const pane = await mountPane($, 'terminal')
     expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$1.00 · 500k tokens')
     expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$6.00 of $2.00 budget - past 2x')
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$6.00 of $2.00 budget - past 2x the budget')
+    expect(w.rec.statuses.at(-1)).toBe('≈$6.00 of $2.00 budget - past 2x the budget')
     // The fork the agent list does not name is not drawn as an ant.
     expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
   })
@@ -218,10 +218,10 @@ describe('budget alarm', () => {
     const spend = (dollars: number) => w.step($, id, usage('claude-opus-5-5', Math.round(dollars * 250_000), 0), 'claude-opus-5-5')
     await spend(1.5)
     expect(w.rec.toasts).toEqual([])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$1.50 of $2.00 budget')
+    expect(w.rec.statuses.at(-1)).toBe('≈$1.50 of $2.00 budget')
     await spend(0.6)
     expect(w.rec.toasts).toEqual(['Session estimate ≈$2.10 reached your $2.00 budget.'])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$2.10 of $2.00 budget - over budget')
+    expect(w.rec.statuses.at(-1)).toBe('≈$2.10 of $2.00 budget - over budget')
     await spend(1)
     expect(w.rec.toasts).toHaveLength(1)
     for (const surface of SURFACES) {
@@ -235,7 +235,7 @@ describe('budget alarm', () => {
       'Session estimate ≈$2.10 reached your $2.00 budget.',
       'Session estimate ≈$4.10 is past 2x your $2.00 budget.',
     ])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$4.10 of $2.00 budget - past 2x the budget')
+    expect(w.rec.statuses.at(-1)).toBe('≈$4.10 of $2.00 budget - past 2x the budget')
     for (const surface of SURFACES) {
       const modes = await $.ui.mount({ plugin: PLUGIN, surface, component: 'SessionMode', props: { modes: [] } })
       expect(await colorIn(modes, 'budget-mark')).toBe('error')
@@ -255,11 +255,11 @@ describe('budget alarm', () => {
     w.rec.engineUsd = 1.2
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100)) // the table says about $0.0002
     expect(w.rec.toasts).toEqual([])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$1.20 of $2.00 budget (Claude Code\'s estimate)')
+    expect(w.rec.statuses.at(-1)).toBe('≈$1.20 of $2.00 budget (Claude Code\'s estimate)')
     w.rec.engineUsd = 2.5
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
     expect(w.rec.toasts).toEqual(['Claude Code\'s estimate ≈$2.50 reached your $2.00 budget.'])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
+    expect(w.rec.statuses.at(-1)).toBe('≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
     for (const surface of SURFACES) {
       const pane = await mountPane($, surface)
       expect((await pane.find({ key: 'budget' }))?.text).toBe('Claude Code\'s estimate ≈$2.50 of $2.00 budget - over')
@@ -286,7 +286,7 @@ describe('budget alarm', () => {
       const id = await w.spawn($, 'Estimated', { model: 'claude-opus-5-5' })
       await w.step($, id, usage('claude-opus-5-5', 550_000, 0), 'claude-opus-5-5') // ≈$2.20
       expect(w.rec.toasts).toEqual(['Session estimate ≈$2.20 reached your $2.00 budget.'])
-      expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$2.20 of $2.00 budget - over budget')
+      expect(w.rec.statuses.at(-1)).toBe('≈$2.20 of $2.00 budget - over budget')
       const pane = await mountPane($, 'terminal')
       expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$2.20 of $2.00 budget - over')
     })
@@ -305,7 +305,7 @@ describe('budget alarm', () => {
     const id = await w.spawn($, 'Free', { model: 'claude-opus-5-5' })
     await w.step($, id, usage('claude-opus-5-5', 5_000_000, 0), 'claude-opus-5-5')
     expect(w.rec.toasts).toEqual([])
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$20.00 this session')
+    expect(w.rec.statuses.at(-1)).toBe('≈$20.00 this session')
     const modes = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'SessionMode', props: { modes: ['focus'] } })
     expect(await modes.find({ key: 'budget-mark' })).toBeUndefined()
   })
@@ -324,8 +324,10 @@ describe('band', () => {
     for (const surface of SURFACES) {
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
       expect((await band.find({ key: 'summary' }))?.text).toContain('1m 05s · 1 running / 1 done · ≈$0.40 session')
-      // Sized to the band's own body, not the whole terminal (180 columns here).
-      expect(await band.drawn()).toMatchObject({ type: 'Box', props: { width: 100 } })
+      // Sized to the band's own body, not the whole terminal (180 columns here):
+      // our rows carry the width, never the Box around what is beneath.
+      expect(await band.find({ key: 'ant-farm' })).toMatchObject({ type: 'Box', props: { width: 100 } })
+      expect((await band.drawn() as { props?: Record<string, unknown> }).props?.width).toBeUndefined()
       expect(await band.find({ key: 'hide-list' })).toBeUndefined()
       await band.unmount()
     }
@@ -498,6 +500,38 @@ describe('sharing the band', () => {
       await band.unmount()
     }
   })
+
+  // A session refuses a tree that puts the engine's own node under a Box that
+  // sizes, hides or moves it ("engine node under a Box with prop ..."), and draws
+  // its own band instead. The kit does not check this, so the test walks the tree.
+  const ENGINE_BENEATH = {
+    name: 'engine-beneath',
+    tier: 'append' as const,
+    register(on: On) {
+      on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }) as never)
+    },
+  }
+  const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
+  type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
+    if (node === null || typeof node !== 'object') return []
+    const n = node as Node
+    if (n.type === 'engine') return [around]
+    const mine = n.type === 'Box' ? CONCEALING.filter(k => n.props?.[k] !== undefined) : []
+    return (n.children ?? []).flatMap(c => engineNodeConcealers(c, [...around, ...mine]))
+  }
+
+  test('the engine band beneath ours is never under a Box that sizes or hides it', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+    const w = world(on, { placed: false })
+    await w.spawn($, 'Busy')
+    await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
+    for (const surface of SURFACES) {
+      const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
+      expect(await band.find({ key: 'summary' })).toBeDefined()
+      expect(engineNodeConcealers(await band.drawn())).toEqual([[]])
+      await band.unmount()
+    }
+  })
 })
 
 describe('alarm repeats', () => {
@@ -509,7 +543,7 @@ describe('alarm repeats', () => {
     expect(w.rec.toasts).toEqual(['Claude Code\'s estimate ≈$2.50 reached your $2.00 budget.'])
     w.rec.usageThrows = true
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
-    expect(w.rec.statuses.at(-1)).toBe('ant-farm ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
+    expect(w.rec.statuses.at(-1)).toBe('≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
     w.rec.usageThrows = false
     w.rec.engineUsd = 2.6
     await w.step($, id, usage('claude-haiku-5-5', 1000, 100))
