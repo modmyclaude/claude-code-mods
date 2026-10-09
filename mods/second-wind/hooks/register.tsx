@@ -564,10 +564,12 @@ export const register: Register = (on, options) => {
       }
     }
 
+    // What other mods draw here comes first (API-GOTCHAS #25): a tight band
+    // clips the breath, never another mod's hold or prompt.
     return (
       <Box key="second-wind" flexDirection="column">
-        {rows}
         {rest}
+        {rows}
       </Box>
     )
   })

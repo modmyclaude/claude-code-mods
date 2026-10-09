@@ -396,6 +396,19 @@ describe('fitting the space', () => {
     }
   })
 
+  test('other mods in the band draw first, the breath beneath them', { plugins: [neighbour] }, async ($, on) => {
+    const w = world(on)
+    await w.start($)
+    await w.clock.advance(3000 + 2000)
+    for (const surface of SURFACES) {
+      const ui = await w.band($, surface)
+      const order = walk(await ui.drawn()).map(el => el.props.key).filter(k => k === 'neighbour' || k === 'sw-breath')
+      expect(order, surface).toEqual(['neighbour', 'sw-breath'])
+      expect(await ui.drawn()).toMatchObject({ type: 'Box', props: { flexDirection: 'column' } })
+      await ui.unmount()
+    }
+  })
+
   test('a band with under three rows to give gets the one-line form', async ($, on) => {
     const w = world(on)
     await w.start($)
