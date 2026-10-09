@@ -413,6 +413,22 @@ export function noteLines(notes: readonly FinePrintNote[], now: number, checks: 
   return [{ text: `Fine Print: ${count} this session, newest first.`, kind: 'title' }, blank, ...blocks, blank, spend]
 }
 
+/**
+ * The list as blocks of text: the title, one block per note (its line and
+ * bullets), the spend. Each block stays well under the 2,000 characters a
+ * terminal draws of one transcript line.
+ */
+export function noteBlocks(notes: readonly FinePrintNote[], now: number, checks: number, max: number): string[] {
+  const blocks: string[] = []
+  for (const line of noteLines(notes, now, checks, max)) {
+    if (line.kind === 'blank') continue
+    if (line.kind === 'bullet' && blocks.length > 0) blocks[blocks.length - 1] += `\n${line.text}`
+    else blocks.push(line.text)
+  }
+
+  return blocks
+}
+
 /** The same list as plain text. */
 export function formatNotes(notes: readonly FinePrintNote[], now: number, checks: number, max: number): string {
   return noteLines(notes, now, checks, max)

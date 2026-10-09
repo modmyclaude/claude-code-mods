@@ -15,8 +15,8 @@ import {
   countWords,
   drawable,
   explainPrompt,
-  formatNotes,
   isOwnQuestion,
+  noteBlocks,
   noteLines,
   parseMaxChecks,
   parseVerdict,
@@ -174,11 +174,12 @@ async function explain($: EngineInterface, id: string) {
   $.ui.toast(drawable(`Fine Print could not send the question (${why}). The note is still open.`))
 }
 
-// Where no surface seats a pane: the list as a transcript line, which the
-// person sees and the model does not.
+// Where no surface seats a pane: the list as transcript lines, which the
+// person sees and the model does not. One line per note, so a long session's
+// list is never cut at the 2,000 characters a terminal draws of one line.
 async function logNotes($: EngineInterface, maxChecks: number) {
   const [list, used, now] = await Promise.all([read($, notes), read($, checks), $.clock.now()])
-  $.ui.log(formatNotes(list, now, used, maxChecks))
+  for (const block of noteBlocks(list, now, used, maxChecks)) $.ui.log(block)
 }
 
 export const register: Register = (on, options) => {
