@@ -1,6 +1,6 @@
 // Shared wiring for the tests: the world beneath the plugin, answered from memory.
 
-import { mock } from 'claude-code/testing'
+import { expect, mock } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { On, RenderPropsOf, RenderSurface } from 'claude-code'
 
@@ -14,8 +14,18 @@ export function at(hours: number, minutes: number, seconds = 0): number {
   return new Date(2026, 9, 8, hours, minutes, seconds).getTime()
 }
 
+/** What /wear showed the person: a toast, or a log line where nothing draws toasts. */
+export type Heard = { via: 'toast' | 'log'; text: string; timeoutMs?: number }
+
+// The current test's world, for wear() to read what was shown.
+let heard: Heard[] = []
+
 export type World = {
   clock: MockClock
+  /** Every toast and log line, oldest first. */
+  heard: Heard[]
+  /** Every pane id opened. */
+  panes: string[]
   /** wardrobe's own store, as JSON round-trips it; a test may write it as another session would. */
   store: Map<string, unknown>
   /** Moves the session to another project root (as /cd would). */
@@ -30,7 +40,7 @@ export type World = {
  */
 export function world(
   on: On,
-  options: { now?: number; root?: string; store?: Record<string, unknown>; surfaces?: readonly RenderSurface[] } = {},
+  options: { now?: number; root?: string; store?: Record<string, unknown>; surfaces?: readonly RenderSurface[]; placesPanes?: boolean } = {},
 ): World {
   const clock = mock.clock(on, { now: options.now ?? at(12, 0) })
   const store = new Map<string, unknown>(Object.entries(options.store ?? {}))
@@ -44,6 +54,21 @@ export function world(
     return { value: undefined }
   })
   on('store.keys', () => ({ value: [...store.keys()] }))
+  heard = []
+  const panes: string[] = []
+  const seen = heard
+  on('ui.toast', ($, e) => {
+    seen.push({ via: 'toast', text: e.text, timeoutMs: e.timeoutMs })
+    return { value: undefined }
+  })
+  on('ui.log', ($, e) => {
+    seen.push({ via: 'log', text: e.text })
+    return { value: undefined }
+  })
+  on('ui.open', ($, e) => {
+    panes.push(e.id)
+    return { value: options.placesPanes === false ? { isPlaced: false, reason: 'the surface places no panes' } : { isPlaced: true } }
+  })
   let root = options.root ?? '/work/alpha'
   const drawnByEngine: unknown[] = []
   on('command.register', ($, e) => ({ value: { command: e.name } }))
@@ -54,22 +79,41 @@ export function world(
     drawnByEngine.push(e.props)
     return ENGINE
   })
-  return { clock, store, cd: next => (root = next), drawnByEngine }
+  return { clock, store, heard: seen, panes, cd: next => (root = next), drawnByEngine }
 }
 
 export async function start($: Engine): Promise<void> {
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
 }
 
-/** Runs `/wear <args>` as the person typing it would, and answers its text. */
+/**
+ * Runs `/wear <args>` as the person typing it would, and answers what it showed
+ * them. Every run is also held to gotcha 18: nothing it says reaches the model.
+ */
 export async function wear($: Engine, args: string): Promise<string> {
+  const before = heard.length
   const ran = await $.command.run({
     command: 'wear',
     args,
     origin: { kind: 'composer' },
     presentation: { isFullscreen: true, columns: 120 },
   })
-  return ran.text ?? ''
+  expect(ran.text).toBeUndefined()
+  expect(ran.context).toBeUndefined()
+  return heard
+    .slice(before)
+    .map(line => line.text)
+    .join('\n')
+}
+
+/** The `/wear` pane as a surface hands it to the hook. */
+export const PANE: RenderPropsOf['Pane'] = {
+  title: 'Wardrobe',
+  isFocused: false,
+  bodyColumns: 100,
+  placement: 'dock',
+  scroll: { offset: 0, bodyRows: 30 },
+  view: {},
 }
 
 export const TOOL_ROW: RenderPropsOf['ToolUse'] = {

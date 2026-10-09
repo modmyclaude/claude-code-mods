@@ -4,30 +4,21 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { themeById } from '../hooks/themes'
-import { at, ENGINE, start, SURFACES, TOOL_ROW, wear, world } from './setup'
+import { at, ENGINE, PANE, start, SURFACES, TOOL_ROW, wear, world } from './setup'
 
 const dracula = themeById('dracula')!
 const nord = themeById('nord')!
 const paper = themeById('paper')!
 
 describe('/wear', () => {
-  test('with no argument lists every theme with a preview in its own colours', async ($, on) => {
-    world(on)
+  test('with no argument opens a pane listing every theme with a preview in its own colours', async ($, on) => {
+    const w = world(on)
     await start($)
-    const text = await wear($, '')
-    for (const id of ['default', 'noir', 'paper', 'tokyo-night', 'dracula', 'catppuccin', 'solarized', 'nord', 'high-contrast', 'colorblind', 'auto']) {
-      expect(text).toContain(`- ${id}`)
-    }
-    expect(text).toContain("Wearing Claude Code's own look")
+    expect(await wear($, '')).toBe('') // nothing for the transcript: the pane shows it
+    expect(w.panes).toEqual(['wardrobe'])
 
     for (const surface of SURFACES) {
-      const ui = await $.ui.mount({
-        plugin: 'wardrobe',
-        surface,
-        component: 'CommandOutput',
-        props: { command: 'wear', args: '', text, isErrored: false },
-        viewport: { columns: 120, rows: 40 },
-      })
+      const ui = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'Pane', props: PANE, requestId: 'wardrobe' })
       const row = await ui.find({ key: 'theme-dracula' })
       expect(row?.text).toContain('dracula')
       expect(row?.text).toContain(dracula.blurb)
@@ -65,24 +56,20 @@ describe('/wear', () => {
   test('the list follows what is worn', async ($, on) => {
     world(on)
     await start($)
-    const ui = await $.ui.mount({
-      plugin: 'wardrobe',
-      surface: 'terminal',
-      component: 'CommandOutput',
-      props: { command: 'wear', args: '', text: 'x', isErrored: false },
-    })
+    const ui = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'Pane', props: PANE, requestId: 'wardrobe' })
     await wear($, 'colorblind')
     expect((await ui.find({ key: 'theme-colorblind' }))?.text).toContain('(wearing)')
     expect((await ui.find({ key: 'theme-default' }))?.text).not.toContain('(wearing)')
   })
 
-  test('an unknown theme is named and nothing changes', async ($, on) => {
+  test('an unknown theme is named to the person, in a toast that stays a while, and nothing changes', async ($, on) => {
     const w = world(on)
     await start($)
     await wear($, 'nord')
     const text = await wear($, 'vaporwave')
     expect(text).toContain('No theme called "vaporwave"')
     expect(text).toContain('high-contrast')
+    expect(w.heard.at(-1)).toMatchObject({ via: 'toast', timeoutMs: 8000 })
     expect(w.store.get('global')).toBe('nord')
   })
 
@@ -93,18 +80,36 @@ describe('/wear', () => {
     expect(await wear($, 'default')).toBe("Wearing Claude Code's own look everywhere without a pin.")
   })
 
-  test('a reply that is not the list is drawn by the engine', async ($, on) => {
-    world(on)
+  test('confirmations are toasts; nothing /wear says reaches the model', async ($, on) => {
+    const w = world(on)
     await start($)
-    for (const surface of SURFACES) {
-      const ui = await $.ui.mount({
-        plugin: 'wardrobe',
-        surface,
-        component: 'CommandOutput',
-        props: { command: 'wear', args: 'nord', text: 'Wearing nord everywhere without a pin.', isErrored: false },
-      })
-      expect(await ui.drawn()).toEqual(ENGINE)
+    for (const args of ['nord', 'pin', 'dracula', 'unpin', 'auto', 'default']) {
+      w.heard.length = 0
+      await wear($, args) // fails if the run answers any text or context
+      expect(w.heard).toHaveLength(1)
+      expect(w.heard[0]?.via).toBe('toast')
     }
+  })
+
+  test('where nothing draws a toast or a pane (a -p run), it says so in the log', async ($, on) => {
+    const w = world(on, { surfaces: [] })
+    await start($)
+    expect(await wear($, 'nord')).toBe('Wearing nord everywhere without a pin.')
+    const list = await wear($, '')
+    for (const id of ['default', 'noir', 'paper', 'tokyo-night', 'dracula', 'catppuccin', 'solarized', 'nord', 'high-contrast', 'colorblind', 'auto']) {
+      expect(list).toContain(`- ${id}`)
+    }
+    expect(list).toContain('- nord (dark)')
+    expect(w.heard.every(line => line.via === 'log')).toBe(true)
+    expect(w.panes).toEqual([])
+  })
+
+  test('where a pane cannot be placed, the list goes to the log instead', async ($, on) => {
+    const w = world(on, { placesPanes: false })
+    await start($)
+    expect(await wear($, '')).toContain("Wearing Claude Code's own look")
+    expect(w.panes).toEqual(['wardrobe'])
+    expect(w.heard.at(-1)?.via).toBe('log')
   })
 })
 
@@ -174,6 +179,7 @@ describe('/wear auto', () => {
     const text = await wear($, 'auto')
     expect(text).toContain('paper from 07:00')
     expect(text).toContain('Settings: dayStarts "7am" is not HH:MM; using 07:00.')
-    expect(await wear($, '')).toContain('Setting: dayStarts "7am" is not HH:MM')
+    const ui = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'Pane', props: PANE, requestId: 'wardrobe' })
+    expect(await ui.find({ type: 'Text', text: /Setting: dayStarts "7am" is not HH:MM/ })).toBeDefined()
   })
 })

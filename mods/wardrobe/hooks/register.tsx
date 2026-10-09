@@ -22,11 +22,14 @@ const look = atom(LOOK, { theme: DEFAULT, choice: DEFAULT, scope: 'global', phas
 /** How often the worn theme is re-resolved: auto mode's switch, a choice made in another session. */
 const TICK_MS = 60_000
 
+/** The pane `/wear` lists the themes in. */
+const PANE = 'wardrobe'
+
 type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock'>
 
 /**
- * Where wardrobe draws in place of a component (a result card, the turn line,
- * the list), it first asks what lies beneath: when another mod drew its own
+ * Where wardrobe draws in place of a component (a result card, the turn line),
+ * it first asks what lies beneath: when another mod drew its own
  * tree there, that tree stands and wardrobe steps aside.
  */
 const drewOwn = (below: RenderElement) => below.type !== 'engine'
@@ -88,6 +91,23 @@ async function unpin($: Dollar, settings: Settings): Promise<string> {
   return `Unpinned ${clean(root)}. ${describeLook(await refresh($, settings), settings)}`
 }
 
+// What /wear says is for the person, never the model: a command's `text` is a
+// row the model reads, so /wear answers `{}` and shows its words itself.
+
+/** A line for the person: a toast, or a log line where nothing draws one (a `-p` run). */
+async function say($: Pick<EngineInterface, 'session' | 'ui'>, text: string, timeoutMs = 4000): Promise<void> {
+  const surfaces = await $.session.surfaces().catch(() => [])
+  if (surfaces.length === 0) $.ui.log(text)
+  else $.ui.toast(text, { timeoutMs })
+}
+
+/** The theme list: a pane in each theme's own colours, or the text where no pane is drawn. */
+async function showList($: Pick<EngineInterface, 'session' | 'ui'>, text: string): Promise<void> {
+  const surfaces = await $.session.surfaces().catch(() => [])
+  const opened = surfaces.length === 0 ? undefined : await $.ui.open({ id: PANE, title: 'Wardrobe' }).catch(() => undefined)
+  if (opened?.isPlaced !== true) $.ui.log(text)
+}
+
 export const register: Register = (on, options) => {
   const { settings, problems } = settingsFrom(options)
   // Bad auto settings are named where they matter: the list and /wear auto.
@@ -113,22 +133,24 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // Answers its own command; it only ever changes wardrobe's own store.
+  // Answers its own command; it only ever changes wardrobe's own store, and it
+  // answers `{}`: nothing it says is added to what the model reads.
   on('command.run', { command: 'wear' }, async ($, e) => {
     const command = parseWear(e.args)
-    switch (command.kind) {
-      case 'list':
-        return { text: listText(await refresh($, settings), settings, problems) }
-      case 'wear':
-        return { text: (await wear($, settings, command.choice)) + autoNote(command.choice) }
-      case 'pin':
-        return { text: await pin($, settings) }
-      case 'unpin':
-        return { text: await unpin($, settings) }
-      case 'unknown':
-        return { text: `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin.` }
+    if (command.kind === 'list') {
+      await showList($, listText(await refresh($, settings), settings, problems))
+    } else if (command.kind === 'unknown') {
+      await say($, `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin.`, 8000)
+    } else if (command.kind === 'wear') {
+      await say($, (await wear($, settings, command.choice)) + autoNote(command.choice))
+    } else {
+      await say($, command.kind === 'pin' ? await pin($, settings) : await unpin($, settings))
     }
-  }).catch(() => ({ text: 'wardrobe: /wear could not finish. Run /wear to see what is worn.' }))
+    return {}
+  }).catch($ => {
+    $.ui.toast('wardrobe: /wear could not finish. Run /wear to see what is worn.')
+    return {}
+  })
 
   // Why a display mod hooks tool.call: it is the only place a call's start and
   // end can be timed, for the timing on its row. It only watches: `e` goes on
@@ -203,11 +225,9 @@ export const register: Register = (on, options) => {
     return drewOwn(below) ? below : turnRow($.ui.resolve(e), theme, word, durationMs)
   }).catch(($, e, next) => next(e))
 
-  // `/wear` with no argument: the list, each theme previewed in its own colours.
-  on('ui.render', { component: 'CommandOutput', props: { command: 'wear' } }, async ($, e, next) => {
-    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
-    if (e.props.isErrored || parseWear(e.props.args).kind !== 'list') return next(e)
-    const below = await next(e)
-    return drewOwn(below) ? below : listTree($.ui.resolve(e), await read($, look), settings, problems, e.viewport?.columns)
-  }).catch(($, e, next) => next(e))
+  // The `/wear` pane: every theme previewed in its own colours, the worn one marked.
+  // Box and Text alone, so it draws on every surface that shows a pane.
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =>
+    listTree($.ui.resolve(e), await read($, look), settings, problems, e.props.bodyColumns),
+  ).catch(($, e, next) => next(e))
 }
