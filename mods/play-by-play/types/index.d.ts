@@ -51,6 +51,8 @@ declare module 'claude-code' {
       /** Whether the hint above the prompt is up. */
       hint: boolean
       view: PlayByPlayView
+      /** Shell tracking paused for the session: git was too slow or the pending diff too large. */
+      shellPaused: boolean
     }
   }
 }

@@ -1,11 +1,14 @@
 // What a shell command changed, from git snapshots taken before and after it.
 //
-// Every git call here only reads: diff, ls-files, hash-object (without -w),
-// rev-parse and show. Nothing is staged, stashed or written.
+// Every git call here is read-only plumbing, run with --no-optional-locks:
+// rev-parse, diff-index, ls-files, hash-object (without -w), show, cat-file,
+// and diff --no-index for an untracked file. Porcelain `git diff <commit>`
+// is avoided on purpose: it refreshes and rewrites .git/index (taking
+// index.lock) whenever files are stat-dirty. Nothing is staged or written.
 
 import type { PlayByPlayStep } from '../types'
-import { applyHunks, parseGitDiff, type FileDiff } from './diff'
-import { bareStep, stepFromTexts } from './steps'
+import { applyHunks, isBinary, parseGitDiff, type FileDiff } from './diff'
+import { bareStep, binaryNote, stepFromTexts } from './steps'
 
 /** `$.process.run`'s shape, narrowed to what is read here (a test can fake it). */
 export type Run = (
@@ -20,8 +23,8 @@ export const MAX_SHELL_FILES = 25
 /** Above this many untracked files their contents are not hashed. */
 const MAX_HASHED = 500
 
+/** Output options shared by diff-index and diff --no-index, so both parse alike. */
 const DIFF = [
-  'diff',
   '--no-color',
   '--no-ext-diff',
   '--no-textconv',
@@ -46,35 +49,39 @@ export type Snapshot = {
 }
 
 function git(run: Run, root: string, args: readonly string[], stdin?: string) {
-  return run(['git', '-c', 'core.quotepath=off', ...args], {
+  return run(['git', '--no-optional-locks', '-c', 'core.quotepath=off', ...args], {
     cwd: root,
     ...(stdin !== undefined ? { stdin } : {}),
   })
 }
 
+/** Why there is no snapshot: not in a repository, or more pending than can be read whole. */
+export type NoSnapshot = 'not-a-repo' | 'too-large'
+
 /**
- * Snapshots the repository the session runs in; null outside one, or when
- * git says more than can be read whole. `at` reuses a first snapshot's root
- * and base, so the two compare like for like.
+ * Snapshots the repository the session runs in, in two or three git calls
+ * (three or four the first time, to find the repository). `at` reuses a
+ * first snapshot's root and base, so the two compare like for like.
  */
 export async function snapshot(
   run: Run,
   at?: Pick<Snapshot, 'root' | 'prefix' | 'base'>,
-): Promise<Snapshot | null> {
+): Promise<Snapshot | NoSnapshot> {
   let where = at
   if (where === undefined) {
-    const top = await run(['git', 'rev-parse', '--show-toplevel', '--show-prefix'])
-    if (top.exitCode !== 0) return null
-    const [root = '', prefix = ''] = top.stdout.split('\n')
-    if (root === '') return null
-    const head = await git(run, root, ['rev-parse', '--verify', '-q', 'HEAD^{commit}'])
-    const sha = head.stdout.trim()
-    where = { root, prefix, base: head.exitCode === 0 && sha !== '' ? sha : EMPTY_TREE }
+    // One call: root, prefix and HEAD. With no commit yet git fails on HEAD
+    // but still prints the first two; outside a repository it prints nothing.
+    const top = await run(['git', '--no-optional-locks', 'rev-parse', '--show-toplevel', '--show-prefix', 'HEAD'])
+    const [root = '', prefix = '', head = ''] = top.stdout.split('\n')
+    if (root === '') return 'not-a-repo'
+    where = { root, prefix, base: top.exitCode === 0 && /^[0-9a-f]{40,64}$/.test(head) ? head : EMPTY_TREE }
   }
-  const diff = await git(run, where.root, [...DIFF, where.base, '--'])
-  if (diff.exitCode !== 0 || diff.isStdoutTruncated) return null
+  const diff = await git(run, where.root, ['diff-index', '-p', ...DIFF, where.base, '--'])
+  if (diff.isStdoutTruncated) return 'too-large'
+  if (diff.exitCode !== 0) return 'not-a-repo'
   const listed = await git(run, where.root, ['ls-files', '--others', '--exclude-standard', '-z'])
-  if (listed.exitCode !== 0 || listed.isStdoutTruncated) return null
+  if (listed.isStdoutTruncated) return 'too-large'
+  if (listed.exitCode !== 0) return 'not-a-repo'
   const paths = listed.stdout.split('\0').filter(path => path !== '')
   const untracked = new Map<string, string | null>(paths.map(path => [path, null]))
   if (paths.length > 0 && paths.length <= MAX_HASHED && !paths.some(path => path.includes('\n'))) {
@@ -107,7 +114,7 @@ export async function blobHash(text: string): Promise<string> {
 type State =
   | { kind: 'text'; text: string }
   | { kind: 'absent' }
-  | { kind: 'binary' }
+  | { kind: 'binary'; bytes?: number | null; hash?: string | null }
   | { kind: 'untracked'; hash: string | null }
   | { kind: 'unknown' }
 
@@ -125,30 +132,52 @@ export async function shellSteps(
   after: Snapshot,
   options: ShellOptions,
 ): Promise<PlayByPlayStep[]> {
-  // Base contents, read once each per command.
-  const baseTexts = new Map<string, Promise<string | null | undefined>>()
+  // Base contents, read once each per command: the text, a binary file (and
+  // its size), null when the base has no such path, undefined when unreadable.
+  type Base = string | { binary: number | null; hash: string | null } | null | undefined
+  const baseTexts = new Map<string, Promise<Base>>()
+  const readBase = async (path: string): Promise<Base> => {
+    const spec = `${before.base}:${path}`
+    const shown = await git(run, before.root, ['show', spec])
+    if (shown.exitCode !== 0) return null
+    if (shown.isStdoutTruncated || isBinary(shown.stdout)) {
+      if (!isBinary(shown.stdout)) return undefined
+      // One call for its blob id and size: "<id> blob <size>".
+      const check = await git(run, before.root, ['cat-file', '--batch-check'], `${spec}\n`)
+      const [hash = '', type = '', size = ''] = check.stdout.trim().split(' ')
+      const ok = check.exitCode === 0 && type === 'blob'
+      return { binary: ok && /^\d+$/.test(size) ? Number(size) : null, hash: ok ? hash : null }
+    }
+    return shown.stdout
+  }
   const base = (path: string) => {
     let text = baseTexts.get(path)
     if (text === undefined) {
-      text = git(run, before.root, ['show', `${before.base}:${path}`]).then(shown =>
-        shown.isStdoutTruncated ? undefined : shown.exitCode === 0 ? shown.stdout : null,
-      )
+      text = readBase(path)
       baseTexts.set(path, text)
     }
     return text
   }
+  const fromBase = (read: Base, absent: State): State =>
+    read === undefined
+      ? { kind: 'unknown' }
+      : read === null
+        ? absent
+        : typeof read === 'string'
+          ? { kind: 'text', text: read }
+          : { kind: 'binary', bytes: read.binary, hash: read.hash }
 
   const stateOf = async (snap: Snapshot, path: string): Promise<State> => {
     const entry = snap.files.find(file => file.newPath === path)
     if (entry !== undefined) {
       if (entry.binary) return { kind: 'binary' }
       const from = entry.oldPath === null ? '' : await base(entry.oldPath)
-      return typeof from === 'string' ? { kind: 'text', text: applyHunks(from, entry.hunks) } : { kind: 'unknown' }
+      if (typeof from === 'string') return { kind: 'text', text: applyHunks(from, entry.hunks) }
+      return from !== null && from !== undefined ? { kind: 'binary' } : { kind: 'unknown' }
     }
     if (snap.files.some(file => file.oldPath === path)) return { kind: 'absent' }
     if (snap.untracked.has(path)) return { kind: 'untracked', hash: snap.untracked.get(path) ?? null }
-    const text = await base(path)
-    return text === undefined ? { kind: 'unknown' } : text === null ? { kind: 'absent' } : { kind: 'text', text }
+    return fromBase(await base(path), { kind: 'absent' })
   }
 
   // An untracked file had no earlier copy in git; a file tool may have left
@@ -161,7 +190,7 @@ export async function shellSteps(
 
   // An untracked file now on disk, read through git so no file is opened here.
   const current = async (path: string): Promise<State> => {
-    const shown = await git(run, after.root, [...DIFF.filter(arg => arg !== '-M'), '--no-index', '--', '/dev/null', path])
+    const shown = await git(run, after.root, ['diff', ...DIFF.filter(arg => arg !== '-M'), '--no-index', '--', '/dev/null', path])
     if (shown.exitCode > 1 || shown.isStdoutTruncated) return { kind: 'unknown' }
     const [file] = parseGitDiff(shown.stdout)
     if (file?.binary) return { kind: 'binary' }
@@ -212,26 +241,25 @@ export async function shellSteps(
     renamedAway.add(from)
   }
   const isGone = (change: Change) => change.now.kind === 'absent' && change.was.kind !== 'absent'
-  const isNew = (change: Change) => change.was.kind === 'absent' && change.now.kind === 'text'
   for (const file of after.files) {
     const { oldPath, newPath } = file
     if (oldPath === null || newPath === null || oldPath === newPath) continue
     const gone = changes.find(change => change.path === oldPath)
     const made = changes.find(change => change.path === newPath)
-    if (gone && made && isGone(gone) && isNew(made)) pair(newPath, oldPath)
+    // git paired them itself (a staged `git mv`), binary files included.
+    if (gone && made && isGone(gone) && made.was.kind === 'absent' && made.now.kind !== 'absent') pair(newPath, oldPath)
   }
   for (const gone of changes) {
     if (!isGone(gone) || renamedAway.has(gone.path)) continue
     const wasText = gone.was.kind === 'text' ? gone.was.text : undefined
-    const wasHash = gone.was.kind === 'untracked' ? gone.was.hash : null
+    const wasHash = gone.was.kind === 'untracked' || gone.was.kind === 'binary' ? (gone.was.hash ?? null) : null
     if (wasText === undefined && wasHash === null) continue
     for (const made of changes) {
-      if (!isNew(made) || made.now.kind !== 'text' || renames.has(made.path)) continue
-      // An untracked file's bytes are best compared by git's own hashes.
-      const same =
-        wasText !== undefined
-          ? made.now.text === wasText
-          : (after.untracked.get(made.path) ?? (await blobHash(made.now.text))) === wasHash
+      const { now } = made
+      if (made.was.kind !== 'absent' || (now.kind !== 'text' && now.kind !== 'binary') || renames.has(made.path)) continue
+      // Bytes are best compared by git's own hashes (a binary or untracked file).
+      const madeHash = after.untracked.get(made.path) ?? (now.kind === 'text' ? await blobHash(now.text) : null)
+      const same = wasText !== undefined ? now.kind === 'text' && now.text === wasText : madeHash === wasHash
       if (same) {
         pair(made.path, gone.path)
         break
@@ -246,10 +274,15 @@ export async function shellSteps(
     const from = renames.get(path)
     if (from !== undefined) {
       const old = changes.find(change => change.path === from)
-      const newText = now.kind === 'text' ? now.text : ''
+      if (now.kind !== 'text' || (old?.was.kind !== 'text' && old?.was.kind !== 'untracked')) {
+        // A moved binary file: no lines to show.
+        const bytes = old?.was.kind === 'binary' ? old.was.bytes : undefined
+        steps.push({ ...bareStep(file, 'rename', 'shell', binaryNote(bytes)), from: options.display(from) })
+        continue
+      }
       // An untracked file moved whole has no earlier text; its hash matched.
-      const oldText = old?.was.kind === 'text' ? old.was.text : newText
-      const step = stepFromTexts(file, oldText, newText, { via: 'shell', kind: 'rename', from: options.display(from) })
+      const oldText = old.was.kind === 'text' ? old.was.text : now.text
+      const step = stepFromTexts(file, oldText, now.text, { via: 'shell', kind: 'rename', from: options.display(from) })
       if (step) steps.push(step)
       continue
     }
@@ -289,7 +322,8 @@ function describe(file: string, was: State, now: State): PlayByPlayStep | null {
   }
   if (was.kind === 'binary' || now.kind === 'binary') {
     const kind = was.kind === 'absent' ? 'create' : now.kind === 'absent' ? 'delete' : 'change'
-    return bareStep(file, kind, 'shell', 'binary file')
+    const bytes = now.kind === 'binary' ? now.bytes : was.kind === 'binary' ? was.bytes : undefined
+    return bareStep(file, kind, 'shell', binaryNote(bytes))
   }
   return bareStep(file, 'change', 'shell', 'changed; too large to compare')
 }

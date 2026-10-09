@@ -7,9 +7,11 @@ import type { PlayByPlayStep, PlayByPlayTurn } from '../types'
 import {
   applyHunks,
   clean,
+  cleanName,
   countHunks,
   diffLines,
   hunksText,
+  isBinary,
   parseGitDiff,
   splitLines,
   toHunks,
@@ -123,8 +125,19 @@ describe('hunksText caps', () => {
   })
 
   test('control characters are made safe to draw', () => {
-    expect(clean('a\u001b[31mb\r')).toBe('a�[31mb')
-    expect(clean('tab\tkept')).toBe('tab\tkept')
+    const table: [string, string][] = [
+      ['a\u001b[31mb\u001b[0m\r', 'ab'], // ANSI colour dropped whole, trailing CR gone
+      ['x\u001b]0;title\u0007y', 'xy'], // an OSC sequence
+      ['bell\u0007', 'bell\uFFFD'],
+      ['del\u007f', 'del\uFFFD'],
+      ['c1 \u0085 \u009b2J', 'c1 \uFFFD '], // NEL replaced, a C1 CSI dropped whole
+      ['tab\tand\nnewline kept', 'tab\tand\nnewline kept'],
+      ['plain \u00e9 \u2212', 'plain \u00e9 \u2212'],
+    ]
+    for (const [raw, drawn] of table) expect(clean(raw), JSON.stringify(raw)).toBe(drawn)
+    expect(cleanName('a\tb\nc\u0085')).toBe('a\uFFFDb\uFFFDc\uFFFD')
+    expect(isBinary('text\n')).toBe(false)
+    expect(isBinary('\u0089PNG\u0000')).toBe(true)
   })
 })
 
