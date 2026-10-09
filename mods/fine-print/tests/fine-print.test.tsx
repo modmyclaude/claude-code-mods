@@ -79,12 +79,13 @@ type World = {
 // The world beneath the plugin: each noun it calls, answered and recorded.
 type Setup = {
   submit?: 'ok' | 'drop'
+  dropReason?: string
   surfaces?: readonly RenderSurface[]
   messages?: SessionMessage[] | 'deny'
 }
 
 function world(on: On, answers: Answer[], setup: Setup = {}): World {
-  const { submit = 'ok', surfaces = ['terminal'], messages = MESSAGES } = setup
+  const { submit = 'ok', dropReason = 'a hook refused it', surfaces = ['terminal'], messages = MESSAGES } = setup
   const seen: World = {
     registered: [],
     calls: [],
@@ -111,7 +112,7 @@ function world(on: On, answers: Answer[], setup: Setup = {}): World {
   on('prompt.submit', ($, e) => {
     seen.submitted.push(e)
 
-    return submit === 'ok' ? { text: e.text } : { drop: 'a hook refused it' }
+    return submit === 'ok' ? { text: e.text } : { drop: dropReason }
   })
   // What the engine draws in the band when the plugin passes.
   on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
@@ -508,7 +509,7 @@ const OTHER_BAND = {
   },
 } satisfies Plugin
 
-test('a note keeps other mods\' bands beneath it, on both surfaces', { plugins: [OTHER_BAND] }, async ($, on) => {
+test('a note keeps other mods\' bands, drawn above it, on both surfaces', { plugins: [OTHER_BAND] }, async ($, on) => {
   const seen = world(on, [JSON.stringify(FLAG)])
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
@@ -521,10 +522,54 @@ test('a note keeps other mods\' bands beneath it, on both surfaces', { plugins: 
 
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
-    expect(await ui.find({ type: 'Text', text: FLAG.headline })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: "another mod's band" })).toBeDefined()
+    const texts = (await ui.findAll({ type: 'Text' })).map(text => text.text)
+    const other = texts.indexOf("another mod's band")
+    const headline = texts.indexOf(FLAG.headline)
+    expect(other).toBeGreaterThanOrEqual(0)
+    expect(headline).toBeGreaterThanOrEqual(0)
+    // The other band first, so an overflow never scrolls its buttons away.
+    expect(other).toBeLessThan(headline)
     await ui.unmount()
   }
+})
+
+// Model text with every kind of control character the engine refuses to draw.
+const DIRTY = {
+  flag: true,
+  topics: ['cost'],
+  headline: '\u001b[31mBilling\u001b[0m is on\u0007 for\u0000 the\u007f old\u0085 DB\u009b2J',
+  bullets: ['\u001b]0;pwned\u0007Keeps running', 'Costs\u0000 money\u009b'],
+}
+const CONTROL_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
+
+test('a verdict full of control characters still draws the note and its buttons', { plugins: [OTHER_BAND] }, async ($, on) => {
+  const seen = world(on, [JSON.stringify(DIRTY)])
+  await endTurn($, seen, turn(LONG_REPLY))
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
+    const headline = await ui.find({ type: 'Text', text: /Billing is on/ })
+    expect(headline?.text).toBe('Billing is on\ufffd for\ufffd the\ufffd old\ufffd DB')
+    expect(await ui.find({ type: 'Text', text: 'Keeps running' })).toBeDefined()
+    expect((await ui.findAll({ type: 'Button' })).map(button => button.text)).toEqual(['Got it', 'Explain more', 'Dismiss'])
+    expect(await ui.find({ type: 'Text', text: "another mod's band" })).toBeDefined()
+    for (const text of await ui.findAll({ type: 'Text' })) expect(CONTROL_CHARS.test(text.text)).toBe(false)
+    await ui.unmount()
+  }
+  const listed = (await $.command.run(FINEPRINT)).text ?? ''
+  expect(listed).toContain('Billing is on')
+  expect(CONTROL_CHARS.test(listed)).toBe(false)
+})
+
+test('a refusal reason with control characters toasts cleanly', async ($, on) => {
+  const seen = world(on, [JSON.stringify(FLAG)], { submit: 'drop', dropReason: '\u001b[31mbusy\u001b[0m\u0007' })
+  await endTurn($, seen, turn(LONG_REPLY))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  await ui.press({ key: 'explain' })
+
+  expect(seen.toasts).toHaveLength(1)
+  expect(seen.toasts[0]).toContain('(busy\ufffd)')
+  expect(CONTROL_CHARS.test(seen.toasts[0] ?? '')).toBe(false)
 })
 
 test('the note yields the band to a survey', async ($, on) => {
