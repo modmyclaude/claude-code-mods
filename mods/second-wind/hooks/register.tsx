@@ -13,7 +13,7 @@ import type { EngineInterface, Register, RenderNode, Timer } from 'claude-code'
 import { LONG_MS, frameAt, softFinish } from './breath'
 import { barCells, barWidth, circleSvg, fitHead, shownFill } from './draw'
 import {
-  CARD_TEXT, SAFETY, TICK_MS, USAGE, draftAfter, foldLine, planOf, readSettings, shareCard, statusText,
+  CARD_TEXT, SAFETY, TICK_MS, USAGE, draftAfter, foldLine, planOf, readSettings, shareCard, statusText, unknownWord,
 } from './settings'
 import type { Settings } from './settings'
 import { EMPTY_STATS, SWITCH_ON, addCounts, isOn, localDay, parseStats, parseSwitch } from './stats'
@@ -291,7 +291,7 @@ async function breathe($: EngineInterface, args: string): Promise<{ text: string
     case 'card':
       return { text: await copyCard($, shareCard(await loadStats($), day)) }
     default:
-      return { text: `Second Wind does not know "${arg}". ${USAGE}` }
+      return { text: unknownWord(arg) }
   }
 }
 
