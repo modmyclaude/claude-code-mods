@@ -2,7 +2,7 @@
 
 # Headway
 
-See how far along Claude is, and when it will land. Zero tokens in the terminal.
+See how far along Claude is, and when it will land.
 
 ```
 Build · Wire the routes (2/6) ▰▰▱▱▱▱ ~3m left
@@ -54,7 +54,7 @@ None.
 ## What it can touch
 
 - **Files:** none directly. Per-project pace history goes in the mod's own store (`$.store`, a JSON file Claude Code keeps for the mod): step durations and plan counts only, never step titles. Projects are keyed by a hash of the project root, not the path. Capped at the last 40 step times for each of the 30 most recent projects.
-- **Processes, network, model calls:** none. No tokens in the terminal: it adds nothing to the prompt or the system prompt. In the desktop app the lent plan tool's short description sits in Claude's tool list, and Claude's calls to it cost what a todo update does. It never refuses a tool call and never holds up the end of a turn. `/headway` answers with no text for the model; the pane and toasts never reach it.
+- **Processes, network, model calls:** none. No tokens where Claude Code has its own plan tools: it adds nothing to the prompt or the system prompt. Where Headway lends its plan tool, that tool's short description sits in Claude's tool list, and Claude's calls to it cost what a todo update does. It never refuses a tool call and never holds up the end of a turn. `/headway` answers with no text for the model; the pane and toasts never reach it.
 - **Timer:** one, once a second, only while a plan is in progress and Claude (or a subagent) is working, on a surface that draws the band (the terminal or the desktop app). It stops when Claude is idle, when you hide the line, when the plan is done and when nothing draws the band.
 - **Sounds:** none.
 
@@ -72,7 +72,7 @@ None.
 - The "plan done" signal is a `$.state` value, not a telemetry mark: marks feed Claude Code's own analytics, which a display-only mod should not touch.
 - After a plugin reload the countdown resumes at Claude's next tool call or turn.
 - Drawn on the terminal and the desktop app, the two surfaces with a band above the prompt. The `/headway` pane opens on any surface that places panes.
-- Where Claude has no todo or task tool (the desktop app), Headway lends it a small plan tool, `plan`, shaped like TodoWrite and listed with Claude's other tools, so the line still follows Claude's plan. Claude decides whether to use it: a turn where it plans only in prose shows nothing. Where Claude Code has its own plan tools (the terminal), Headway lends none.
+- Where Claude has no todo or task tool (the desktop app, and terminal builds without todo tools), Headway lends it a small plan tool, `plan`, shaped like TodoWrite and listed with Claude's other tools, so the line still follows Claude's plan. Claude decides whether to use it: a turn where it plans only in prose shows nothing. Where Claude Code has its own plan tools, Headway lends none.
 - Titles are drawn without escape sequences, control characters or invisible marks (bidi overrides, zero-width characters), and the line is laid out in terminal cells, so wide (CJK) titles and emoji are cut to fit rather than wrapping.
 
 ## Built from a prompt

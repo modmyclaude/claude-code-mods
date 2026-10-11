@@ -163,8 +163,10 @@ export const register: Register = on => {
   on('tool.call', { tool: PLAN_TOOL_NAME }, async ($, e) => {
     const event = eventFromTool('TodoWrite', e, null, e.agentId === undefined)
     if (event !== null) await safely($, () => dispatch($, event))
-    return { result: { ok: event !== null }, text: event === null ? 'No plan read: send todos as [{ content, status }].' : 'Plan updated.' }
-  }).catch(() => ({ result: { ok: false }, text: 'Plan not recorded.' }))
+    // A lent (MCP) tool's result is text: Claude Code refuses an object there (MM-111, seen live).
+    const text = event === null ? 'No plan read: send todos as [{ content, status }].' : 'Plan updated.'
+    return { result: text, text }
+  }).catch(() => ({ result: 'Plan not recorded.', text: 'Plan not recorded.' }))
 
   // A /clear or a resumed conversation is a different conversation: its plan is not this one's.
   on('session.end', async ($, e, next) => {

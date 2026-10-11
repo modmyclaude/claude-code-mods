@@ -30,6 +30,8 @@ for (const [where, tools, lends] of SETUPS) {
     await turnStart($)
     const answer = await $.tool.call({ tool: 'mcp__headway__plan', todos: list(STEPS, 1) })
     expect(answer.text).toBe('Plan updated.')
+    // Claude Code takes only text back from a lent tool: an object fails the call live.
+    expect(answer.result).toBe('Plan updated.')
     for (const surface of ['desktop', 'terminal'] as const) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
       const line = await ui.find({ key: 'headway' })
@@ -47,4 +49,5 @@ test('MM-111: a plan call with no steps is answered, never fails the turn', asyn
   await $.session.start({ cwd: '/work/app', surface: 'desktop', isInteractive: true })
   const answer = await $.tool.call({ tool: 'mcp__headway__plan', todos: 'nope' })
   expect(answer.text).toContain('No plan read')
+  expect(typeof answer.result).toBe('string')
 })

@@ -1,7 +1,7 @@
 ---
 mod: headway
 title: Headway
-tagline: See how far along Claude is, and when it will land. Zero tokens in the terminal.
+tagline: See how far along Claude is, and when it will land.
 category: visibility
 surfaces: [terminal, desktop]
 model_calls: none
@@ -9,7 +9,7 @@ model_calls: none
 
 # Headway
 
-See how far along Claude is, and when it will land. Zero tokens in the terminal.
+See how far along Claude is, and when it will land.
 
 ## The prompt
 
@@ -19,7 +19,7 @@ Paste this into Claude Code to build it yourself, or install the finished mod fr
 Build me a Claude Code mod called "headway": a progress bar for the plan Claude is working through, with an honest estimate of when it will finish.
 
 Where the plan comes from
-- Read the plan Claude already keeps: watch its own todo and task tool calls (TodoWrite, TaskCreate, TaskUpdate, TaskList) and the plan it gets approved in plan mode (ExitPlanMode), at zero extra tokens. Only where Claude has none of those tools (the desktop app), lend it one small plan tool in TodoWrite's shape, and nothing else.
+- Read the plan Claude already keeps: watch its own todo and task tool calls (TodoWrite, TaskCreate, TaskUpdate, TaskList) and the plan it gets approved in plan mode (ExitPlanMode), at zero extra tokens. Only where Claude has none of those tools (the desktop app, and terminal builds without todo tools), lend it one small plan tool in TodoWrite's shape, and nothing else.
 - Never refuse a tool call, never block the end of a turn, never add anything to the system prompt. If no plan exists, show nothing.
 - Plan mode plans with headings become stages; flat todo lists are one stage.
 
