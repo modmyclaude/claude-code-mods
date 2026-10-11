@@ -60,7 +60,7 @@ describe('counting', () => {
     }
   })
 
-  test('main-loop and engine-fork requests count toward the session, not toward a subagent', async ($, on) => {
+  test('main-loop and engine-fork requests count toward the session, not toward a subagent', { options: { budgetUsd: 2 } }, async ($, on) => {
     const w = world(on, { })
     const id = await w.spawn($, 'Explore', { model: 'claude-sonnet-5-5' })
     await w.step($, id, usage('claude-sonnet-5-5', 500_000, 0), 'claude-sonnet-5-5') // subagent: $1
@@ -226,7 +226,7 @@ describe('the ants and the clock', () => {
 })
 
 describe('budget alarm', () => {
-  test('one toast per crossing, amber past the budget, red past twice it', async ($, on) => {
+  test('one toast per crossing, amber past the budget, red past twice it', { options: { budgetUsd: 2 } }, async ($, on) => {
     const w = world(on)
     engineBand(on)
     const id = await w.spawn($, 'Spender', { model: 'claude-opus-5-5' })
@@ -263,7 +263,7 @@ describe('budget alarm', () => {
     expect(w.rec.toasts).toHaveLength(2)
   })
 
-  test('the alarm trips on Claude Code own estimate even when the table estimate is lower', async ($, on) => {
+  test('the alarm trips on Claude Code own estimate even when the table estimate is lower', { options: { budgetUsd: 2 } }, async ($, on) => {
     const w = world(on)
     engineBand(on)
     const id = await w.spawn($, 'Cheap by the table', { model: 'claude-haiku-5-5' })
@@ -295,7 +295,7 @@ describe('budget alarm', () => {
   })
 
   for (const broken of ['throws', 'has no ledger'] as const) {
-    test(`when the engine's usage ${broken}, the table estimate drives the alarm`, async ($, on) => {
+    test(`when the engine's usage ${broken}, the table estimate drives the alarm`, { options: { budgetUsd: 2 } }, async ($, on) => {
       const w = world(on)
       if (broken === 'throws') w.rec.usageThrows = true
       const id = await w.spawn($, 'Estimated', { model: 'claude-opus-5-5' })
@@ -306,6 +306,25 @@ describe('budget alarm', () => {
       expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$2.20 of $2.00 budget (price table) - over')
     })
   }
+
+  // Off out of the box (Alex, 2026-10-11): no alarm until a budget is set, so a first
+  // heavy session never reads as "over budget". The spend still shows, with a hint.
+  test('out of the box there is no budget: no toast, no amber, a hint to set one', async ($, on) => {
+    const w = world(on)
+    engineBand(on)
+    const id = await w.spawn($, 'Heavy')
+    await w.step($, id, usage('claude-opus-5-5', 2_000_000, 0), 'claude-opus-5-5')
+    await w.finish($, id)
+    expect(w.rec.toasts).toEqual([])
+    expect(w.rec.statuses.at(-1)).toMatch(/^≈\$[\d.]+ this session$/)
+    for (const surface of SURFACES) {
+      const pane = await mountPane($, surface)
+      expect((await pane.find({ key: 'budget' }))?.text).toMatch(/^Session ≈\$[\d.]+ \(price table\)$/)
+      expect((await pane.find({ key: 'no-budget' }))?.text).toBe('No budget set - add one in /config')
+      expect(await colorIn(pane, 'budget')).toBeUndefined()
+      await pane.unmount()
+    }
+  })
 
   test('the budget is a setting', { options: { budgetUsd: 0.5 } }, async ($, on) => {
     const w = world(on)
@@ -649,7 +668,7 @@ describe('sharing the band', () => {
     }
   })
 
-  test('the engine mode labels beside the budget mark are never under a Box that sizes or hides them', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  test('the engine mode labels beside the budget mark are never under a Box that sizes or hides them', { plugins: [ENGINE_BENEATH], options: { budgetUsd: 2 } }, async ($, on) => {
     const w = world(on)
     const id = await w.spawn($, 'Spender', { model: 'claude-opus-5-5' })
     await w.step($, id, usage('claude-opus-5-5', 550_000, 0), 'claude-opus-5-5') // ≈$2.20: over budget, so the mark draws
@@ -663,7 +682,7 @@ describe('sharing the band', () => {
 })
 
 describe('alarm repeats', () => {
-  test('one failed read of the total neither drops the figure nor re-arms the alarm', async ($, on) => {
+  test('one failed read of the total neither drops the figure nor re-arms the alarm', { options: { budgetUsd: 2 } }, async ($, on) => {
     const w = world(on)
     const id = await w.spawn($, 'Steady')
     w.rec.engineUsd = 2.5
@@ -678,7 +697,7 @@ describe('alarm repeats', () => {
     expect(w.rec.toasts).toHaveLength(1)
   })
 
-  test('a lower reading in between does not announce a level twice', async ($, on) => {
+  test('a lower reading in between does not announce a level twice', { options: { budgetUsd: 2 } }, async ($, on) => {
     const w = world(on)
     const id = await w.spawn($, 'Jittery')
     w.rec.engineUsd = 4.4
@@ -724,7 +743,7 @@ describe('counting off the response path', () => {
     expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
   })
 
-  test('two subagents crossing the budget at the same moment toast once', async ($, on) => {
+  test('two subagents crossing the budget at the same moment toast once', { options: { budgetUsd: 2 } }, async ($, on) => {
     const w = world(on)
     const a = await w.spawn($, 'One')
     const b = await w.spawn($, 'Two')
@@ -844,7 +863,7 @@ describe('session', () => {
   })
 
   for (const reason of ['clear', 'resume'] as const) {
-    test(`a session end by ${reason} starts the farm over`, async ($, on) => {
+    test(`a session end by ${reason} starts the farm over`, { options: { budgetUsd: 2 } }, async ($, on) => {
       const w = world(on)
       const id = await w.spawn($, 'Before', { model: 'claude-opus-5-5' })
       await w.step($, id, usage('claude-opus-5-5', 1_000_000, 0), 'claude-opus-5-5')

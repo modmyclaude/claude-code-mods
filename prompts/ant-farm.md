@@ -25,7 +25,7 @@ What it does
 - Header totals: total cost, total tokens, wall time.
 
 What is new here
-- Budget alarm: a budgetUsd setting (default 2.00). When the session estimate crosses it, show a toast and turn the status line amber; past 2x the budget, red.
+- Budget alarm: a budgetUsd setting, off (0) by default so a first heavy session never reads as over budget; the pane shows "No budget set - add one in /config". Once set, when the session estimate crosses it, show a toast and turn the budget mark amber; past 2x the budget, red. It only warns, never stops anything.
 - ETA: once a running subagent has made 3 model requests, estimate its time left from its pace so far ("~1m left").
 - Narrow terminals: if the pane cannot open (under 144 columns), show a compact list inside the band instead of nothing.
 

@@ -46,8 +46,8 @@ Watch your subagents work, and what they cost, live.
   it). Where Claude Code gives none, the price-table estimate stands in. Each
   subagent's cost is always the price-table estimate: Claude Code does not
   total cost per subagent. Every figure is marked `≈`.
-- **Budget alarm.** The mod's status line under the prompt shows the
-  session's spend against your budget. When it reaches the budget you get a
+- **Budget alarm.** Off until you set `budgetUsd` in `/config`. Then the
+  mod's status line under the prompt shows the session's spend against it. When it reaches the budget you get a
   toast and the budget mark beside the prompt footer turns amber; at twice the
   budget, another toast and red. Each crossing toasts once.
 - `/clear` (or another session taking this one's place) starts the farm over,
@@ -57,7 +57,7 @@ Watch your subagents work, and what they cost, live.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `budgetUsd` | `2` | Session budget in US dollars for the alarm, compared against Claude Code's own cost estimate (else the price-table estimate). `0` turns the alarm off. |
+| `budgetUsd` | `0` (off) | Session budget in US dollars for the alarm, compared against Claude Code's own cost estimate (else the price-table estimate). Off until you set one; the pane says so. It only warns, it never stops Claude. |
 
 ## What it can touch
 

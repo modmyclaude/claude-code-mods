@@ -77,7 +77,7 @@ function endStatus(s: AgentStatus | undefined): AntFarmStatus | undefined {
 // (a reload cancels it anyway), the last status text and a cache of loop ids.
 // Helpers that take `$` live here at the top of the file, where the engine
 // can follow `$` into them.
-let budgetUsd = 2
+let budgetUsd = 0
 let ticker: Timer | undefined
 let ticks = 0
 let docksPanes: boolean | undefined
@@ -245,7 +245,7 @@ async function isPanePlaced($: EngineInterface): Promise<boolean> {
 }
 
 export const register: Register = (on, options) => {
-  budgetUsd = typeof options.budgetUsd === 'number' ? options.budgetUsd : 2
+  budgetUsd = typeof options.budgetUsd === 'number' ? options.budgetUsd : 0
 
   // ------------------------------------------------------------ events
 
@@ -516,6 +516,13 @@ export const register: Register = (on, options) => {
         </Text>
       </Box>
     )
+    // The alarm is off until a budget is set (the default): say where to set one.
+    const noBudgetRow =
+      budgetUsd > 0 ? null : (
+        <Box key="no-budget">
+          <Text dimColor wrap="truncate-end">No budget set - add one in /config</Text>
+        </Box>
+      )
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
@@ -525,10 +532,11 @@ export const register: Register = (on, options) => {
             <Box flexDirection="column" flexGrow={1} flexShrink={1}>
               {totals}
               {budgetRow}
+              {noBudgetRow}
             </Box>
           </Box>
         ) : (
-          [totals, budgetRow]
+          [totals, budgetRow, noBudgetRow]
         )}
         <Box key="counts" marginBottom={1}>
           <Text dimColor wrap="truncate-end">
