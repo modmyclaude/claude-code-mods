@@ -211,11 +211,13 @@ export function modelColors(ants: readonly AntFarmAnt[]): Map<string, string> {
 // Each ant is drawn from pixel rows ('#' on, '.' off), two pixel rows to a
 // text row with half blocks, so it is plain text on every surface. Facing
 // right: abdomen, waist, thorax, head and an antenna; the legs alternate.
+// Side on, facing right, 10 x 6 pixels (3 text rows, one per line of a card):
+// abdomen, a thin waist, thorax, head with its antenna, and legs that swap as it walks.
 const WALK: readonly (readonly string[])[] = [
-  ['........#.', '.##...##..', '####.####.', '..#.#.#...'],
-  ['........#.', '.##...##..', '####.####.', '.#..#..#..'],
+  ['.........#', '........#.', '.##..##.##', '##########', '.##.#.#.#.', '...#..#..#'],
+  ['.........#', '........#.', '.##..##.##', '##########', '.##..#.#..', '....#.#.#.'],
 ]
-const REST = WALK[0]!
+const REST: readonly string[] = ['.........#', '........#.', '.##..##.##', '##########', '.##.#.#.#.', '...#.#.#..']
 // A failed ant lies on its back, legs up.
 const FLIPPED = [...REST].reverse()
 
@@ -253,7 +255,7 @@ export function phaseOf(id: string): number {
 }
 
 /**
- * The two text rows of a full-size ant in a lane `lane` cells wide: a running
+ * The three text rows of a full-size ant in a lane `lane` cells wide: a running
  * ant walks right across it (one cell and one leg swap a frame), a finished
  * one stands at the far end, a failed one lies on its back.
  */

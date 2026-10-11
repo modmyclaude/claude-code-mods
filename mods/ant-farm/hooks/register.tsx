@@ -449,11 +449,12 @@ export const register: Register = (on, options) => {
     const lastEnd = running.length > 0 ? now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
     // Two totals that can differ: the subagents alone (price table) and the whole
     // session (Claude Code's own estimate where it keeps one), each named as such.
-    const source = spend.isEngine ? " (Claude Code's estimate)" : ' (price-table estimate)'
+    // Short enough for the default pane width (MM-099).
+    const source = spend.isEngine ? ' (Claude Code)' : ' (price table)'
     const budgetLine =
       budgetUsd > 0
-        ? `Whole session ${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${level === 2 ? ' - past 2x' : level === 1 ? ' - over' : ''}`
-        : `Whole session ${spend.text}${source}`
+        ? `Session ${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${level === 2 ? ' - past 2x' : level === 1 ? ' - over' : ''}`
+        : `Session ${spend.text}${source}`
 
     // A finished ant rests dim, a failed one in the error colour, a running one in its model's.
     const antPaint = (a: AntFarmAnt): TextProps =>

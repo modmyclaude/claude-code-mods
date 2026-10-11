@@ -132,7 +132,7 @@ describe('pixel ants', () => {
   test('a running ant walks: its legs and place change frame to frame', () => {
     const a = antRows('running', 0, ANT_WIDTH + 3)
     const b = antRows('running', 1, ANT_WIDTH + 3)
-    expect(a).toHaveLength(2)
+    expect(a).toHaveLength(3)
     expect(a.every(r => r.length === ANT_WIDTH + 3)).toBe(true)
     expect(a.join('\n')).not.toBe(b.join('\n'))
     expect(/^[ ▀▄█]+$/.test(a.join(''))).toBe(true)

@@ -68,7 +68,7 @@ describe('counting', () => {
     await w.step($, 'compaction-fork', usage('claude-opus-5-5', 250_000, 0), 'claude-opus-5-5') // other: $1
     const pane = await mountPane($, 'terminal')
     expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ≈$1.00 (price table) · 500k tokens')
-    expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$6.00 of $2.00 budget (price-table estimate) - past 2x')
+    expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$6.00 of $2.00 budget (price table) - past 2x')
     expect(w.rec.statuses.at(-1)).toBe('≈$6.00 of $2.00 budget - past 2x the budget')
     // The fork the agent list does not name is not drawn as an ant.
     expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
@@ -277,7 +277,7 @@ describe('budget alarm', () => {
     expect(w.rec.statuses.at(-1)).toBe('≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over budget')
     for (const surface of SURFACES) {
       const pane = await mountPane($, surface)
-      expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$2.50 of $2.00 budget (Claude Code\'s estimate) - over')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$2.50 of $2.00 budget (Claude Code) - over')
       expect(await colorIn(pane, 'budget')).toBe('warning')
       // The subagent's own figure stays the table's estimate.
       expect((await texts(pane)).join('\n')).toContain('2 req · 2.2k tok · ≈$0.0003')
@@ -303,7 +303,7 @@ describe('budget alarm', () => {
       expect(w.rec.toasts).toEqual(['Session estimate ≈$2.20 reached your $2.00 budget.'])
       expect(w.rec.statuses.at(-1)).toBe('≈$2.20 of $2.00 budget - over budget')
       const pane = await mountPane($, 'terminal')
-      expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$2.20 of $2.00 budget (price-table estimate) - over')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$2.20 of $2.00 budget (price table) - over')
     })
   }
 
@@ -851,7 +851,7 @@ describe('session', () => {
       await $.session.end({ reason, sessionId: 's', resume: { id: 's' } })
       expect(w.rec.statuses.at(-1)).toBeUndefined()
       const pane = await mountPane($, 'terminal')
-      expect((await pane.find({ key: 'budget' }))?.text).toBe('Whole session ≈$0.00 of $2.00 budget (price-table estimate)')
+      expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$0.00 of $2.00 budget (price table)')
       expect(await pane.find({ key: 'empty' })).toBeDefined()
     })
   }
