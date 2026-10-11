@@ -122,12 +122,13 @@ const ASCII: Record<Kind, string> = {
 }
 
 // The seasonal packs' sets: a solid or an outline set with a season's own
-// glyph for search and the web (a star and a moon, a snowflake, a blossom,
-// a sun, a fleuron). Still single-width BMP characters, none of them emoji.
-const NIGHT: Record<Kind, string> = { ...GEO, search: '✦', web: '☾' } // four-point star, last-quarter moon
-const FROST: Record<Kind, string> = { ...OUTLINE, search: '✧', web: '❄' } // white star, snowflake
+// glyph for search and the web (an eye and a moon, two snowflakes, a blossom,
+// waves and a sun, a fleuron). Single-width BMP characters, none of them emoji
+// and no stars: a four-point star reads as the AI sparkle (COPY-NOTES).
+const NIGHT: Record<Kind, string> = { ...GEO, search: '◉', web: '☾' } // fisheye (an eye), last-quarter moon
+const FROST: Record<Kind, string> = { ...OUTLINE, search: '❅', web: '❄' } // tight trifoliate snowflake, snowflake
 const BLOOM: Record<Kind, string> = { ...OUTLINE, search: '✿', web: '❀' } // black florette, white florette
-const SHORE: Record<Kind, string> = { ...GEO, search: '✶', web: '☼' } // six-point star, white sun
+const SHORE: Record<Kind, string> = { ...GEO, search: '≈', web: '☼' } // waves (almost equal to), white sun
 const LEAF: Record<Kind, string> = { ...OUTLINE, search: '✤', web: '❧' } // heavy four-balloon asterisk, rotated floral heart
 
 const MARKS: Record<Status, string> = {
@@ -346,7 +347,7 @@ export const THEMES: readonly Theme[] = [
     diff: { addFg: '#b5f08a', addBg: '#1b2a12', removeFg: '#ffa07a', removeBg: '#3a1a12' },
     icons: NIGHT,
     status: MARKS,
-    mark: '✦',
+    mark: '☾',
     spinnerSuffix: ' ~',
   },
   {

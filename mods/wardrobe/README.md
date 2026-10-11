@@ -40,7 +40,7 @@ What changes, on the terminal and in the desktop app:
 
 ### Seasonal packs
 
-Five themes made for a time of year, each with its own mark and icons: `halloween` (pumpkin orange, violet and bone white on near-black, mark `✦`), `christmas` (holly green, berry red, snow white and gold on deep pine, `❄`), `spring` (a light theme: fresh green, blossom pink and sky blue on cream, `❀`), `summer` (sun yellow, sea teal and coral on deep navy, `☼`) and `autumn` (amber, rust, moss and cream on dark brown, `❧`). Every pair they paint meets the same 4.5:1 bar as the other themes.
+Five themes made for a time of year, each with its own mark and icons: `halloween` (pumpkin orange, violet and bone white on near-black, mark `☾`), `christmas` (holly green, berry red, snow white and gold on deep pine, `❄`), `spring` (a light theme: fresh green, blossom pink and sky blue on cream, `❀`), `summer` (sun yellow, sea teal and coral on deep navy, `☼`) and `autumn` (amber, rust, moss and cream on dark brown, `❧`). Every pair they paint meets the same 4.5:1 bar as the other themes.
 
 `/wear season` picks one by the local date and is stored like `auto`: wardrobe re-checks the calendar once a minute, so the pack turns over at midnight on its own, and `/wear` names what it wears now and why.
 

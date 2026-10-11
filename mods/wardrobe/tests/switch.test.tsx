@@ -380,7 +380,7 @@ describe('the /wear gallery', () => {
       expect(list).toContain(`- ${theme.id} (${theme.tone}) `)
       expect(list).toContain(`${theme.icons.read} Read src/app.ts ${theme.status.done} 300ms  +add -del  Bolt: ${COSTUMES[theme.id]!.name}`)
     }
-    expect(list).toContain('- halloween (dark) ▸●◆■✦: Pumpkin orange, violet and bone white on near-black (wearing)')
+    expect(list).toContain('- halloween (dark) ▸●◆■◉: Pumpkin orange, violet and bone white on near-black (wearing)')
     expect(list).toContain('- season: by the calendar: halloween now (Oct 15 to Nov 1)')
     expect(list).toContain('- auto: paper from 07:00, tokyo-night from 19:00')
     expect(list).not.toMatch(/[▀-▟]/u)
