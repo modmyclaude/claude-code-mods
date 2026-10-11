@@ -10,7 +10,7 @@ labels = {"safety": "Safety", "cost": "Cost and limits", "visibility": "See what
           "insight": "Catch what you would miss", "memory": "Memory", "workflow": "Workflow", "alerts": "Alerts",
           "looks": "Looks", "fun": "Fun", "wellness": "Wellness"}
 os.makedirs(out, exist_ok=True)
-HOLD = {"cloakroom"}  # MM-072: no share card while its safety fix is unverified
+HOLD: set = set()  # mods with no share card while a safety fix is unverified (none at launch, 2026-10-11)
 
 
 def icon_svg(name, size, tile):

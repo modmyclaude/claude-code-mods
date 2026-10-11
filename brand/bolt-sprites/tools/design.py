@@ -110,6 +110,18 @@ SPRITES = {
             ".SSSSSSSS.",
             "..SS..SS..",
         ],
+        "calm": [
+            "....OO....",
+            "....SS....",
+            "..BBBBBB..",
+            ".BBBBBBBB.",
+            "BBBBBBBBBB",
+            "BBEEBBEEBB",
+            "BKKBBBBKKB",
+            "BBBBEEBBBB",
+            ".SSSSSSSS.",
+            "..SS..SS..",
+        ],
         "sweat": [
             "....OO....",
             "....SS...G",

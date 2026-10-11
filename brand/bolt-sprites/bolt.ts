@@ -14,7 +14,7 @@ export const BOLT_PALETTE = {
 } as const
 
 export type BoltSize = 'small' | 'tiny'
-export type BoltSmallPose = 'idle' | 'run1' | 'run2' | 'jump' | 'crash' | 'cheer' | 'sleep' | 'sweat' | 'think' | 'egg' | 'egg-wobble-l' | 'egg-wobble-r' | 'egg-crack-1' | 'egg-crack-2' | 'egg-crack-3' | 'egg-hatch'
+export type BoltSmallPose = 'idle' | 'run1' | 'run2' | 'jump' | 'crash' | 'cheer' | 'sleep' | 'calm' | 'sweat' | 'think' | 'egg' | 'egg-wobble-l' | 'egg-wobble-r' | 'egg-crack-1' | 'egg-crack-2' | 'egg-crack-3' | 'egg-hatch'
 export type BoltTinyPose = 'idle' | 'run1' | 'run2' | 'jump' | 'crash' | 'cheer' | 'sleep'
 export type BoltPose = BoltSmallPose | BoltTinyPose
 
@@ -31,6 +31,7 @@ export const BOLT_SPRITES = {
     'crash': ['......OO..', '.....S....', '..BBBBBB..', '.BBBBBBBB.', 'BEBEBBEBEB', 'BBEBBBBEBB', 'BEBEBBEBEB', 'BBBBEEBBBB', '.SSSSSSSS.', 'SS......SS'],
     'cheer': ['S...OO...S', 'S...SS...S', 'SBBBBBBBBS', '.BBBBBBBB.', 'BBWEBBWEBB', 'BBEEBBEEBB', 'BKKBBBBKKB', 'BBBEEEEBBB', '.SSSSSSSS.', '..SS..SS..'],
     'sleep': ['....SS....', '....SS....', '..BBBBBB..', '.BBBBBBBB.', 'BBBBBBBBBB', 'BBEEBBEEBB', 'BKKBBBBKKB', 'BBBBBBBBBB', '.SSSSSSSS.', '..SS..SS..'],
+    'calm': ['....OO....', '....SS....', '..BBBBBB..', '.BBBBBBBB.', 'BBBBBBBBBB', 'BBEEBBEEBB', 'BKKBBBBKKB', 'BBBBEEBBBB', '.SSSSSSSS.', '..SS..SS..'],
     'sweat': ['....OO....', '....SS...G', '..BBBBBB.G', '.BBBBBBBB.', 'BBWEBBWEBB', 'BBEEBBEEBB', 'BKKBBBBKKB', 'BBBBEEEBBB', '.SSSSSSSS.', '..SS..SS..'],
     'think': ['....OO....', '....SS....', '..BBBBBB..', '.BBWEBWEB.', 'BBBEEBEEBB', 'BBBBBBBBBB', 'BKKBBBBKKB', 'BBBBBEBBBB', '.SSSSSSSS.', '..SS..SS..'],
     'egg': ['....OO....', '....SS....', '...BWBB...', '..BWBBBB..', '..BBBBBB..', '.BBBBBBBB.', '.BBBBBBBB.', '.BBBBBBBS.', '..BBBBBS..', '...SSSS...'],

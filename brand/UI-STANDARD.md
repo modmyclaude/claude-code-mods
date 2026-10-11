@@ -22,10 +22,12 @@ The engine already draws the pane's title bar with the mod's name, so never repe
 
 ## Bands
 - **One row,** two at most. A band never pushes another mod's band out of view.
+- **Exception for games and choice lists** (halftime's board, crossroads' suggestions): up to 8 rows while the person is playing or choosing. They fold back to one row, or nothing, when idle.
 - **Compose:** other mods draw first (`next(e)`). A pending safety hold renders alone and composes again once it resolves (#36).
 - **No sprite in a band,** except a game board.
 
 ## Toasts and hold messages
+- **Command answers** (the reply to a `/command` the person just typed, such as `/crossroads status`) may run longer: at most 3 short lines, answer first. Anything longer opens the mod's pane.
 - **Plain text,** at most 12 words, leading with the outcome: "Saved as a house rule." / "Cache went cold. Send again to pay it."
 - **Never start with the mod's name.** The engine prefixes it, and doubled names were MM-088.
 - **A held prompt** shows inside the desktop's "A hook blocked your prompt" frame, so lead with what happened and the one thing to do, in at most 20 words: "Held: this send re-reads 98k tokens cold (≈$0.49). Send again to go ahead." Details live in the pane.
@@ -74,13 +76,14 @@ Sprites come from `brand/bolt-sprites` only, and are never recoloured.
 | Use | Pose |
 | --- | --- |
 | Ready, idle | `idle` |
-| Nothing yet, cold, asleep | `sleep` |
+| Nothing yet, cold, asleep | `sleep` (light off, z) |
+| Calm, breathing, resting on purpose | `calm` (eyes closed, light on, soft smile) |
 | Working, thinking | `think` |
 | Done, success | `cheer` |
 | A tool failed (pets) | `sweat` |
 | Games only | `run1` / `run2`, `jump`, `crash` |
 
-- **Size:** small (10x5 cells) for any state that matters, because tiny barely reads. Tiny is for game runners only.
+- **Size:** small (10x5 cells) for any state that matters, because tiny barely reads. Tiny (3x2) is only for game runners, such as the cratehop courier, where the field needs it.
 - **Where:** empty and first-run states, a pane's hero row, and games.
 - **Never:** in a safety hold (last-look, cloakroom), a toast or the status line.
 
