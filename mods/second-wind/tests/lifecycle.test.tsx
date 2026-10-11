@@ -49,7 +49,8 @@ describe('only where something draws', () => {
     expect(w.timers().all).toBe(0)
     expect(await w.attach($, 'desktop')).toEqual({ clientId: 'desktop:default' })
     const ui = await w.band($, 'desktop')
-    expect((await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt).toBe('Breathe in 4') // a whole sigh from here, not 2 s into one
+    // A whole sigh from here, not 2 s into one: the guide opens at its first frame.
+    expect(String((await ui.find({ type: 'Svg' }))?.props.source)).toContain('linear 0ms 1 both')
     await w.clock.advance(2000)
     await w.complete($)
     await w.clock.advance(3375)
@@ -61,10 +62,10 @@ describe('only where something draws', () => {
     await w.start($)
     await w.clock.advance(3000 + 5000)
     const ui = await w.band($, 'terminal')
-    expect((await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt).toBe('Sip in 1')
+    expect((await ui.find({ key: 'sw-cue' }))?.text ?? ((await ui.find({ type: 'Svg' })) !== undefined ? 'guide' : undefined)).toBe('Sip in 1')
     await w.attach($, 'mobile')
     await w.clock.advance(1500)
-    expect((await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt).toBe('Out 9') // 6.5 s into the same sigh
+    expect((await ui.find({ key: 'sw-cue' }))?.text ?? ((await ui.find({ type: 'Svg' })) !== undefined ? 'guide' : undefined)).toBe('Out 9') // 6.5 s into the same sigh
   })
 
   test('the last client leaving drops the run: no clock, no counts, the status line cleared', { plugins: [timerSpy] }, async ($, on) => {
@@ -110,10 +111,10 @@ describe('the edges of a turn', () => {
     await w.complete($)
     await w.clock.settle()
     const ui = await w.band($, 'terminal')
-    expect((await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt).toBe('Out 4')
+    expect((await ui.find({ key: 'sw-cue' }))?.text ?? ((await ui.find({ type: 'Svg' })) !== undefined ? 'guide' : undefined)).toBe('Out 4')
     await w.start($)
     await w.clock.settle()
-    expect((await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt).toBe('Breathe in 2')
+    expect((await ui.find({ key: 'sw-cue' }))?.text ?? ((await ui.find({ type: 'Svg' })) !== undefined ? 'guide' : undefined)).toBe('Breathe in 2')
     // It now belongs to the new turn, whose answer folds it.
     await w.complete($)
     await w.clock.advance(3375)

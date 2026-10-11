@@ -12,10 +12,11 @@ import type { World } from './world'
 type Ui = Mounted<'terminal' | 'desktop', 'AbovePrompt'>
 
 /** The step's words: the band's cue, or on the desktop the guide's own (its alt carries them, MM-110). */
-const cue = async (ui: Ui) => (await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt
+/** The step's words as text; on the desktop they live inside the guide (MM-110), which reads as 'guide'. */
+const cue = async (ui: Ui) => (await ui.find({ key: 'sw-cue' }))?.text ?? ((await ui.find({ type: 'Svg' })) !== undefined ? 'guide' : undefined)
 const caption = async (ui: Ui) => (await ui.find({ key: 'sw-caption' }))?.text
 /** The compact row's words: its text, or on the desktop the guide's (its alt carries the cue, MM-110). */
-const compactWords = async (ui: Ui) => (await ui.find({ key: 'sw-compact' }))?.text || String((await ui.find({ type: 'Svg' }))?.props.alt ?? '')
+const compactWords = async (ui: Ui) => (await ui.find({ key: 'sw-compact' }))?.text ?? ''
 
 const fold = async (ui: Ui) => ui.find({ key: 'sw-fold' })
 const isShown = async (ui: Ui) => (await ui.find({ key: 'second-wind' })) !== undefined
@@ -53,7 +54,7 @@ describe('when it shows', () => {
     await w.clock.advance(3000)
     for (const surface of SURFACES) {
       const ui = await w.band($, surface)
-      expect(await cue(ui)).toBe('Breathe in 4')
+      expect(await cue(ui)).toBe(surface === 'desktop' ? 'guide' : 'Breathe in 4')
       expect(await caption(ui)).toBe('physiological sigh')
       // What was beneath (the engine's own band) is still drawn under ours.
       expect(await ui.find({ key: 'engine-band' })).toBeDefined()
@@ -63,14 +64,17 @@ describe('when it shows', () => {
     expect((await term.find({ key: 'sw-shape' }))?.text.length).toBe(barWidth(100))
     const desk = await w.band($, 'desktop')
     const svg = await desk.find({ type: 'Svg' })
-    expect(svg?.props.isInteractive).toBe(true)
+    // An image, not a frame: the desktop reloads a frame on every band redraw (MM-110, seen live).
+    expect(svg?.props.isInteractive).toBeUndefined()
     // Bolt breathing on the drawing's own clock: one stable markup, eased keyframes, reduced motion honoured.
     expect(String(svg?.props.source)).toContain('@keyframes h{')
     expect(String(svg?.props.source)).toContain('cubic-bezier(.45,0,.55,1)')
     expect(String(svg?.props.source)).toContain('prefers-reduced-motion')
     expect(Number(svg?.props.height)).toBeLessThanOrEqual(72)
     // The words are text beside the guide, never inside it: a word change must not touch the drawing.
-    expect(await cue(desk)).toBe('Breathe in 4')
+    // The words live inside the drawing; beside it, only what holds still for the span.
+    expect(await cue(desk)).toBe('guide')
+    expect(String(svg?.props.source)).toContain('>Breathe in</text>')
     expect(await desk.find({ key: 'sw-shape' })).toBeUndefined()
   })
 
@@ -121,7 +125,7 @@ describe('following only the main conversation', () => {
     await w.clock.advance(3000 + 2000)
     for (const surface of SURFACES) {
       const ui = await w.band($, surface)
-      expect(await cue(ui)).toBe('Breathe in 2')
+      expect(await cue(ui)).toBe(surface === 'desktop' ? 'guide' : 'Breathe in 2')
       await ui.unmount()
     }
     const ui = await w.band($, 'terminal')
@@ -144,7 +148,7 @@ describe('following only the main conversation', () => {
     await w.clock.advance(1000)
     await w.complete($, { agentId: 'agent-1' })
     await w.clock.advance(2000)
-    const ui = await w.band($, 'desktop')
+    const ui = await w.band($, 'terminal')
     expect(await cue(ui)).toBe('Breathe in 4')
   })
 
@@ -235,7 +239,7 @@ describe('the soft finish', () => {
     const w = world(on)
     await w.start($)
     await w.clock.advance(3000 + 10_500)
-    const ui = await w.band($, 'desktop')
+    const ui = await w.band($, 'terminal')
     expect(await cue(ui)).toBe('Out 5')
     await w.complete($)
     await w.clock.settle()
@@ -611,13 +615,13 @@ test('MM-110: on the desktop the guide is built once per span, so nothing flashe
   await w.clock.advance(3000 + 500)
   const ui = await w.band($, 'desktop')
   const first = await ui.find({ type: 'Svg' })
-  expect(first?.props.isInteractive).toBe(true)
+  expect(first?.props.isInteractive).toBeUndefined()
+  const tree = JSON.stringify(await ui.drawn())
   for (let i = 0; i < 6; i += 1) {
     await w.clock.advance(1000)
-    const now = await ui.find({ type: 'Svg' })
-    // Every prop stays put, so the desktop never reloads the drawing mid-breath (MM-110).
-    expect(now?.props).toEqual(first?.props)
-    expect(await cue(ui)).toMatch(/^(Breathe in|Sip in|Out) \d+$/)
+    // The whole band is the same tree, byte for byte, across the span: nothing to redraw,
+    // and the drawing's own clock carries the breath (MM-110).
+    expect(JSON.stringify(await ui.drawn()), `t+${i + 1}s`).toBe(tree)
   }
   await ui.unmount()
 })

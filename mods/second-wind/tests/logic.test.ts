@@ -167,8 +167,9 @@ describe('the desktop guide (MM-110)', () => {
     expect(a).toContain('@keyframes h{0%{r:12px')
     expect(a).not.toContain('<script')
     expect(a).not.toContain('<animate')
-    // Bolt and the halo only: the words are text beside it, so they can change without a redraw.
-    expect(a).not.toContain('<text')
+    // Each step's word, cross-fading on the same clock: never a blank between them.
+    for (const word of ['Breathe in', 'Hold', 'Breathe out']) expect(a).toContain(`>${word}</text>`)
+    expect(a).toContain('@keyframes w0{0%{opacity:0.5}')
   })
 
   test('reduced motion stills Bolt and the halo, which stay drawn', () => {
@@ -233,4 +234,11 @@ describe('settings and copy', () => {
     ]
     for (const [text, start, end, inputText, want] of rows) expect(draftAfter({ text, start, end, inputText })).toBe(want)
   })
+})
+
+test('MM-110: a rest is a still Bolt with no words inside the drawing', () => {
+  const rest = guideSvg([], { motion: 'full', delayMs: 0, loop: false, pose: 'idle', words: false })
+  expect(rest).not.toContain('<text')
+  expect(rest).not.toContain('@keyframes')
+  expect(rest).toContain('<rect ')
 })

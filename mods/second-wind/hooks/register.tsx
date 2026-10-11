@@ -364,7 +364,7 @@ async function end($: EngineInterface, turnId: string, isAborted: boolean): Prom
 }
 
 /** The desktop guide's markup for the span it was built for (MM-110). */
-let guide: { key: string; source: string; shown: boolean } = { key: '', source: '', shown: false }
+let guide: { key: string; source: string; shown: boolean; words: boolean } = { key: '', source: '', shown: false, words: true }
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
@@ -526,9 +526,14 @@ export const register: Register = (on, options) => {
           // the desktop never reloads it: it runs its own smooth clock (MM-110). A guide that was
           // not drawn last time is rebuilt from now, so a fresh mount starts in step.
           const key = `${span.key}:${motion}`
-          if (guide.key !== key || !guide.shown) guide = { key, shown: true, source: guideSvg(span.steps, { motion, delayMs: span.offsetMs, loop: span.loop, pose: span.pose }) }
+          if (guide.key !== key || !guide.shown) {
+            const words = span.pose !== 'idle'
+            guide = { key, shown: true, words, source: guideSvg(span.steps, { motion, delayMs: span.offsetMs, loop: span.loop, pose: span.pose, words }) }
+          }
           const { Svg } = $.ui.resolve(e)
-          shape = <Svg key="sw-guide" source={guide.source} alt="Breathing guide" width={GUIDE_SIZE.width} height={GUIDE_SIZE.height} isInteractive />
+          // An image, not a frame: the desktop keeps an image whose source is unchanged, while a
+          // frame is set again on every redraw of the band and restarts (MM-110, seen live).
+          shape = <Svg key="sw-guide" source={guide.source} alt="Breathing guide" width={GUIDE_SIZE.width} height={GUIDE_SIZE.height} />
         } else if (!isSmall) {
           const [left, body, right] = barCells(fill, barWidth(cols))
           shape = (
@@ -550,8 +555,27 @@ export const register: Register = (on, options) => {
             {mini !== null ? <Text dimColor>{mini}</Text> : null}
           </Box>,
         )
+      } else if (e.surface === 'desktop' && shape !== null) {
+        // Everything the desktop draws holds still for the whole span: the step's words live in
+        // the drawing, and beside it only what never changes mid-span (no countdown, no count).
+        const still = guide.words ? null : frame.cue.replace(/ · \d+$/, '')
+        const label = frame.mode === 'breath' ? frame.caption.replace(/ · \d+ breaths?$/, '') : frame.caption
+        rows.push(
+          <Box key="sw-breath" flexDirection="row" gap={2} alignItems="center">
+            {shape}
+            <Box key="sw-head" flexDirection="column">
+              {still !== null ? (
+                <Box key="sw-cue">
+                  <Text bold color={ACCENT} wrap="truncate-end">{still}</Text>
+                </Box>
+              ) : null}
+              <Box key="sw-caption">
+                <Text dimColor>{label}</Text>
+              </Box>
+            </Box>
+          </Box>,
+        )
       } else {
-        // The step's words stay text beside the guide: a word changes, the drawing does not.
         const head = fitHead(frame.cue, frame.caption, e.surface === 'desktop' && shape !== null ? Math.max(1, cols - 10) : cols)
         const words = (
           <Box key="sw-head" flexDirection="row">
