@@ -109,6 +109,37 @@ async function tick($: EngineInterface): Promise<void> {
   })
 }
 
+/** Claude Code's own plan tools: when any is present Headway lends none. */
+const NATIVE_PLAN_TOOLS: ReadonlySet<string> = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate'])
+const PLAN_TOOL_NAME = 'mcp__headway__plan'
+/** The plan tool Headway lends where Claude has none (the desktop app), in TodoWrite's shape. */
+const PLAN_TOOL = {
+  name: 'plan',
+  description:
+    'Keep a visible plan for multi-step work. When a task has three or more steps, call this first with every step ' +
+    '(the first "in_progress", the rest "pending"), then again each time a step starts or finishes, always with the ' +
+    'full list. Exactly one step is "in_progress" at a time; mark a step "completed" as soon as it is done. The ' +
+    'person sees the plan as a progress line above their prompt; it changes nothing else.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      todos: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            content: { type: 'string', description: 'The step, in a few words' },
+            status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] },
+          },
+          required: ['content', 'status'],
+        },
+      },
+    },
+    required: ['todos'],
+  },
+  isDeferred: false,
+} as const
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -117,8 +148,23 @@ export const register: Register = on => {
       argumentHint: '[hide|show]',
       immediate: true,
     })
+    // The desktop app gives Claude no todo tool (MM-111). There Headway lends one shaped like
+    // TodoWrite, so Claude can share its plan and the line can follow it; never beside a native one.
+    try {
+      const names = (await $.tool.list()).map(tool => tool.name)
+      if (!names.some(name => NATIVE_PLAN_TOOLS.has(name))) await $.tool.register(PLAN_TOOL)
+    } catch (error) {
+      $.ui.log(`headway: no plan tool lent (${String(error)})`, { to: 'debug' })
+    }
     return next(e)
   })
+
+  // Headway's own plan tool, where Claude has no todo tool: answered here, read as TodoWrite is.
+  on('tool.call', { tool: PLAN_TOOL_NAME }, async ($, e) => {
+    const event = eventFromTool('TodoWrite', e, null, e.agentId === undefined)
+    if (event !== null) await safely($, () => dispatch($, event))
+    return { result: { ok: event !== null }, text: event === null ? 'No plan read: send todos as [{ content, status }].' : 'Plan updated.' }
+  }).catch(() => ({ result: { ok: false }, text: 'Plan not recorded.' }))
 
   // A /clear or a resumed conversation is a different conversation: its plan is not this one's.
   on('session.end', async ($, e, next) => {
