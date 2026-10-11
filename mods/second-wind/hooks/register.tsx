@@ -364,7 +364,7 @@ async function end($: EngineInterface, turnId: string, isAborted: boolean): Prom
 }
 
 /** The desktop guide's markup for the span it was built for (MM-110). */
-let guide: { key: string; source: string } = { key: '', source: '' }
+let guide: { key: string; source: string; shown: boolean } = { key: '', source: '', shown: false }
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
@@ -520,24 +520,15 @@ export const register: Register = (on, options) => {
       const isSmall = isTyping || e.props.maxRows < 3
       let shape: RenderNode | null = null
       if (motion !== 'still') {
-        const span = e.surface === 'desktop' && r !== null ? guideSpan(r, now) : null
+        const span = e.surface === 'desktop' && r !== null && !isSmall ? guideSpan(r, now) : null
         if (span !== null && e.surface === 'desktop') {
-          // Built once per span of breathing and then left alone: the drawing runs its own
-          // smooth clock, so nothing is repainted mid-breath (MM-110).
+          // Built once per span and drawn with props that never change (source, alt, size), so
+          // the desktop never reloads it: it runs its own smooth clock (MM-110). A guide that was
+          // not drawn last time is rebuilt from now, so a fresh mount starts in step.
           const key = `${span.key}:${motion}`
-          if (guide.key !== key) guide = { key, source: guideSvg(span.steps, { motion, delayMs: span.offsetMs, loop: span.loop, pose: span.pose }) }
+          if (guide.key !== key || !guide.shown) guide = { key, shown: true, source: guideSvg(span.steps, { motion, delayMs: span.offsetMs, loop: span.loop, pose: span.pose }) }
           const { Svg } = $.ui.resolve(e)
-          const k = isSmall ? 0.66 : 1
-          shape = (
-            <Svg
-              key="sw-guide"
-              source={guide.source}
-              alt={frame.cue}
-              width={Math.round(GUIDE_SIZE.width * k)}
-              height={Math.round(GUIDE_SIZE.height * k)}
-              isInteractive
-            />
-          )
+          shape = <Svg key="sw-guide" source={guide.source} alt="Breathing guide" width={GUIDE_SIZE.width} height={GUIDE_SIZE.height} isInteractive />
         } else if (!isSmall) {
           const [left, body, right] = barCells(fill, barWidth(cols))
           shape = (
@@ -549,33 +540,20 @@ export const register: Register = (on, options) => {
           )
         }
       }
-      // On the desktop the guide carries the step's words on its own clock; beside it, only what is running.
-      const carriesWords = e.surface === 'desktop' && shape !== null && frame.mode !== 'interlude'
-      if (isSmall && carriesWords) {
-        rows.push(
-          <Box key="sw-compact" flexDirection="row">
-            {shape}
-          </Box>,
-        )
-      } else if (isSmall) {
+      if (e.surface === 'desktop' && shape === null) guide = { ...guide, shown: false }
+      if (isSmall) {
         const room = cols - frame.cue.length - 1
         const mini = e.surface === 'terminal' && motion !== 'still' && room >= 4 ? barCells(fill, Math.min(8, room)).join('') : null
         rows.push(
           <Box key="sw-compact" flexDirection="row" gap={1}>
-            {e.surface === 'desktop' ? shape : null}
             <Text dimColor wrap="truncate-end">{frame.cue}</Text>
             {mini !== null ? <Text dimColor>{mini}</Text> : null}
           </Box>,
         )
       } else {
-        const head = carriesWords ? { cue: null, caption: frame.caption } : fitHead(frame.cue, frame.caption, e.surface === 'desktop' && shape !== null ? Math.max(1, cols - 19) : cols)
-        const words = carriesWords ? (
-          <Box key="sw-head" flexDirection="row">
-            <Box key="sw-caption">
-              <Text dimColor>{head.caption}</Text>
-            </Box>
-          </Box>
-        ) : (
+        // The step's words stay text beside the guide: a word changes, the drawing does not.
+        const head = fitHead(frame.cue, frame.caption, e.surface === 'desktop' && shape !== null ? Math.max(1, cols - 10) : cols)
+        const words = (
           <Box key="sw-head" flexDirection="row">
             <Box key="sw-cue">
               <Text bold color={ACCENT} wrap="truncate-end">{head.cue}</Text>
@@ -589,7 +567,7 @@ export const register: Register = (on, options) => {
         )
         rows.push(
           e.surface === 'desktop' && shape !== null ? (
-            <Box key="sw-breath" flexDirection="row" gap={1} alignItems="center">
+            <Box key="sw-breath" flexDirection="row" gap={2} alignItems="center">
               {shape}
               {words}
             </Box>

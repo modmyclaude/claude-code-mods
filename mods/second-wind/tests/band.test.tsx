@@ -68,7 +68,9 @@ describe('when it shows', () => {
     expect(String(svg?.props.source)).toContain('@keyframes h{')
     expect(String(svg?.props.source)).toContain('cubic-bezier(.45,0,.55,1)')
     expect(String(svg?.props.source)).toContain('prefers-reduced-motion')
-    expect(Number(svg?.props.height)).toBeLessThanOrEqual(44)
+    expect(Number(svg?.props.height)).toBeLessThanOrEqual(72)
+    // The words are text beside the guide, never inside it: a word change must not touch the drawing.
+    expect(await cue(desk)).toBe('Breathe in 4')
     expect(await desk.find({ key: 'sw-shape' })).toBeUndefined()
   })
 
@@ -613,8 +615,9 @@ test('MM-110: on the desktop the guide is built once per span, so nothing flashe
   for (let i = 0; i < 6; i += 1) {
     await w.clock.advance(1000)
     const now = await ui.find({ type: 'Svg' })
-    expect(now?.props.source).toBe(first?.props.source)
-    expect(now?.props.isInteractive).toBe(true)
+    // Every prop stays put, so the desktop never reloads the drawing mid-breath (MM-110).
+    expect(now?.props).toEqual(first?.props)
+    expect(await cue(ui)).toMatch(/^(Breathe in|Sip in|Out) \d+$/)
   }
   await ui.unmount()
 })

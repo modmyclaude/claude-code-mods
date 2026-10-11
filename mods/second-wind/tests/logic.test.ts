@@ -167,14 +167,15 @@ describe('the desktop guide (MM-110)', () => {
     expect(a).toContain('@keyframes h{0%{r:12px')
     expect(a).not.toContain('<script')
     expect(a).not.toContain('<animate')
-    // Each step's words, in order, on the same clock.
-    for (const word of ['Breathe in', 'Hold', 'Breathe out']) expect(a).toContain(`>${word}</text>`)
+    // Bolt and the halo only: the words are text beside it, so they can change without a redraw.
+    expect(a).not.toContain('<text')
   })
 
-  test('reduced motion stills Bolt and the halo; the words still change', () => {
+  test('reduced motion stills Bolt and the halo, which stay drawn', () => {
     const a = guideSvg(box, { motion: 'full', delayMs: 0, loop: true, pose: 'calm' })
     expect(a).toContain('@media (prefers-reduced-motion:reduce){.h,.b{animation:none}}')
-    expect(a).toContain('@keyframes w0{')
+    expect(a).toContain('<circle class="h"')
+    expect(a).toContain('<rect ')
     const still = guideSvg(box, { motion: 'still', delayMs: 0, loop: true, pose: 'calm' })
     expect(still).not.toContain('@keyframes h{')
   })
