@@ -67,6 +67,12 @@ describe('not proven: held, whatever the command does', () => {
     // After a heredoc body (data), the next line is a command again.
     [`cat <<EOF > .env\nKEY=${V}\nEOF\nnode run.js`, 'node'],
     [`timeout 5 python script.py ${V}`, 'python'],
+    // A quoted '<<EOF' is a plain word, not a heredoc: the lines after it run.
+    [`echo '<<EOF' ${V}\nnode run.js\nEOF`, 'node'],
+    [`echo "<<EOF"\nnode run.js ${V}\nEOF`, 'node'],
+    [`echo \\<<EOF\nnode run.js ${V}\nEOF`, 'node'],
+    // Two heredocs on one line: both bodies are data, the command after them is not.
+    [`cat <<A <<B\nnode a\nA\nnode b\nB\nnode ${V}`, 'node'],
     [`sudo -u me sh -c 'echo ${V}'`, 'sh'],
   ]
   for (const [command, program] of held) {

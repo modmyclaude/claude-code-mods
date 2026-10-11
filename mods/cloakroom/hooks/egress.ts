@@ -219,13 +219,34 @@ export function localProof(command: string): LocalProof {
   return { ok: true }
 }
 
-/** The spans of heredoc bodies (`<<EOF` to the line that is `EOF`): data the shell never runs. */
+/**
+ * The spans of heredoc bodies (`<<EOF` to the line that is `EOF`): data the
+ * shell never runs. Only a `<<` outside quotes and not escaped opens one: a
+ * quoted `'<<EOF'` is a plain word, and the lines after it are commands.
+ */
 function heredocBodies(command: string): Span[] {
   const out: Span[] = []
-  const open = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/g
-  for (let m = open.exec(command); m !== null; m = open.exec(command)) {
+  const open = /^<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/
+  let quote: '"' | "'" | null = null
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]
+    if (c === '\\') {
+      i++
+      continue
+    }
+    if (quote !== null) {
+      if (c === quote) quote = null
+      continue
+    }
+    if (c === '"' || c === "'") {
+      quote = c
+      continue
+    }
+    if (c !== '<' || command[i + 1] !== '<') continue
+    const m = open.exec(command.slice(i))
+    if (!m) continue
     const word = m[2]!
-    const lineEnd = command.indexOf('\n', m.index)
+    const lineEnd = command.indexOf('\n', i)
     if (lineEnd < 0) break
     const lines = command.slice(lineEnd + 1).split('\n')
     let end = command.length
@@ -238,7 +259,8 @@ function heredocBodies(command: string): Span[] {
       at += line.length + 1
     }
     out.push({ start: lineEnd + 1, end })
-    open.lastIndex = Math.max(open.lastIndex, end)
+    i = end // the next heredoc, if any, starts after this body
+    quote = null
   }
   return out
 }
