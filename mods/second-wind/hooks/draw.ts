@@ -46,7 +46,7 @@ export function fitHead(cue: string, caption: string, columns: number): { cue: s
 
 /** One step of the desktop guide: its words, how long it takes, the fill it eases from and to. */
 export type GuideStep = { phase: PhaseName; ms: number; from: number; to: number }
-export type GuidePose = 'sleep' | 'idle'
+export type GuidePose = 'calm' | 'idle'
 
 const GUIDE_WORDS: Readonly<Record<PhaseName, string>> = { in: 'Breathe in', sip: 'Sip in', hold: 'Hold', out: 'Breathe out' }
 /** The guide's size in CSS pixels: about two rows of the band. */
@@ -72,7 +72,7 @@ function boltRects(pose: GuidePose): string {
 }
 
 /**
- * The desktop breathing guide: Bolt, eyes closed, with a soft halo that swells
+ * The desktop breathing guide: Bolt in his calm pose (eyes closed, antenna light on), with a soft halo that swells
  * on the in-breath and settles on the out-breath, and the step's words beside
  * him. Everything moves on the drawing's own clock, with continuous easing, so
  * the markup is built once per run of steps and never swapped mid-breath: no

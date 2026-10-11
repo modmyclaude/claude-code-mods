@@ -160,8 +160,8 @@ describe('the desktop guide (MM-110)', () => {
   const box = PATTERNS.box
 
   test('one markup per span: the drawing runs the whole loop itself, eased, never swapped mid-breath', () => {
-    const a = guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'sleep' })
-    expect(a).toBe(guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'sleep' }))
+    const a = guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'calm' })
+    expect(a).toBe(guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'calm' }))
     expect(a).toContain('16000ms linear -3000ms infinite')
     expect(a).toContain('cubic-bezier(.45,0,.55,1)')
     expect(a).toContain('@keyframes h{0%{r:12px')
@@ -172,16 +172,16 @@ describe('the desktop guide (MM-110)', () => {
   })
 
   test('reduced motion stills Bolt and the halo; the words still change', () => {
-    const a = guideSvg(box, { motion: 'full', delayMs: 0, loop: true, pose: 'sleep' })
+    const a = guideSvg(box, { motion: 'full', delayMs: 0, loop: true, pose: 'calm' })
     expect(a).toContain('@media (prefers-reduced-motion:reduce){.h,.b{animation:none}}')
     expect(a).toContain('@keyframes w0{')
-    const still = guideSvg(box, { motion: 'still', delayMs: 0, loop: true, pose: 'sleep' })
+    const still = guideSvg(box, { motion: 'still', delayMs: 0, loop: true, pose: 'calm' })
     expect(still).not.toContain('@keyframes h{')
   })
 
   test('gentle travels less; the closing exhale plays once', () => {
-    expect(guideSvg(box, { motion: 'gentle', delayMs: 0, loop: true, pose: 'sleep' })).toContain('@keyframes h{0%{r:15px')
-    const finish = guideSvg([{ phase: 'out', ms: 2000, from: 0.6, to: 0 }], { motion: 'full', delayMs: 0, loop: false, pose: 'sleep' })
+    expect(guideSvg(box, { motion: 'gentle', delayMs: 0, loop: true, pose: 'calm' })).toContain('@keyframes h{0%{r:15px')
+    const finish = guideSvg([{ phase: 'out', ms: 2000, from: 0.6, to: 0 }], { motion: 'full', delayMs: 0, loop: false, pose: 'calm' })
     expect(finish).toContain('2000ms linear 0ms 1 both')
   })
 })
