@@ -84,7 +84,7 @@ A mod is active as soon as it installs, with no restart. Installs at user scope 
 |---|---|---|---|
 | <img src="brand/pixel-icons/svg/ant-farm.svg" width="32" height="32" alt=""> | [**Ant Farm**](mods/ant-farm)<br>`ant-farm@modmyclaude` | Watch your subagents work, and what they cost, live. [Prompt](prompts/ant-farm.md) | `display only` |
 | <img src="brand/pixel-icons/svg/footprints.svg" width="32" height="32" alt=""> | [**Footprints**](mods/footprints)<br>`footprints@modmyclaude` | A live file tree beside the chat that shows where Claude has been. [Prompt](prompts/footprints.md) | `reads files` `runs commands` `hooks tool calls` |
-| <img src="brand/pixel-icons/svg/headway.svg" width="32" height="32" alt=""> | [**Headway**](mods/headway)<br>`headway@modmyclaude` | See how far along Claude is, and when it will land. Zero tokens. [Prompt](prompts/headway.md) | `hooks tool calls` |
+| <img src="brand/pixel-icons/svg/headway.svg" width="32" height="32" alt=""> | [**Headway**](mods/headway)<br>`headway@modmyclaude` | See how far along Claude is, and when it will land. Zero tokens in the terminal. [Prompt](prompts/headway.md) | `hooks tool calls` |
 
 ### Review changes
 

@@ -114,7 +114,7 @@
     {
       "name": "headway",
       "source": "./mods/headway",
-      "description": "See how far along Claude is, and when it will land. Zero tokens.",
+      "description": "See how far along Claude is, and when it will land. Zero tokens in the terminal.",
       "version": "0.1.0",
       "category": "visibility",
       "keywords": [
