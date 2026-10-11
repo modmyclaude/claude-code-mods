@@ -472,7 +472,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 158,
+        "count": 159,
         "surfaces": [
           "terminal",
           "desktop",
@@ -481,8 +481,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "a922523",
+      "updated": "2026-10-11",
+      "commit": "26c373a",
       "reach": [
         "hooks tool calls"
       ],
