@@ -12,7 +12,7 @@ Every mod ships with the prompt that built it, so you can remix it.
 <!-- badges:start -->
 [![check](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml/badge.svg)](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml)
 [![mods](https://img.shields.io/badge/mods-17-C8F53C?labelColor=101114)](#the-mods)
-[![tests](https://img.shields.io/badge/tests-3%2C000%2B-C8F53C?labelColor=101114)](CONTRIBUTING.md#the-bar)
+[![tests](https://img.shields.io/badge/tests-3%2C200%2B-C8F53C?labelColor=101114)](CONTRIBUTING.md#the-bar)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.287%2B-3A3F4A?labelColor=101114)](#install)
 [![license](https://img.shields.io/badge/license-MIT-3A3F4A?labelColor=101114)](LICENSE)
 <!-- badges:end -->
@@ -40,7 +40,7 @@ This repo is a small, curated collection of <!-- count -->17<!-- /count --> of t
 
 - **Original mods, built here.** Not a list of other people's repos.
 - **Every mod ships its prompt.** Read how it was made, change a line, and Claude builds your version.
-- **Tested where you use it.** <!-- tests -->3,000+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not only a static validate.
+- **Tested where you use it.** <!-- tests -->3,200+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not only a static validate.
 - **Reviewed by a second builder.** No mod is listed on its builder's word alone.
 - **Honest badges.** What each mod can touch comes from Claude Code's own validator, not from our description.
 
