@@ -4,7 +4,7 @@
 export type WardrobeLook = {
   /** The theme drawn: a theme id, or `default` for Claude Code's own look. */
   theme: string
-  /** What was chosen: a theme id, `auto` or `default`. */
+  /** What was chosen: a theme id, `auto`, `season` or `default`. */
   choice: string
   /** Where the choice came from: the global one, or this project's pin. */
   scope: 'global' | 'project'
@@ -20,11 +20,18 @@ export type WardrobeTiming = {
   ms: number | null
 }
 
+/** The last `/wear` that put a theme on: what, and when (a `$.clock.now()` reading), for the switch band. */
+export type WardrobeSwitch = {
+  theme: string
+  at: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     wardrobe: {
       look: WardrobeLook
       timing: StateFamily<WardrobeTiming>
+      switch: WardrobeSwitch | null
     }
   }
 }

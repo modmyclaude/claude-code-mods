@@ -49,12 +49,33 @@ describe('contrast()', () => {
 })
 
 describe('the themes', () => {
-  test('are exactly the ones the prompt names', () => {
+  test('are exactly the ones the prompt names, the seasonal packs included (MM-108)', () => {
     expect(THEMES.map(theme => theme.id).sort()).toEqual(
-      ['catppuccin', 'colorblind', 'dracula', 'high-contrast', 'noir', 'nord', 'paper', 'solarized', 'tokyo-night'].sort(),
+      ['catppuccin', 'colorblind', 'dracula', 'high-contrast', 'noir', 'nord', 'paper', 'solarized', 'tokyo-night', 'halloween', 'christmas', 'spring', 'summer', 'autumn'].sort(),
     )
     expect(themeById('paper')?.tone).toBe('light')
+    expect(themeById('spring')?.tone).toBe('light')
     expect(themeById('default')).toBeUndefined()
+  })
+
+  test('every mark and every icon is one single-width BMP character: no emoji, no variation selector', () => {
+    for (const theme of THEMES) {
+      for (const glyph of [theme.mark, ...Object.values(theme.icons), ...Object.values(theme.status)]) {
+        const points = [...glyph].map(c => c.codePointAt(0) ?? 0)
+        expect(points, `${theme.id} ${glyph}`).toHaveLength(1)
+        const point = points[0] ?? 0
+        expect(point, `${theme.id} ${glyph}`).toBeLessThan(0x10000)
+        expect(point === 0xfe0f || point === 0xfe0e, `${theme.id} ${glyph}`).toBe(false)
+        // Nothing from the blocks a terminal may draw double width: East Asian wide ranges, the block elements.
+        expect(point >= 0x1100 && point <= 0x115f, `${theme.id} ${glyph}`).toBe(false)
+        expect(point >= 0x2e80 && point <= 0xa4cf, `${theme.id} ${glyph}`).toBe(false)
+        expect(point >= 0xac00 && point <= 0xd7a3, `${theme.id} ${glyph}`).toBe(false)
+        expect(point >= 0xf900 && point <= 0xfaff, `${theme.id} ${glyph}`).toBe(false)
+        expect(point >= 0xfe30 && point <= 0xfe4f, `${theme.id} ${glyph}`).toBe(false)
+        expect(point >= 0xff00 && point <= 0xff60, `${theme.id} ${glyph}`).toBe(false)
+        expect(point >= 0x2580 && point <= 0x259f, `${theme.id} ${glyph}`).toBe(false)
+      }
+    }
   })
 
   // The bar each theme is held to: WCAG AAA (7:1) for high-contrast, AA

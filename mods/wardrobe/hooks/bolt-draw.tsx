@@ -27,8 +27,12 @@ export function boltOf(pick: BoltPick): BoltCell[][] {
 
 /** Bolt as one element under `key`, drawn the way `surface` lays out cells. */
 export function boltSprite(elements: Elements, surface: string, pick: BoltPick, key = 'bolt'): RenderElement {
+  return cellsSprite(elements, surface, boltOf(pick), key)
+}
+
+/** Any cell grid (Bolt, or Bolt in a costume: costume.ts) as one element under `key`, laid out as `surface` lays out cells. */
+export function cellsSprite(elements: Elements, surface: string, cells: readonly (readonly BoltCell[])[], key: string): RenderElement {
   const { Box, Text, Raster } = elements
-  const cells = boltOf(pick)
   const columns = cells[0]?.length ?? 0
   if (surface === 'terminal' && Raster !== undefined) {
     return <Raster key={key} columns={columns} rows={cells.length} cells={rasterCells(cells)} />

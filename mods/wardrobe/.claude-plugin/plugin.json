@@ -12,14 +12,14 @@
       "title": "Day theme (auto mode)",
       "description": "The theme /wear auto wears by day.",
       "default": "paper",
-      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind"]
+      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind", "halloween", "christmas", "spring", "summer", "autumn"]
     },
     "nightTheme": {
       "type": "string",
       "title": "Night theme (auto mode)",
       "description": "The theme /wear auto wears by night.",
       "default": "tokyo-night",
-      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind"]
+      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind", "halloween", "christmas", "spring", "summer", "autumn"]
     },
     "dayStarts": {
       "type": "string",

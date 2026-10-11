@@ -9,24 +9,30 @@ import { atom, read } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, Timer } from 'claude-code'
 
 import type { WardrobeLook } from '../types'
-import { boltSprite } from './bolt-draw'
 import { clean, diffCard, shellCard } from './content'
-import { describeLook, diffTree, groupRow, listText, listTree, shellTree, spinnerRow, toolRow, turnRow } from './draw'
-import { AUTO, CHOICES, DEFAULT, minuteOfDay, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
+import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, shellTree, spinnerRow, switchBand, toolRow, turnRow } from './draw'
+import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
 import { themeById } from './themes'
 
 const LOOK = { plugin: 'wardrobe', key: 'look' } as const
 const TIMING = { plugin: 'wardrobe', key: 'timing' } as const
+const SWITCH = { plugin: 'wardrobe', key: 'switch' } as const
 
 const look = atom(LOOK, { theme: DEFAULT, choice: DEFAULT, scope: 'global', phase: null, root: '' })
+/** The last `/wear` that put a theme on, for the switch band; null before the first. */
+const switched = atom(SWITCH, null)
 
-/** How often the worn theme is re-resolved: auto mode's switch, a choice made in another session. */
+/** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
+/** How long the switch band stays above the prompt after `/wear`. */
+const BAND_MS = 6_000
+/** A band narrower than this has no room for Bolt beside the words. */
+const BAND_BOLT_MIN_COLUMNS = 60
 
 /** The pane `/wear` lists the themes in. */
 const PANE = 'wardrobe'
 
-type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock'>
+type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock' | 'ui'>
 
 /**
  * Where wardrobe draws in place of a component (a result card, the turn line),
@@ -41,7 +47,7 @@ async function refresh($: Dollar, settings: Settings): Promise<WardrobeLook> {
   const global = await $.store.get('global')
   const pins = await $.store.get('pins')
   const now = await $.clock.now()
-  const fresh = resolveLook({ root, global, pins, minute: minuteOfDay(now), settings })
+  const fresh = resolveLook({ root, global, pins, now, settings })
   // Compared field by field (state crosses as JSON, so identity never matches):
   // an unchanged look writes nothing and redraws nothing.
   const current = await $.state.get(LOOK)
@@ -49,7 +55,11 @@ async function refresh($: Dollar, settings: Settings): Promise<WardrobeLook> {
   return fresh
 }
 
-/** `/wear <choice>`: changes what this project shows (its pin if it has one, else the global choice). */
+/**
+ * `/wear <choice>`: changes what this project shows (its pin if it has one,
+ * else the global choice). A theme put on (by name, or by `auto` or `season`
+ * resolving to one) raises the switch band, which one timer takes down.
+ */
 async function wear($: Dollar, settings: Settings, choice: string): Promise<string> {
   const root = await $.session.root()
   const pins = pinsOf(await $.store.get('pins'))
@@ -60,6 +70,10 @@ async function wear($: Dollar, settings: Settings, choice: string): Promise<stri
     await $.store.set('global', choice)
   }
   const look = await refresh($, settings)
+  if (themeById(look.theme)) {
+    await $.state.set(SWITCH, { theme: look.theme, at: await $.clock.now() })
+    $.clock.after(BAND_MS, () => $.ui.invalidate('ui.render'))
+  }
   return describeLook(look, settings) + (await elsewhere($, look))
 }
 
@@ -139,7 +153,7 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'wear' }, async ($, e) => {
     const command = parseWear(e.args)
     if (command.kind === 'list') {
-      await showList($, listText(await refresh($, settings), settings, problems))
+      await showList($, listText(await refresh($, settings), settings, problems, await $.clock.now()))
     } else if (command.kind === 'unknown') {
       await say($, `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin.`, 8000)
     } else if (command.kind === 'wear') {
@@ -226,10 +240,47 @@ export const register: Register = (on, options) => {
     return drewOwn(below) ? below : turnRow($.ui.resolve(e), theme, word, durationMs)
   }).catch(($, e, next) => next(e))
 
-  // The `/wear` pane: every theme previewed in its own colours, the worn one marked,
-  // and a static Bolt (MM-091). Box and Text alone, but for Bolt's Raster on the terminal.
+  // The switch band: for a few seconds after /wear, one themed row above the
+  // prompt with Bolt in the theme's costume. What is beneath (other mods'
+  // bands, the engine's own) draws first and is never under a sized Box; a
+  // survey holding the band is left alone. Nothing is drawn when no switch
+  // happened, and the one timer `wear` set takes the band down.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
+    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
+    const last = await read($, switched)
+    const theme = last === null ? undefined : themeById(last.theme)
+    if (last === null || !theme || (await $.clock.now()) - last.at >= BAND_MS) return next(e)
+    const below = await next(e)
+    const { Box } = $.ui.resolve(e)
+    const columns = e.props.bodyColumns
+    const bolt = columns >= BAND_BOLT_MIN_COLUMNS ? dressedBolt($.ui.resolve(e), e.surface, theme, 'tiny', 'wardrobe-bolt') : null
+    return (
+      <Box flexDirection="column">
+        {below}
+        {switchBand($.ui.resolve(e), theme, columns, bolt)}
+      </Box>
+    )
+  }).catch(($, e, next) => next(e))
+
+  // The `/wear` gallery: a card per theme in its own colours with Bolt in its
+  // costume (MM-091, MM-108), the worn one marked, a `wear` button on each.
+  // Box, Text and Button, but for Bolt's Raster on the terminal.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const bolt = boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'idle' })
-    return listTree($.ui.resolve(e), await read($, look), settings, problems, e.props.bodyColumns, bolt)
+    const onWear = (choice: string) => {
+      wear($, settings, choice)
+        .then(text => say($, text + autoNote(choice)))
+        .catch(() => undefined)
+        .finally(() => $.ui.invalidate('ui.render'))
+    }
+    return listTree($.ui.resolve(e), {
+      surface: e.surface,
+      look: await read($, look),
+      settings,
+      problems,
+      columns: e.props.bodyColumns,
+      now: await $.clock.now(),
+      onWear,
+    })
   }).catch(($, e, next) => next(e))
 }

@@ -116,6 +116,11 @@ export const PANE: RenderPropsOf['Pane'] = {
   view: {},
 }
 
+/** The band above the prompt as a surface hands it to the hook; `over` changes a prop (a survey, the width). */
+export function bandProps(over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] {
+  return { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {}, ...over }
+}
+
 export const TOOL_ROW: RenderPropsOf['ToolUse'] = {
   tool_use_id: 'toolu_row',
   tool: 'Bash',

@@ -7,11 +7,17 @@ import { THEMES, themeById } from './themes'
 export const DEFAULT = 'default'
 /** A light theme by day and a dark one by night. */
 export const AUTO = 'auto'
+/** The seasonal pack the date calls for (SEASONS). */
+export const SEASON = 'season'
 
 /** Every word `/wear <choice>` accepts as a whole name. */
-export const CHOICES: readonly string[] = [DEFAULT, ...THEMES.map(theme => theme.id), AUTO]
+export const CHOICES: readonly string[] = [DEFAULT, ...THEMES.map(theme => theme.id), AUTO, SEASON]
 
 const ALIASES: Record<string, string> = {
+  xmas: 'christmas',
+  noel: 'christmas',
+  fall: 'autumn',
+  spooky: 'halloween',
   hc: 'high-contrast',
   highcontrast: 'high-contrast',
   contrast: 'high-contrast',
@@ -87,6 +93,40 @@ export function minuteOfDay(ms: number): number {
   return date.getHours() * 60 + date.getMinutes()
 }
 
+/**
+ * What `/wear season` wears when, by the local date. The first window that
+ * holds the date wins, so Halloween sits inside autumn; a window may cross the
+ * year's end. The rest of winter (Jan 7 to Feb) has no pack of its own and
+ * wears nord, the frost theme.
+ */
+export const SEASONS: readonly { theme: string; from: readonly [number, number]; to: readonly [number, number]; when: string }[] = [
+  { theme: 'halloween', from: [10, 15], to: [11, 1], when: 'Oct 15 to Nov 1' },
+  { theme: 'christmas', from: [12, 1], to: [1, 6], when: 'Dec 1 to Jan 6' },
+  { theme: 'spring', from: [3, 1], to: [5, 31], when: 'Mar 1 to May 31' },
+  { theme: 'summer', from: [6, 1], to: [8, 31], when: 'Jun 1 to Aug 31' },
+  { theme: 'autumn', from: [9, 1], to: [11, 30], when: 'Sep 1 to Nov 30, Halloween aside' },
+  { theme: 'nord', from: [1, 7], to: [2, 29], when: 'Jan 7 to the end of Feb' },
+]
+
+/** The theme the season calls for at a `$.clock.now()` reading (local date). */
+export function seasonOf(ms: number): string {
+  const date = new Date(ms)
+  const day = (date.getMonth() + 1) * 100 + date.getDate()
+  const key = ([month, dayOfMonth]: readonly [number, number]) => month * 100 + dayOfMonth
+  for (const season of SEASONS) {
+    const from = key(season.from)
+    const to = key(season.to)
+    const inside = from <= to ? day >= from && day <= to : day >= from || day <= to
+    if (inside) return season.theme
+  }
+  return 'nord'
+}
+
+/** The window of the year a theme is the season's, in words, or undefined. */
+export function seasonWindow(theme: string): string | undefined {
+  return SEASONS.find(season => season.theme === theme)?.when
+}
+
 export type Settings = {
   dayTheme: string
   nightTheme: string
@@ -118,20 +158,24 @@ export function settingsFrom(options: Readonly<Record<string, unknown>>): { sett
   }
 }
 
-/** The project's pin if it has one, else the global choice, else Claude Code's own look. */
+/**
+ * The project's pin if it has one, else the global choice, else Claude Code's
+ * own look; `auto` and `season` resolved for `now` (a `$.clock.now()` reading).
+ */
 export function resolveLook(input: {
   root: string
   global: unknown
   pins: unknown
-  minute: number
+  now: number
   settings: Settings
 }): WardrobeLook {
   const pin = pinsOf(input.pins)[input.root]
   const choice = pin ?? (isChoice(input.global) ? input.global : DEFAULT)
   const scope = pin === undefined ? 'global' : 'project'
+  if (choice === SEASON) return { theme: seasonOf(input.now), choice, scope, phase: null, root: input.root }
   if (choice !== AUTO) return { theme: choice, choice, scope, phase: null, root: input.root }
   const { dayTheme, nightTheme, dayStarts, nightStarts } = input.settings
-  const phase = isDay(input.minute, dayStarts, nightStarts) ? 'day' : 'night'
+  const phase = isDay(minuteOfDay(input.now), dayStarts, nightStarts) ? 'day' : 'night'
   return { theme: phase === 'day' ? dayTheme : nightTheme, choice, scope, phase, root: input.root }
 }
 

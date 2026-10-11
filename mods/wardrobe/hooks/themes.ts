@@ -121,6 +121,15 @@ const ASCII: Record<Kind, string> = {
   other: ':',
 }
 
+// The seasonal packs' sets: a solid or an outline set with a season's own
+// glyph for search and the web (a star and a moon, a snowflake, a blossom,
+// a sun, a fleuron). Still single-width BMP characters, none of them emoji.
+const NIGHT: Record<Kind, string> = { ...GEO, search: '✦', web: '☾' } // four-point star, last-quarter moon
+const FROST: Record<Kind, string> = { ...OUTLINE, search: '✧', web: '❄' } // white star, snowflake
+const BLOOM: Record<Kind, string> = { ...OUTLINE, search: '✿', web: '❀' } // black florette, white florette
+const SHORE: Record<Kind, string> = { ...GEO, search: '✶', web: '☼' } // six-point star, white sun
+const LEAF: Record<Kind, string> = { ...OUTLINE, search: '✤', web: '❧' } // heavy four-balloon asterisk, rotated floral heart
+
 const MARKS: Record<Status, string> = {
   running: '…', // ellipsis
   done: '✓', // check
@@ -316,6 +325,112 @@ export const THEMES: readonly Theme[] = [
     icons: GEO,
     status: MARKS,
     mark: '▲',
+    spinnerSuffix: '…',
+  },
+  // The seasonal packs. `/wear season` picks one by the date (look.ts SEASONS).
+  {
+    id: 'halloween',
+    tone: 'dark',
+    blurb: 'Pumpkin orange, violet and bone white on near-black',
+    palette: {
+      bg: '#0f0a16',
+      text: '#f2ead8',
+      muted: '#b7acc4',
+      accent: '#ff8c2b',
+      info: '#c9a6ff',
+      ok: '#a6e85c',
+      warn: '#ffb347',
+      error: '#ff6b6b',
+      special: '#dcb8ff',
+    },
+    diff: { addFg: '#b5f08a', addBg: '#1b2a12', removeFg: '#ffa07a', removeBg: '#3a1a12' },
+    icons: NIGHT,
+    status: MARKS,
+    mark: '✦',
+    spinnerSuffix: ' ~',
+  },
+  {
+    id: 'christmas',
+    tone: 'dark',
+    blurb: 'Holly green, berry red, snow white and gold on deep pine',
+    palette: {
+      bg: '#0e2a1c',
+      text: '#f6faf4',
+      muted: '#b9cdbe',
+      accent: '#ff7b86',
+      info: '#9fdcff',
+      ok: '#8ee08e',
+      warn: '#f2c94c',
+      error: '#ff8a93',
+      special: '#ffd766',
+    },
+    diff: { addFg: '#b4f0b4', addBg: '#174a2a', removeFg: '#ffb3b9', removeBg: '#4a1e26' },
+    icons: FROST,
+    status: MARKS,
+    mark: '❄',
+    spinnerSuffix: '…',
+  },
+  {
+    id: 'spring',
+    tone: 'light',
+    blurb: 'Fresh green, blossom pink and sky blue on cream',
+    palette: {
+      bg: '#fbf7ec',
+      text: '#2f3a2f',
+      muted: '#5e6a5e',
+      accent: '#2e7d32',
+      info: '#1769aa',
+      ok: '#2e7d32',
+      warn: '#8a5a00',
+      error: '#b3261e',
+      special: '#a8307a',
+    },
+    diff: { addFg: '#1b5e20', addBg: '#dff3dc', removeFg: '#8b1a3a', removeBg: '#fbdde6' },
+    icons: BLOOM,
+    status: MARKS,
+    mark: '❀',
+    spinnerSuffix: '…',
+  },
+  {
+    id: 'summer',
+    tone: 'dark',
+    blurb: 'Sun yellow, sea teal and coral on deep navy',
+    palette: {
+      bg: '#0b1e3a',
+      text: '#f1f5fb',
+      muted: '#b4c1d6',
+      accent: '#ffd84d',
+      info: '#4fd8d0',
+      ok: '#5fe0a8',
+      warn: '#ffc14d',
+      error: '#ff8a73',
+      special: '#ff9aa8',
+    },
+    diff: { addFg: '#8ff0c0', addBg: '#0f3a2e', removeFg: '#ffb0a0', removeBg: '#3e1c22' },
+    icons: SHORE,
+    status: MARKS,
+    mark: '☼',
+    spinnerSuffix: ' ~',
+  },
+  {
+    id: 'autumn',
+    tone: 'dark',
+    blurb: 'Amber, rust, moss and cream on dark brown',
+    palette: {
+      bg: '#241a12',
+      text: '#f3e9d7',
+      muted: '#c0b19b',
+      accent: '#f5a623',
+      info: '#9ec5b8',
+      ok: '#a9c46c',
+      warn: '#e8884f',
+      error: '#ff7a66',
+      special: '#e0a884',
+    },
+    diff: { addFg: '#c9d98a', addBg: '#2f3a1a', removeFg: '#ffb098', removeBg: '#4a2418' },
+    icons: LEAF,
+    status: MARKS,
+    mark: '❧',
     spinnerSuffix: '…',
   },
 ]

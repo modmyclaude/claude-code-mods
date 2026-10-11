@@ -3,23 +3,32 @@
 // Every coloured span is painted on the theme's own background (a chip), so
 // its contrast does not depend on the terminal's.
 
-import type { BoxProps, ElementConstructor, RenderElement, RenderPropsOf, TextProps, ToolGroupCall } from 'claude-code'
+import type { BoxProps, ButtonProps, ElementConstructor, RasterProps, RenderElement, RenderPropsOf, TextProps, ToolGroupCall } from 'claude-code'
 
 import type { WardrobeLook, WardrobeTiming } from '../types'
+import { BOLT_COLUMNS, boltSprite, cellsSprite } from './bolt-draw'
+import type { BoltSize } from './bolt'
 import type { DiffCard, DiffLine } from './content'
 import { clean, shortPath } from './content'
-import { AUTO, clockText, DEFAULT, formatDuration, formatMs, type Settings } from './look'
-import { KIND_ROLE, kindOf, STATUS_ROLE, THEMES, type Role, type Status, type Theme } from './themes'
+import { costumeOf, wearBolt } from './costume'
+import { AUTO, clockText, DEFAULT, formatDuration, formatMs, SEASON, seasonOf, seasonWindow, type Settings } from './look'
+import { KIND_ROLE, kindOf, STATUS_ROLE, THEMES, themeById, type Role, type Status, type Theme } from './themes'
 
 export type Table = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
+/** The pane's table: Box and Text, a Button for its `wear` controls, and the terminal's Raster for Bolt. */
+export type PaneTable = Table & { Button: ElementConstructor<ButtonProps>; Raster?: ElementConstructor<RasterProps> }
+
 /** Under this many columns a tool row drops its status and timing chip. */
 const NARROW = 60
-/** Under this many columns the /wear list leaves Bolt out. */
+/** Under this many columns the /wear gallery leaves Bolt out; from NARROW on, Bolt is drawn small. */
 const BOLT_MIN_COLUMNS = 40
 
 /** The engine's own result gutter, drawn in the terminal's default colours. */
 const GUTTER = '  ⎿ '
+
+/** The five kinds a theme is shown by: in the switch band and the gallery. */
+const SAMPLE_KINDS = ['shell', 'read', 'edit', 'write', 'search'] as const
 
 function chip(t: Table, theme: Theme, role: Role, text: string): RenderElement {
   const { Text } = t
@@ -30,13 +39,25 @@ function chip(t: Table, theme: Theme, role: Role, text: string): RenderElement {
   )
 }
 
+/** The one-cell stripe opening every tool and group row: the theme's accent, so a row reads as themed before its icon does. */
+function stripe(t: Table, theme: Theme): RenderElement {
+  const { Box, Text } = t
+  return (
+    <Box key="stripe" flexShrink={0}>
+      <Text color={theme.palette.bg} backgroundColor={theme.palette.accent}>
+        {' '}
+      </Text>
+    </Box>
+  )
+}
+
 export function statusOf(call: { isRunning: boolean; isErrored: boolean; isInterrupted: boolean }): Status {
   if (call.isInterrupted) return 'interrupted'
   if (call.isErrored) return 'error'
   return call.isRunning ? 'running' : 'done'
 }
 
-/** A tool row: the theme's icon, the engine's own row, then status and time. */
+/** A tool row: the stripe, the theme's icon, the engine's own row, then status and time. */
 export function toolRow(
   t: Table,
   theme: Theme,
@@ -53,6 +74,7 @@ export function toolRow(
   const time = status === 'done' && timing?.ms != null ? ` ${formatMs(timing.ms)}` : ''
   return (
     <Box flexDirection="row" gap={1}>
+      {stripe(t, theme)}
       <Box key="icon" flexShrink={0}>
         {chip(t, theme, KIND_ROLE[kind], ` ${theme.icons[kind]} `)}
       </Box>
@@ -68,13 +90,14 @@ export function toolRow(
   )
 }
 
-/** A folded group: one icon per call (an error in the error colour), then the engine's count line. */
+/** A folded group: the stripe, one icon per call (an error in the error colour), then the engine's count line. */
 export function groupRow(t: Table, theme: Theme, calls: ReadonlyArray<ToolGroupCall>, engine: RenderElement): RenderElement {
   const { Box, Text } = t
   const shown = calls.slice(0, 12)
   const more = calls.length - shown.length
   return (
     <Box flexDirection="row" gap={1}>
+      {stripe(t, theme)}
       <Box key="icons" flexShrink={0}>
         <Text backgroundColor={theme.palette.bg}>
           {' '}
@@ -197,84 +220,164 @@ export function turnRow(t: Table, theme: Theme, word: string, durationMs: number
   return <Box key="turn">{chip(t, theme, 'muted', ` ${theme.mark} ${clean(word)} for ${formatDuration(durationMs)} `)}</Box>
 }
 
-const NAME_WIDTH = Math.max(...THEMES.map(theme => theme.id.length))
+/** Columns a string takes: every glyph wardrobe draws is single width. */
+const columnsOf = (text: string) => [...text].length
 
-const HELP = '/wear <theme> switches now. /wear auto follows the clock. /wear pin keeps this look for this project; /wear unpin lets go.'
+/**
+ * The band shown for a few seconds after `/wear`: one row filled with the
+ * theme's background, its mark, `wearing <name>`, its five icons as chips, and
+ * Bolt in the theme's costume at the right when there is room. The words and
+ * icons are one Text of plain runs, no block glyph among them (MM-094); Bolt
+ * is its own element, a cell grid (bolt-draw).
+ */
+export function switchBand(t: Table, theme: Theme, columns: number, bolt: RenderElement | null): RenderElement {
+  const { Box, Text } = t
+  const { palette } = theme
+  const mark = ` ${theme.mark} `
+  const words = `wearing ${theme.id}  `
+  const icons = SAMPLE_KINDS.map(kind => `${theme.icons[kind]} `)
+  const used = columnsOf(mark) + columnsOf(words) + icons.reduce((n, icon) => n + columnsOf(icon), 0)
+  const room = columns - (bolt === null ? 0 : BOLT_COLUMNS.tiny + 1)
+  const pad = ' '.repeat(Math.max(1, room - used))
+  return (
+    <Box key="wardrobe-band" flexDirection="row" gap={1} flexShrink={0}>
+      <Text backgroundColor={palette.bg}>
+        <Text color={palette.accent} backgroundColor={palette.bg} bold>
+          {mark}
+        </Text>
+        <Text color={palette.text} backgroundColor={palette.bg} bold>
+          {words}
+        </Text>
+        {SAMPLE_KINDS.map((kind, i) => (
+          <Text color={palette[KIND_ROLE[kind]]} backgroundColor={palette.bg}>
+            {icons[i]}
+          </Text>
+        ))}
+        <Text backgroundColor={palette.bg}>{pad}</Text>
+      </Text>
+      {bolt}
+    </Box>
+  )
+}
 
-/** What is worn, in words, for the list header and command replies. */
+/** Bolt dressed for `theme` (plain for none), as one element keyed `key`, at `size`. */
+export function dressedBolt(t: Table & { Raster?: ElementConstructor<RasterProps> }, surface: string, theme: Theme | undefined, size: BoltSize, key: string): RenderElement {
+  if (theme === undefined) return boltSprite(t, surface, size === 'small' ? { size: 'small', pose: 'idle' } : { size: 'tiny', pose: 'idle' }, key)
+  return cellsSprite(t, surface, wearBolt(theme, size, 'idle'), key)
+}
+
+const HELP = '/wear <theme> switches now. /wear auto follows the clock, /wear season the calendar. /wear pin keeps this look for this project; /wear unpin lets go.'
+
+/** What is worn, in words, for the gallery header and command replies. */
 export function describeLook(look: WardrobeLook, settings: Settings): string {
   const where = look.scope === 'project' ? 'in this project (pinned)' : 'everywhere without a pin'
   if (look.choice === AUTO) {
     const { dayTheme, nightTheme, dayStarts, nightStarts } = settings
     return `Wearing auto ${where}: ${dayTheme} from ${clockText(dayStarts)}, ${nightTheme} from ${clockText(nightStarts)}; ${look.theme} now (${look.phase}).`
   }
+  if (look.choice === SEASON) return `Wearing season ${where}: ${look.theme} now (${seasonWindow(look.theme) ?? 'the rest of the year'}).`
   if (look.choice === DEFAULT) return `Wearing Claude Code's own look ${where}.`
   return `Wearing ${look.theme} ${where}.`
 }
 
+/** The sample call every gallery card draws, as a finished Read of 300 ms. */
+export const SAMPLE_CALL: RenderPropsOf['ToolUse'] = {
+  tool_use_id: 'wardrobe-sample',
+  tool: 'Read',
+  input: { file_path: 'src/app.ts' },
+  isRunning: false,
+  isErrored: false,
+  isInterrupted: false,
+}
+export const SAMPLE_TIMING: WardrobeTiming = { startedAt: 0, ms: 300 }
+const SAMPLE_TEXT = 'Read src/app.ts'
+
+/** How big Bolt is drawn in the gallery at this width: small from 60 columns, tiny from 40, none under. */
+export function boltSizeFor(columns: number): BoltSize | null {
+  if (columns >= NARROW) return 'small'
+  return columns >= BOLT_MIN_COLUMNS ? 'tiny' : null
+}
+
+export type Gallery = {
+  surface: string
+  look: WardrobeLook
+  settings: Settings
+  problems: readonly string[]
+  columns: number | undefined
+  /** A `$.clock.now()` reading, for what `season` would wear today. */
+  now: number
+  /** What a card's `wear` button does. */
+  onWear: (choice: string) => void
+}
+
 /**
- * `/wear` with no argument: every theme with a one-line preview in its own colours,
- * and Bolt (MM-091) beside the line that names what is worn. Bolt arrives drawn in
- * its own palette and no theme colour touches it.
+ * `/wear` with no argument: a gallery. Every theme is a card: its name and
+ * blurb, a sample tool row drawn exactly as toolRow draws one in that theme,
+ * its diff chips, Bolt in the theme's costume, the worn one marked, and a
+ * `wear` button (no hotkey: the pane can hold the focus, gotcha 24). Rows for
+ * Claude Code's own look, `auto` and `season` round it off.
  */
-export function listTree(
-  t: Table,
-  look: WardrobeLook,
-  settings: Settings,
-  problems: readonly string[],
-  columns: number | undefined,
-  bolt: RenderElement,
-): RenderElement {
-  const { Box, Text } = t
-  const wide = (columns ?? 80) >= 76
-  const wearing = (choice: string) => (look.choice === choice ? <Text bold>(wearing)</Text> : null)
-  const worn = <Text>{describeLook(look, settings)}</Text>
-  return (
-    <Box flexDirection="column">
-      {(columns ?? 80) >= BOLT_MIN_COLUMNS ? (
-        <Box key="worn" flexDirection="row" gap={1}>
-          {bolt}
-          <Box flexDirection="column" flexShrink={1}>
-            {worn}
-          </Box>
+export function listTree(t: PaneTable, g: Gallery): RenderElement {
+  const { Box, Text, Button } = t
+  const columns = g.columns ?? 80
+  const size = boltSizeFor(columns)
+  const wearing = (choice: string) => (g.look.choice === choice ? <Text bold>(wearing)</Text> : null)
+  const wearButton = (choice: string) => <Button key={`wear-${choice}`} label="wear" onPress={() => g.onWear(choice)} />
+  const worn = <Text>{describeLook(g.look, g.settings)}</Text>
+  const wornTheme = themeById(g.look.theme)
+  const seasonTheme = seasonOf(g.now)
+
+  /** A row that is not a theme: a name, what it does, the mark and the button. */
+  const plainRow = (choice: string, what: string) => (
+    <Box key={`theme-${choice}`} flexDirection="row" gap={1} marginBottom={1}>
+      <Text bold>{choice}</Text>
+      <Text>{what}</Text>
+      {wearing(choice)}
+      {wearButton(choice)}
+    </Box>
+  )
+
+  const card = (theme: Theme) => (
+    <Box key={`theme-${theme.id}`} flexDirection="row" gap={2} marginBottom={1}>
+      {size === null ? null : dressedBolt(t, g.surface, theme, size, `bolt-${theme.id}`)}
+      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+        <Box key="head" flexDirection="row" gap={1}>
+          <Text bold>{theme.id}</Text>
+          <Text dimColor>{theme.tone}</Text>
+          {wearing(theme.id)}
+          {wearButton(theme.id)}
         </Box>
-      ) : (
-        worn
-      )}
-      <Box key="theme-default" flexDirection="row" gap={1}>
-        <Text>{DEFAULT.padEnd(NAME_WIDTH)}</Text>
-        <Text>Claude Code's own drawing</Text>
-        {wearing(DEFAULT)}
-      </Box>
-      {THEMES.map(theme => (
-        <Box key={`theme-${theme.id}`} flexDirection="row" gap={1}>
-          <Text>{theme.id.padEnd(NAME_WIDTH)}</Text>
-          <Text backgroundColor={theme.palette.bg}>
-            {' '}
-            {(['shell', 'read', 'edit', 'write', 'search'] as const).map(kind => (
-              <Text color={theme.palette[KIND_ROLE[kind]]} backgroundColor={theme.palette.bg}>
-                {theme.icons[kind]}
-              </Text>
-            ))}{' '}
-          </Text>
+        <Text>{theme.blurb}</Text>
+        <Box key="sample" flexDirection="row" gap={1}>
+          {toolRow(t, theme, SAMPLE_CALL, SAMPLE_TIMING, <Text>{SAMPLE_TEXT}</Text>, columns)}
           <Text color={theme.diff.addFg} backgroundColor={theme.diff.addBg}>
             {' + add '}
           </Text>
           <Text color={theme.diff.removeFg} backgroundColor={theme.diff.removeBg}>
             {' - del '}
           </Text>
-          {wide && <Text>{theme.blurb}</Text>}
-          {wearing(theme.id)}
         </Box>
-      ))}
-      <Box key="theme-auto" flexDirection="row" gap={1}>
-        <Text>{AUTO.padEnd(NAME_WIDTH)}</Text>
-        <Text>
-          {settings.dayTheme} from {clockText(settings.dayStarts)}, {settings.nightTheme} from {clockText(settings.nightStarts)}
-        </Text>
-        {wearing(AUTO)}
       </Box>
-      {problems.map(problem => (
+    </Box>
+  )
+
+  return (
+    <Box flexDirection="column">
+      {size === null ? (
+        worn
+      ) : (
+        <Box key="worn" flexDirection="row" gap={1} marginBottom={1}>
+          {dressedBolt(t, g.surface, wornTheme, 'tiny', 'bolt')}
+          <Box flexDirection="column" flexShrink={1}>
+            {worn}
+          </Box>
+        </Box>
+      )}
+      {plainRow(DEFAULT, "Claude Code's own drawing")}
+      {THEMES.map(card)}
+      {plainRow(AUTO, `${g.settings.dayTheme} from ${clockText(g.settings.dayStarts)}, ${g.settings.nightTheme} from ${clockText(g.settings.nightStarts)}`)}
+      {plainRow(SEASON, `by the calendar: ${seasonTheme} now (${seasonWindow(seasonTheme) ?? 'the rest of the year'})`)}
+      {g.problems.map(problem => (
         <Text>Setting: {clean(problem)}</Text>
       ))}
       <Text>{HELP}</Text>
@@ -282,14 +385,21 @@ export function listTree(
   )
 }
 
-/** The same list as text: what the model reads, and what other surfaces show. */
-export function listText(look: WardrobeLook, settings: Settings, problems: readonly string[]): string {
+/** The same gallery as text, without the art: what the model reads, and what other surfaces show. */
+export function listText(look: WardrobeLook, settings: Settings, problems: readonly string[], now: number): string {
   const mark = (choice: string) => (look.choice === choice ? ' (wearing)' : '')
+  const sample = (theme: Theme) =>
+    `${theme.icons.read} ${SAMPLE_TEXT} ${theme.status.done} ${formatMs(SAMPLE_TIMING.ms ?? 0)}  +add -del  Bolt: ${costumeOf(theme)?.name ?? 'none'}`
+  const season = seasonOf(now)
   return [
     describeLook(look, settings),
     `- ${DEFAULT}: Claude Code's own drawing${mark(DEFAULT)}`,
-    ...THEMES.map(theme => `- ${theme.id} (${theme.tone}) ${theme.icons.shell}${theme.icons.read}${theme.icons.edit}${theme.icons.write}: ${theme.blurb}${mark(theme.id)}`),
+    ...THEMES.flatMap(theme => [
+      `- ${theme.id} (${theme.tone}) ${SAMPLE_KINDS.map(kind => theme.icons[kind]).join('')}: ${theme.blurb}${mark(theme.id)}`,
+      `    ${sample(theme)}`,
+    ]),
     `- ${AUTO}: ${settings.dayTheme} from ${clockText(settings.dayStarts)}, ${settings.nightTheme} from ${clockText(settings.nightStarts)}${mark(AUTO)}`,
+    `- ${SEASON}: by the calendar: ${season} now (${seasonWindow(season) ?? 'the rest of the year'})${mark(SEASON)}`,
     ...problems.map(problem => `Setting: ${clean(problem)}`),
     HELP,
   ].join('\n')

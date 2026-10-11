@@ -9,10 +9,14 @@ import {
   parseWear,
   pinsOf,
   resolveLook,
+  SEASONS,
+  seasonOf,
+  seasonWindow,
   settingsFrom,
   type Settings,
 } from '../hooks/look'
-import { EDIT } from './setup'
+import { THEMES } from '../hooks/themes'
+import { at, EDIT } from './setup'
 
 describe('parseClock()', () => {
   const cases: [string, number | undefined][] = [
@@ -72,11 +76,21 @@ describe('parseWear()', () => {
     ['hc', { kind: 'wear', choice: 'high-contrast' }],
     ['colourblind', { kind: 'wear', choice: 'colorblind' }],
     ['auto', { kind: 'wear', choice: 'auto' }],
+    ['season', { kind: 'wear', choice: 'season' }],
+    ['xmas', { kind: 'wear', choice: 'christmas' }],
+    ['fall', { kind: 'wear', choice: 'autumn' }],
+    ['spooky', { kind: 'wear', choice: 'halloween' }],
+    ['hallo', { kind: 'wear', choice: 'halloween' }],
+    ['sp', { kind: 'wear', choice: 'spring' }],
+    ['su', { kind: 'wear', choice: 'summer' }],
+    ['autu', { kind: 'wear', choice: 'autumn' }],
     ['default', { kind: 'wear', choice: 'default' }],
     ['off', { kind: 'wear', choice: 'default' }],
     ['pin', { kind: 'pin' }],
     ['unpin', { kind: 'unpin' }],
     ['c', { kind: 'unknown', word: 'c' }],
+    ['s', { kind: 'unknown', word: 's' }],
+    ['a', { kind: 'unknown', word: 'a' }], // auto or autumn
     ['Neon', { kind: 'unknown', word: 'Neon' }],
   ]
   for (const [args, expected] of cases) {
@@ -88,11 +102,12 @@ describe('parseWear()', () => {
 
 describe('resolveLook()', () => {
   const settings: Settings = { dayTheme: 'paper', nightTheme: 'nord', dayStarts: 420, nightStarts: 1140 }
-  const noon = 720
-  const midnight = 0
+  // MM-108: resolveLook takes the clock reading itself (season needs the date), not a minute of the day.
+  const noon = at(12, 0)
+  const midnight = at(0, 0)
 
   test('nothing chosen is Claude Code own look', () => {
-    expect(resolveLook({ root: '/a', global: undefined, pins: undefined, minute: noon, settings })).toEqual({
+    expect(resolveLook({ root: '/a', global: undefined, pins: undefined, now: noon, settings })).toEqual({
       theme: 'default',
       choice: 'default',
       scope: 'global',
@@ -102,24 +117,80 @@ describe('resolveLook()', () => {
   })
 
   test('the global choice applies where there is no pin', () => {
-    const look = resolveLook({ root: '/a', global: 'dracula', pins: { '/b': 'nord' }, minute: noon, settings })
+    const look = resolveLook({ root: '/a', global: 'dracula', pins: { '/b': 'nord' }, now: noon, settings })
     expect(look).toMatchObject({ theme: 'dracula', scope: 'global' })
   })
 
   test("a project's pin wins over the global choice", () => {
-    const look = resolveLook({ root: '/b', global: 'dracula', pins: { '/b': 'nord' }, minute: noon, settings })
+    const look = resolveLook({ root: '/b', global: 'dracula', pins: { '/b': 'nord' }, now: noon, settings })
     expect(look).toMatchObject({ theme: 'nord', choice: 'nord', scope: 'project' })
   })
 
   test('auto wears the day theme by day and the night theme by night', () => {
-    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, minute: noon, settings })).toMatchObject({ theme: 'paper', phase: 'day' })
-    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, minute: midnight, settings })).toMatchObject({ theme: 'nord', phase: 'night' })
+    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, now: noon, settings })).toMatchObject({ theme: 'paper', phase: 'day' })
+    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, now: midnight, settings })).toMatchObject({ theme: 'nord', phase: 'night' })
+  })
+
+  test('season wears what the date calls for, and is stored as the choice', () => {
+    const halloween = new Date(2026, 9, 31, 12).getTime()
+    expect(resolveLook({ root: '/a', global: 'season', pins: {}, now: halloween, settings })).toEqual({
+      theme: 'halloween',
+      choice: 'season',
+      scope: 'global',
+      phase: null,
+      root: '/a',
+    })
+    const july = new Date(2026, 6, 4, 12).getTime()
+    expect(resolveLook({ root: '/a', global: 'nord', pins: { '/a': 'season' }, now: july, settings })).toMatchObject({ theme: 'summer', choice: 'season', scope: 'project' })
   })
 
   test('stored values this version does not know are ignored', () => {
-    expect(resolveLook({ root: '/a', global: 'vaporwave', pins: { '/a': 42 }, minute: noon, settings }).theme).toBe('default')
+    expect(resolveLook({ root: '/a', global: 'vaporwave', pins: { '/a': 42 }, now: noon, settings }).theme).toBe('default')
     expect(pinsOf(['/a'])).toEqual({})
     expect(pinsOf({ '/a': 'noir', '/b': 'gone' })).toEqual({ '/a': 'noir' })
+  })
+})
+
+describe('seasonOf()', () => {
+  // The table the README documents, at each window's edges. Local dates; the year never matters.
+  const cases: [string, number, number, string][] = [
+    ['New Year is still Christmas', 1, 1, 'christmas'],
+    ['the last day of Christmas', 1, 6, 'christmas'],
+    ['the day after is winter, which wears nord', 1, 7, 'nord'],
+    ['mid February', 2, 14, 'nord'],
+    ['the last of February', 2, 28, 'nord'],
+    ['a leap day', 2, 29, 'nord'],
+    ['the first of March is spring', 3, 1, 'spring'],
+    ['the last of May', 5, 31, 'spring'],
+    ['the first of June is summer', 6, 1, 'summer'],
+    ['the last of August', 8, 31, 'summer'],
+    ['the first of September is autumn', 9, 1, 'autumn'],
+    ['the day before Halloween season', 10, 14, 'autumn'],
+    ['Halloween season opens', 10, 15, 'halloween'],
+    ['Halloween', 10, 31, 'halloween'],
+    ['All Saints', 11, 1, 'halloween'],
+    ['the day after is autumn again', 11, 2, 'autumn'],
+    ['the last of November', 11, 30, 'autumn'],
+    ['the first of December is Christmas', 12, 1, 'christmas'],
+    ['Christmas Eve', 12, 24, 'christmas'],
+    ['New Year Eve', 12, 31, 'christmas'],
+  ]
+  for (const [name, month, day, theme] of cases) {
+    test(`${name} (${month}/${day}) is ${theme}`, () => {
+      expect(seasonOf(new Date(2028, month - 1, day, 9, 30).getTime())).toBe(theme) // 2028 has a leap day
+      expect(seasonOf(new Date(2027, month - 1, Math.min(day, 28), 23, 59).getTime())).toBe(theme)
+    })
+  }
+
+  test('every season is a theme with a window in words; every day of a year has one', () => {
+    for (const season of SEASONS) {
+      expect(THEMES.map(theme => theme.id)).toContain(season.theme)
+      expect(seasonWindow(season.theme)).toBe(season.when)
+    }
+    expect(seasonWindow('dracula')).toBeUndefined()
+    const seen = new Set<string>()
+    for (let day = 0; day < 366; day++) seen.add(seasonOf(new Date(2028, 0, 1 + day, 12).getTime()))
+    expect([...seen].sort()).toEqual(['autumn', 'christmas', 'halloween', 'nord', 'spring', 'summer'])
   })
 })
 

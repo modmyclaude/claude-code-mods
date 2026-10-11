@@ -4,8 +4,10 @@
 import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
+import type { BoltCell } from '../hooks/bolt'
 import { boltOf, rasterCells } from '../hooks/bolt-draw'
 import type { BoltPick } from '../hooks/bolt-draw'
+import { costumeOf, paintOf, wearBolt } from '../hooks/costume'
 import { themeById } from '../hooks/themes'
 import { at, ENGINE, PANE, start, SURFACES, TOOL_ROW, wear, world } from './setup'
 
@@ -25,9 +27,9 @@ describe('/wear', () => {
       const row = await ui.find({ key: 'theme-dracula' })
       expect(row?.text).toContain('dracula')
       expect(row?.text).toContain(dracula.blurb)
-      // The preview chips are painted in the theme's own diff colours.
+      // The preview chips are painted in the theme's own diff colours (14 themes since the seasonal packs, MM-108).
       const adds = await ui.findAll({ type: 'Text', text: ' + add ' })
-      expect(adds).toHaveLength(9)
+      expect(adds).toHaveLength(14)
       expect(adds.map(chip => chip.props.backgroundColor)).toContain(dracula.diff.addBg)
       expect((await ui.find({ key: 'theme-default' }))?.text).toContain('(wearing)')
       expect((await ui.find({ key: 'theme-dracula' }))?.text).not.toContain('(wearing)')
@@ -99,7 +101,7 @@ describe('/wear', () => {
     await start($)
     expect(await wear($, 'nord')).toBe('Wearing nord everywhere without a pin.')
     const list = await wear($, '')
-    for (const id of ['default', 'noir', 'paper', 'tokyo-night', 'dracula', 'catppuccin', 'solarized', 'nord', 'high-contrast', 'colorblind', 'auto']) {
+    for (const id of ['default', 'noir', 'paper', 'tokyo-night', 'dracula', 'catppuccin', 'solarized', 'nord', 'high-contrast', 'colorblind', 'halloween', 'christmas', 'spring', 'summer', 'autumn', 'auto', 'season']) {
       expect(list).toContain(`- ${id}`)
     }
     expect(list).toContain('- nord (dark)')
@@ -188,9 +190,11 @@ describe('/wear auto', () => {
 })
 
 describe('Bolt in the /wear pane', () => {
-  // Bolt (MM-091): idle beside the line that names what is worn, in its own palette
-  // whatever theme is worn, and out of the way in a narrow pane. A Raster on the
-  // terminal, one code-font cell per character on the desktop.
+  // Bolt (MM-091): beside the line that names what is worn, out of the way in a
+  // narrow pane. A Raster on the terminal, one code-font cell per character on
+  // the desktop. Since MM-108 he wears the worn theme's costume there (and each
+  // gallery card's Bolt wears that card's): his own pixels keep their palette,
+  // costume.test.ts holds that; here, the drawn cells are wearBolt's exactly.
   type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
   const under = (node: unknown, key: string): Drawn | undefined => {
     if (node === null || typeof node !== 'object') return undefined
@@ -214,19 +218,19 @@ describe('Bolt in the /wear pane', () => {
       }),
     )
   }
-  /** What `pick` must draw as on `surface`: its exact cells, at its exact size. */
-  const boltAs = (surface: string, pick: BoltPick) => {
-    const cells = boltOf(pick)
+  /** What `cells` must draw as on `surface`: exactly those cells, at exactly that size. */
+  const cellsAs = (surface: string, cells: BoltCell[][]) => {
     if (surface === 'terminal') return [cells[0]?.length, cells.length, rasterCells(cells)]
     return cells.map(line =>
       line.map(c => `Box1:${c.fg === undefined && c.bg === undefined ? ' ' : `${c.ch}|${c.fg ?? ''}|${c.bg ?? ''}`}`),
     )
   }
+  const boltAs = (surface: string, pick: BoltPick) => cellsAs(surface, boltOf(pick))
   const IDLE: BoltPick = { size: 'tiny', pose: 'idle' }
   const pane = ($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 100) =>
     $.ui.mount({ plugin: 'wardrobe', surface, component: 'Pane', props: { ...PANE, bodyColumns }, requestId: 'wardrobe' })
 
-  test('Bolt idles beside the line naming what is worn, the list intact; a narrow pane leaves it out', async ($, on) => {
+  test('Bolt idles plain beside the line naming what is worn while nothing is; a narrow pane leaves him out', async ($, on) => {
     world(on)
     await start($)
     for (const surface of SURFACES) {
@@ -236,41 +240,52 @@ describe('Bolt in the /wear pane', () => {
       expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
       expect(await ui.find({ type: 'Text', text: "Wearing Claude Code's own look everywhere without a pin." })).toBeDefined()
       expect((await ui.find({ key: 'theme-dracula' }))?.text).toContain(dracula.blurb)
-      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(9)
+      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(14) // one chip per theme (MM-108: 14)
       await ui.unmount()
       const narrow = await pane($, surface, 39)
       expect(await narrow.find({ key: 'bolt' }), surface).toBeUndefined()
+      expect(await narrow.find({ key: 'bolt-dracula' }), surface).toBeUndefined()
       expect(await narrow.find({ key: 'worn' })).toBeUndefined()
       expect(await narrow.find({ type: 'Text', text: "Wearing Claude Code's own look everywhere without a pin." })).toBeDefined()
       await narrow.unmount()
     }
   })
 
-  test('Bolt keeps its own palette whatever is worn: the same cells under every theme, no theme colour near it', async ($, on) => {
+  test('Bolt beside the worn line wears the worn theme costume: the dressed cells exactly, and no theme colour but the costume own', async ($, on) => {
     world(on)
     await start($)
     for (const surface of SURFACES) {
       const seen = new Set<string>()
-      for (const id of ['dracula', 'paper', 'nord', 'high-contrast']) {
+      for (const id of ['dracula', 'paper', 'nord', 'high-contrast', 'halloween']) {
         await wear($, id)
         const theme = themeById(id)!
         const ui = await pane($, surface)
         const row = under(await ui.drawn(), 'worn')
         expect(await ui.find({ type: 'Text', text: `Wearing ${id} everywhere without a pin.` })).toBeDefined()
-        expect(drawnBolt(under(row, 'bolt')), `${surface} ${id}`).toEqual(boltAs(surface, IDLE))
+        expect(drawnBolt(under(row, 'bolt')), `${surface} ${id}`).toEqual(cellsAs(surface, wearBolt(theme, 'tiny', 'idle')))
         seen.add(JSON.stringify(drawnBolt(under(row, 'bolt'))))
-        // Nothing in Bolt's row carries the worn theme's colours: no recolour, no backdrop.
+        // The only theme colours in Bolt's row are the costume's own paint: no recolour of Bolt, no backdrop.
+        const costume = costumeOf(theme)!
+        const allowed = new Set(Object.keys(costume.paint).map(key => paintOf(theme, costume, key)?.toLowerCase()))
         const drawn = JSON.stringify(row).toLowerCase()
         for (const colour of [...Object.values(theme.palette), ...Object.values(theme.diff)]) {
+          if (allowed.has(colour.toLowerCase())) continue
           expect(drawn.includes(`"${colour.toLowerCase()}"`), `${surface} ${id} ${colour}`).toBe(false)
         }
         await ui.unmount()
       }
-      expect(seen.size, surface).toBe(1)
+      expect(seen.size, surface).toBe(5) // a different costume each
+    }
+    // colorblind has no costume: Bolt plain, as with nothing worn.
+    await wear($, 'colorblind')
+    for (const surface of SURFACES) {
+      const ui = await pane($, surface)
+      expect(drawnBolt(under(under(await ui.drawn(), 'worn'), 'bolt')), surface).toEqual(boltAs(surface, IDLE))
+      await ui.unmount()
     }
   })
 
-  test('Bolt is only in the /wear pane: restyled tool rows and the turn line never draw it', async ($, on) => {
+  test('Bolt is only in the /wear pane and the switch band: restyled tool rows and the turn line never draw him', async ($, on) => {
     world(on)
     await start($)
     await wear($, 'dracula')
@@ -278,6 +293,7 @@ describe('Bolt in the /wear pane', () => {
       const row = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'ToolUse', props: TOOL_ROW, requestId: TOOL_ROW.tool_use_id })
       expect(await row.find({ key: 'icon' })).toBeDefined()
       expect(await row.find({ key: 'bolt' })).toBeUndefined()
+      expect(await row.find({ type: 'Raster' })).toBeUndefined()
       await row.unmount()
     }
     const turn = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 3000 } })
