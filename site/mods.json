@@ -108,7 +108,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 304,
+        "count": 308,
         "surfaces": [
           "terminal",
           "mobile"
@@ -117,7 +117,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "adacee5",
+      "commit": "567122d",
       "reach": [
         "writes files",
         "reads files",
