@@ -2,7 +2,7 @@
 
 # Headway
 
-See how far along Claude is, and when it will land. Zero tokens.
+See how far along Claude is, and when it will land. Zero tokens in the terminal.
 
 ```
 Build · Wire the routes (2/6) ▰▰▱▱▱▱ ~3m left
