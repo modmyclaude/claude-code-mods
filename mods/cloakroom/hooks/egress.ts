@@ -1,9 +1,15 @@
-// Would this shell command carry a secret off the machine?
+// Should this shell command get a real value, and would it carry one off the machine?
 //
-// Pure and table-tested. It reads the command AFTER tickets were swapped back
-// for real values, plus where those values sit in it. It is a tripwire for
-// literal values in commands, not a sandbox: a command that sends a secret by
-// a route it does not see (an environment variable, a script file) passes.
+// Pure and table-tested. Both checks read the command AFTER tickets were swapped
+// back for real values, plus where those values sit in it. Two gates, both must
+// pass before a value is restored into Bash:
+//   localProof: every program on the line is on a short local-only list (a
+//     positive reason to restore; a wrapper, interpreter, package runner or a
+//     variable as the program is not proven and is held);
+//   classifyEgress: nothing on the line points at the network (defence in depth
+//     for the local list: `echo v > /dev/tcp/...`, a remote URL beside the value).
+// Neither is a sandbox: a command that sends a secret by a route they do not
+// see (an environment variable, a script file) passes.
 
 export type Egress = { via: string; to: string }
 type Span = { start: number; end: number }
@@ -18,7 +24,7 @@ const GIT_NET = new Set(['push', 'fetch', 'pull', 'clone', 'ls-remote', 'remote'
 /** Words that run the next word as the command. */
 const WRAPPERS = new Set(['sudo', 'doas', 'env', 'exec', 'command', 'builtin', 'nohup', 'time', 'nice', 'stdbuf', 'timeout', 'xargs', 'busybox', 'then', 'do', 'else', '!'])
 
-const URL_RE = /\bhttps?:\/\/[^\s'"<>|;&)`\\]{1,2048}/g
+const URL_RE = /\bhttps?:\/\/[^\s'"<>|;&)`\\]{1,2048}/gi
 
 function isLocalHost(host: string): boolean {
   const h = host.toLowerCase().replace(/^\[|\]$/g, '')
@@ -167,16 +173,91 @@ function gitSub(args: string[]): { sub: string; rest: string[] } | undefined {
 }
 
 /**
+ * Programs whose own work stays on this machine: text and file tools that run
+ * no other program. A real value is restored into a Bash command only when every
+ * program on the line is one of these (see localProof). Shells, interpreters,
+ * package runners, `find`, `xargs`'s target and anything unknown are left out on
+ * purpose: they can run or send whatever they are handed.
+ */
+export const LOCAL = new Set([
+  'echo', 'printf', 'cat', 'tee', 'head', 'tail', 'wc', 'sort', 'uniq', 'cut', 'tr', 'rev', 'fold', 'paste', 'column',
+  'grep', 'egrep', 'fgrep', 'cmp', 'diff', 'comm', 'jq',
+  'test', '[', '[[', 'true', 'false', ':', 'cp', 'mv', 'mkdir', 'rmdir', 'touch', 'ls', 'stat', 'chmod', 'chown', 'ln',
+  'readlink', 'realpath', 'basename', 'dirname', 'pwd', 'cd', 'date', 'sleep',
+  'base64', 'xxd', 'od', 'hexdump', 'md5sum', 'sha1sum', 'sha256sum', 'shasum',
+  'export', 'unset', 'set', 'local', 'declare', 'typeset', 'readonly', 'shift', 'return', 'break', 'continue', 'exit', 'read', 'wait', 'umask',
+])
+/** Shell words that structure a line and run nothing themselves; their bodies are checked as their own segments. */
+const KEYWORDS = new Set(['if', 'then', 'elif', 'else', 'fi', 'for', 'while', 'until', 'do', 'done', 'case', 'esac', 'in', 'select', 'function'])
+
+export type LocalProof = { ok: true } | { ok: false; program: string }
+
+/**
+ * Whether every program `command` runs is on the local-only list, so a real
+ * value may be restored into it. Heredoc bodies are data, not commands. A
+ * line with no program (assignments alone, a comment) is local. The first
+ * program that is not proven local is named, so the hold can say why.
+ */
+export function localProof(command: string): LocalProof {
+  const data = heredocBodies(command)
+  for (const seg of segments(command)) {
+    if (data.some(d => d.start <= seg.start && seg.start < d.end)) continue
+    const text = command.slice(seg.start, seg.end)
+    const cmd = commandOf(text)
+    if (!cmd) continue
+    if (cmd.name.startsWith('#')) continue // a comment to the end of the segment
+    if (KEYWORDS.has(cmd.name)) {
+      // `for x in a b`, `if test -f x`: the words after a keyword may be a command of their own.
+      if (cmd.name === 'if' || cmd.name === 'elif' || cmd.name === 'while' || cmd.name === 'until') {
+        const inner = localProof(cmd.args.join(' '))
+        if (!inner.ok) return inner
+      }
+      continue
+    }
+    if (!LOCAL.has(cmd.name)) return { ok: false, program: cmd.name }
+  }
+  return { ok: true }
+}
+
+/** The spans of heredoc bodies (`<<EOF` to the line that is `EOF`): data the shell never runs. */
+function heredocBodies(command: string): Span[] {
+  const out: Span[] = []
+  const open = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/g
+  for (let m = open.exec(command); m !== null; m = open.exec(command)) {
+    const word = m[2]!
+    const lineEnd = command.indexOf('\n', m.index)
+    if (lineEnd < 0) break
+    const lines = command.slice(lineEnd + 1).split('\n')
+    let end = command.length
+    let at = lineEnd + 1
+    for (const line of lines) {
+      if (line.replace(/^\t+/, '') === word) {
+        end = at + line.length // the terminator line is part of the heredoc, not a command
+        break
+      }
+      at += line.length + 1
+    }
+    out.push({ start: lineEnd + 1, end })
+    open.lastIndex = Math.max(open.lastIndex, end)
+  }
+  return out
+}
+
+/**
  * What the hold names must never be the secret: a target or program word
  * that overlaps a value is replaced. The band, the toast and Claude's deny
  * text show only these and the tickets' labels.
  */
 function named(egress: Egress, values: readonly string[]): Egress {
-  const leaks = (word: string) => values.some(v => v.length > 0 && (word.includes(v) || (word.length >= 4 && v.includes(word))))
   return {
-    via: leaks(egress.via) ? 'a program in the command' : egress.via,
-    to: leaks(egress.to) ? 'a host named in the command' : egress.to,
+    via: leaksValue(egress.via, values) ? 'a program in the command' : egress.via,
+    to: leaksValue(egress.to, values) ? 'a host named in the command' : egress.to,
   }
+}
+
+/** Whether a word drawn on screen would show a secret value, or a telling piece of one. */
+export function leaksValue(word: string, values: readonly string[]): boolean {
+  return values.some(v => v.length > 0 && (word.includes(v) || (word.length >= 4 && v.includes(word))))
 }
 
 /**

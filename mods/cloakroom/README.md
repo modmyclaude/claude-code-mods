@@ -12,15 +12,17 @@ Read this first. Cloakroom lowers the chance that a secret ends up somewhere it 
 
 - Keep secrets out of the model request, the saved transcript, screen shares and exports, at every door it hooks: tool results (every tool, MCP included), your prompt and pastes, `@`-mentioned files, CLAUDE.md and the first message's context, the system prompt's sections, reminders and settings-hook output, skill text, every row the conversation stores, messages to and from other agents and sessions, and records sent to your own OpenTelemetry collector. A secret becomes a ticket such as `[secret:STRIPE_SECRET_KEY#k3x9qa]`.
 - Learn the secret-named values in your project's `.env` files when the session starts (those long and varied enough to be a real secret, see Limits), then hide them wherever they show up later, including their base64, URL-encoded and JSON-escaped forms. That catches an `echo` or `printenv` that no pattern would.
-- Turn tickets back into real values only inside Write, Edit, NotebookEdit and Bash, so Claude can still write your `.env` or run your script. Web fetches, MCP tools, subagent prompts, messages to other sessions and questions shown to you keep the ticket.
-- Hold a Bash command that would carry a known secret off the machine (curl, wget, nc, ssh, scp, rsync to a remote, git push, bash's /dev/tcp, or any remote URL beside the value) until you press **Allow once**.
+- Turn tickets back into real values only inside Write, Edit and NotebookEdit, and inside a Bash command made only of local file tools (see "Which Bash commands get the real value"), so Claude can still write your `.env`. Web fetches, MCP tools, subagent prompts, messages to other sessions and questions shown to you keep the ticket.
+- Hold any other Bash command that carries a known secret until you press **Allow once**: one that names a network program (curl, wget, nc, ssh, scp, rsync to a remote, git push, bash's /dev/tcp, a remote URL beside the value), and one it cannot vouch for at all (`sh -c`, `bash -c`, `eval`, `source`, `node`, `python`, `npm`, `make`, `find`, `xargs` to a shell, a script, a variable used as the program). A hold needs a positive reason to pass, never the absence of a known threat.
 - Find secrets already written into your past Claude Code transcripts (`/cloakroom audit`), so you know what to rotate.
 
 **It CANNOT:**
 
 - Stop a malicious mod installed beside it. A mod whose hooks run before cloakroom's sees values before they are hidden; one whose tool hooks run after it sees restored values.
 - See into your settings hooks (`hooks` in settings.json). They receive tool inputs and outputs on their own path.
-- Stop a secret that never enters the conversation. `printenv | curl ...`, a `$STRIPE_SECRET_KEY` reference, or a script that reads `.env` itself all pass: cloakroom only holds a command when it can see the value in it.
+- Stop a secret that never enters the conversation. `printenv | curl ...`, a `$STRIPE_SECRET_KEY` reference, or a script that reads `.env` itself all pass: cloakroom only holds a command when it can see the value in it. That is also the recommended way to use a secret in a command, and Claude is told so.
+- Tell where a local program's output goes once it is on disk. A value cloakroom wrote into `.env` with `echo` can be read and sent by the next command, which it checks on its own when the value is literal in it, and cannot when the command reads the file.
+- Vouch for a local port. A command that hands a value to `curl http://localhost:3000` is held like any other network call, because a local port can forward anywhere.
 - Read images, PDFs or other media. A key in a screenshot reaches Claude.
 - Undo exposure that already happened. Rotate anything `/cloakroom audit` finds.
 - Keep a restored value off your screen when Claude Code asks permission. The permission dialog shows a Bash command or file content after the ticket was swapped back. In auto mode, the permission classifier reads it too, and that is a model request. Writing `$STRIPE_SECRET_KEY` in commands instead of the value avoids both. Cloakroom tells Claude to prefer that.
@@ -38,6 +40,14 @@ env reads: CLAUDE_CONFIG_DIR, HOME, TEMP, TMP, TMPDIR, USERPROFILE
 hooks telemetry for: collector
 ```
 
+## Which Bash commands get the real value
+
+A real value is swapped into a Bash command only when every program on the line is on this list, and nothing on the line points at the network:
+
+`echo printf cat tee head tail wc sort uniq cut tr rev fold paste column grep egrep fgrep cmp diff comm jq test [ true false cp mv mkdir rmdir touch ls stat chmod chown ln readlink realpath basename dirname pwd cd date sleep base64 xxd od hexdump md5sum sha1sum sha256sum shasum`, plus the shell's own `export unset set local declare typeset readonly shift return break continue exit read wait umask`, and `if for while case` and the other shell keywords. Heredoc bodies are data. `sudo`, `env`, `timeout`, `nice` and `nohup` are looked through to the program they run.
+
+Everything else is held with the red band, for example `sh -c '...'`, `eval`, `node -e`, `python -c`, `npm run`, `make`, `find`, `xargs ... sh`, `./script.sh`, `$PROGRAM ...`, `sed` and `awk` (both can run other programs), and any `curl`, `wget`, `nc`, `ssh`, `git push` or remote URL. The band names the program, Allow once runs that exact command one time, and Claude is told to prefer the variable (`$STRIPE_SECRET_KEY`), which passes untouched because it carries no value.
+
 ## Install
 
 ```
@@ -54,12 +64,18 @@ STRIPE_SECRET_KEY=[secret:STRIPE_SECRET_KEY#k3x9qa]
 
 The same value keeps the same ticket for the whole session. The random part is drawn fresh each session and never computed from the value. When you paste a key into a prompt, a short notice says it was swapped. Claude reads one added line in its instructions: tickets turn back into real values only in Write, Edit, NotebookEdit and Bash, and it should prefer environment variables in commands.
 
-**The red band.** When a Bash command would carry a secret off the machine, Claude is told the call was held, and a band appears above the prompt:
+**The red band.** When a Bash command carries a secret and cloakroom cannot vouch for it, Claude is told the call was held, and a band appears above the prompt:
 
 ```
 held: STRIPE_SECRET_KEY#k3x9qa was about to leave via curl to paste.example
 Claude was told to wait. Allow once lets this exact command run one time.
 [ Deny ]  [ Allow once ]
+```
+
+or, for a command that is not made of local file tools:
+
+```
+held: STRIPE_SECRET_KEY#k3x9qa is in a command cloakroom cannot vouch for: sh is not on its local-only list
 ```
 
 The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and the focus starts on **Deny** (`d` also denies). **Allow once** has no key, so a stray keystroke cannot press it; click it or move to it on purpose. Allow once lets that exact command run one time within 10 minutes and tells Claude it may run it again. Deny leaves it refused. While a hold waits for you, it is drawn on its own (other mods' bands come back once you answer), so nothing another mod draws can hide Deny.

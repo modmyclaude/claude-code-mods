@@ -30,8 +30,8 @@ Detection
 - All patterns must run in linear time so hostile text cannot stall a check.
 
 Where real values come back (the most important rule)
-- Tickets turn back into real values only inside local tools: Write, Edit, NotebookEdit and Bash. Never in web fetches, MCP tools, subagent prompts, messages to other sessions or questions shown to me.
-- If a Bash command would send a real value off the machine (curl, wget, nc, ssh, scp, git push with a token in the URL, or any http(s) URL carrying a value), hold it and show a red band: "held: STRIPE_SECRET_KEY#1 was about to leave via curl to paste.example", with Allow once and Deny buttons. Deny has focus.
+- Tickets turn back into real values only inside local tools: Write, Edit, NotebookEdit, and Bash when the command is proven local. Never in web fetches, MCP tools, subagent prompts, messages to other sessions or questions shown to me.
+- A Bash command gets the real value only for a positive reason: every program on the line is on a short local-only list of text and file tools (echo, printf, cat, tee, cp, mkdir, grep and kin; heredoc bodies are data), and nothing on the line points at the network. Anything else is held with a red band and Allow once / Deny buttons, Deny focused: a network program (curl, wget, nc, ssh, scp, git push, bash's /dev/tcp, a remote URL beside the value) shows "held: STRIPE_SECRET_KEY#1 was about to leave via curl to paste.example"; a wrapper, interpreter, runner, script or variable as the program (sh -c, eval, node, python, npm, make, find, xargs to a shell) shows "held: STRIPE_SECRET_KEY#1 is in a command cloakroom cannot vouch for: sh is not on its local-only list". Never pass a command because no threat was recognised in it. Allow once lets that exact command run one time.
 - If a tool input contains a ticket the mod no longer knows (for example after a restart), refuse the call with a clear message instead of writing the literal ticket into a file.
 - Add one short line to Claude's instructions: hidden values appear as [secret:...] tickets; prefer referencing environment variables such as $STRIPE_SECRET_KEY in commands instead of literal values.
 

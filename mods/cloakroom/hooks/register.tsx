@@ -23,7 +23,7 @@ import type { EngineInterface, FsEntry, PromptComposeSection, Register, Timer, T
 import { auditTranscript, findingLines, newAudit, type AuditState } from './audit'
 import { clean } from './clean'
 import { isEnvFileName, isSecretName, isWorthHiding, parseDotenv, SKIP_DIRS } from './dotenv'
-import { classifyEgress } from './egress'
+import { classifyEgress, leaksValue, localProof } from './egress'
 import { labels, restoreDeep, scrubBlocks, scrubDeep, WITHHELD, withheldBlocks } from './scrub'
 import { Vault, type Entry } from './vault'
 
@@ -74,7 +74,8 @@ const PERSON_ORIGINS = new Set(['composer', 'bridge', 'sdk'])
 /** Subcommands that reveal, read transcripts, or lower the protection. */
 const PERSON_ONLY = new Set(['show', 'audit', 'forget'])
 
-type Hold = { command: string; labels: string; count: number; via: string; to: string }
+/** A held Bash command: what it carries and, as a clause after the labels, why it waits. */
+type Hold = { command: string; labels: string; count: number; reason: string }
 
 /** What one load of the mod holds, in its own memory only (never $.state or $.store). */
 type Room = {
@@ -158,30 +159,55 @@ async function seed($: Dollar, room: Room, cwd: string): Promise<void> {
 
 // ------------------------------------------------------- tool calls
 
-/** Holds a Bash command that would carry a real value off the machine: the deny text, or undefined. */
+/**
+ * Holds a Bash command that carries a real value unless the command is proven
+ * local (every program on cloakroom's local-only list) and nothing on it points
+ * at the network. A hold needs a positive reason to pass, never the absence of
+ * a known threat (API-GOTCHAS #37): `sh -c`, `eval`, an interpreter, a package
+ * runner or a variable as the program is held too, and Allow once lets the
+ * person run that exact command one time. Returns the deny text, or undefined.
+ */
 async function holdIfLeaving($: Dollar, room: Room, sent: string, restored: string): Promise<string | undefined> {
   const found = room.vault.find(restored, 'a Bash command')
+  if (found.length === 0) return undefined
   const egress = classifyEgress(restored, found)
-  if (!egress) return undefined
+  const proof = localProof(restored)
+  if (!egress && proof.ok) return undefined
   const now = await $.clock.now()
   const until = room.permits.get(sent)
   if (until !== undefined) {
     room.permits.delete(sent)
     if (until > now) return undefined // the person pressed Allow once: this one run passes
   }
-  // The program and the host come from Claude's command: drawn only once cleaned.
+  // The program and the host come from Claude's command: drawn only once cleaned, never a value.
   const names = clean(labels(found.map(f => f.entry)))
-  const via = clean(egress.via)
-  const to = clean(egress.to)
   const count = new Set(found.map(f => f.entry.label)).size
+  const values = found.map(f => restored.slice(f.start, f.end))
+  let reason: string
+  let toClaude: string
+  if (egress) {
+    const via = clean(egress.via)
+    const to = clean(egress.to)
+    reason = `${count === 1 ? 'was' : 'were'} about to leave via ${via} to ${to}`
+    toClaude = `${names} would leave this machine via ${via} to ${to}.`
+  } else {
+    // Here proof.ok is false (a proven, non-leaving command returned above); the fallback only narrows the type.
+    const word = proof.ok ? 'a program' : proof.program
+    const program = leaksValue(word, values) ? 'a program in the command' : clean(word)
+    reason = `${count === 1 ? 'is' : 'are'} in a command cloakroom cannot vouch for: ${program} is not on its local-only list`
+    toClaude =
+      `${names} ${count === 1 ? 'is' : 'are'} in it and ${program} is not on cloakroom's local-only list ` +
+      '(a real value goes only into echo, printf, cat and other local file tools). ' +
+      'Prefer the environment variable instead of the value.'
+  }
   const same = room.holds.findIndex(h => h.command === sent)
   if (same >= 0) room.holds.splice(same, 1)
-  room.holds.push({ command: sent, labels: names, count, via, to })
+  room.holds.push({ command: sent, labels: names, count, reason })
   if (room.holds.length > MAX_HOLDS) room.holds.shift()
   redraw($)
-  $.ui.toast(`cloakroom held a command: ${names} was about to leave via ${via} to ${to}`)
+  $.ui.toast(`cloakroom held a command: ${names} ${reason}`)
   return (
-    `cloakroom held this command: ${names} would leave this machine via ${via} to ${to}. ` +
+    `cloakroom held this command: ${toClaude} ` +
     'The person decides in the red band above the prompt (Allow once or Deny); wait for them before running it again.'
   )
 }
@@ -567,7 +593,7 @@ export const register: Register = on => {
       room.permits.set(hold!.command, (await $.clock.now()) + PERMIT_MS)
       await $.prompt.submit({
         text:
-          `cloakroom: the person pressed Allow once for the held command (${hold!.labels} via ${hold!.via} to ${hold!.to}). ` +
+          `cloakroom: the person pressed Allow once for the held command (${hold!.labels} ${hold!.reason}). ` +
           'Run that exact command again; it will pass one time.',
       })
     }
@@ -575,7 +601,7 @@ export const register: Register = on => {
     const mine = hold ? (
       <Box key="cloakroom" flexDirection="column" borderStyle="round" borderColor="error" paddingX={1}>
         <Text color="error" bold>
-          held: {hold.labels} {hold.count === 1 ? 'was' : 'were'} about to leave via {hold.via} to {hold.to}
+          held: {hold.labels} {hold.reason}
         </Text>
         <Text dimColor>
           Claude was told to wait. Allow once lets this exact command run one time

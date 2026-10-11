@@ -175,8 +175,11 @@ describe('commands that do not carry a value off the machine', () => {
     expect((await runBash($, viaEnv)).deny).toBeUndefined()
     expect(w.ran.at(-1)?.input.command).toBe(viaEnv)
 
-    expect((await runBash($, `curl -H "X-Key: ${ticket}" http://localhost:3000/hook`)).deny).toBeUndefined()
+    // A value handed to a network program is held even for localhost (a local port can
+    // forward anywhere): curl is not a local file tool. The variable form above is the way.
+    const local = await runBash($, `curl -H "X-Key: ${ticket}" http://localhost:3000/hook`)
+    expect(local.deny).toContain('curl is not on cloakroom')
     expect((await runBash($, 'curl https://api.github.com')).deny).toBeUndefined()
-    expect(w.ran).toHaveLength(4)
+    expect(w.ran).toHaveLength(3)
   })
 })
