@@ -17,9 +17,9 @@ test('a prompt on a cold cache is held once with the estimate, and sending it ag
 
   const first = await submit($, 'refactor the parser')
   // 150k tokens at Opus 5.5: written cold at $8/MTok (1-hour TTL), read warm at $0.20.
-  expect(first.drop).toContain('Thermostat held this prompt once')
+  expect(first.drop).toContain('Send again to go ahead')
   expect(first.drop).toContain('re-reads 150k tokens')
-  expect(first.drop).toContain('~$1.20 cold vs ~$0.03 warm at Opus 5.5 API list prices')
+  expect(first.drop).toContain('~$1.20 vs ~$0.03 warm, Opus 5.5 API list prices')
   expect(first.drop).toContain('/clear')
 
   const again = await submit($, 'refactor the parser')
@@ -50,7 +50,7 @@ test('on an API key the window is 5 minutes, so 6 minutes idle is already cold',
   await w.clock.advance(6 * MIN)
   const held = await submit($, 'gone cold')
   // The 5-minute TTL writes at 1.25x input: 150k x $5/MTok.
-  expect(held.drop).toContain('~$0.75 cold vs ~$0.03 warm')
+  expect(held.drop).toContain('~$0.75 vs ~$0.03 warm')
 })
 
 test('a small conversation is not worth holding', SLOW, async ($, on) => {
@@ -68,7 +68,7 @@ test('guard=warn shows the estimate and sends', { ...SLOW, options: { guard: 'wa
   await w.clock.advance(61 * MIN)
   const sent = await submit($, 'go')
   expect(sent.drop).toBeUndefined()
-  expect(w.toasts).toEqual([expect.stringContaining('~$1.20 cold vs ~$0.03 warm')])
+  expect(w.toasts).toEqual([expect.stringContaining('~$1.20 vs ~$0.03 warm')])
 })
 
 test('guard=off does nothing', { ...SLOW, options: { guard: 'off' } }, async ($, on) => {
@@ -183,7 +183,7 @@ test("the estimate uses Claude Code's own cache-write rate once it has priced on
     estimated_cache_write_usd: 0.9,
   })
   const held = await submit($, 'where were we')
-  expect(held.drop).toContain('~$0.90 cold vs ~$0.03 warm at Opus 5.5 prices, cache rate from Claude Code')
+  expect(held.drop).toContain('~$0.90 vs ~$0.03 warm, Opus 5.5 prices, cache rate from Claude Code')
 })
 
 describe('who is held: each prompt origin on each kind of session', () => {
@@ -207,7 +207,7 @@ describe('who is held: each prompt origin on each kind of session', () => {
       await step($, w, CONVERSATION)
       await w.clock.advance(61 * MIN)
       const sent = await submit($, 'cold send', origin)
-      if (isHeld) expect(sent.drop).toContain('Thermostat held this prompt once')
+      if (isHeld) expect(sent.drop).toContain('Send again to go ahead')
       else expect(sent.drop).toBeUndefined()
     })
   }
@@ -275,8 +275,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await step($, w, usage(140_000, 9_000, { model: 'claude-\x1b[31mopus\x07-5-5\x9b' }))
     await w.clock.advance(61 * MIN)
     const held = await submit($, 'fix \x1b[2J this\x07 now\x9b')
-    expect(held.drop).toContain('Thermostat held this prompt once')
-    expect(CONTROL_CHARS.test(held.drop ?? '')).toBe(false)
+    expect(held.drop).toContain('Send again to go ahead')
+    // The hold's one deliberate newline splits its two lines (API-GOTCHAS #31 allows it); nothing else.
+    expect((held.drop ?? '').split('\n')).toHaveLength(2)
+    expect(CONTROL_CHARS.test((held.drop ?? '').replace('\n', ' '))).toBe(false)
     const ui = await $.ui.mount({ plugin: 'thermostat', surface, component: 'SessionMode', props: { modes: [] } })
     const label = await ui.find({ key: 'thermostat' })
     expect(label?.text).toBe('cache cold · 150k to re-read')

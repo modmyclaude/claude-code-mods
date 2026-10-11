@@ -231,7 +231,8 @@ describe('Bolt beside the receipt', () => {
     await step($, w, usage(140_000, 9_000))
     await w.clock.advance(70 * MIN)
     const held = await submit($, 'back again')
-    expect(held.drop).toMatch(/^Thermostat held this prompt once: the cache went cold 10m ago, so this send re-reads 150k tokens: .* Send it again to go ahead, or \/clear to start fresh\.$/)
+    expect(held.drop).toMatch(/^Cache went cold 10m ago: this send re-reads 150k tokens \(~\$[\d.]+ vs ~\$[\d.]+ warm, [^)]+\)\.\nSend again to go ahead, or \/clear to start fresh\.$/)
+    expect(held.drop).not.toContain('Thermostat held')
     for (const surface of SURFACES) {
       const footer = await $.ui.mount({ plugin: 'thermostat', surface, component: 'SessionMode', props: { modes: [] } })
       expect((await footer.find({ key: 'thermostat' }))?.text).toBe('cache cold · 150k to re-read')

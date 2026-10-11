@@ -172,11 +172,20 @@ function statusFor(s: Snapshot): string {
 }
 
 /** `the cache went cold 23m ago, so this send re-reads 182k tokens: ...` */
-function coldReason(s: Snapshot): string {
+/**
+ * The hold, as the person reads it under the desktop's own "a hook blocked your prompt"
+ * frame (MM-101): the cost first, in two short lines; the frame already names the hold.
+ */
+function holdText(s: Snapshot, files: string): string {
+  return `${coldLine(s)}\nSend again to go ahead, or /clear to start fresh.${files}`
+}
+
+/** The cost of a cold send in one line, for the hold and the warn-only toast. */
+function coldLine(s: Snapshot): string {
   const ago = s.temp.kind === 'cold' ? ` ${formatDuration(s.temp.msAgo)} ago` : ''
   return (
-    `the cache went cold${ago}, so this send re-reads ${formatTokens(s.cache.tokens)} tokens: ` +
-    `~${formatUsd(s.send.coldUsd)} cold vs ~${formatUsd(s.send.warmUsd)} warm at ${pricesLabel(s.prices)}`
+    `Cache went cold${ago}: this send re-reads ${formatTokens(s.cache.tokens)} tokens ` +
+    `(~${formatUsd(s.send.coldUsd)} vs ~${formatUsd(s.send.warmUsd)} warm, ${pricesLabel(s.prices)}).`
   )
 }
 
@@ -594,9 +603,8 @@ export const register: Register = (on, options) => {
     if (live.settings.guard === 'off' || e.turnId !== undefined || !(await isPerson($, e.origin))) return next(e)
     const s = await snapshot($)
     if (s.temp.kind !== 'cold' || s.cache.lastAt === null || s.cache.tokens < HOLD_MIN_TOKENS) return next(e)
-    const why = coldReason(s)
     if (live.settings.guard === 'warn') {
-      $.ui.toast(`Cache is cold: ${why}.`, { timeoutMs: 10_000 })
+      $.ui.toast(coldLine(s), { timeoutMs: 10_000 })
       return next(e)
     }
     const held = await read($, heldState)
@@ -607,9 +615,7 @@ export const register: Register = (on, options) => {
     await update($, receiptState, r => ({ ...r, held: r.held + 1 }))
     $.clock.after(0, () => void restoreDraft($, e.text))
     const files = e.attachments?.length ? ' Attach your files again: only the text comes back.' : ''
-    return {
-      drop: `Thermostat held this prompt once: ${why}. Send it again to go ahead, or /clear to start fresh.${files}`,
-    }
+    return { drop: holdText(s, files) }
   })
     // Fails open on purpose: if the estimate itself breaks, the prompt goes
     // through. Blocking someone's prompt on a bug in a cost warning is worse

@@ -25,7 +25,8 @@ This draws on the terminal and the desktop app. Where no footer draws (VS Code, 
 
 **The guard.** When you send a prompt on a cold cache, it is held once and you see what it costs:
 
-> Thermostat held this prompt once: the cache went cold 23m ago, so this send re-reads 150k tokens: ~$1.20 cold vs ~$0.03 warm at Opus 5.5 API list prices. Send it again to go ahead, or /clear to start fresh.
+> Cache went cold 23m ago: this send re-reads 150k tokens (~$1.20 vs ~$0.03 warm, Opus 5.5 API list prices).
+> Send again to go ahead, or /clear to start fresh.
 
 Send it again to go ahead (the words are put back in the prompt box if it is empty), or `/clear` to start a fresh conversation instead. It only holds prompts you type yourself (at the terminal, in the desktop app, or through Remote Control; never a headless `claude -p` run, where nobody would see the hold), only when the re-read is at least 20k tokens, never a prompt typed while a turn is running, and a hold counts as seen for 10 minutes.
 
