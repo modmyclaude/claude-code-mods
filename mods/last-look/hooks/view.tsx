@@ -4,6 +4,7 @@
 import type { BoxProps, ButtonProps, ElementConstructor, RenderElement, RenderSurface, TextProps } from 'claude-code'
 
 import type { LastLookHold, LastLookItem, LastLookRow, LastLookTone } from '../types'
+import { holdTitle } from './measure'
 import { clean } from './text'
 
 export type Kit = {
@@ -25,7 +26,8 @@ export type Room = {
   onProceed: () => void
 }
 
-export const FOOTER = 'A safety net, not a permission system.'
+// Proceed hands the command on: Claude Code's own permission check may still ask (MM-103).
+export const FOOTER = "A safety net, not a permission system. Proceed passes it on to Claude Code's own checks."
 
 function tone(t: LastLookTone | undefined): TextProps {
   if (t === 'error') return { color: 'error' }
@@ -88,7 +90,7 @@ export function drawHold(kit: Kit, hold: LastLookHold, room: Room): RenderElemen
   const shares = share(report.items, budget)
   return (
     <Box flexDirection="column" width={width}>
-      <Text bold color="warning">Held: this command can destroy work</Text>
+      <Text bold color="warning">{holdTitle(report.items)}</Text>
       <Box key="command">
         <Text wrap="wrap">{`$ ${clip(clean(report.command), width * 3 - 2)}`}</Text>
       </Box>

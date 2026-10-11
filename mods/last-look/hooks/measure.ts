@@ -723,6 +723,17 @@ function headline(items: readonly LastLookItem[]): Pick<LastLookReport, 'headlin
   return { headline: 'Check what it would change before it runs', headlineTone: 'warning' }
 }
 
+/**
+ * The pane's first line. "Can destroy work" only when the measurement found work to lose;
+ * a command it could not fully check, or found nothing in, is held for review in neutral
+ * words (the headline under it says which), so a harmless step never reads as a threat.
+ */
+export function holdTitle(items: readonly LastLookItem[]): string {
+  const live = items.filter(i => !i.isAllowed && !i.isHarmless)
+  const found = live.some(i => i.isCatastrophic || i.unsaved > 0 || i.commits > 0 || i.files > 0)
+  return found ? 'Held: this command can destroy work' : 'Held for your review'
+}
+
 // ---------------------------------------------------------------- pieces
 
 type Draft = {

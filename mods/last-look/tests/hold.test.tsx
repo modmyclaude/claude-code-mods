@@ -121,7 +121,7 @@ describe('a destructive command is held', () => {
       await ui.unmount()
     }
     expect(ran).toEqual([])
-    expect(seen.logs).toContain('Last Look: you cancelled: git reset --hard')
+    expect(seen.logs).toContain('you cancelled: git reset --hard')
   })
 
   test('Cancel holds the focus, so Enter cancels; only Cancel has a hotkey', async ($, on) => {

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { LastLookItem, LastLookReport } from '../types'
 import { classify } from '../hooks/classify'
-import { COULD_NOT, measureAll, shouldHold, size } from '../hooks/measure'
+import { COULD_NOT, holdTitle, measureAll, shouldHold, size } from '../hooks/measure'
 import type { Ctx } from '../hooks/measure'
 import { isAllowed, parseAllow } from '../hooks/paths'
 import { clean } from '../hooks/text'
@@ -484,4 +484,24 @@ test('clean() leaves one drawable line', () => {
   expect(clean('\u0000\u0007\u007f\u0085')).toBe('\uFFFD\uFFFD\uFFFD\uFFFD')
   expect(clean('caf\u00e9 \u65e5\u672c')).toBe('caf\u00e9 \u65e5\u672c')
   expect(clean('\u001b')).toBe('')
+})
+
+// MM-103: a held command the measurement found nothing in (or could not finish) is held
+// for review in neutral words; "can destroy work" only when there is work to lose.
+describe('holdTitle', () => {
+  const part = (over: Partial<LastLookItem>): LastLookItem =>
+    ({ files: 0, bytes: 0, unsaved: 0, commits: 0, isAllowed: false, isHarmless: false, isCatastrophic: false, effect: 'unknown', ...over }) as LastLookItem
+  test('work to lose: can destroy work', () => {
+    for (const found of [{ files: 3 }, { unsaved: 1 }, { commits: 2 }, { isCatastrophic: true }]) {
+      expect(holdTitle([part(found)])).toBe('Held: this command can destroy work')
+    }
+  })
+  test('nothing found, or not measured: held for your review', () => {
+    expect(holdTitle([part({ effect: 'unknown' })])).toBe('Held for your review')
+    expect(holdTitle([part({ effect: 'nothing' })])).toBe('Held for your review')
+    expect(holdTitle([])).toBe('Held for your review')
+  })
+  test('allowed or harmless parts never count as work to lose', () => {
+    expect(holdTitle([part({ files: 5, isAllowed: true }), part({ files: 2, isHarmless: true })])).toBe('Held for your review')
+  })
 })
