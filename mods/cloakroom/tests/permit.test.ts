@@ -85,7 +85,7 @@ describe('not proven: held, whatever the command does', () => {
 describe('the local-only list', () => {
   test('holds only text and file tools: no shell, interpreter, runner or network program', () => {
     for (const name of ['sh', 'bash', 'zsh', 'eval', 'source', 'exec', 'xargs', 'find', 'node', 'python', 'python3', 'perl', 'ruby', 'php',
-      'npm', 'npx', 'yarn', 'pnpm', 'bun', 'deno', 'make', 'sed', 'awk', 'curl', 'wget', 'nc', 'ssh', 'git', 'docker', 'kubectl', 'env', 'sudo']) {
+      'npm', 'npx', 'yarn', 'pnpm', 'bun', 'deno', 'make', 'sed', 'awk', 'sort', 'curl', 'wget', 'nc', 'ssh', 'git', 'docker', 'kubectl', 'env', 'sudo']) {
       expect(LOCAL.has(name), name).toBe(false)
     }
     for (const name of ['echo', 'printf', 'cat', 'tee', 'cp', 'mkdir', 'grep', 'base64', 'export']) expect(LOCAL.has(name), name).toBe(true)

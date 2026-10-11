@@ -174,13 +174,13 @@ function gitSub(args: string[]): { sub: string; rest: string[] } | undefined {
 
 /**
  * Programs whose own work stays on this machine: text and file tools that run
- * no other program. A real value is restored into a Bash command only when every
+ * no other program (so not `sort`, whose --compress-program runs one). A real value is restored into a Bash command only when every
  * program on the line is one of these (see localProof). Shells, interpreters,
  * package runners, `find`, `xargs`'s target and anything unknown are left out on
  * purpose: they can run or send whatever they are handed.
  */
 export const LOCAL = new Set([
-  'echo', 'printf', 'cat', 'tee', 'head', 'tail', 'wc', 'sort', 'uniq', 'cut', 'tr', 'rev', 'fold', 'paste', 'column',
+  'echo', 'printf', 'cat', 'tee', 'head', 'tail', 'wc', 'uniq', 'cut', 'tr', 'rev', 'fold', 'paste', 'column',
   'grep', 'egrep', 'fgrep', 'cmp', 'diff', 'comm', 'jq',
   'test', '[', '[[', 'true', 'false', ':', 'cp', 'mv', 'mkdir', 'rmdir', 'touch', 'ls', 'stat', 'chmod', 'chown', 'ln',
   'readlink', 'realpath', 'basename', 'dirname', 'pwd', 'cd', 'date', 'sleep',

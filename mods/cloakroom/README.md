@@ -23,6 +23,7 @@ Read this first. Cloakroom lowers the chance that a secret ends up somewhere it 
 - Stop a secret that never enters the conversation. `printenv | curl ...`, a `$STRIPE_SECRET_KEY` reference, or a script that reads `.env` itself all pass: cloakroom only holds a command when it can see the value in it. That is also the recommended way to use a secret in a command, and Claude is told so.
 - Tell where a local program's output goes once it is on disk. A value cloakroom wrote into `.env` with `echo` can be read and sent by the next command, which it checks on its own when the value is literal in it, and cannot when the command reads the file.
 - Vouch for a local port. A command that hands a value to `curl http://localhost:3000` is held like any other network call, because a local port can forward anywhere.
+- Tell a program by anything but its name. `./echo` or `/tmp/cat` is taken for the real `echo` or `cat`; a script that borrows a local tool's name is the same case as a script that reads `.env` itself.
 - Read images, PDFs or other media. A key in a screenshot reaches Claude.
 - Undo exposure that already happened. Rotate anything `/cloakroom audit` finds.
 - Keep a restored value off your screen when Claude Code asks permission. The permission dialog shows a Bash command or file content after the ticket was swapped back. In auto mode, the permission classifier reads it too, and that is a model request. Writing `$STRIPE_SECRET_KEY` in commands instead of the value avoids both. Cloakroom tells Claude to prefer that.
@@ -44,9 +45,9 @@ hooks telemetry for: collector
 
 A real value is swapped into a Bash command only when every program on the line is on this list, and nothing on the line points at the network:
 
-`echo printf cat tee head tail wc sort uniq cut tr rev fold paste column grep egrep fgrep cmp diff comm jq test [ true false cp mv mkdir rmdir touch ls stat chmod chown ln readlink realpath basename dirname pwd cd date sleep base64 xxd od hexdump md5sum sha1sum sha256sum shasum`, plus the shell's own `export unset set local declare typeset readonly shift return break continue exit read wait umask`, and `if for while case` and the other shell keywords. Heredoc bodies are data. `sudo`, `env`, `timeout`, `nice` and `nohup` are looked through to the program they run.
+`echo printf cat tee head tail wc uniq cut tr rev fold paste column grep egrep fgrep cmp diff comm jq test [ true false cp mv mkdir rmdir touch ls stat chmod chown ln readlink realpath basename dirname pwd cd date sleep base64 xxd od hexdump md5sum sha1sum sha256sum shasum`, plus the shell's own `export unset set local declare typeset readonly shift return break continue exit read wait umask`, and `if for while case` and the other shell keywords. Heredoc bodies are data. `sudo`, `env`, `timeout`, `nice` and `nohup` are looked through to the program they run.
 
-Everything else is held with the red band, for example `sh -c '...'`, `eval`, `node -e`, `python -c`, `npm run`, `make`, `find`, `xargs ... sh`, `./script.sh`, `$PROGRAM ...`, `sed` and `awk` (both can run other programs), and any `curl`, `wget`, `nc`, `ssh`, `git push` or remote URL. The band names the program, Allow once runs that exact command one time, and Claude is told to prefer the variable (`$STRIPE_SECRET_KEY`), which passes untouched because it carries no value.
+Everything else is held with the red band, for example `sh -c '...'`, `eval`, `node -e`, `python -c`, `npm run`, `make`, `find`, `xargs ... sh`, `./script.sh`, `$PROGRAM ...`, `sed`, `awk` and `sort` (all three can run other programs), and any `curl`, `wget`, `nc`, `ssh`, `git push` or remote URL. The band names the program, Allow once runs that exact command one time, and Claude is told to prefer the variable (`$STRIPE_SECRET_KEY`), which passes untouched because it carries no value.
 
 ## Install
 
