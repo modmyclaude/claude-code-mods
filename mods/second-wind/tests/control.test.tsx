@@ -81,7 +81,7 @@ describe('control characters (API-GOTCHAS #31)', () => {
       await w.clock.advance(3000)
       for (const surface of SURFACES) {
         const ui = await band($, w, surface)
-        expect((await ui.find({ key: 'sw-cue' }))?.text).toBe('Breathe in 4')
+        expect((await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt).toBe('Breathe in 4')
         await ui.unmount()
         const spin = await w.spinner($, surface)
         for (const text of strings(await spin.drawn())) expect(text, surface).not.toMatch(CONTROL)

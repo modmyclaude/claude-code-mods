@@ -3,7 +3,8 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import { BAR_MAX, barCells, barWidth, circleSvg, fitHead, radius, shownFill } from '../hooks/draw'
+import { BAR_MAX, barCells, barWidth, fitHead, guideSvg, shownFill } from '../hooks/draw'
+import { PATTERNS } from '../hooks/breath'
 import {
   CARD_TEXT, SAFETY, USAGE, draftAfter, foldLine, readSettings, settingsLine, shareCard, statusText,
 } from '../hooks/settings'
@@ -155,24 +156,33 @@ describe('the breath bar in text cells', () => {
   })
 })
 
-describe('the desktop circle', () => {
-  const inhale = { key: 'step:15000', from: 0, to: 1, ms: 5500 }
+describe('the desktop guide (MM-110)', () => {
+  const box = PATTERNS.box
 
-  test('full motion animates the whole step by itself', () => {
-    const a = circleSvg(inhale, 0.1, 'full', 40)
-    expect(a.isInteractive).toBe(true)
-    expect(a.source).toContain('<animate attributeName="r" from="14" to="44" dur="5500ms"')
-    // The markup depends on the step, not the moment: no repaint mid-breath.
-    expect(circleSvg(inhale, 0.6, 'full', 40).source).toBe(a.source)
-    expect(a.source).not.toContain('<script')
+  test('one markup per span: the drawing runs the whole loop itself, eased, never swapped mid-breath', () => {
+    const a = guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'sleep' })
+    expect(a).toBe(guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'sleep' }))
+    expect(a).toContain('16000ms linear -3000ms infinite')
+    expect(a).toContain('cubic-bezier(.45,0,.55,1)')
+    expect(a).toContain('@keyframes h{0%{r:12px')
+    expect(a).not.toContain('<script')
+    expect(a).not.toContain('<animate')
+    // Each step's words, in order, on the same clock.
+    for (const word of ['Breathe in', 'Hold', 'Breathe out']) expect(a).toContain(`>${word}</text>`)
   })
 
-  test('gentle travels less; a hold is a still picture', () => {
-    expect(circleSvg(inhale, 0, 'gentle', 40).source).toContain('from="26" to="44"')
-    const hold = circleSvg({ key: 'h', from: 1, to: 1, ms: 4000 }, 1, 'full', 40)
-    expect(hold.isInteractive).toBe(false)
-    expect(hold.source).not.toContain('<animate')
-    expect(radius(1, 'full')).toBe(44)
+  test('reduced motion stills Bolt and the halo; the words still change', () => {
+    const a = guideSvg(box, { motion: 'full', delayMs: 0, loop: true, pose: 'sleep' })
+    expect(a).toContain('@media (prefers-reduced-motion:reduce){.h,.b{animation:none}}')
+    expect(a).toContain('@keyframes w0{')
+    const still = guideSvg(box, { motion: 'still', delayMs: 0, loop: true, pose: 'sleep' })
+    expect(still).not.toContain('@keyframes h{')
+  })
+
+  test('gentle travels less; the closing exhale plays once', () => {
+    expect(guideSvg(box, { motion: 'gentle', delayMs: 0, loop: true, pose: 'sleep' })).toContain('@keyframes h{0%{r:15px')
+    const finish = guideSvg([{ phase: 'out', ms: 2000, from: 0.6, to: 0 }], { motion: 'full', delayMs: 0, loop: false, pose: 'sleep' })
+    expect(finish).toContain('2000ms linear 0ms 1 both')
   })
 })
 

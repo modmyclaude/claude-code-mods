@@ -10,8 +10,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderNode, Timer } from 'claude-code'
 
-import { LONG_MS, frameAt, softFinish } from './breath'
-import { barCells, barWidth, circleSvg, fitHead, shownFill } from './draw'
+import { LONG_MS, frameAt, guideSpan, softFinish } from './breath'
+import { GUIDE_SIZE, barCells, barWidth, fitHead, guideSvg, shownFill } from './draw'
 import {
   CARD_TEXT, SAFETY, TICK_MS, USAGE, draftAfter, foldLine, planOf, readSettings, shareCard, statusText, unknownWord,
 } from './settings'
@@ -363,6 +363,9 @@ async function end($: EngineInterface, turnId: string, isAborted: boolean): Prom
   await pump($)
 }
 
+/** The desktop guide's markup for the span it was built for (MM-110). */
+let guide: { key: string; source: string } = { key: '', source: '' }
+
 export const register: Register = (on, options) => {
   settings = readSettings(options)
   timer = null
@@ -517,10 +520,24 @@ export const register: Register = (on, options) => {
       const isSmall = isTyping || e.props.maxRows < 3
       let shape: RenderNode | null = null
       if (motion !== 'still') {
-        if (e.surface === 'desktop') {
+        const span = e.surface === 'desktop' && r !== null ? guideSpan(r, now) : null
+        if (span !== null && e.surface === 'desktop') {
+          // Built once per span of breathing and then left alone: the drawing runs its own
+          // smooth clock, so nothing is repainted mid-breath (MM-110).
+          const key = `${span.key}:${motion}`
+          if (guide.key !== key) guide = { key, source: guideSvg(span.steps, { motion, delayMs: span.offsetMs, loop: span.loop, pose: span.pose }) }
           const { Svg } = $.ui.resolve(e)
-          const svg = circleSvg(frame.step, fill, motion, isSmall ? 16 : 40)
-          shape = <Svg source={svg.source} alt={`Breathing guide: ${frame.word}`} isInteractive={svg.isInteractive} />
+          const k = isSmall ? 0.66 : 1
+          shape = (
+            <Svg
+              key="sw-guide"
+              source={guide.source}
+              alt={frame.cue}
+              width={Math.round(GUIDE_SIZE.width * k)}
+              height={Math.round(GUIDE_SIZE.height * k)}
+              isInteractive
+            />
+          )
         } else if (!isSmall) {
           const [left, body, right] = barCells(fill, barWidth(cols))
           shape = (
@@ -532,7 +549,15 @@ export const register: Register = (on, options) => {
           )
         }
       }
-      if (isSmall) {
+      // On the desktop the guide carries the step's words on its own clock; beside it, only what is running.
+      const carriesWords = e.surface === 'desktop' && shape !== null && frame.mode !== 'interlude'
+      if (isSmall && carriesWords) {
+        rows.push(
+          <Box key="sw-compact" flexDirection="row">
+            {shape}
+          </Box>,
+        )
+      } else if (isSmall) {
         const room = cols - frame.cue.length - 1
         const mini = e.surface === 'terminal' && motion !== 'still' && room >= 4 ? barCells(fill, Math.min(8, room)).join('') : null
         rows.push(
@@ -543,8 +568,14 @@ export const register: Register = (on, options) => {
           </Box>,
         )
       } else {
-        const head = fitHead(frame.cue, frame.caption, e.surface === 'desktop' && shape !== null ? Math.max(1, cols - 6) : cols)
-        const words = (
+        const head = carriesWords ? { cue: null, caption: frame.caption } : fitHead(frame.cue, frame.caption, e.surface === 'desktop' && shape !== null ? Math.max(1, cols - 19) : cols)
+        const words = carriesWords ? (
+          <Box key="sw-head" flexDirection="row">
+            <Box key="sw-caption">
+              <Text dimColor>{head.caption}</Text>
+            </Box>
+          </Box>
+        ) : (
           <Box key="sw-head" flexDirection="row">
             <Box key="sw-cue">
               <Text bold color={ACCENT} wrap="truncate-end">{head.cue}</Text>

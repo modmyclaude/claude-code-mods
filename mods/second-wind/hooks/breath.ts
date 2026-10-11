@@ -266,3 +266,30 @@ export function frameAt(run: SecondWindRun, now: number): Frame | null {
     step: { key: `step:${seg.startMs}`, from: b.from, to: b.to, ms: b.stepMs },
   }
 }
+
+/** What the desktop guide draws now (MM-110): one run of steps, how far in, and Bolt's pose. */
+export type GuideSpan = { key: string; steps: readonly Step[]; loop: boolean; offsetMs: number; pose: 'sleep' | 'idle' }
+
+/**
+ * The span of breathing the desktop guide animates by itself: the opening sigh
+ * once, a paced pattern on a loop until the next interlude, a still Bolt for an
+ * interlude, or the closing exhale. `key` changes only when the span does, so
+ * the guide's markup is built once per span.
+ */
+export function guideSpan(run: SecondWindRun, now: number): GuideSpan | null {
+  if (run.phase === 'finishing' && run.finish !== null && run.finish.ms > 0) {
+    const f = run.finish
+    return { key: `finish:${f.at}`, steps: [{ phase: 'out', ms: f.ms, from: f.fromFill, to: 0 }], loop: false, offsetMs: Math.max(0, now - f.at), pose: 'sleep' }
+  }
+  if (run.phase !== 'breathing') return null
+  const t = Math.max(0, now - run.breathStartedAt)
+  const seg = segmentAt(run.plan, t)
+  if (seg.kind === 'interlude') return { key: `rest:${run.breathStartedAt}:${seg.index}`, steps: [], loop: false, offsetMs: 0, pose: 'idle' }
+  if (t < SIGH_MS) return { key: `sigh:${run.breathStartedAt}`, steps: PATTERNS.sigh, loop: false, offsetMs: t, pose: 'sleep' }
+  const first = firstInterludeAt(run.plan)
+  const block = INTERLUDE_MS + cyclesPerGap(run.plan) * cycleMs(run.plan.pattern)
+  const k = interludes(run.plan).length === 0 || t < first ? -1 : Math.floor((t - first) / block)
+  const spanStart = k < 0 ? SIGH_MS : first + k * block + INTERLUDE_MS
+  const pattern = run.plan.pattern
+  return { key: `${pattern}:${run.breathStartedAt}:${spanStart}`, steps: PATTERNS[pattern], loop: true, offsetMs: (t - spanStart) % cycleMs(pattern), pose: 'sleep' }
+}

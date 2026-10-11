@@ -11,8 +11,12 @@ import type { World } from './world'
 
 type Ui = Mounted<'terminal' | 'desktop', 'AbovePrompt'>
 
-const cue = async (ui: Ui) => (await ui.find({ key: 'sw-cue' }))?.text
+/** The step's words: the band's cue, or on the desktop the guide's own (its alt carries them, MM-110). */
+const cue = async (ui: Ui) => (await ui.find({ key: 'sw-cue' }))?.text ?? (await ui.find({ type: 'Svg' }))?.props.alt
 const caption = async (ui: Ui) => (await ui.find({ key: 'sw-caption' }))?.text
+/** The compact row's words: its text, or on the desktop the guide's (its alt carries the cue, MM-110). */
+const compactWords = async (ui: Ui) => (await ui.find({ key: 'sw-compact' }))?.text || String((await ui.find({ type: 'Svg' }))?.props.alt ?? '')
+
 const fold = async (ui: Ui) => ui.find({ key: 'sw-fold' })
 const isShown = async (ui: Ui) => (await ui.find({ key: 'second-wind' })) !== undefined
 
@@ -60,7 +64,11 @@ describe('when it shows', () => {
     const desk = await w.band($, 'desktop')
     const svg = await desk.find({ type: 'Svg' })
     expect(svg?.props.isInteractive).toBe(true)
-    expect(String(svg?.props.source)).toContain('<animate attributeName="r"')
+    // Bolt breathing on the drawing's own clock: one stable markup, eased keyframes, reduced motion honoured.
+    expect(String(svg?.props.source)).toContain('@keyframes h{')
+    expect(String(svg?.props.source)).toContain('cubic-bezier(.45,0,.55,1)')
+    expect(String(svg?.props.source)).toContain('prefers-reduced-motion')
+    expect(Number(svg?.props.height)).toBeLessThanOrEqual(44)
     expect(await desk.find({ key: 'sw-shape' })).toBeUndefined()
   })
 
@@ -303,7 +311,8 @@ describe('typing', () => {
       expect((await draft.find({ key: 'engine-hint' }))?.text).toBe('esc to interrupt')
       await w.clock.settle()
       expect(await ui.find({ key: 'sw-breath' })).toBeUndefined()
-      expect((await ui.find({ key: 'sw-compact' }))?.text).toContain('Breathe in 2')
+      expect(await ui.find({ key: 'sw-compact' })).toBeDefined()
+      expect(await compactWords(ui)).toContain('Breathe in 2')
       expect((await ui.findAll({ type: 'Text' })).filter(t => t.text.includes('Breathe in')).every(t => t.props.dimColor === true)).toBe(true)
       await draft.unmount()
       const empty = await w.hint($, surface, false) // however the box was emptied
@@ -415,7 +424,8 @@ describe('fitting the space', () => {
     await w.clock.advance(3000)
     for (const surface of SURFACES) {
       const ui = await w.band($, surface, { maxRows: 2 })
-      expect((await ui.find({ key: 'sw-compact' }))?.text).toContain('Breathe in 4')
+      expect(await ui.find({ key: 'sw-compact' })).toBeDefined()
+      expect(await compactWords(ui)).toContain('Breathe in 4')
       expect(await ui.find({ key: 'sw-breath' })).toBeUndefined()
       await ui.unmount()
     }
@@ -451,7 +461,8 @@ describe('theme and motion', () => {
     for (const surface of SURFACES) {
       const ui = await w.band($, surface)
       const colours = walk(await ui.drawn()).flatMap(el => [el.props.color, el.props.backgroundColor, el.props.borderColor]).filter(c => c !== undefined)
-      expect(colours.length > 0).toBe(true)
+      // On the desktop the guide's colours live inside its drawing (Bolt's own palette, MM-110).
+      if (surface === 'terminal') expect(colours.length > 0).toBe(true)
       for (const c of colours) expect(THEME_KEYS.has(String(c))).toBe(true)
       await ui.unmount()
     }
@@ -590,4 +601,20 @@ test('#39: the engine band beneath is never under a Box that sizes or hides it',
     expect(engineNodeConcealers(await ui.drawn()), surface).toEqual([[]])
     await ui.unmount()
   }
+})
+
+test('MM-110: on the desktop the guide is built once per span, so nothing flashes mid-breath', async ($, on) => {
+  const w = world(on)
+  await w.start($)
+  await w.clock.advance(3000 + 500)
+  const ui = await w.band($, 'desktop')
+  const first = await ui.find({ type: 'Svg' })
+  expect(first?.props.isInteractive).toBe(true)
+  for (let i = 0; i < 6; i += 1) {
+    await w.clock.advance(1000)
+    const now = await ui.find({ type: 'Svg' })
+    expect(now?.props.source).toBe(first?.props.source)
+    expect(now?.props.isInteractive).toBe(true)
+  }
+  await ui.unmount()
 })
