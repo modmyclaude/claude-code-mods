@@ -940,6 +940,41 @@ describe('control characters', () => {
     }
   })
 
+  test('desktop: the /pet card is drawn one code-font cell per character, so its border lines up', async ($, on) => {
+    world(on, { pet: savedPet({ name: 'Bean' }) })
+    await start($)
+    const card = (await petCommand($, 'card')).text ?? ''
+    const lines = card.replace(/^```\n?/, '').replace(/\n?```\s*$/, '').split('\n')
+    const row = await $.ui.mount({
+      plugin: 'hatchling', surface: 'desktop', component: 'CommandOutput',
+      props: { command: 'pet', args: 'card', text: card, isErrored: false },
+    })
+    type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+    const cardBox = (await row.find({ key: 'card' })) as Node | undefined
+    const rows = ((cardBox?.children ?? []) as Node[]).filter(c => c.type === 'Box')
+    expect(rows.length).toBe(lines.length)
+    rows.forEach((r, i) => {
+      // Every cell is one character wide, and the cells add up to the line's width.
+      const cells = (r.children ?? []) as Node[]
+      const width = cells.reduce((n, c) => n + Number(c.props?.width ?? 0), 0)
+      expect(width, lines[i]).toBe([...(lines[i] ?? '')].length)
+      for (const c of cells) {
+        const text = ((c.children ?? []) as Node[]).flatMap(t => (t.children ?? []).filter(x => typeof x === 'string')).join('')
+        // A glyph or letter takes exactly one cell; a run of spaces takes one cell per space.
+        expect([...text].length, text).toBe(text.trim() === '' ? Number(c.props?.width) : 1)
+      }
+    })
+    expect(await row.find({ key: 'copy' })).toBeDefined()
+    await row.unmount()
+    // The terminal keeps one Text per line.
+    const term = await $.ui.mount({
+      plugin: 'hatchling', surface: 'terminal', component: 'CommandOutput',
+      props: { command: 'pet', args: 'card', text: card, isErrored: false },
+    })
+    expect(((await term.find({ key: 'card' })) as Node | undefined)?.children?.filter(c => (c as Node).type === 'Text').length).toBe(lines.length)
+    await term.unmount()
+  })
+
   test("a tool's name with control characters is drawn safe", async ($, on) => {
     world(on, { pet: savedPet() })
     await start($)

@@ -446,11 +446,13 @@ export const register: Register = on => {
         const done = await $.ui.copy({ text: body, surface })
         $.ui.toast(done.isCopied ? 'Card copied - paste it anywhere.' : 'No clipboard here - select the card text to copy it.')
       }
+      // The card is monospace art (its border, the sprite). The desktop's Text is
+      // proportional and switches a row with block characters to the code font, so
+      // its edges would not line up (API-GOTCHAS #40): there every character takes
+      // one code-font cell.
       return (
         <Box key="card" flexDirection="column">
-          {body.split('\n').map(text => (
-            <Text>{text.replace(/ /g, blank)}</Text>
-          ))}
+          {body.split('\n').map(text => (e.surface === 'desktop' ? monoRow({ Box, Text }, text) : <Text>{text.replace(/ /g, blank)}</Text>))}
           <Button key="copy" label="Copy card" onPress={press => void copy(press.surface)} />
         </Box>
       )
@@ -555,6 +557,20 @@ function shortProgress(pet: HatchlingPet): string {
  * The desktop's sprite: one code-font cell per character, as bolt-draw.tsx draws
  * Bolt. Its Text is proportional, so rows of Text runs drift out of line (MM-084).
  */
+/** One line of monospace art on the desktop: every character in its own code-font cell, a run of spaces one gap as wide. */
+function monoRow({ Box, Text }: Tags, text: string) {
+  return (
+    <Box flexDirection="row" flexWrap="nowrap">
+      {(text.match(/ +|[^ ]/gu) ?? []).map(run => (
+        // A gap keeps its spaces as text, so the card still reads (and selects) as written.
+        <Box width={[...run].length}>
+          <Text>{run}</Text>
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
 function spriteCells({ Box, Text }: Tags, cells: readonly (readonly Cell[])[], key: string) {
   return (
     <Box key={key} flexDirection="column" flexShrink={0}>
