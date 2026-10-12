@@ -4,11 +4,11 @@
 // refuses a call, never adds to the prompt and never calls a model.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { BoxProps, ElementConstructor, EngineInterface, Register, RenderElement, TextProps, Timer } from 'claude-code'
 
 import type { HeadwayRun } from '../types'
 import { HISTORY_KEY, priorFor, projectKey, readPace, recordPlan } from './history'
-import { EMPTY_RUN, TICK_MS, bandView, layoutBand, paneRows, reduce, wantsTimer, type Effect, type HeadwayEvent, type Tone } from './model'
+import { EMPTY_RUN, TICK_MS, bandView, layoutBand, paneRows, reduce, wantsTimer, type Effect, type HeadwayEvent, type Part, type Tone } from './model'
 import { eventFromTool, planCount } from './sources'
 
 const PANE = 'headway'
@@ -30,6 +30,25 @@ function styleOf(tone: Tone): { dimColor?: boolean; color?: string } {
   if (tone === 'done') return { color: 'success' }
   if (tone === 'note') return { color: 'suggestion' }
   return {}
+}
+
+/**
+ * The bar on the desktop. Its Text is proportional, where ▰ and ▱ draw thin and faint, so there
+ * each step is one code-font cell, █ done and ░ left (the collection's bar), apart from the words.
+ */
+function deskBar(Box: ElementConstructor<BoxProps>, Text: ElementConstructor<TextProps>, part: Part): RenderElement {
+  const glyph = part.key === 'bar-done' ? '█' : '░'
+  const steps = [...part.text.trim()].length
+  return (
+    <Box key={part.key} flexDirection="row" flexShrink={0}>
+      {part.text.startsWith(' ') ? <Text key="gap"> </Text> : null}
+      {Array.from({ length: steps }, (_, i) => (
+        <Box key={`cell-${i}`} width={1}>
+          <Text {...styleOf(part.tone)}>{glyph}</Text>
+        </Box>
+      ))}
+    </Box>
+  )
 }
 
 async function safely($: EngineInterface, work: () => Promise<unknown>): Promise<void> {
@@ -253,9 +272,13 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {below}
         <Box key="headway" flexDirection="row">
-          {parts.map(part => (
-            <Text {...styleOf(part.tone)}>{part.text}</Text>
-          ))}
+          {parts.map(part =>
+            e.surface === 'desktop' && part.key.startsWith('bar-') ? (
+              deskBar(Box, Text, part)
+            ) : (
+              <Text {...styleOf(part.tone)}>{part.text}</Text>
+            ),
+          )}
         </Box>
       </Box>
     )

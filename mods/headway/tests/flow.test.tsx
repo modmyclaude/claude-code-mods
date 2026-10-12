@@ -15,6 +15,7 @@ import {
   bandText,
   beneath,
   clear,
+  deskLine,
   list,
   todos,
   turnEnd,
@@ -52,7 +53,7 @@ const LISTENER = {
 }
 
 async function expectBand($: Engine, line: string | undefined) {
-  for (const surface of SURFACES) expect(await bandText($, surface), surface).toBe(line)
+  for (const surface of SURFACES) expect(await bandText($, surface), surface).toBe(surface === 'desktop' ? deskLine(line) : line)
 }
 
 /** The Agent tool starting a subagent, as the engine raises it. */
@@ -280,7 +281,7 @@ describe('finishing', () => {
     await expectBand($, 'Plan done (6/6) ▰▰▰▰▰▰ in 5m')
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
-      expect((await ui.find({ type: 'Text', text: '▰▰▰▰▰▰' }))?.props.color).toBe('success')
+      expect((await ui.find({ type: 'Text', text: surface === 'desktop' ? '█' : '▰▰▰▰▰▰' }))?.props.color).toBe('success')
       expect((await ui.find({ type: 'Text', text: 'Plan done' }))?.props.color).toBe('success')
       await ui.unmount()
     }
@@ -440,12 +441,13 @@ describe('/headway', () => {
       expect(await bandText($, surface)).toBeUndefined()
       expect((await ui.find({ key: 'toggle' }))?.text).toBe('Show line')
       await ui.press({ key: 'toggle' })
-      expect(await bandText($, surface)).toBe('Write the migration (1/6) ▰▱▱▱▱▱')
+      const line = 'Write the migration (1/6) ▰▱▱▱▱▱'
+      expect(await bandText($, surface)).toBe(surface === 'desktop' ? deskLine(line) : line)
       await ui.unmount()
     }
   })
 
-  test('is registered to run at once, so it works while Claude does (gotcha 33)', async ($, on) => {
+  test('is registered to run at once, so it works while Claude does', async ($, on) => {
     const w = world(on)
     await startSession($)
     expect(w.registered.map(spec => [spec.name, spec.immediate])).toEqual([['headway', true]])
@@ -490,4 +492,21 @@ describe('project history', () => {
     // Session median 30s blended with the project's 60s (weighted as 3 steps): 48s a step, 4 steps left.
     await expectBand($, 'Wire the routes (2/6) ▰▰▱▱▱▱ ~4m left')
   })
+})
+
+test('on the desktop the bar is one code-font cell per step, apart from the words; the terminal keeps its line', async ($, on) => {
+  world(on)
+  beneath(on)
+  await turnStart($)
+  await todos($, list(SIX, 2))
+  const desk = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...BAND })
+  const texts = (await desk.findAll({ type: 'Text' })).map(t => t.text)
+  expect(texts.filter(t => t === '█')).toHaveLength(2)
+  expect(texts.filter(t => t === '░')).toHaveLength(4)
+  expect(texts.some(t => /[▰▱]/.test(t))).toBe(false)
+  await desk.unmount()
+  const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
+  expect(await term.find({ type: 'Text', text: ' ▰▰' })).toBeDefined()
+  expect(await term.find({ type: 'Text', text: '▱▱▱▱' })).toBeDefined()
+  await term.unmount()
 })

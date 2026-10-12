@@ -162,6 +162,11 @@ export function beneath(on: On) {
   })
 }
 
+/** A band line as the desktop draws it: the bar in the collection's cells, █ done and ░ left. */
+export function deskLine(line: string | undefined): string | undefined {
+  return line?.replace(/▰/g, '█').replace(/▱/g, '░')
+}
+
 /** The band's text as one string (Headway's part only), or undefined when Headway drew nothing. */
 export async function bandText($: Engine, surface: (typeof SURFACES)[number]): Promise<string | undefined> {
   const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })

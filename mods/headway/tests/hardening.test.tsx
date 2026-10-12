@@ -7,7 +7,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine, Plugin } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { BAND, PANE_PROPS, PLUGIN, SURFACES, bandText, beneath, list, todos, turnEnd, turnStart, world } from './world'
+import { BAND, PANE_PROPS, PLUGIN, SURFACES, bandText, beneath, deskLine, list, todos, turnEnd, turnStart, world } from './world'
 
 const S = 1000
 const M = 60 * S
@@ -27,7 +27,7 @@ const CONTROLS: [string, string][] = [
 const EVERY = CONTROLS.map(([, bad]) => bad).join(' ')
 
 async function expectBand($: Engine, line: string | undefined) {
-  for (const surface of SURFACES) expect(await bandText($, surface), surface).toBe(line)
+  for (const surface of SURFACES) expect(await bandText($, surface), surface).toBe(surface === 'desktop' ? deskLine(line) : line)
 }
 
 async function headway($: Engine, args: string) {
@@ -41,7 +41,7 @@ async function headway($: Engine, args: string) {
 async function expectDrawn($: Engine, line: string, row: string) {
   for (const surface of SURFACES) {
     const band = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
-    expect((await band.find({ key: 'headway' }))?.text, surface).toBe(line)
+    expect((await band.find({ key: 'headway' }))?.text, surface).toBe(surface === 'desktop' ? deskLine(line) : line)
     expect(await band.find({ type: 'Text', text: "another mod's line" }), surface).toBeDefined()
     await band.unmount()
     const pane = await $.ui.mount({ plugin: PLUGIN, surface, ...PANE_PROPS })
@@ -68,7 +68,7 @@ function fullBeneath(on: On) {
   })
 }
 
-describe('a control character in a title never blanks the band (gotcha 31)', () => {
+describe('a control character in a title never blanks the band', () => {
   for (const [name, bad] of CONTROLS) {
     test(`${name} in a todo title`, async ($, on) => {
       world(on)
@@ -422,7 +422,7 @@ describe('a revision flashed as the turn ends', () => {
   })
 })
 
-describe('/headway answers no text for the model on every branch (gotcha 18)', () => {
+describe('/headway answers no text for the model on every branch', () => {
   test('hide, show, an unknown word and the pane', async ($, on) => {
     world(on)
     await $.session.start({ cwd: '/work/app', surface: 'terminal', isInteractive: true })
