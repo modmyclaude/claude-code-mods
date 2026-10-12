@@ -102,9 +102,11 @@ describe('progressOf', () => {
     const history = [ant({ id: 'p', status: 'done', type: 'Plan', requests: 6 })]
     expect(progressOf(ant({ requests: 3 }), history, 30_000)).toEqual({ fraction: 0.5, etaMs: 30_000 })
   })
-  test('past the usual length it expects one more request', () => {
+  test('past the usual length there is no estimate and the bar stays nearly full', () => {
     const history = [ant({ id: 'x', status: 'done', requests: 4 })]
-    expect(progressOf(ant({ requests: 9 }), history, 90_000)).toEqual({ fraction: 0.9, etaMs: 10_000 })
+    expect(progressOf(ant({ requests: 9 }), history, 90_000)).toEqual({ fraction: 0.9, etaMs: null })
+    expect(progressOf(ant({ requests: 4 }), history, 40_000)).toEqual({ fraction: 0.8, etaMs: null })
+    expect(progressOf(ant({ requests: 3 }), history, 30_000)).toEqual({ fraction: 0.75, etaMs: 10_000 })
   })
   test('done is full; failed has no estimate', () => {
     expect(progressOf(ant({ status: 'done', requests: 5 }), [], 1).fraction).toBe(1)

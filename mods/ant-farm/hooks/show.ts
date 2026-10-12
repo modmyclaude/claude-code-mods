@@ -168,6 +168,9 @@ export function progressOf(ant: AntFarmAnt, all: readonly AntFarmAnt[], now: num
   const done = all.filter(a => a.status === 'done' && a.id !== ant.id && a.usage.requests > 0)
   const sameType = done.filter(a => a.type === ant.type)
   const expected = median((sameType.length > 0 ? sameType : done).map(a => a.usage.requests))
+  // Past what finished subagents needed there is no basis for a time left: the
+  // bar stays nearly full and the ETA goes, rather than reading "5s left" for minutes.
+  if (expected !== undefined && steps >= Math.round(expected)) return { fraction: steps / (steps + 1), etaMs: null }
   const remaining = expected === undefined ? steps : Math.max(1, Math.round(expected - steps))
   const pace = Math.max(0, now - ant.startedAt) / steps
   return { fraction: steps / (steps + remaining), etaMs: remaining * pace }

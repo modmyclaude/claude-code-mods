@@ -224,14 +224,15 @@ export function drawControl(c: ControlInput): RenderElement {
         </Box>
       )
     }
-    // The task gives way first; the numbers, the mark and the button keep their cells.
+    // The task gives way first (it is the longer part); the numbers give way only when
+    // the pane is too narrow for them, so no row is ever wider than the pane.
     return (
       <Box flexDirection="row" key={`line-${a.id}`}>
         {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), paint)}
-        <Box marginLeft={1} flexGrow={1} flexShrink={1}>
+        <Box marginLeft={1} flexGrow={1} flexShrink={2}>
           <Text dimColor={!isRunning(a)} wrap="truncate-end">{numberOf(a)} {a.status} · {taskOf(a)}</Text>
         </Box>
-        <Box flexShrink={0}>
+        <Box flexShrink={1}>
           <Text dimColor={!isRunning(a)} wrap="truncate-end"> · {numbers}</Text>
         </Box>
         <Box flexShrink={0} marginLeft={1}><Text color={look.color}>{look.glyph}</Text></Box>
