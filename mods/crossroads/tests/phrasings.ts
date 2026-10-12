@@ -93,7 +93,7 @@ export const NARROWED_SAFE: readonly string[] = [
 const u = (...points: number[]) => String.fromCodePoint(...points)
 
 /**
- * A fresh adversarial battery (verify-the-fix of 1dced70): 74
+ * A fresh adversarial battery from a verify-the-fix pass: 74
  * risky phrasings, none of them in the tables above. Written by the model, none
  * may ever carry a digit (no row of ours does).
  */
