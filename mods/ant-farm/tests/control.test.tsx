@@ -3,7 +3,7 @@
 // engine raises, the activity timeline, the inspector and the keys.
 
 import { describe, expect, test } from 'claude-code/testing'
-import type { RenderPropsOf } from 'claude-code'
+import type { On, RenderPropsOf } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 import { DOCKED, PANE, PLUGIN, SURFACES, engineBand, paneProps, usage, world } from './world'
@@ -339,6 +339,81 @@ describe('the activity timeline', () => {
     expect((await bolds()).some(t => t.includes('Bash ls'))).toBe(true)
     await w.clock.advance(2000)
     expect((await bolds()).some(t => t.includes('Bash ls'))).toBe(false)
+  })
+})
+
+describe('what the pane keeps is safe to share', () => {
+  test('a credential in a command, a URL or an error is replaced before the pane shows or keeps it', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Secretive')
+    let release: () => void = () => undefined
+    w.rec.holdTool = new Promise<void>(resolve => { release = resolve })
+    const pending = w.callTool($, id, 'Bash', { command: 'curl -H "Authorization: Bearer abcdefghijklmnopqrst" https://x' })
+    const pane = await mountAt($, 'terminal')
+    const live = textOf(cardsOf(await pane.drawn())[0])
+    expect(live).toContain('Bash curl -H "Authorization: Bearer [REDACTED]"')
+    expect(live).not.toContain('abcdefghijklmnopqrst')
+    release()
+    await pending
+    await w.callTool($, id, 'WebFetch', { url: 'https://alex:p4ssw0rd@example.com/a' })
+    await w.callTool($, id, 'Bash', { command: 'psql' }, 'connection failed: password=hunter2 rejected')
+    await pane.press({ key: `inspect-${id}` })
+    const all = (await texts(pane)).join('\n')
+    expect(all).not.toContain('abcdefghijklmnopqrst')
+    expect(all).not.toContain('p4ssw0rd')
+    expect(all).not.toContain('hunter2')
+    expect(all).toContain('WebFetch https://alex:[REDACTED]@example.com/a')
+    expect(all).toContain('Bash psql · connection failed: password=[REDACTED] rejected')
+  })
+})
+
+describe('state kept by an earlier version', () => {
+  // A value in session state survives a reload of the code with the shape the
+  // old version wrote: no mission number, no history, no counters, no selection.
+  // This world strips every new field as it is written, so every read is old-shaped.
+  const OLD_SHAPE = {
+    name: 'old-shape',
+    tier: 'prepend' as const,
+    register(on: On) {
+      on('state.set', { plugin: 'ant-farm', key: 'ants' }, ($, e, next) =>
+        next({ ...e, value: e.value.map(({ n: _n, parentId: _p, history: _h, tools: _t, edits: _e, errors: _r, ...rest }) => rest) }))
+      on('state.set', { plugin: 'ant-farm', key: 'view' }, ($, e, next) => {
+        const { selectedId: _s, isTimelineExpanded: _x, isTimelineHidden: _h, ...rest } = e.value
+        return next({ ...e, value: rest })
+      })
+    },
+  }
+
+  test('ants, a view and counts without the new fields still draw, count and record on both surfaces', { plugins: [OLD_SHAPE] }, async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'Old one')
+    const b = await w.spawn($, 'Old two', { parent: a })
+    await w.step($, a, usage('claude-haiku-5-5', 1000, 10))
+    await w.callTool($, a, 'Edit', { file_path: 'x.ts' })
+    await w.callTool($, b, 'Bash', { command: 'false' }, 'exit 1')
+    await w.finish($, b, 'error')
+    for (const surface of SURFACES) {
+      const pane = await mountAt($, surface)
+      const tree = await pane.drawn()
+      const cards = cardsOf(tree)
+      expect(cards.length).toBe(1)
+      const card = textOf(cards[0])
+      expect(card).toContain('· Old one') // no mission number: a dot
+      expect(card).toContain('············') // no history: the sparkline rests
+      expect(card).not.toContain('tool') // no counters kept
+      expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 1 failed')
+      expect((await pane.find({ key: `line-${b}` }))?.text).toContain('· failed · Old two')
+      const rows = eventRows(tree).map(textOf)
+      expect(rows.length).toBe(5)
+      expect(rows[0]).toContain('·✗failedOld two · error')
+      expect(rows[1]).toContain('·✗errorBash false · exit 1')
+      expect(rows[4]).toContain('·⇢startOld one')
+      // Selecting cannot stick (the old view has no selection), but nothing breaks.
+      await pane.press({ key: `inspect-${a}` })
+      expect(await pane.find({ key: 'inspector' })).toBeUndefined()
+      expect(cardsOf(await pane.drawn()).length).toBe(1)
+      await pane.unmount()
+    }
   })
 })
 

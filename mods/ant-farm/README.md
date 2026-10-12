@@ -104,7 +104,9 @@ Every setting has a default, so the notice at install about options not yet set 
   subagent's tool calls (the tool and what it names: a file's name, a
   command's first line, a pattern) and the permission verdict on them. The
   stream, the call and the verdict pass through as the engine made them; the
-  main loop's own tool calls are not recorded.
+  main loop's own tool calls are not recorded. Anything shaped like a
+  credential in those words (a token, a `password=` value, a key in a URL) is
+  replaced with `[REDACTED]` before the pane keeps or shows it.
 - **Memory:** its counts live in session state and are gone when the session
   ends. Nothing is written to disk.
 

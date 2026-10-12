@@ -21,6 +21,7 @@ import type { AntFarmAnt, AntFarmEvent, AntFarmLoops, AntFarmStatus, AntFarmUsag
 import { addRequest, budgetLevel, NO_USAGE, sumUsage } from './prices'
 import { glyphRow } from './cells'
 import { drawControl } from './control'
+import { redact } from './redact'
 import {
   FRESH_MS, moveSelection, nextN, ordered, pushEvent, pushHistory, SETTLE_MS, stopWarning, toolSummary,
 } from './mission'
@@ -281,7 +282,8 @@ async function recordTool($: EngineInterface, agentId: string, tool: string, sum
       },
     ),
   )
-  const detail = deny !== undefined ? `refused: ${firstWords(deny)}` : isError ? firstWords(typeof result.text === 'string' ? result.text : 'failed') : undefined
+  // Redacted whole, then cut: a cut never leaves half a credential behind.
+  const detail = deny !== undefined ? `refused: ${firstWords(redact(deny))}` : isError ? firstWords(redact(typeof result.text === 'string' ? result.text : 'failed')) : undefined
   await update($, events, list =>
     pushEvent(list, {
       at: now, kind: failed ? 'error' : summary.kind, agentId, text: summary.text, ...(detail !== undefined ? { detail } : {}),
@@ -446,7 +448,7 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     if (e.agentId === undefined) return next(e)
     const agentId = e.agentId
-    const summary = toolSummary(e.tool, e as unknown as Record<string, unknown>)
+    const summary = toolSummary(e.tool, e as unknown as Record<string, unknown>) // secret shapes already replaced
     setPhase($, agentId, 'tool', clean(summary.text))
     const result = await next(e)
     setPhase($, agentId, 'working')

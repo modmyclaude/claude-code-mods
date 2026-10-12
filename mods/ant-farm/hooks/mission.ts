@@ -3,6 +3,7 @@
 // the mission clock. Pure: no `$`, so the tests drive it directly.
 
 import type { AntFarmAnt, AntFarmEvent, AntFarmEventKind } from '../types'
+import { redact } from './redact'
 
 // ---------------------------------------------------------------- the live phase
 
@@ -91,15 +92,18 @@ function firstLine(text: string, max: number): string {
   return line.length > max ? `${line.slice(0, max - 1)}…` : line
 }
 
+// Every argument read is redacted whole before it is cut, so a cut can never
+// leave half a credential that the rules no longer recognise.
 const str = (input: Record<string, unknown>, key: string): string | undefined => {
   const v = input[key]
-  return typeof v === 'string' && v.length > 0 ? v : undefined
+  return typeof v === 'string' && v.length > 0 ? redact(v) : undefined
 }
 
 /**
  * A tool call in a few words for the timeline: the tool, then what it
  * touched (a file's name, a command's first line, a pattern). The words come
- * from the model's own arguments, so they are cleaned where drawn.
+ * from the model's own arguments: secret shapes are replaced here, and the
+ * rest is cleaned where drawn.
  */
 export function toolSummary(tool: string, input: Record<string, unknown>): ToolSummary {
   if (FILE_TOOLS.has(tool)) {

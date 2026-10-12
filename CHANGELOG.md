@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-12
 
+- ant-farm 0.2.1: anything shaped like a credential in a subagent's tool words or an error's first words is replaced with [REDACTED] before the pane keeps it, so the pane stays safe to share; the farm also proves it draws state kept by an earlier version.
 - ant-farm 0.2.0: the pane is a mission control. A header with the mission's state, clock, counts and a budget bar; one bordered card per subagent in one to three columns, with a status pill (working, thinking, waiting, done, failed) read from its own requests, tool calls and permission verdicts, its activity line, a sparkline of tokens per request and the ant; an activity timeline of starts, handoffs, tools, edits, endings, errors and warnings; an inspector for any subagent with keys (1-9, n, p, x, f, t); compact rows under 40 columns. Counting, the band, the alarm and the caps are unchanged.
 - ant-farm 0.1.1: the manifest names its homepage and repository; plain code comments. What you see is unchanged.
 - cloakroom 0.1.1: a hold names the shell feature it stopped (process substitution, a redirect) instead of a bare < or >; the audit's findings draw in a pane on your screen, never in text Claude reads.

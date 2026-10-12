@@ -57,6 +57,11 @@ describe('tool summaries', () => {
     expect(toolSummary('WebSearch', { query: 'ink borders' })).toEqual({ kind: 'tool', text: 'WebSearch ink borders' })
     expect(toolSummary('Mystery', { anything: 1 })).toEqual({ kind: 'tool', text: 'Mystery' })
     expect(toolSummary('Bash', { command: 42 })).toEqual({ kind: 'tool', text: 'Bash' })
+    // Redacted before the cut: the token would have been cut in half, past the rules' reach.
+    expect(toolSummary('Bash', { command: 'curl https://api.example.com/v1/items -H "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"' }).text)
+      .toBe('Bash curl https://api.example.com/v1/items -H "Autho…')
+    expect(toolSummary('Bash', { command: 'export GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789 && gh auth status' }).text)
+      .toBe('Bash export GITHUB_TOKEN=[REDACTED] && gh auth status')
   })
 
   test('basename keeps the last segment of either slash', () => {
