@@ -1,0 +1,25 @@
+{
+  "name": "chapters",
+  "version": "0.1.0",
+  "description": "A readable review of a diff: /chapters asks the model for ordered chapters with risk marks, and a pane walks you through them beside the hunks.",
+  "homepage": "https://modmyclaude.com/mods/chapters",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["review", "diff", "git", "pane", "small-model"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "model": {
+      "type": "string",
+      "title": "Model",
+      "description": "The model that writes the review: haiku (the default, about $0.0013 per 500 changed lines) or any alias or id Claude Code takes, such as sonnet, at that model's price.",
+      "default": "haiku"
+    },
+    "base": {
+      "type": "string",
+      "title": "Branch to compare against",
+      "description": "What /chapters branch compares this branch with when you name none.",
+      "default": "main"
+    }
+  }
+}
