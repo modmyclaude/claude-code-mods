@@ -68,6 +68,15 @@ describe('only where something draws', () => {
     expect((await ui.find({ key: 'sw-cue' }))?.text ?? ((await ui.find({ type: 'Svg' })) !== undefined ? 'guide' : undefined)).toBe('Out 9') // 6.5 s into the same sigh
   })
 
+  test('on mobile the status line is set only when its words change, never again with the same words', async ($, on) => {
+    const w = world(on, { surfaces: ['mobile'] })
+    await w.start($)
+    await w.clock.advance(3000 + 20_000)
+    const s = w.rec.statuses
+    expect(s.length).toBeGreaterThan(3)
+    for (let i = 1; i < s.length; i++) expect(s[i], `status ${i} repeats ${s[i - 1]}`).not.toBe(s[i - 1])
+  })
+
   test('the last client leaving drops the run: no clock, no counts, the status line cleared', { plugins: [timerSpy] }, async ($, on) => {
     const w = world(on, { surfaces: ['mobile'] })
     await w.start($)
