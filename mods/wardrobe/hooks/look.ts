@@ -54,19 +54,23 @@ export function isChoice(value: unknown): value is string {
 
 export type WearCommand =
   | { kind: 'list' }
-  | { kind: 'wear'; choice: string }
+  | { kind: 'wear'; choice: string; match?: true }
+  | { kind: 'match' }
   | { kind: 'pin' }
   | { kind: 'unpin' }
   | { kind: 'unknown'; word: string }
 
 /** `/wear` arguments as one command. */
 export function parseWear(args: string): WearCommand {
-  const word = args.trim().toLowerCase()
+  const parts = args.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const match = parts.includes('--match')
+  const word = parts.filter(part => part !== '--match').join(' ')
+  if (word === 'match' || (word === '' && match)) return { kind: 'match' }
   if (word === '' || word === 'list') return { kind: 'list' }
   if (word === 'pin') return { kind: 'pin' }
   if (word === 'unpin') return { kind: 'unpin' }
   const choice = choiceOf(word)
-  return choice === undefined ? { kind: 'unknown', word: args.trim() } : { kind: 'wear', choice }
+  return choice === undefined ? { kind: 'unknown', word: args.trim() } : match ? { kind: 'wear', choice, match } : { kind: 'wear', choice }
 }
 
 /** `HH:MM` (24-hour, `7:05` too) as minutes after midnight, or undefined. */

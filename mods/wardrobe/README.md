@@ -20,7 +20,9 @@ Restyle Claude Code live, including colourblind-safe and high-contrast themes.
 | `/wear season` | The seasonal pack the calendar calls for, re-checked daily (see Seasonal packs). |
 | `/wear pin` | This project keeps what it wears now; other projects keep the global choice. While pinned, `/wear <theme>` changes this project's pin. |
 | `/wear unpin` | This project follows the global choice again. |
-| `/wear default` | Back to Claude Code's own drawing. |
+| `/wear <theme> --match` | Wears the theme and sets Claude Code's own `theme` setting (the `/theme` menu) to the built-in nearest it: a light look on a dark theme turns the theme light, keeping a daltonized or ansi variant. Your own theme is remembered. |
+| `/wear match` | The same for the theme worn now. The gallery's `match theme` button does both at once. |
+| `/wear default` | Back to Claude Code's own drawing. After a match, Claude Code's theme goes back to the one you had. |
 
 Each command answers in a toast (an unknown theme's message stays longer). Nothing `/wear` says is added to the conversation, so it costs no tokens and never reaches the model.
 

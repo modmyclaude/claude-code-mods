@@ -308,6 +308,8 @@ export type Gallery = {
   now: number
   /** What a card's `wear` button does. */
   onWear: (choice: string) => void
+  /** What a theme card's `match theme` button does: wear it and set Claude Code's own theme to match. */
+  onMatch: (choice: string) => void
 }
 
 /**
@@ -346,6 +348,7 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
           <Text dimColor>{theme.tone}</Text>
           {wearing(theme.id)}
           {wearButton(theme.id)}
+          <Button key={`match-${theme.id}`} label="match theme" onPress={() => g.onMatch(theme.id)} />
         </Box>
         <Text>{theme.blurb}</Text>
         <Box key="sample" flexDirection="row" gap={1}>

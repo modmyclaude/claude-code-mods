@@ -293,7 +293,9 @@ describe('the /wear gallery', () => {
         expect((await ui.findAll({ type: 'Button' })).some(b => b.key === `wear-${choice}`)).toBe(true)
       }
       expect((await ui.find({ key: 'theme-default' }))?.text).toContain('(wearing)')
-      expect(await ui.findAll({ type: 'Button' })).toHaveLength(THEMES.length + 3)
+      const buttons = await ui.findAll({ type: 'Button' })
+      expect(buttons.filter(b => String(b.key).startsWith('wear-'))).toHaveLength(THEMES.length + 3)
+      expect(buttons.filter(b => String(b.key).startsWith('match-'))).toHaveLength(THEMES.length)
       await ui.unmount()
     }
   })

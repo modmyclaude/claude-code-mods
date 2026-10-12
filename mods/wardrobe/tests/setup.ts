@@ -31,8 +31,14 @@ export type World = {
   /** Moves the session to another project root (as /cd would). */
   cd: (root: string) => void
   /** Every set of props the engine was asked to draw itself with, newest last. */
+  /** Every set of props the engine was asked to draw itself with, newest last. */
   drawnByEngine: unknown[]
+  /** Claude Code's theme row as the world keeps it, every config.set asked for, and a refusal to arm. */
+  config: ConfigWorld
 }
+
+export type ConfigWorld = { theme: string; sets: { key: string; value: unknown }[]; deny: string | null }
+export const THEME_OPTIONS = ['dark', 'light', 'dark-daltonized', 'light-daltonized', 'dark-ansi', 'light-ansi'] as const
 
 /**
  * Answers everything wardrobe asks beneath it: the clock, its store, the
@@ -40,7 +46,7 @@ export type World = {
  */
 export function world(
   on: On,
-  options: { now?: number; root?: string; store?: Record<string, unknown>; surfaces?: readonly RenderSurface[]; placesPanes?: boolean } = {},
+  options: { now?: number; root?: string; store?: Record<string, unknown>; surfaces?: readonly RenderSurface[]; placesPanes?: boolean; theme?: string; themeLocked?: boolean } = {},
 ): World {
   const clock = mock.clock(on, { now: options.now ?? at(12, 0) })
   const store = new Map<string, unknown>(Object.entries(options.store ?? {}))
@@ -76,11 +82,22 @@ export function world(
   on('session.surfaces', () => ({ value: options.surfaces ?? ['terminal'] }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  // Claude Code's own /config rows, as far as wardrobe reads them: the theme row, with a refusal a test can arm.
+  const config: ConfigWorld = { theme: options.theme ?? 'dark', sets: [], deny: null }
+  on('config.list', () => ({
+    value: [{ key: 'theme', label: 'Theme', kind: 'choice', value: config.theme, options: THEME_OPTIONS, provider: { plugin: 'engine', tier: 'core' }, isLocked: options.themeLocked === true } as never],
+  }))
+  on('config.set', ($, e) => {
+    config.sets.push({ key: e.key, value: e.value })
+    if (config.deny !== null) return { deny: config.deny }
+    if (e.key === 'theme') config.theme = String(e.value)
+    return { value: e.value }
+  })
   on('ui.render', ($, e) => {
     drawnByEngine.push(e.props)
     return ENGINE
   })
-  return { clock, store, heard: seen, panes, cd: next => (root = next), drawnByEngine }
+  return { clock, store, heard: seen, panes, cd: next => (root = next), drawnByEngine, config }
 }
 
 export async function start($: Engine): Promise<void> {

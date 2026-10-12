@@ -35,7 +35,7 @@ const BAND_BOLT_MIN_COLUMNS = 60
 /** The pane `/wear` lists the themes in. */
 const PANE = 'wardrobe'
 
-type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock' | 'ui'>
+type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock' | 'ui' | 'config'>
 
 /**
  * Where wardrobe draws in place of a component (a result card, the turn line),
@@ -78,6 +78,52 @@ async function wear($: Dollar, settings: Settings, choice: string): Promise<stri
     $.clock.after(BAND_MS, () => $.ui.invalidate('ui.render'))
   }
   return describeLook(look, settings) + (await elsewhere($, look))
+}
+
+/** The store key holding the theme Claude Code had before a match, so `/wear default` can put it back. */
+const OWN_THEME = 'ownTheme'
+
+/** The built-in theme nearest a look: its tone, keeping the person's variant (daltonized, ansi) where that option exists. */
+function nearestTheme(tone: 'dark' | 'light', current: string, options: readonly string[]): string {
+  const suffix = current.startsWith('dark') ? current.slice(4) : current.startsWith('light') ? current.slice(5) : ''
+  const kept = tone + suffix
+  return options.includes(kept) ? kept : tone
+}
+
+/**
+ * `/wear <look> --match` and the gallery's `match theme` button: sets Claude Code's
+ * own `theme` to the built-in nearest the look, as the person could in /config,
+ * and remembers the theme they had so `/wear default` puts it back. Only ever on
+ * their word; a refusal (another plugin's hook, a locked row) is reported, not retried.
+ */
+async function matchTheme($: Dollar, settings: Settings): Promise<string> {
+  const look = await refresh($, settings)
+  const theme = themeById(look.theme)
+  if (!theme) return 'No look is worn, so there is no theme to match. Wear one first: /wear <theme> --match.'
+  const row = (await $.config.list()).find(r => r.key === 'theme')
+  if (!row || typeof row.value !== 'string') return "Claude Code's theme setting was not found; nothing changed."
+  const current = row.value
+  const target = nearestTheme(theme.tone, current, row.options ?? [])
+  if (target === current) return `Claude Code's theme is already ${current}.`
+  if (row.isLocked) return `Claude Code's theme stays ${current}: the setting is locked.`
+  const own = await $.store.get(OWN_THEME)
+  if (typeof own !== 'string') await $.store.set(OWN_THEME, current)
+  const out = await $.config.set({ key: 'theme', value: target })
+  if (out.deny !== undefined) {
+    if (typeof own !== 'string') await $.store.delete(OWN_THEME)
+    return `Claude Code's theme stays ${current}: ${clean(out.deny)}`
+  }
+  return `Claude Code's theme set to ${target} to match ${theme.id} (was ${current}). /wear default puts it back.`
+}
+
+/** `/wear default` after a match: Claude Code's theme goes back to the one the person had. */
+async function restoreTheme($: Dollar): Promise<string> {
+  const own = await $.store.get(OWN_THEME)
+  if (typeof own !== 'string') return ''
+  const out = await $.config.set({ key: 'theme', value: own })
+  if (out.deny !== undefined) return ` Claude Code's theme stays as it is: ${clean(out.deny)} Run /wear default again to retry.`
+  await $.store.delete(OWN_THEME)
+  return ` Claude Code's theme is back to ${own}.`
 }
 
 /** Names the attached surfaces wardrobe does not restyle, so a theme never seems to fail there. */
@@ -160,7 +206,12 @@ export const register: Register = (on, options) => {
     } else if (command.kind === 'unknown') {
       await say($, `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin.`, 8000)
     } else if (command.kind === 'wear') {
-      await say($, (await wear($, settings, command.choice)) + autoNote(command.choice))
+      let text = (await wear($, settings, command.choice)) + autoNote(command.choice)
+      if (command.choice === DEFAULT) text += await restoreTheme($)
+      else if (command.match) text += ' ' + (await matchTheme($, settings))
+      await say($, text)
+    } else if (command.kind === 'match') {
+      await say($, await matchTheme($, settings), 6000)
     } else {
       await say($, command.kind === 'pin' ? await pin($, settings) : await unpin($, settings))
     }
@@ -341,6 +392,12 @@ export const register: Register = (on, options) => {
       columns: e.props.bodyColumns,
       now: await $.clock.now(),
       onWear,
+      onMatch: (choice: string) => {
+        wear($, settings, choice)
+          .then(async text => say($, text + autoNote(choice) + ' ' + (await matchTheme($, settings)), 6000))
+          .catch(() => undefined)
+          .finally(() => $.ui.invalidate('ui.render'))
+      },
     })
   }).catch(($, e, next) => next(e))
 }
