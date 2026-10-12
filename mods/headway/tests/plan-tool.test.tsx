@@ -51,3 +51,31 @@ test('a plan call with no steps is answered, never fails the turn', async ($, on
   expect(answer.text).toContain('No plan read')
   expect(typeof answer.result).toBe('string')
 })
+
+test("the plan call's terminal row shows a count, not the plan's JSON; other rows pass through as they are", async ($, on) => {
+  world(on)
+  const seen: { surface: string; tool: string; input: unknown }[] = []
+  on('ui.render', { component: 'ToolUse' }, ($, e) => {
+    seen.push({ surface: e.surface, tool: e.props.tool, input: e.props.input })
+    const { Text } = $.ui.resolve(e)
+    return <Text key="engine-row">row</Text>
+  })
+  const row = (tool: string, input: unknown) => ({ tool_use_id: 't1', tool, input, isRunning: false, isErrored: false, isInterrupted: false })
+  const plan = { todos: list(STEPS, 1) }
+  const draws = [
+    ['terminal', 'mcp__headway__plan', plan],
+    ['desktop', 'mcp__headway__plan', plan],
+    ['terminal', 'Bash', { command: 'ls' }],
+    ['terminal', 'mcp__headway__plan', {}], // still streaming in: nothing to count yet
+  ] as const
+  for (const [surface, tool, input] of draws) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolUse', props: row(tool, input) })
+    await ui.unmount()
+  }
+  expect(seen).toEqual([
+    { surface: 'terminal', tool: 'mcp__headway__plan', input: { steps: 4, done: 1 } },
+    { surface: 'desktop', tool: 'mcp__headway__plan', input: plan },
+    { surface: 'terminal', tool: 'Bash', input: { command: 'ls' } },
+    { surface: 'terminal', tool: 'mcp__headway__plan', input: {} },
+  ])
+})

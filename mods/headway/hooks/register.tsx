@@ -9,7 +9,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { HeadwayRun } from '../types'
 import { HISTORY_KEY, priorFor, projectKey, readPace, recordPlan } from './history'
 import { EMPTY_RUN, TICK_MS, bandView, layoutBand, paneRows, reduce, wantsTimer, type Effect, type HeadwayEvent, type Tone } from './model'
-import { eventFromTool } from './sources'
+import { eventFromTool, planCount } from './sources'
 
 const PANE = 'headway'
 /** How long the receipt toast stays. */
@@ -167,6 +167,14 @@ export const register: Register = on => {
     const text = event === null ? 'No plan read: send todos as [{ content, status }].' : 'Plan updated.'
     return { result: text, text }
   }).catch(() => ({ result: 'Plan not recorded.', text: 'Plan not recorded.' }))
+
+  // The plan call's row in the terminal: Claude Code prints a lent tool's whole input there, so the
+  // row would carry the plan's JSON. It shows the count instead; the band already shows the steps.
+  on('ui.render', { component: 'ToolUse' }, ($, e, next) => {
+    if (e.surface !== 'terminal' || e.props.tool !== PLAN_TOOL_NAME) return next(e)
+    const count = planCount(e.props.input)
+    return next(count === null ? e : { ...e, props: { ...e.props, input: count } })
+  }).catch(($, e, next) => next(e))
 
   // A /clear or a resumed conversation is a different conversation: its plan is not this one's.
   on('session.end', async ($, e, next) => {

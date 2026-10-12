@@ -51,6 +51,13 @@ function taskItems(list: unknown): Item[] | null {
   })
 }
 
+/** A plan call's input as a count, for its transcript row: how many steps and how many are done, or null. */
+export function planCount(input: unknown): { steps: number; done: number } | null {
+  const items = todoItems(record(input)?.todos)
+  if (items === null || items.length === 0) return null
+  return { steps: items.length, done: items.filter(item => item.status === 'done').length }
+}
+
 /**
  * The event one finished, successful call of a watched tool means, or null.
  * TodoWrite, TaskCreate, TaskList and ExitPlanMode count only from the main
