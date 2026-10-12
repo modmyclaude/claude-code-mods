@@ -13,7 +13,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "keywords": [
         "subagents",
         "cost",
@@ -49,7 +49,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-12",
-      "commit": "cdcbd23",
+      "commit": "0d5e745",
       "reach": [
         "hooks tool calls"
       ],
