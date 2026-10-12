@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/trim.svg" width="64" height="64" alt="">
+
 # Trim
 
 Long shell output, folded before Claude reads it. Errors, the start and the end stay; the rest folds, and you see about how many tokens that saved.
