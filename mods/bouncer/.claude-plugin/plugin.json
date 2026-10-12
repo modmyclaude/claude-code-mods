@@ -1,0 +1,19 @@
+{
+  "name": "bouncer",
+  "version": "0.1.0",
+  "description": "Checks every installed mod at the door: what each can reach, from Claude Code's own validator, with a line when a mod is new or changed and a /bouncer pane.",
+  "homepage": "https://modmyclaude.com/mods/bouncer",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["safety", "security", "trust", "plugins", "validator", "pane"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "claudeBin": {
+      "type": "string",
+      "title": "Claude Code binary",
+      "description": "The claude command the validator runs through: a name on your PATH or an absolute path.",
+      "default": "claude"
+    }
+  }
+}
