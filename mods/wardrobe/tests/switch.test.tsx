@@ -286,7 +286,7 @@ describe('the /wear gallery', () => {
         expect(drawnBolt(under(card, `bolt-${theme.id}`)), `${surface} ${theme.id}`).toEqual(cellsAs(surface, wearBolt(theme, 'small', 'idle')))
         const button = (await ui.findAll({ type: 'Button' })).find(b => b.key === `wear-${theme.id}`)
         expect(button?.props.label).toBe('wear')
-        expect(button?.props.hotkey).toBeUndefined() // the pane can hold the focus (gotcha 24)
+        expect(button?.props.hotkey).toBeUndefined() // the pane can hold the focus
       }
       for (const choice of ['default', 'auto', 'season']) {
         expect(await ui.find({ key: `theme-${choice}` })).toBeDefined()
@@ -389,7 +389,7 @@ describe('the /wear gallery', () => {
 
 describe('the band and the clock', () => {
   test('the band is the one timer wear sets: no interval of its own beyond the minute ticker', async ($, on) => {
-    // The kit's clock hooks these events already, so a second hook needs a matcher (gotcha 19).
+    // The kit's clock hooks these events already, so a second hook needs a matcher.
     let afters = 0
     let everies = 0
     on('clock.after', { ms: 6_000 }, ($, e, next) => ((afters += 1), next(e)))

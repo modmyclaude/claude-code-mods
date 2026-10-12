@@ -314,7 +314,7 @@ export type Gallery = {
  * `/wear` with no argument: a gallery. Every theme is a card: its name and
  * blurb, a sample tool row drawn exactly as toolRow draws one in that theme,
  * its diff chips, Bolt in the theme's costume, the worn one marked, and a
- * `wear` button (no hotkey: the pane can hold the focus, gotcha 24). Rows for
+ * `wear` button (no hotkey: the pane can hold the focus). Rows for
  * Claude Code's own look, `auto` and `season` round it off.
  */
 export function listTree(t: PaneTable, g: Gallery): RenderElement {

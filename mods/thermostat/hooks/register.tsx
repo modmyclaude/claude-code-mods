@@ -412,7 +412,7 @@ async function onClear($: Dollar): Promise<void> {
 }
 
 /**
- * Where an answer goes (gotcha 18: a command's `text` is read by the model).
+ * Where an answer goes: a command's `text` is read by the model, so nothing for the person alone goes there.
  * A confirmation is a toast, a refusal a transcript note the person can read
  * back, and only a caller that is not the person gets text, so it learns why.
  */

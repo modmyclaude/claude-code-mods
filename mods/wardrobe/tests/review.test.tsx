@@ -22,7 +22,7 @@ function painted(node: unknown, out: { color: string; bg: unknown }[] = []): { c
 
 describe('review', () => {
   // T1
-  test('an unchanged look writes nothing on the tick (gotcha 12)', async ($, on) => {
+  test('an unchanged look writes nothing on the tick', async ($, on) => {
     let writes = 0
     on('state.set', ($, e, next) => {
       if (e.plugin === 'wardrobe' && e.key === 'look') writes++

@@ -35,7 +35,7 @@ async function expectSafeHotkeys(ui: Mounted<Surface, 'AbovePrompt'>) {
   return buttons
 }
 
-describe('no keystroke writes a CLAUDE.md (gotcha 24)', () => {
+describe('no keystroke writes a CLAUDE.md', () => {
   for (const surface of SURFACES) {
     test(`writers are click-only, and every hotkeyed button writes nothing, on ${surface}`, async ($, on) => {
       let next = verdict(PNPM)
@@ -83,7 +83,7 @@ describe('no keystroke writes a CLAUDE.md (gotcha 24)', () => {
   }
 })
 
-describe('/rules remove acts only for the person typing (gotcha 27)', () => {
+describe('/rules remove acts only for the person typing', () => {
   const others = [
     { kind: 'peer' },
     { kind: 'channel', server: 'slack' },

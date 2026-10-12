@@ -88,7 +88,7 @@ export async function start($: Engine): Promise<void> {
 
 /**
  * Runs `/wear <args>` as the person typing it would, and answers what it showed
- * them. Every run is also held to gotcha 18: nothing it says reaches the model.
+ * them. Every run is also held to the rule that nothing it says reaches the model.
  */
 export async function wear($: Engine, args: string): Promise<string> {
   const before = heard.length
