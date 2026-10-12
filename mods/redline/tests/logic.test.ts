@@ -463,3 +463,16 @@ describe('where the money went', () => {
     expect(modelLabel('claude-nova-1-20270101')).toBe('nova-1-20270')
   })
 })
+
+describe('a gauge kept by an earlier version', () => {
+  test('one without the spend fields still folds a request and still draws: the new fields start empty', () => {
+    const { spend: _s, byModel: _m, ...rest } = EMPTY_GAUGE
+    const old = { ...rest, window: 200_000, contextTokens: 50_000 } as unknown as RedlineGauge
+    const usage: TurnUsage = { model: 'claude-opus-5-5', input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+    expect(detailLines(old, NOW).find(l => l.key === 'spend-none')?.value).toBe('nothing yet')
+    const g = reduce(old, { now: NOW, request: { turnId: 't1', usage, kinds: ['prompt'] } }).gauge
+    expect(g.spend.prompt?.requests).toBe(1)
+    expect(g.byModel['claude-opus-5-5']?.requests).toBe(1)
+    expect(detailLines(g, NOW).find(l => l.key === 'spend-prompt')?.value).toContain('1 req')
+  })
+})

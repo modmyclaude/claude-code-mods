@@ -243,7 +243,8 @@ function withTurn(turns: readonly RedlineTurn[], id: string, make: () => Redline
 
 /** Folds a reading into the gauge; `fire` says the 80% toast is due now. */
 export function reduce(g: RedlineGauge, r: Reading): { gauge: RedlineGauge; fire: boolean } {
-  let next: RedlineGauge = { ...g }
+  // A gauge kept in session state by an earlier version lacks the newer fields: they start empty.
+  let next: RedlineGauge = { ...EMPTY_GAUGE, ...g }
   if (r.sessionStartedAt !== undefined) next.sessionStartedAt = r.sessionStartedAt
   if (next.trackingSince === null) next.trackingSince = r.now
   if (r.window !== undefined && r.window > 0) next.window = r.window

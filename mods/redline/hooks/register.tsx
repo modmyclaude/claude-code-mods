@@ -31,7 +31,7 @@ const LIMIT_LABEL_CELLS = 12
 const BAND_STORE_KEY = 'isBandOn'
 const gauge = atom({ plugin: 'redline', key: 'gauge' } as const, EMPTY_GAUGE)
 const isBandOn = atom({ plugin: 'redline', key: 'isBandOn' } as const, false)
-/** The tools the last response called, per loop (main or a subagent, per turn): what the next request carries. */
+/** The tools the main loop's last response called, per turn: what its next request carries. Cleared at each turn's start. */
 const carried = new Map<string, string[]>()
 
 const LEVEL_COLOR: Record<Level, ThemeKey> = { unknown: 'inactive', normal: 'success', amber: 'warning', red: 'error' }
@@ -140,6 +140,7 @@ export const register: Register = on => {
 
   on('turn.start', async ($, e, next) => {
     const started = await next(e)
+    carried.clear() // an aborted turn leaves nothing behind
     await safely($, 'turn start', async () => {
       await apply($, { now: await $.clock.now(), turnStart: { turnId: e.turnId, text: e.text } })
     })
@@ -153,7 +154,8 @@ export const register: Register = on => {
     // What this request carried: the results of the previous response's tool calls in this loop.
     const loop = `${e.agentId ?? 'main'}:${e.turnId}`
     const kinds = kindsCarried(e.index, e.agentId, carried.get(loop) ?? [])
-    const tools = (response.toolUses ?? []).map(use => use.name)
+    // Kept for the main loop only: a subagent's requests are one kind whatever they carry.
+    const tools = e.agentId === undefined ? (response.toolUses ?? []).map(use => use.name) : []
     if (tools.length > 0) carried.set(loop, tools)
     else carried.delete(loop)
     if (usage) {

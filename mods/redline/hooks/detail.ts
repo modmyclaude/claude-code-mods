@@ -9,6 +9,7 @@ import {
   busiest,
   clean,
   contextGrowth,
+  EMPTY_GAUGE,
   fmtDuration,
   fmtPace,
   fmtRunOut,
@@ -50,7 +51,9 @@ export type DetailLine = {
 const LABEL = 13
 const padded = (label: string, text: string): string => `${label.padEnd(LABEL)}${text}`
 
-export function detailLines(g: RedlineGauge, now: number, barCells = 10): DetailLine[] {
+export function detailLines(kept: RedlineGauge, now: number, barCells = 10): DetailLine[] {
+  // A gauge kept in session state by an earlier version lacks the newer fields: they read as empty.
+  const g: RedlineGauge = { ...EMPTY_GAUGE, ...kept }
   const lines: DetailLine[] = []
   // Model ids, plan window kinds and prompts are outside text: cleaned here, at the one
   // place every line passes, before the pane or the command draws it.
