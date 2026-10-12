@@ -230,9 +230,12 @@ const columnsOf = (text: string) => [...text].length
  * icons are one Text of plain runs, no block glyph among them; Bolt
  * is its own element, a cell grid (bolt-draw).
  */
-export function switchBand(t: Table, theme: Theme, columns: number, bolt: RenderElement | null): RenderElement {
+export function switchBand(t: Table, theme: Theme, columns: number, bolt: RenderElement | null, fill = true): RenderElement {
   const { Box, Text } = t
   const { palette } = theme
+  // Where the look may not paint (a light look on a dark app), the band keeps its words and icons on the app's own background.
+  const bg = fill ? palette.bg : undefined
+  const wordColor = fill ? palette.text : palette.accent
   const mark = ` ${theme.mark} `
   const words = `wearing ${theme.id}  `
   const icons = SAMPLE_KINDS.map(kind => `${theme.icons[kind]} `)
@@ -241,19 +244,19 @@ export function switchBand(t: Table, theme: Theme, columns: number, bolt: Render
   const pad = ' '.repeat(Math.max(1, room - used))
   return (
     <Box key="wardrobe-band" flexDirection="row" gap={1} flexShrink={0}>
-      <Text backgroundColor={palette.bg}>
-        <Text color={palette.accent} backgroundColor={palette.bg} bold>
+      <Text backgroundColor={bg}>
+        <Text color={palette.accent} backgroundColor={bg} bold>
           {mark}
         </Text>
-        <Text color={palette.text} backgroundColor={palette.bg} bold>
+        <Text color={wordColor} backgroundColor={bg} bold>
           {words}
         </Text>
         {SAMPLE_KINDS.map((kind, i) => (
-          <Text color={palette[KIND_ROLE[kind]]} backgroundColor={palette.bg}>
+          <Text color={palette[KIND_ROLE[kind]]} backgroundColor={bg}>
             {icons[i]}
           </Text>
         ))}
-        <Text backgroundColor={palette.bg}>{pad}</Text>
+        <Text backgroundColor={bg}>{pad}</Text>
       </Text>
       {bolt}
     </Box>
@@ -351,6 +354,7 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
           <Button key={`match-${theme.id}`} label="match theme" onPress={() => g.onMatch(theme.id)} />
         </Box>
         <Text>{theme.blurb}</Text>
+        {theme.tone === 'light' ? <Text dimColor>best on a light theme</Text> : null}
         <Box key="sample" flexDirection="row" gap={1}>
           {toolRow(t, theme, SAMPLE_CALL, SAMPLE_TIMING, <Text>{SAMPLE_TEXT}</Text>, columns)}
           <Text color={theme.diff.addFg} backgroundColor={theme.diff.addBg}>
@@ -398,7 +402,7 @@ export function listText(look: WardrobeLook, settings: Settings, problems: reado
     describeLook(look, settings),
     `- ${DEFAULT}: Claude Code's own drawing${mark(DEFAULT)}`,
     ...THEMES.flatMap(theme => [
-      `- ${theme.id} (${theme.tone}) ${SAMPLE_KINDS.map(kind => theme.icons[kind]).join('')}: ${theme.blurb}${mark(theme.id)}`,
+      `- ${theme.id} (${theme.tone}) ${SAMPLE_KINDS.map(kind => theme.icons[kind]).join('')}: ${theme.blurb}${theme.tone === 'light' ? ' (best on a light theme)' : ''}${mark(theme.id)}`,
       `    ${sample(theme)}`,
     ]),
     `- ${AUTO}: ${settings.dayTheme} from ${clockText(settings.dayStarts)}, ${settings.nightTheme} from ${clockText(settings.nightStarts)}${mark(AUTO)}`,
@@ -420,18 +424,45 @@ const ROW_ROLE: Record<TranscriptRow, Role> = { UserMessage: 'accent', Assistant
  * tree reads nothing that changes per tick, so a redraw never changes it
  *: the whole row is a pure function of the theme.
  */
-export function messageRow(t: Table, theme: Theme, row: TranscriptRow, engine: RenderElement): RenderElement {
+export function messageRow(
+  t: Table,
+  theme: Theme,
+  row: TranscriptRow,
+  engine: RenderElement,
+  opts: { surface: string; fill: boolean },
+): RenderElement {
   const { Box, Text } = t
+  const stripe = (
+    <Box key="stripe" flexShrink={0}>
+      <Text color={theme.palette.bg} backgroundColor={theme.palette[ROW_ROLE[row]]}>
+        {' '}
+      </Text>
+    </Box>
+  )
+  // The desktop draws the person's message as its own bubble with margins of its own:
+  // a panel around it reads as an empty box, so there the stripe alone marks the row, top-aligned.
+  if (row === 'UserMessage' && opts.surface === 'desktop') {
+    return (
+      <Box key={`look-${row}`} flexDirection="row" alignItems="flex-start">
+        {stripe}
+        <Box key="plain" flexDirection="column" flexGrow={1} flexShrink={1}>
+          {engine}
+        </Box>
+      </Box>
+    )
+  }
   return (
     <Box key={`look-${row}`} flexDirection="row">
-      <Box key="stripe" flexShrink={0}>
-        <Text color={theme.palette.bg} backgroundColor={theme.palette[ROW_ROLE[row]]}>
-          {' '}
-        </Text>
-      </Box>
-      <Box key="tint" flexDirection="column" flexGrow={1} flexShrink={1} backgroundColor={theme.palette.bg} paddingX={1}>
-        {engine}
-      </Box>
+      {stripe}
+      {opts.fill ? (
+        <Box key="tint" flexDirection="column" flexGrow={1} flexShrink={1} backgroundColor={theme.palette.bg} paddingX={1}>
+          {engine}
+        </Box>
+      ) : (
+        <Box key="plain" flexDirection="column" flexGrow={1} flexShrink={1} paddingX={1}>
+          {engine}
+        </Box>
+      )}
     </Box>
   )
 }

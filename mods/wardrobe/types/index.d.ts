@@ -27,6 +27,11 @@ export type WardrobeVerb = {
   past: string
 }
 
+/** Claude Code's own theme, as far as a mod can read it: its tone decides whether a light look may paint light panels. */
+export type WardrobeApp = {
+  tone: 'dark' | 'light' | 'unknown'
+}
+
 /** The last `/wear` that put a theme on: what, and when (a `$.clock.now()` reading), for the switch band. */
 export type WardrobeSwitch = {
   theme: string
@@ -40,6 +45,7 @@ declare module 'claude-code' {
       timing: StateFamily<WardrobeTiming>
       switch: WardrobeSwitch | null
       verb: WardrobeVerb | null
+      app: WardrobeApp
     }
   }
 }

@@ -8,22 +8,25 @@
 import { atom, read } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, Timer } from 'claude-code'
 
-import type { WardrobeLook } from '../types'
+import type { WardrobeApp, WardrobeLook } from '../types'
 import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
-import { pickVerb, themeById } from './themes'
+import { pickVerb, themeById, type Theme } from './themes'
 
 const LOOK = { plugin: 'wardrobe', key: 'look' } as const
 const TIMING = { plugin: 'wardrobe', key: 'timing' } as const
 const SWITCH = { plugin: 'wardrobe', key: 'switch' } as const
 const VERB = { plugin: 'wardrobe', key: 'verb' } as const
+const APP = { plugin: 'wardrobe', key: 'app' } as const
 
 const look = atom(LOOK, { theme: DEFAULT, choice: DEFAULT, scope: 'global', phase: null, root: '' })
 /** The last `/wear` that put a theme on, for the switch band; null before the first. */
 const switched = atom(SWITCH, null)
 /** The verb this turn wears, picked at turn start from the theme worn then; null until a turn starts. */
 const verb = atom(VERB, null)
+/** Claude Code's own theme tone, read from its theme setting; `unknown` for a custom theme or where the row cannot be read. */
+const app = atom(APP, { tone: 'unknown' })
 
 /** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
@@ -77,7 +80,38 @@ async function wear($: Dollar, settings: Settings, choice: string): Promise<stri
     await $.state.set(SWITCH, { theme: look.theme, at: await $.clock.now() })
     $.clock.after(BAND_MS, () => $.ui.invalidate('ui.render'))
   }
-  return describeLook(look, settings) + (await elsewhere($, look))
+  const worn = themeById(look.theme)
+  const note = worn ? lightNote(worn, (await read($, app)).tone) : ''
+  return describeLook(look, settings) + note + (await elsewhere($, look))
+}
+
+/** The tone of a Claude Code theme value: `dark`, `dark-ansi`, `light-daltonized`, or a plugin's `custom:...` (unknown). */
+function toneOf(value: unknown): WardrobeApp['tone'] {
+  if (typeof value !== 'string') return 'unknown'
+  if (value.startsWith('light')) return 'light'
+  if (value.startsWith('dark')) return 'dark'
+  return 'unknown'
+}
+
+/** Reads Claude Code's theme tone into state; a row that cannot be read leaves it unknown. */
+async function readAppTone($: Pick<EngineInterface, 'config' | 'state'>): Promise<void> {
+  const row = await $.config.list().then(rows => rows.find(r => r.key === 'theme')).catch(() => undefined)
+  await $.state.set(APP, { tone: toneOf(row?.value) })
+}
+
+/**
+ * Whether a look may paint its background on this surface: a dark look always;
+ * a light look only on a terminal whose Claude Code theme is light, since light
+ * panels under the app's light text are unreadable, and the desktop's own theme
+ * cannot be read. Elsewhere the look keeps its stripe and colours, no fill.
+ */
+function fills(theme: Theme, surface: string, tone: WardrobeApp['tone']): boolean {
+  return theme.tone === 'dark' || (surface === 'terminal' && tone === 'light')
+}
+
+/** The one line a light look gets where it cannot paint: what it is for, and how to match the app to it. */
+function lightNote(theme: Theme, tone: WardrobeApp['tone']): string {
+  return theme.tone === 'light' && tone !== 'light' ? ` ${theme.id} is made for a light theme; /wear ${theme.id} --match sets Claude Code's theme to match.` : ''
 }
 
 /** The store key holding the theme Claude Code had before a match, so `/wear default` can put it back. */
@@ -113,6 +147,7 @@ async function matchTheme($: Dollar, settings: Settings): Promise<string> {
     if (typeof own !== 'string') await $.store.delete(OWN_THEME)
     return `Claude Code's theme stays ${current}: ${clean(out.deny)}`
   }
+  await $.state.set(APP, { tone: toneOf(target) })
   return `Claude Code's theme set to ${target} to match ${theme.id} (was ${current}). /wear default puts it back.`
 }
 
@@ -123,6 +158,7 @@ async function restoreTheme($: Dollar): Promise<string> {
   const out = await $.config.set({ key: 'theme', value: own })
   if (out.deny !== undefined) return ` Claude Code's theme stays as it is: ${clean(out.deny)} Run /wear default again to retry.`
   await $.store.delete(OWN_THEME)
+  await $.state.set(APP, { tone: toneOf(own) })
   return ` Claude Code's theme is back to ${own}.`
 }
 
@@ -190,6 +226,7 @@ export const register: Register = (on, options) => {
       .catch(() => undefined)
     // A store or clock that cannot answer leaves Claude Code's own look on.
     await refresh($, settings).catch(() => undefined)
+    await readAppTone($).catch(() => undefined)
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
       refresh($, settings).catch(() => undefined)
@@ -279,19 +316,27 @@ export const register: Register = (on, options) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     const theme = themeById((await read($, look)).theme)
     if (!theme) return next(e)
-    return messageRow($.ui.resolve(e), theme, 'UserMessage', await next(e))
+    return messageRow($.ui.resolve(e), theme, 'UserMessage', await next(e), { surface: e.surface, fill: fills(theme, e.surface, (await read($, app)).tone) })
   }).catch(($, e, next) => next(e))
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     const theme = themeById((await read($, look)).theme)
     if (!theme) return next(e)
-    return messageRow($.ui.resolve(e), theme, 'AssistantMessage', await next(e))
+    return messageRow($.ui.resolve(e), theme, 'AssistantMessage', await next(e), { surface: e.surface, fill: fills(theme, e.surface, (await read($, app)).tone) })
   }).catch(($, e, next) => next(e))
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     const theme = themeById((await read($, look)).theme)
     if (!theme) return next(e)
-    return messageRow($.ui.resolve(e), theme, 'CommandOutput', await next(e))
+    return messageRow($.ui.resolve(e), theme, 'CommandOutput', await next(e), { surface: e.surface, fill: fills(theme, e.surface, (await read($, app)).tone) })
+  }).catch(($, e, next) => next(e))
+
+  // Claude Code's theme changed in /config (another plugin's set reaches here too; wardrobe's
+  // own calls skip its hooks and update the tone themselves): re-read the tone once it is written.
+  on('config.set', { key: 'theme' }, async ($, e, next) => {
+    const out = await next(e)
+    if (out.deny === undefined) await $.state.set(APP, { tone: toneOf(out.value) })
+    return out
   }).catch(($, e, next) => next(e))
 
   // One verb per turn for the spinner and the closing line: picked when the
@@ -369,7 +414,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         {below}
-        {switchBand($.ui.resolve(e), theme, columns, bolt)}
+        {switchBand($.ui.resolve(e), theme, columns, bolt, fills(theme, e.surface, (await read($, app)).tone))}
       </Box>
     )
   }).catch(($, e, next) => next(e))

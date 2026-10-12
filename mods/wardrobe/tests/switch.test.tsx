@@ -225,7 +225,8 @@ describe('/wear season', () => {
     test(`on ${month}/${day} wears ${theme}, stored as season`, async ($, on) => {
       const w = world(on, { now: window(month, day) })
       await start($)
-      expect(await wear($, 'season')).toBe(`Wearing season everywhere without a pin: ${theme} now (${when}).`)
+      // A light season (spring) on the world's dark theme adds the line about matching; the sentence before it is exact.
+      expect(await wear($, 'season')).toMatch(new RegExp(`^Wearing season everywhere without a pin: ${theme} now \\(${when.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\)\\.`))
       expect(w.store.get('global')).toBe('season')
       const ui = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 3000 } })
       expect((await ui.find({ key: 'turn' }))?.text).toBe(` ${themeById(theme)!.mark} Baked for 3s `)
