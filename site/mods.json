@@ -950,7 +950,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "keywords": [
         "context",
         "cost",
@@ -980,7 +980,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-12",
-      "commit": "b6608da",
+      "commit": "b045bb4",
       "reach": [
         "display only"
       ],
