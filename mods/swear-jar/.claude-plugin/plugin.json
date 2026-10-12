@@ -1,0 +1,26 @@
+{
+  "name": "swear-jar",
+  "version": "0.1.0",
+  "description": "A jar that counts the model's verbal tics, 'You're absolutely right' and friends, in a line above the prompt and a scoreboard.",
+  "homepage": "https://modmyclaude.com/mods/swear-jar",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["fun", "insight", "band", "scoreboard", "writing"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "tics": {
+      "type": "string",
+      "multiple": true,
+      "title": "Tics",
+      "description": "The phrases to count, whole and regardless of case. The words 'em dash' count every em dash. Replaces the built-in list.",
+      "default": ["you're absolutely right", "you are absolutely right", "great question", "excellent question", "i apologize", "certainly!", "absolutely!", "as an ai", "it's worth noting", "i hope this helps", "let me know if", "delve", "em dash"]
+    },
+    "show": {
+      "type": "string",
+      "title": "Show",
+      "description": "Where the running count shows: band (a dim line above the prompt), status (the status line), both, or off. The scoreboard pane works either way.",
+      "default": "band"
+    }
+  }
+}
