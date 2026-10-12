@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { CONTINUE_TEXT } from '../hooks/logic'
-import { HOUR, MIN, PERSON, RESET, SLOW, SURFACES, answered, band, measure, press, refuse, start, submit, window, world } from './world'
+import { HOUR, MIN, PERSON, RESET, SLOW, SURFACES, T0, answered, band, measure, press, refuse, start, submit, window, world } from './world'
 
 const PLUGIN_ORIGIN = { kind: 'plugin', name: 'rain-check' }
 
@@ -125,6 +125,19 @@ describe('after the limit refuses a turn', () => {
     const after = await band($, 'desktop')
     expect(after.waiting ?? after.limit).toBeUndefined()
     await after.ui.unmount()
+  })
+
+  test('a prompt typed after the reset, before the next tick clears the hold, goes straight through', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await w.clock.advance(30_000)
+    await measure($, [window(100)])
+    await refuse($)
+    // The minute ticks fall at half past; the send time (a minute after the reset) falls between two.
+    await w.clock.advance(RESET + MIN + 10_000 - (T0 + 30_000))
+    const typed = await submit($, 'run the tests')
+    expect(typed.drop).toBeUndefined()
+    expect(w.sent).toEqual([{ text: 'run the tests', origin: PERSON }])
   })
 
   test('a second prompt joins the first and they go out together', SLOW, async ($, on) => {
