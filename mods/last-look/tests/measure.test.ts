@@ -486,7 +486,7 @@ test('clean() leaves one drawable line', () => {
   expect(clean('\u001b')).toBe('')
 })
 
-// MM-103: a held command the measurement found nothing in (or could not finish) is held
+// A held command the measurement found nothing in (or could not finish) is held
 // for review in neutral words; "can destroy work" only when there is work to lose.
 describe('holdTitle', () => {
   const part = (over: Partial<LastLookItem>): LastLookItem =>

@@ -1,8 +1,8 @@
-// MM-074: everyday output that is not a secret stays as it was. A path next to
+// Everyday output that is not a secret stays as it was. A path next to
 // a `pwd`-ish name is not a password, and a value too short, too common or too
 // plain is hidden only where a detector finds it, never learned and masked in
 // unrelated text (the project path in a build log, `postgres` in an image name).
-// The data is the review's false-positive battery (_internal/reviews/cloakroom.md).
+// The data is the false-positive battery from cloakroom's review.
 
 import { describe, expect, test } from 'claude-code/testing'
 

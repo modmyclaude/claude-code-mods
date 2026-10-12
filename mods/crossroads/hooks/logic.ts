@@ -134,7 +134,7 @@ const INVISIBLE =
   /[\u00ad\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu
 
 /**
- * Untrusted text made safe to draw on one line (API-GOTCHAS #31): the engine
+ * Untrusted text made safe to draw on one line: the engine
  * refuses a whole tree holding one control character, and this band composes
  * every band beneath it, so one stray byte would take them all down. ANSI
  * sequences go, line breaks and tabs become spaces, any other C0, DEL or C1
@@ -224,7 +224,7 @@ function plainLetters(text: string): string {
 
 /**
  * A word that mixes Latin letters with a Cyrillic letter or a Greek lookalike
- * ("d\u0435ploy"): read on the letters BEFORE any folding (MM-069), so a
+ * ("d\u0435ploy"): read on the letters BEFORE any folding, so a
  * wholly Russian or Greek word is normal text, and Greek in units and maths
  * ("\u03bcs", "10k\u03a9", "\u0394t") is left alone.
  */
@@ -262,7 +262,7 @@ export function riskText(text: string): string {
 export function riskOf(text: string): string | null {
   const plain = riskText(text)
   for (const [pattern, note] of RISKS) if (pattern.test(plain)) return note
-  // On the letters as written, never the folded ones (MM-069).
+  // On the letters as written, never the folded ones.
   if (hasMixedWord(plainLetters(text))) return 'unusual letters'
 
   return null
@@ -592,7 +592,7 @@ export function noteFor(suggestion: Suggestion): string | null {
 
 /**
  * The band's list, at most three. Crossroads gives its own suggestions no
- * privilege (MM-077): only Claude Code's guess may lead and carry a digit, as
+ * privilege: only Claude Code's guess may lead and carry a digit, as
  * it is already one Tab away as ghost text. Our rows follow, plain rows
  * before marked ones; every one of them is click-only.
  */

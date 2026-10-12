@@ -26,7 +26,7 @@ export type Room = {
   onProceed: () => void
 }
 
-// Proceed hands the command on: Claude Code's own permission check may still ask (MM-103).
+// Proceed hands the command on: Claude Code's own permission check may still ask.
 export const FOOTER = "A safety net, not a permission system. Proceed passes it on to Claude Code's own checks."
 
 function tone(t: LastLookTone | undefined): TextProps {

@@ -1,4 +1,4 @@
-// Control characters (MM-050): the engine refuses a whole drawn tree holding a
+// Control characters: the engine refuses a whole drawn tree holding a
 // C0 or C1 control and draws its own, hiding this band and every band beneath.
 // Rules read from CLAUDE.md files and the model's own rule are untrusted.
 

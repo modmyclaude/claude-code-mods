@@ -137,7 +137,7 @@ describe('the .env reader', () => {
     ['DB_PASSWORD', 'fake-Kq7xW2pLm9', true],
     ['API_KEY', 'Zq8-fakepw-4Lt7', true],
     ['DB_PASSWORD', '73920184', true], // eight distinct digits under a password name
-    // Too short, too common or too plain to hide everywhere: caught only by shape (MM-074).
+    // Too short, too common or too plain to hide everywhere: caught only by shape.
     ['DB_PASSWORD', 'hunter2', false],
     ['DB_PASSWORD', '12345678', false],
     ['API_KEY', 'kz81-bb2', false],

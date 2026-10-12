@@ -46,7 +46,7 @@ const NO_PLAYER =
 /** The settings, read once per load, and the little memory one load keeps. */
 type Pager = {
   minMs: number
-  /** quietHours as shown: `22:00-07:00` when it parses, else the setting cleaned (#31). */
+  /** quietHours as shown: `22:00-07:00` when it parses, else the setting cleaned. */
   quietText: string
   quiet: QuietHours | null | undefined
   topic: string | null | undefined

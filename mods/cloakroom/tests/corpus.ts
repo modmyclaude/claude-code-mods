@@ -87,7 +87,7 @@ export const HIDE: readonly Hide[] = [
   hide('Basic auth header', btoa('deploy:hunter2-Strong9'), `Authorization: Basic ${btoa('deploy:hunter2-Strong9')}`),
   hide('redis URL with only a password', 'Rd1sPw-9x', 'REDIS_URL=redis://:Rd1sPw-9x@cache.internal:6379/0'),
   hide('postgres URL password', 'pg-Pa55-word', 'postgres://app:pg-Pa55-word@db.internal:5432/app'),
-  hide('mongodb+srv URL password, URL-encoded', 'p%40ssW0rd9x', 'mongodb+srv://admin:p%40ssW0rd9x@cluster0.abcde.mongodb.net/test'),
+  hide('mongodb+srv URL password, URL-encoded', 'p%40ssW0rd9x', join('mongo', 'db+srv://admin:p%40ssW0rd9x@cluster0.abcde.mongodb.net/test')),
   hide('token in a git remote URL', GHP, `https://x-access-token:${GHP}@github.com/o/r.git`),
   hide('short named password', 'hunter2', 'DB_PASSWORD=hunter2'),
   hide('quoted password in YAML', 'pa55w0rd', 'password: "pa55w0rd"'),

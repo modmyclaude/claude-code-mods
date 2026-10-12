@@ -57,7 +57,7 @@ describe('/breathe', () => {
     expect((await say($, w, 'loud')).text).toBe('Second Wind does not know "loud". Use /breathe, /breathe on, /breathe off, /breathe snooze or /breathe card.')
   })
 
-  test('off, snooze and card act only for the person typing (API-GOTCHAS #27)', async ($, on) => {
+  test('off, snooze and card act only for the person typing', async ($, on) => {
     const w = world(on)
     await w.start($)
     await w.clock.advance(3000)

@@ -1,4 +1,4 @@
-// The permit model through the real wiring (MM-072): a Bash command gets the
+// The permit model through the real wiring: a Bash command gets the
 // real value only when every program on it is on cloakroom's local-only list;
 // a wrapper, an interpreter or a variable as the program is held with the red
 // band, Allow once runs that exact command one time, and no text that leaves

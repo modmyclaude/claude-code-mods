@@ -1,4 +1,4 @@
-// API-GOTCHAS #31: one control character in a drawn string and the engine
+// One control character in a drawn string and the engine
 // refuses the band's whole tree, taking every band beneath it down too.
 // Second Wind draws only its own words and numbers: these tests show that
 // holds even when its store and settings hold control characters, and that
@@ -40,7 +40,7 @@ async function band($: Engine, w: World, surface: Surface) {
   return ui
 }
 
-describe('control characters (API-GOTCHAS #31)', () => {
+describe('control characters', () => {
   test('clean() handles each control class, bidi and zero-width', () => {
     const cases: [string, string][] = [
       ['loud\u0007', 'loud�'],

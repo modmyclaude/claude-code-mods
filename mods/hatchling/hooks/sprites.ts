@@ -1,6 +1,6 @@
 // All of hatchling's art, as data. Nothing here runs: art.ts turns it into
-// pixels. Every species is an original design, drawn to read at baby size
-// (MM-093): a closed outline, light from the top left (a 1-2 px highlight
+// pixels. Every species is an original design, drawn to read at baby size:
+// a closed outline, light from the top left (a 1-2 px highlight
 // there, shade on the right and bottom), eyes inside the body, no stray pixels.
 //
 // A sprite is a list of rows, one letter per pixel. The renderer packs two
@@ -68,14 +68,14 @@ export const RARITY_COLOR: Readonly<Record<HatchlingRarity, string>> = {
 
 // ---------------------------------------------------------------- the egg
 
-// The egg is Bolt's, the modmyclaude mascot (MM-091): its upright, leaning,
+// The egg is Bolt's, the modmyclaude mascot: its upright, leaning,
 // cracked and hatching poses live in bolt.ts, copied in from brand/bolt-sprites;
 // art.ts picks one per frame.
 
 // ---------------------------------------------------------------- the secret
 
 /**
- * One egg in 100 hatches Bolt instead of a species (MM-093). Bolt is drawn from
+ * One egg in 100 hatches Bolt instead of a species. Bolt is drawn from
  * bolt.ts exactly as Bolt is drawn: never shiny, recoloured, flashed or moved
  * (BRAND.md), and the same at every stage; only the stage text grows.
  */

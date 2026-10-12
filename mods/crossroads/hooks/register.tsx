@@ -1,7 +1,7 @@
 // Crossroads: when Claude finishes a turn, three specific next prompts wait
 // in a band above the prompt. Each item is a button that drafts it (it is
 // never sent for you), and 0 dismisses. Crossroads gives its own suggestions
-// no privilege (MM-077): they are click-only rows, never option 1, a digit or
+// no privilege: they are click-only rows, never option 1, a digit or
 // the ghost text. Only Claude Code's own guess, already one Tab away, leads
 // with digit 1; its ghost text is passed through untouched. A small model
 // writes the suggestions from a compact, redacted digest of the turn and tags
@@ -121,7 +121,7 @@ function engineGuessFor(at: number): EngineGuess | null {
 
 // Only the terminal and the desktop app draw the band above the prompt. With
 // neither attached (a headless `-p` run, an SDK host, VS Code, mobile), a list
-// is a model call nobody would see, so none is made (API-GOTCHAS #28: the
+// is a model call nobody would see, so none is made (the
 // attached surfaces decide, never `isInteractive`).
 async function drawsBand($: EngineInterface): Promise<boolean> {
   const surfaces = await $.session.surfaces()
@@ -502,7 +502,7 @@ export const register: Register = on => {
   })
 
   // Every answer is a toast and the command returns {}: none of it is for the
-  // model, which would otherwise read the output (API-GOTCHAS #18).
+  // model, which would otherwise read the output.
   on('command.run', { command: PLUGIN }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off') {
@@ -552,7 +552,7 @@ export const register: Register = on => {
     // Every suggestion drawn below is untrusted (the model's, the engine's): it
     // passes through clean() here even when it was cleaned on the way in.
     // Compose what other mods draw here instead of replacing it, theirs first
-    // (API-GOTCHAS #25): an overflowing band cuts these rows, never their buttons.
+    //: an overflowing band cuts these rows, never their buttons.
     const below = await next(e)
     const stack = (mine: JSX.Element) => (
       <Box flexDirection="column">
@@ -576,7 +576,7 @@ export const register: Register = on => {
           {/* Close is drawn first and holds the focus ring whenever the band
               takes the keyboard (the click that copied, for one), so a stray
               Enter closes; Send has no hotkey and no focus, only a press
-              (API-GOTCHAS #24). */}
+             . */}
           <Box columnGap={2}>
             <Button key="dismiss" label="Close" plain dimColor role="dismiss" autoFocus onPress={() => void dismiss($)} />
             <Button key="send" label="Send this prompt now" variant="secondary" onPress={() => void send($)} />
@@ -599,7 +599,7 @@ export const register: Register = on => {
           <Button
             key={`pick-${n}`}
             plain
-            // Only Claude Code's own guess carries a digit (MM-077): our rows
+            // Only Claude Code's own guess carries a digit: our rows
             // are click-only, so a stray key never drafts a suggestion of ours.
             {...(digits && item.fromEngine ? { hotkey: n } : {})}
             label={clip(clean(item.text), room)}

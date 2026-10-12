@@ -112,7 +112,7 @@ const INVISIBLE =
   /[\u00ad\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu
 
 /**
- * Untrusted text made safe to show on one line (API-GOTCHAS #31). Everything
+ * Untrusted text made safe to show on one line. Everything
  * the band, spinner and status line draw is Second Wind's own words and
  * numbers; the one thing it repeats from outside is a word typed after
  * /breathe. ANSI sequences go, line breaks and tabs become spaces, any other

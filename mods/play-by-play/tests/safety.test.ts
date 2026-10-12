@@ -1,4 +1,4 @@
-// Review fixes (MM-048, MM-050): git stays read-only, a slow repository pauses
+// Review fixes (git stays read-only, a slow repository pauses
 // shell tracking on the session's clock, binary files never reach a diff, and
 // names with control characters still draw a pane with its buttons.
 

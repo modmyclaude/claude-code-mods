@@ -174,7 +174,7 @@ function statusFor(s: Snapshot): string {
 /** `the cache went cold 23m ago, so this send re-reads 182k tokens: ...` */
 /**
  * The hold, as the person reads it under the desktop's own "a hook blocked your prompt"
- * frame (MM-101): the cost first, in two short lines; the frame already names the hold.
+ * frame: the cost first, in two short lines; the frame already names the hold.
  */
 function holdText(s: Snapshot, files: string): string {
   return `${coldLine(s)}\nSend again to go ahead, or /clear to start fresh.${files}`
@@ -698,7 +698,7 @@ export const register: Register = (on, options) => {
   }))
 
   // The receipt pane: one line each, live, since the state reads subscribe it.
-  // Bolt minds the cache beside the first line (MM-091): asleep while it is cold
+  // Bolt minds the cache beside the first line: asleep while it is cold
   // or empty, up while warm. A static sprite, only where the pane has room.
   on('ui.render', { component: 'Pane', requestId: RECEIPT_PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)

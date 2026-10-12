@@ -1,4 +1,4 @@
-// Bolt in costume (MM-108), held to the brand rules: a costume only covers, it
+// Bolt in costume, held to the brand rules: a costume only covers, it
 // never recolours; the antenna stays clear in every pose; the pink and the blush
 // are Bolt's alone; three colours at most, every one the theme's own.
 

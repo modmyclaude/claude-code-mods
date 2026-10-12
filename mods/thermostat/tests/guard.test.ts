@@ -276,7 +276,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await w.clock.advance(61 * MIN)
     const held = await submit($, 'fix \x1b[2J this\x07 now\x9b')
     expect(held.drop).toContain('Send again to go ahead')
-    // The hold's one deliberate newline splits its two lines (API-GOTCHAS #31 allows it); nothing else.
+    // The hold's one deliberate newline splits its two lines (the engine allows it); nothing else.
     expect((held.drop ?? '').split('\n')).toHaveLength(2)
     expect(CONTROL_CHARS.test((held.drop ?? '').replace('\n', ' '))).toBe(false)
     const ui = await $.ui.mount({ plugin: 'thermostat', surface, component: 'SessionMode', props: { modes: [] } })

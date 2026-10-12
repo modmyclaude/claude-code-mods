@@ -1,8 +1,8 @@
-// What bot-1's review asked for, through the real wiring: an unattended
-// realtime run pauses itself (R-2), command answers stay out of the model's
-// context (R-3, API-GOTCHAS #18), the whistle line keeps the result on screen
-// where copy cannot reach a clipboard (R-4, #22), the five behaviours no test
-// pinned before (R-5, mutants M1 to M5), and the band's stacking (#25).
+// What the review asked for, through the real wiring: an unattended
+// realtime run pauses itself, command answers stay out of the model's
+// context, the whistle line keeps the result on screen where copy cannot
+// reach a clipboard, the five behaviours no test pinned before (mutants M1
+// to M5), and the band's stacking.
 
 import { expect, test } from 'claude-code/testing'
 import type { Plugin } from 'claude-code/testing'
@@ -21,9 +21,9 @@ const LONG = { timeoutMs: 60_000 }
 
 type Totals = { playedMs: number; waitPlayedMs: number; runs: number }
 
-// R-2: a realtime run nobody plays stops ticking, and its idle time never counts.
+// A realtime run nobody plays stops ticking, and its idle time never counts.
 
-test('R-2: a realtime run with no key or click for 20 s pauses itself, stops its frame clock, and counts none of the idle time', { plugins: [METER], ...LONG }, async ($, on) => {
+test('a realtime run with no key or click for 20 s pauses itself, stops its frame clock, and counts none of the idle time', { plugins: [METER], ...LONG }, async ($, on) => {
   const disk = new Map<string, unknown>()
   const { clock, seen } = world(on, { store: disk })
   await $.turn.start(MAIN_TURN)
@@ -58,7 +58,7 @@ test('R-2: a realtime run with no key or click for 20 s pauses itself, stops its
   expect(totals.waitPlayedMs).toBe(totals.playedMs)
 })
 
-test('R-2: a key now and then keeps a realtime run in play well past 20 s, and all of it counts', LONG, async ($, on) => {
+test('a key now and then keeps a realtime run in play well past 20 s, and all of it counts', LONG, async ($, on) => {
   const disk = new Map<string, unknown>()
   const { clock } = world(on, { store: disk })
   await $.command.run(halftime('tailchase'))
@@ -74,9 +74,9 @@ test('R-2: a key now and then keeps a realtime run in play well past 20 s, and a
   expect((disk.get('totals') as Totals).playedMs).toBeGreaterThan(59_000)
 })
 
-// R-3: /halftime answers never become text the model reads where the band can say them.
+// /halftime answers never become text the model reads where the band can say them.
 
-test('R-3 (#18): where the band draws, every /halftime answer is a toast and the command answers {}', async ($, on) => {
+test('where the band draws, every /halftime answer is a toast and the command answers {}', async ($, on) => {
   const attached: RenderSurface[] = []
   const { seen } = world(on, { surfaces: attached })
   for (const surfaces of [['terminal'], ['desktop'], ['mobile', 'desktop']] as const) {
@@ -90,7 +90,7 @@ test('R-3 (#18): where the band draws, every /halftime answer is a toast and the
   }
 })
 
-test('R-3 (#18): a /halftime that fails says so in a toast, still with no text for the model', async ($, on) => {
+test('a /halftime that fails says so in a toast, still with no text for the model', async ($, on) => {
   // Nothing beneath answers the store, so turning auto on throws inside the hook.
   const toasts: string[] = []
   on('ui.toast', (_$, e) => {
@@ -102,7 +102,7 @@ test('R-3 (#18): a /halftime that fails says so in a toast, still with no text f
 })
 
 for (const surface of ['vscode', 'mobile'] as const) {
-  test(`R-3 (#18): ${surface} draws no band, so the command's row is the scorecard, as the CommandOutput hook draws it`, async ($, on) => {
+  test(`${surface} draws no band, so the command's row is the scorecard, as the CommandOutput hook draws it`, async ($, on) => {
     const { seen } = world(on, { surfaces: [surface], store: { 'best:cratehop': 412 } })
     await $.session.start({ cwd: '/', surface, isInteractive: true } as never)
     const scorecard = 'halftime · cratehop 412 · tailchase - · merge - · sweep - · 0s played while waiting'
@@ -117,7 +117,7 @@ for (const surface of ['vscode', 'mobile'] as const) {
   })
 }
 
-// R-4: where copy has no clipboard (the desktop app), the result stays on screen to select.
+// Where copy has no clipboard (the desktop app), the result stays on screen to select.
 
 const NOCLIP: Plugin = {
   name: 'noclip',
@@ -127,7 +127,7 @@ const NOCLIP: Plugin = {
   },
 }
 
-test('R-4 (#22): a copy with no clipboard in the whistle line leaves the result there to select', { plugins: [NOCLIP] }, async ($, on) => {
+test('a copy with no clipboard in the whistle line leaves the result there to select', { plugins: [NOCLIP] }, async ($, on) => {
   const { seen } = world(on)
   await $.turn.start(MAIN_TURN)
   await $.command.run(halftime('sweep'))
@@ -145,7 +145,7 @@ test('R-4 (#22): a copy with no clipboard in the whistle line leaves the result 
   expect(share).toBeDefined()
 })
 
-// R-5: the five behaviours the suite did not pin (each test kills one of the reviewer's mutants).
+// The five behaviours the suite did not pin (each test kills one of the reviewer's mutants).
 
 test('M1: a question shows only after the board is gone (the whistle comes before the dialog)', async ($, on) => {
   let boardDuringQuestion: boolean | null = null

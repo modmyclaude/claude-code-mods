@@ -82,7 +82,7 @@ const DESTRUCTIVE: string[] = [
   'git push --force --force-with-lease',
   'find web -name "*.md" -fprint web/build/notes.md -delete',
   `X=${'{a,b}'.repeat(23)}; rm -rf src`,
-  // review 2 (MM-076): V-1, V-2, V-3, each now held
+  // review 2: V-1, V-2, V-3, each now held
   'mv src/a.ts tmp && echo x > tmp',
   'ln src/a.ts hard.txt; : > hard.txt',
   'find -L out -delete',

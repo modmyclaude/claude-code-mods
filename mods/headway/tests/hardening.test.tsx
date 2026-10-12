@@ -430,7 +430,7 @@ describe('/headway answers no text for the model on every branch (gotcha 18)', (
   })
 })
 
-// API-GOTCHAS #39 (MM-083): a live session refuses a band tree that puts the
+// A live session refuses a band tree that puts the
 // engine's own node under a Box that sizes, hides or moves it, and draws its
 // own band instead. The kit does not check this, so the test walks the tree.
 const ENGINE_BENEATH: Plugin = {

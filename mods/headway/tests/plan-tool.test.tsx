@@ -1,4 +1,4 @@
-// MM-111: the desktop app gives Claude no todo tool, so a plan never reached
+// The desktop app gives Claude no todo tool, so a plan never reached
 // Headway there. Where no native plan tool exists Headway lends one in
 // TodoWrite's shape; where Claude Code has its own, Headway lends none.
 
@@ -15,7 +15,7 @@ const SETUPS = [
 ] as const
 
 for (const [where, tools, lends] of SETUPS) {
-  test(`MM-111: in ${where}, Headway ${lends ? 'lends its plan tool, and the line follows it' : 'lends no tool'}`, async ($, on) => {
+  test(`in ${where}, Headway ${lends ? 'lends its plan tool, and the line follows it' : 'lends no tool'}`, async ($, on) => {
     world(on, {}, ['desktop', 'terminal'])
     beneath(on)
     const lent: { name: string; isDeferred?: unknown }[] = []
@@ -42,7 +42,7 @@ for (const [where, tools, lends] of SETUPS) {
   })
 }
 
-test('MM-111: a plan call with no steps is answered, never fails the turn', async ($, on) => {
+test('a plan call with no steps is answered, never fails the turn', async ($, on) => {
   world(on)
   on('tool.list', () => ({ value: [{ name: 'Bash', description: 'Bash', mcp: false }] }))
   on('tool.register', ($, e) => ({ value: { tool: `mcp__headway__${e.name}` } }))

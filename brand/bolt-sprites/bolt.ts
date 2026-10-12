@@ -68,7 +68,7 @@ function colour(key: string | undefined): string | undefined {
 
 /**
  * Packs a pose into half-block text cells: rows / 2 lines of `cols` cells.
- * Terminal: draw with Raster (see hatchling's rasterCells). Desktop: one fixed-width cell per character (see MM-084).
+ * Terminal: draw with Raster (see hatchling's rasterCells). Desktop: one fixed-width cell per character.
  */
 export function boltCells(size: 'small', pose: BoltSmallPose): BoltCell[][]
 export function boltCells(size: 'tiny', pose: BoltTinyPose): BoltCell[][]

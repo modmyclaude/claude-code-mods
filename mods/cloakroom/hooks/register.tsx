@@ -163,7 +163,7 @@ async function seed($: Dollar, room: Room, cwd: string): Promise<void> {
  * Holds a Bash command that carries a real value unless the command is proven
  * local (every program on cloakroom's local-only list) and nothing on it points
  * at the network. A hold needs a positive reason to pass, never the absence of
- * a known threat (API-GOTCHAS #37): `sh -c`, `eval`, an interpreter, a package
+ * a known threat: `sh -c`, `eval`, an interpreter, a package
  * runner or a variable as the program is held too, and Allow once lets the
  * person run that exact command one time. Returns the deny text, or undefined.
  */
@@ -579,7 +579,7 @@ export const register: Register = on => {
     const shown = room.reveal
     if (!hold && !shown) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
-    // A pending hold renders alone (API-GOTCHAS #36): what another mod draws beneath could
+    // A pending hold renders alone: what another mod draws beneath could
     // make the engine refuse the whole band and take Deny and Allow once with it.
     const below = hold ? null : await next(e)
 

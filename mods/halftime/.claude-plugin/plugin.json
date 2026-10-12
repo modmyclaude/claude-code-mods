@@ -1,7 +1,7 @@
 {
   "name": "halftime",
   "version": "0.1.0",
-  "description": "Claude works, you play: four small games above the prompt, and a whistle that hands the keys back the moment Claude needs you.",
+  "description": "Claude works, you play. The whistle blows the moment it needs you.",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["games", "fun", "waiting", "band", "whistle", "daily"],

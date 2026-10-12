@@ -561,7 +561,7 @@ test('only open notes count as more open notes', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /more open note/ })).toBeUndefined()
 })
 
-// Bolt (MM-091): beside "flagged nothing" in the /fineprint pane, never beside a
+// Bolt: beside "flagged nothing" in the /fineprint pane, never beside a
 // note, and out of the way in a narrow pane. A Raster on the terminal, one
 // code-font cell per character on the desktop.
 type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }

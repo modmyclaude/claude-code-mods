@@ -219,7 +219,7 @@ async function labels(ui: { findAll: (q: { type: string }) => Promise<{ key: str
 
 /**
  * Runs `/crossroads <args>` and returns what it showed. The answer is always
- * `{}` (nothing for the model to read, API-GOTCHAS #18): what the person sees
+ * `{}` (nothing for the model to read): what the person sees
  * is the toast it raised.
  */
 async function crossroads($: Engine, seen: World, args = ''): Promise<string> {
@@ -259,7 +259,7 @@ test("the engine's guess becomes option 1, passed through untouched, and only tw
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
     expect(await labels(ui)).toEqual(['run the auth tests again', 'review the same guard in signup.ts', 'run the full test suite'])
     expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
-    // Only Claude Code's guess carries a digit; our two rows are click-only (MM-077).
+    // Only Claude Code's guess carries a digit; our two rows are click-only.
     expect((await ui.find({ key: 'pick-2' }))?.props.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'pick-3' }))?.props.hotkey).toBeUndefined()
     expect((await ui.find({ key: 'dismiss' }))?.props.hotkey).toBe('0')
@@ -350,7 +350,7 @@ test('a risky suggestion is amber with its note and sorts last', async ($, on) =
     expect(await labels(ui)).toEqual(['run the auth tests', 'review the guard in signup.ts', 'push to main'])
     const note = await ui.find({ type: 'Text', text: '(pushes)' })
     expect(note?.props.color).toBe('warning')
-    // No engine guess: every row is ours, so none carries a digit (MM-077).
+    // No engine guess: every row is ours, so none carries a digit.
     for (const n of ['1', '2', '3']) expect((await ui.find({ key: `pick-${n}` }))?.props.hotkey).toBeUndefined()
     await ui.unmount()
   }
@@ -518,7 +518,7 @@ test('both surfaces: a press drafts on the terminal, copies with an explicit Sen
       expect(send?.props.variant).toBe('secondary')
       expect(send?.props.autoFocus).toBeUndefined()
       expect(send?.props.hotkey).toBeUndefined()
-      // Close is drawn first and is where the focus ring starts (API-GOTCHAS #24).
+      // Close is drawn first and is where the focus ring starts.
       const buttons = await ui.findAll({ type: 'Button' })
       expect(buttons.map(button => [button.key, button.props.hotkey, button.props.autoFocus])).toEqual([
         ['dismiss', undefined, true],
@@ -692,7 +692,7 @@ test('a refused model with no fallback says so once and stops calling', async ($
   expect(seen.toasts[0]).toContain('small model is not available')
 })
 
-// ---------------------------------------------------------------- control characters (API-GOTCHAS #31)
+// ---------------------------------------------------------------- control characters
 
 // One control character in a drawn string and the engine refuses the whole
 // tree; this band composes the bands beneath it, so they would vanish too.
@@ -766,7 +766,7 @@ async function mountBand($: Engine, surface: (typeof SURFACES)[number]) {
   return ui
 }
 
-describe('control characters never take the band down (API-GOTCHAS #31)', () => {
+describe('control characters never take the band down', () => {
   for (const [name, c] of CONTROLS) {
     test(`${name} in the model's suggestions`, { plugins: [NEIGHBOUR] }, async ($, on) => {
       const dirty = [`run${c} the auth tests`, `review the guard ${c}in signup.ts`, `explain the ${c}null check`]
@@ -854,7 +854,7 @@ describe('control characters never take the band down (API-GOTCHAS #31)', () => 
   })
 })
 
-// ---------------------------------------------------------------- risky phrasings (R-crossroads-1)
+// ---------------------------------------------------------------- risky phrasings
 
 const SAFE_TWO = ['run the auth tests', 'review the guard in signup.ts']
 
@@ -875,7 +875,7 @@ test("the review probe: three risky suggestions are all marked; only the engine'
   }
 })
 
-// ---------------------------------------------------------------- surfaces that draw no band (R-crossroads-5)
+// ---------------------------------------------------------------- surfaces that draw no band
 
 for (const surfaces of [[], ['vscode'], ['mobile'], ['vscode', 'mobile']] as const) {
   test(`surfaces ${JSON.stringify(surfaces)} draw no band, so no call is spent`, async ($, on) => {
@@ -962,7 +962,7 @@ test("the band yields while an agent's transcript is on screen", async ($, on) =
   }
 })
 
-// ---------------------------------------------------------------- model tags (MM-068): notes only
+// ---------------------------------------------------------------- model tags: notes only
 
 test("the model's own tag marks what no keyword knows; such rows are click-only", async ($, on) => {
   const seen = world(on, [
@@ -1018,14 +1018,14 @@ test('a late tagged list keeps its tags when a safe engine guess merges in', asy
   expect((await ui.find({ type: 'Text', text: '(hits prod)' }))?.props.color).toBe('warning')
 })
 
-// ---------------------------------------------------------------- no privilege for our own rows (MM-077)
+// ---------------------------------------------------------------- no privilege for our own rows
 
 // Two allowlist rounds still let 35 of 75 fresh risky phrasings through, so
 // v1 privileges nothing Crossroads writes, whatever the words.
 const EVERY_PHRASING = [...BATTERY_RISKY.map(row => row[1]), ...REVIEW_RISKY.map(row => row[0]), ...PLAIN_UNSAFE, ...SAFE_SET, ...RU_EL_SAFE]
 const FILLER = ['tidy the wording in the README', 'rename the helper in utils.ts']
 
-test('MM-077: a suggestion of ours never carries a digit, whatever its words', async ($, on) => {
+test('a suggestion of ours never carries a digit, whatever its words', async ($, on) => {
   const seen = world(on, EVERY_PHRASING.map(text => reply([text, ...FILLER])), { surfaces: ['desktop'] })
   for (const text of EVERY_PHRASING) {
     await finishTurn($, seen)
@@ -1039,7 +1039,7 @@ test('MM-077: a suggestion of ours never carries a digit, whatever its words', a
   expect(seen.calls).toHaveLength(EVERY_PHRASING.length)
 })
 
-test("MM-077: Claude Code's own guess, whatever its words, is passed through and is the only row with a digit", async ($, on) => {
+test("Claude Code's own guess, whatever its words, is passed through and is the only row with a digit", async ($, on) => {
   const seen = world(on, EVERY_PHRASING.map(() => reply(FILLER)))
   for (const text of EVERY_PHRASING) {
     await finishTurn($, seen)
@@ -1066,7 +1066,7 @@ test('a risky guess that lands during the call still takes option 1, marked', as
   expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBe('1')
 })
 
-// ---------------------------------------------------------------- Russian and Greek (MM-069)
+// ---------------------------------------------------------------- Russian and Greek
 
 test("a Russian or Greek engine guess is Claude Code's ghost text and option 1, unmarked", async ($, on) => {
   const seen = world(on, RU_EL_SAFE.map(() => reply([RU_EL_SAFE[1] ?? '', RU_EL_SAFE[5] ?? ''])))
@@ -1086,7 +1086,7 @@ test("a Russian or Greek engine guess is Claude Code's ghost text and option 1, 
   expect(seen.ghosts.map(ghost => ghost.text)).toEqual([RU_EL_SAFE[0], RU_EL_SAFE[4]])
 })
 
-// ---------------------------------------------------------------- collection rules (#25, #33)
+// ---------------------------------------------------------------- collection rules
 
 /** A mod drawn beneath Crossroads (append tier): its row must come first. */
 const STUB: Plugin = {
@@ -1131,7 +1131,7 @@ test('#33: /crossroads is registered immediate, so it runs while a turn is in fl
 })
 
 
-// ================================================================ verify-the-fix 3 probes (bot-1)
+// ================================================================ verify-the-fix 3 probes
 
 const PICK_KEYS = ['pick-1', 'pick-2', 'pick-3']
 async function picksOf(ui: { findAll: (q: { type: string }) => Promise<{ key: string | undefined; text: string; props: Record<string, unknown> }[]> }) {
@@ -1232,7 +1232,7 @@ test('N3-2: a guess that is never shown never becomes option 1', { plugins: [HID
   expect((await ui.find({ key: 'pick-1' }))?.props.hotkey).toBeUndefined()
 })
 
-// API-GOTCHAS #39 (MM-083): a live session refuses a band tree that puts the
+// A live session refuses a band tree that puts the
 // engine's own node under a Box that sizes, hides or moves it, and draws its
 // own band instead. The kit does not check this, so the test walks the tree.
 const ENGINE_BENEATH: Plugin = {

@@ -563,7 +563,7 @@ export const register: Register = on => {
     }
 
     const rootName = clean(tree ? (tree.root.split('/').filter(Boolean).pop() ?? tree.root) : '')
-    // Bolt waits in the touched-only view while nothing is touched (MM-091): a static
+    // Bolt waits in the touched-only view while nothing is touched: a static
     // sprite beside that line alone, only where the pane has room for it.
     const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
 

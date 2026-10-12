@@ -1,7 +1,7 @@
-// Draws Bolt, the modmyclaude mascot (brand/bolt-sprites, MM-091), on the surface a hook draws for.
+// Draws Bolt, the modmyclaude mascot (brand/bolt-sprites), on the surface a hook draws for.
 // Same file in every mod that shows Bolt: mods install on their own, so they cannot share code.
 // Terminal: one Raster, a cell grid. Desktop: one code-font cell per character, since its Text is
-// proportional and a row of half-blocks would drift (MM-084). Elsewhere: coloured Text runs.
+// proportional and a row of half-blocks would drift. Elsewhere: coloured Text runs.
 // Bolt is static here: no timer, no redraw of its own. Never draw it over a safety hold or in a toast.
 
 import type { BoxProps, ElementConstructor, RasterProps, RenderElement, TextProps } from 'claude-code'

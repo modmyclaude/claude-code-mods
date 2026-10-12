@@ -61,7 +61,7 @@ export type SecondWindStep = { phase: 'in' | 'sip' | 'hold' | 'out'; ms: number;
  * What the desktop draws for the run: the guide for one stretch of the wait
  * (its whole timeline, so the drawing keeps its own clock), or the fold line.
  * Written only when it changes. The desktop's band reads this and never the
- * per-tick clock, so nothing around a running guide is drawn again (MM-110).
+ * per-tick clock, so nothing around a running guide is drawn again.
  */
 export type SecondWindDesk =
   | {

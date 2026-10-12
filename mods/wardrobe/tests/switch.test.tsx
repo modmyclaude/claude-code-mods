@@ -1,4 +1,4 @@
-// MM-108: the switch band above the prompt, the stripe on every row, /wear
+// The switch band above the prompt, the stripe on every row, /wear
 // season, and the /wear gallery, on both surfaces, through the real wiring.
 
 import { describe, expect, test } from 'claude-code/testing'
@@ -43,7 +43,7 @@ const cellsAs = (surface: string, cells: BoltCell[][]) => {
 }
 
 // A session refuses a tree that puts the engine's own node under a Box that
-// sizes, hides or moves it; the test walks the tree (API-GOTCHAS #39).
+// sizes, hides or moves it; the test walks the tree.
 const CONCEALING = ['display', 'overflow', 'position', 'width', 'height', 'minWidth', 'minHeight', 'top', 'left', 'right', 'bottom']
 function engineNodeConcealers(node: unknown, around: string[] = []): string[][] {
   if (node === null || typeof node !== 'object') return []
@@ -55,7 +55,7 @@ function engineNodeConcealers(node: unknown, around: string[] = []): string[][] 
 
 // The desktop draws a Text holding block characters in the code font, so glyph
 // art there sits in one-cell Boxes of its own and no Text mixes glyphs with
-// words (API-GOTCHAS #40; the walker is ant-farm's).
+// words (the walker is ant-farm's).
 const GLYPH = /[▀-▟]/u
 const textsOf = (node: unknown, inCell = false, out: { text: string; inCell: boolean; props: Record<string, unknown> }[] = []) => {
   if (node === null || typeof node !== 'object') return out

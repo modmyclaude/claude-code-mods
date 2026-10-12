@@ -175,7 +175,7 @@ test('a tight band keeps the field: the hint folds into the title and the field 
   await play(clock, ui, 300)
   const b = await boardOf(ui)
   expect(b?.live).toBe(true)
-  // Six rows, one left for what another mod draws beneath (API-GOTCHAS #25): while live the
+  // Six rows, one left for what another mod draws beneath: while live the
   // board takes the other five (no button row), title plus four field rows.
   expect(b?.rows.length).toBe(4)
   for (const row of fieldText(b!)) expect(row.length).toBeLessThanOrEqual(30)

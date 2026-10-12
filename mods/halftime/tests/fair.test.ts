@@ -1,4 +1,4 @@
-// MM-089: the proofs that all four games are easy to start, get gradually
+// The proofs that all four games are easy to start, get gradually
 // harder up to a cap, forgive, and can always be beaten. Each game's course or
 // board is a pure function of its seed, so these walk every daily board for a
 // year (from 2026-10-09) and a set of practice seeds, and play them with a

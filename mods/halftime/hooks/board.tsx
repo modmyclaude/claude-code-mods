@@ -25,7 +25,7 @@ type Props = {
   needClick: boolean
   showHint: boolean
   pad: [string, string][]
-  /** The desktop app: draw the field one code-font cell per character (MM-084). */
+  /** The desktop app: draw the field one code-font cell per character. */
   cells?: boolean
 }
 
@@ -152,7 +152,7 @@ export default function Board(props: Props, surface: Surface) {
   }
   const line = (segs: Seg[]) => <Text wrap="truncate-end">{segs.map(seg)}</Text>
   // The desktop app draws Text in a proportional font, so a row of glyphs drifts and
-  // wraps (MM-084). A Box's width is in the surface's code-font cells: one cell per
+  // wraps. A Box's width is in the surface's code-font cells: one cell per
   // character keeps every column where the game put it; a run of spaces is one gap.
   // A gap that is painted (a background, or inverse) still takes one cell per space, so its paint shows.
   const cellRow = (segs: Seg[]) => (
@@ -174,7 +174,7 @@ export default function Board(props: Props, surface: Surface) {
       {props.rows.map(props.cells ? cellRow : line)}
       {props.showHint ? <Text dimColor wrap="truncate-end">{status}</Text> : null}
       {
-        // The pad (MM-081): a terminal with no mouse reporting never sends the click, so the
+        // The pad: a terminal with no mouse reporting never sends the click, so the
         // band's focus chord (ctrl+x tab) and these letters take the keys instead. Letters only,
         // never Enter, y, n or a digit; drawn until a click takes the keys, then only if it did.
         (!local.armed || local.viaPad) && props.pad.length > 0 ? (

@@ -67,7 +67,7 @@ describe('a command that would carry a value off the machine', () => {
       expect(allow?.props.label).toBe('Allow once')
       expect(allow?.props.hotkey).toBeUndefined() // no key can press it
       expect(allow?.props.autoFocus).toBeUndefined()
-      // Drawn alone while pending (API-GOTCHAS #36): nothing beneath can blank Deny.
+      // Drawn alone while pending: nothing beneath can blank Deny.
       expect(await ui.find({ key: 'below' })).toBeUndefined()
       expect(JSON.stringify(await ui.drawn())).not.toContain(KEY)
       await ui.unmount()

@@ -65,7 +65,7 @@ const NOT_CORRECTIONS = [
   'Here is the snippet:\n```\n// no, use pnpm\n```\nwhat does it do',
   '/rules',
   '! npm install',
-  // Status reports in a debugging loop, and narration (review R-noted-3):
+  // Status reports in a debugging loop, and narration:
   'nope, still broken',
   'No, it still fails with the same error',
   'no. same error',

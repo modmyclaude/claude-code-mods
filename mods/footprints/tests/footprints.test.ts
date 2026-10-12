@@ -349,7 +349,7 @@ describe('the pane', () => {
     expect(await ui.find({ key: 'f:README.md' })).toBeDefined()
   })
 
-  // Bolt (MM-091): beside "Nothing touched yet." in the touched-only view, never beside
+  // Bolt: beside "Nothing touched yet." in the touched-only view, never beside
   // "Reading the file list..." or "No files here." (the same row), gone once a file is
   // touched, and out of the way in a narrow pane. A Raster on the terminal, one
   // code-font cell per character on the desktop.

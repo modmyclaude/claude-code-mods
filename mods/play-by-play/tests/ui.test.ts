@@ -309,7 +309,7 @@ describe('the replay pane', () => {
     }
   })
 
-  // Bolt (MM-091): asleep beside "Nothing to replay yet", gone once a turn has
+  // Bolt: asleep beside "Nothing to replay yet", gone once a turn has
   // changed files, and out of the way in a narrow pane. A Raster on the terminal,
   // one code-font cell per character on the desktop.
   type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }

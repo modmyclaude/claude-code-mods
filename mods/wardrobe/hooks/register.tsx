@@ -264,7 +264,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   // The `/wear` gallery: a card per theme in its own colours with Bolt in its
-  // costume (MM-091, MM-108), the worn one marked, a `wear` button on each.
+  // costume, the worn one marked, a `wear` button on each.
   // Box, Text and Button, but for Bolt's Raster on the terminal.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const onWear = (choice: string) => {

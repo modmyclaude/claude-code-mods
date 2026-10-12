@@ -32,7 +32,7 @@ const typing = atom(TYPING, false)
 const card = atom(CARD, null)
 const desk = atom(DESK, null)
 
-/** A desktop guide drawn again this long after it was built is rebuilt from now, so the reload lands in step (MM-110). */
+/** A desktop guide drawn again this long after it was built is rebuilt from now, so the reload lands in step. */
 const REBUILD_MS = 1500
 
 const FADE_MS = 3000 // the fold line dims after this
@@ -240,7 +240,7 @@ const deskKey = (v: SecondWindDesk | null): string => (v === null ? '' : v.kind 
 /**
  * Writes the desktop's view when, and only when, it changed. Each write draws the
  * desktop band again, and the desktop re-sets the guide's frame on every draw
- * (MM-110, seen live), so the view holds for a whole span of breathing.
+ * (seen live), so the view holds for a whole span of breathing.
  */
 async function syncDesk($: EngineInterface, r: SecondWindRun | null, now: number): Promise<void> {
   const next = deskView(r, now)
@@ -306,7 +306,7 @@ async function copyCard($: EngineInterface, text: string): Promise<string> {
   }
 }
 
-/** Who may turn the mod off or write the clipboard: the person typing (API-GOTCHAS #27). */
+/** Who may turn the mod off or write the clipboard: the person typing. */
 const PERSON_ORIGINS: ReadonlySet<string> = new Set(['composer', 'bridge', 'sdk'])
 const PERSON_ONLY: ReadonlySet<string> = new Set(['off', 'snooze', 'card'])
 
@@ -355,7 +355,7 @@ async function begin($: EngineInterface, turnId: string): Promise<void> {
 /**
  * Arms the main turn's run once something can draw it; safe to call again.
  * A plain -p run or an SDK host with no client attached draws nothing, so it
- * gets no run: no timer and no counts (API-GOTCHAS #28). A surface that
+ * gets no run: no timer and no counts. A surface that
  * attaches mid-turn arms it then, and its breath starts no earlier than that.
  */
 async function arm($: EngineInterface): Promise<void> {
@@ -404,7 +404,7 @@ async function end($: EngineInterface, turnId: string, isAborted: boolean): Prom
   await pump($)
 }
 
-/** The desktop guide's markup for the span it was built for, and when (MM-110). */
+/** The desktop guide's markup for the span it was built for, and when. */
 let guide: { key: string; source: string; shown: boolean; builtAt: number } = { key: '', source: '', shown: false, builtAt: 0 }
 
 export const register: Register = (on, options) => {
@@ -432,10 +432,10 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // The answer is for the person, not the model (API-GOTCHAS #18): a dim
+  // The answer is for the person, not the model: a dim
   // transcript line Claude never reads, and an empty result.
   on('command.run', { command: 'breathe' }, async ($, e) => {
-    // One log line per line: the desktop app runs a multi-line log together (MM-087).
+    // One log line per line: the desktop app runs a multi-line log together.
     for (const line of (await breathe($, e.args, e.origin.kind)).text.split('\n')) $.ui.log(line)
     return {}
   }).catch(($) => {
@@ -491,8 +491,7 @@ export const register: Register = (on, options) => {
 
   // The band shrinks to one line while the person types. The prompt line says
   // whether the box holds a draft on the terminal and the desktop alike; the
-  // desktop app draws its own composer and raises no prompt.edit (API-GOTCHAS
-  // #32). A render hook cannot write state, so the write waits one clock turn.
+  // desktop app draws its own composer and raises no prompt.edit. A render hook cannot write state, so the write waits one clock turn.
   on('ui.render', { component: 'PromptHint' }, ($, e, next) => {
     const isDraft = e.props.isDraft
     if (isDraft !== typingShown) $.clock.after(0, () => noteTyping($, isDraft))
@@ -516,7 +515,7 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey) return next(e)
 
     // The desktop runs the guide in a frame of its own, and re-sets that frame on every draw of
-    // the band, identical tree or not (MM-110, seen live four times). So this path reads only
+    // the band, identical tree or not (seen live four times). So this path reads only
     // what changes at a span's edges: the desk view, the draft and the card. Never the per-tick
     // clock, never the run (its isLong flips at 60 s). With motion off it draws words like the
     // terminal, below.
@@ -585,7 +584,7 @@ export const register: Register = (on, options) => {
           </Box>,
         )
       }
-      // What other mods draw here comes first (API-GOTCHAS #25).
+      // What other mods draw here comes first.
       return (
         <Box key="second-wind" flexDirection="column">
           {rest}
@@ -682,7 +681,7 @@ export const register: Register = (on, options) => {
       }
     }
 
-    // What other mods draw here comes first (API-GOTCHAS #25): a tight band
+    // What other mods draw here comes first: a tight band
     // clips the breath, never another mod's hold or prompt.
     return (
       <Box key="second-wind" flexDirection="column">
@@ -694,7 +693,7 @@ export const register: Register = (on, options) => {
 
   // The spinner carries the phase only in the terminal, and only when Claude Code shows nothing of
   // its own there. The desktop's turn row is left alone: swapping Claude's word in and out read as
-  // flashing, and the band's guide already breathes (MM-110, seen live).
+  // flashing, and the band's guide already breathes (seen live).
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     if (e.props.message !== null || e.surface === 'desktop') return next(e)
     const r = await read($, run)

@@ -449,7 +449,7 @@ export const register: Register = (on, options) => {
     const lastEnd = running.length > 0 ? now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
     // Two totals that can differ: the subagents alone (price table) and the whole
     // session (Claude Code's own estimate where it keeps one), each named as such.
-    // Short enough for the default pane width (MM-099).
+    // Short enough for the default pane width.
     const source = spend.isEngine ? ' (Claude Code)' : ' (price table)'
     const budgetLine =
       budgetUsd > 0
@@ -499,7 +499,7 @@ export const register: Register = (on, options) => {
       </Box>
     )
 
-    // Bolt keeps the farm (MM-091): a static sprite beside the totals, and asleep
+    // Bolt keeps the farm: a static sprite beside the totals, and asleep
     // while the farm is empty; only where the pane has room for it.
     const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
     const totals = (

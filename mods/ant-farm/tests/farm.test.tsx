@@ -406,7 +406,7 @@ describe('band', () => {
 })
 
 describe('pane and the narrow fallback', () => {
-  // Bolt (MM-091): asleep in the empty farm, the small keeper beside the totals once
+  // Bolt: asleep in the empty farm, the small keeper beside the totals once
   // ants arrive, and out of the way in a narrow pane. A Raster on the terminal, one
   // code-font cell per character on the desktop.
   type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
@@ -456,7 +456,7 @@ describe('pane and the narrow fallback', () => {
     }
   })
 
-  // MM-094: on the desktop a Text holding block characters is drawn in the code font, so
+  // On the desktop a Text holding block characters is drawn in the code font, so
   // words beside a bar or an ant changed font and overflowed. Glyph art sits in one-cell
   // Boxes of its own there, and no Text mixes glyphs with words.
   const GLYPH = /[\u2580-\u259f]/u

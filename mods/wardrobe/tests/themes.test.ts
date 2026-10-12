@@ -49,7 +49,7 @@ describe('contrast()', () => {
 })
 
 describe('the themes', () => {
-  test('are exactly the ones the prompt names, the seasonal packs included (MM-108)', () => {
+  test('are exactly the ones the prompt names, the seasonal packs included', () => {
     expect(THEMES.map(theme => theme.id).sort()).toEqual(
       ['catppuccin', 'colorblind', 'dracula', 'high-contrast', 'noir', 'nord', 'paper', 'solarized', 'tokyo-night', 'halloween', 'christmas', 'spring', 'summer', 'autumn'].sort(),
     )

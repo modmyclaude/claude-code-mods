@@ -16,7 +16,7 @@
 [![license](https://img.shields.io/badge/license-MIT-3A3F4A?labelColor=101114)](LICENSE)
 <!-- badges:end -->
 
-<!-- hero: a 6-10 second clip goes here (MM-030) -->
+<!-- hero: a 6-10 second clip goes here -->
 
 </div>
 

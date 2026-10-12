@@ -1065,11 +1065,11 @@ describe('verify follow-ups', () => {
 })
 
 describe("Bolt's egg, the secret Bolt, and the desktop's cell grid", () => {
-  // The egg is Bolt's (MM-091): `egg`, leaning with the wobble while Claude works,
-  // cracking at a quarter, half and three quarters of the way (MM-093), and lifting its
+  // The egg is Bolt's: `egg`, leaning with the wobble while Claude works,
+  // cracking at a quarter, half and three quarters of the way, and lifting its
   // lid as it hatches. 1 egg in 100 hatches Bolt itself. A Raster on the terminal;
   // on the desktop, like every hatchling sprite, one code-font cell per character so
-  // rows never drift (MM-084).
+  // rows never drift.
   type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
   /** Bolt as drawn: the Raster's cells, or each desktop row as `width:ch|fg|bg` per one-cell Box. */
   const drawnBolt = (bolt: Drawn | undefined) => {
@@ -1235,7 +1235,7 @@ describe("Bolt's egg, the secret Bolt, and the desktop's cell grid", () => {
   }
   const GLYPH = /[\u2580-\u259f]/u
 
-  test('desktop: the progress bar is one-cell glyphs apart from the words, in every layout (MM-096)', async ($, on) => {
+  test('desktop: the progress bar is one-cell glyphs apart from the words, in every layout', async ($, on) => {
     const w = world(on)
     await start($)
     await bash($, 'ls', 16)

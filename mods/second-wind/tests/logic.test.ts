@@ -156,7 +156,7 @@ describe('the breath bar in text cells', () => {
   })
 })
 
-describe('the desktop guide (MM-110)', () => {
+describe('the desktop guide', () => {
   const loop = [{ steps: PATTERNS.box, loop: true, atMs: 0 }]
   const wait = [
     { steps: PATTERNS.sigh, loop: false, atMs: 0 },
@@ -245,7 +245,7 @@ describe('settings and copy', () => {
   })
 })
 
-test('MM-110: a rest is a still Bolt with no words inside the drawing', () => {
+test('a rest is a still Bolt with no words inside the drawing', () => {
   const rest = guideSvg([], { motion: 'full', delayMs: 0, pose: 'idle', words: false })
   expect(rest).not.toContain('<text')
   expect(rest).not.toContain('@keyframes')

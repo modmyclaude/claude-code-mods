@@ -42,7 +42,7 @@ export function fitHead(cue: string, caption: string, columns: number): { cue: s
   return { cue: shortCue, caption: shortCue.length + 2 + caption.length <= room ? caption : null }
 }
 
-// ---------------------------------------------------------------- the desktop guide (MM-110)
+// ---------------------------------------------------------------- the desktop guide
 
 /** One step of the desktop guide: its words, how long it takes, the fill it eases from and to. */
 export type GuideStep = { phase: PhaseName; ms: number; from: number; to: number }
@@ -80,7 +80,7 @@ export type GuideSegment = { steps: readonly GuideStep[]; loop: boolean; atMs: n
  * beside him ("Breathe in", "Hold", "Breathe out"), all on the drawing's own
  * eased keyframes. One drawing carries a whole stretch of the wait (the
  * opening sigh, then the paced pattern on a loop), so the desktop loads it
- * once and the band around it never changes (MM-110). `delayMs` is how far
+ * once and the band around it never changes. `delayMs` is how far
  * into the timeline it opens. Reduced motion (the setting or the system's)
  * keeps Bolt and the halo still; the words still change.
  */

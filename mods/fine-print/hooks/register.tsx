@@ -242,7 +242,7 @@ export const register: Register = (on, options) => {
       ),
     )
 
-    // Bolt keeps the empty list company (MM-091): a static sprite beside "flagged
+    // Bolt keeps the empty list company: a static sprite beside "flagged
     // nothing", only where the pane has room for it. A list with notes goes without.
     const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
 

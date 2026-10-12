@@ -1,4 +1,4 @@
-// API-GOTCHAS #31: one control character in a drawn string and the engine
+// One control character in a drawn string and the engine
 // refuses the band's whole tree, taking every other mod's band with it.
 // The one outside text halftime draws is why a board failed (the surface's
 // words, quoting what the board threw); the rest is its own words, game ids
@@ -110,7 +110,7 @@ async function mountBand($: Engine, surface: (typeof SURFACES)[number]) {
   return $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
 }
 
-describe('control characters (API-GOTCHAS #31)', () => {
+describe('control characters', () => {
   test('clean() handles each control class, bidi and zero-width', () => {
     const cases: [string, string][] = [
       ['boom\u0007', 'boom�'],

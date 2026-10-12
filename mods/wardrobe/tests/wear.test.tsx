@@ -27,7 +27,7 @@ describe('/wear', () => {
       const row = await ui.find({ key: 'theme-dracula' })
       expect(row?.text).toContain('dracula')
       expect(row?.text).toContain(dracula.blurb)
-      // The preview chips are painted in the theme's own diff colours (14 themes since the seasonal packs, MM-108).
+      // The preview chips are painted in the theme's own diff colours (14 themes since the seasonal packs).
       const adds = await ui.findAll({ type: 'Text', text: ' + add ' })
       expect(adds).toHaveLength(14)
       expect(adds.map(chip => chip.props.backgroundColor)).toContain(dracula.diff.addBg)
@@ -190,9 +190,9 @@ describe('/wear auto', () => {
 })
 
 describe('Bolt in the /wear pane', () => {
-  // Bolt (MM-091): beside the line that names what is worn, out of the way in a
+  // Bolt: beside the line that names what is worn, out of the way in a
   // narrow pane. A Raster on the terminal, one code-font cell per character on
-  // the desktop. Since MM-108 he wears the worn theme's costume there (and each
+  // the desktop. Now he wears the worn theme's costume there (and each
   // gallery card's Bolt wears that card's): his own pixels keep their palette,
   // costume.test.ts holds that; here, the drawn cells are wearBolt's exactly.
   type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
@@ -240,7 +240,7 @@ describe('Bolt in the /wear pane', () => {
       expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
       expect(await ui.find({ type: 'Text', text: "Wearing Claude Code's own look everywhere without a pin." })).toBeDefined()
       expect((await ui.find({ key: 'theme-dracula' }))?.text).toContain(dracula.blurb)
-      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(14) // one chip per theme (MM-108: 14)
+      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(14) // one chip per theme (14)
       await ui.unmount()
       const narrow = await pane($, surface, 39)
       expect(await narrow.find({ key: 'bolt' }), surface).toBeUndefined()

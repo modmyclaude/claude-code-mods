@@ -448,7 +448,7 @@ export const register: Register = on => {
       }
       // The card is monospace art (its border, the sprite). The desktop's Text is
       // proportional and switches a row with block characters to the code font, so
-      // its edges would not line up (API-GOTCHAS #40): there every character takes
+      // its edges would not line up: there every character takes
       // one code-font cell.
       return (
         <Box key="card" flexDirection="column">
@@ -519,7 +519,7 @@ function bar(progress: number, width: number): string {
 /**
  * A progress bar and the words after it. The terminal keeps one Text. On the desktop
  * a Text holding block characters is drawn in the code font, words and all, and
- * overflows (MM-096, API-GOTCHAS #40): there the bar is one code-font cell per glyph,
+ * overflows (there the bar is one code-font cell per glyph,
  * apart from the words.
  */
 function barLine(tags: Tags, surface: string, glyphs: string, color: string, words: RenderNode) {
@@ -555,7 +555,7 @@ function shortProgress(pet: HatchlingPet): string {
 
 /**
  * The desktop's sprite: one code-font cell per character, as bolt-draw.tsx draws
- * Bolt. Its Text is proportional, so rows of Text runs drift out of line (MM-084).
+ * Bolt. Its Text is proportional, so rows of Text runs drift out of line.
  */
 /** One line of monospace art on the desktop: every character in its own code-font cell, a run of spaces one gap as wide. */
 function monoRow({ Box, Text }: Tags, text: string) {

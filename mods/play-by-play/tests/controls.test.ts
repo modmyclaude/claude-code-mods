@@ -1,4 +1,4 @@
-// Control characters inside diff text (MM-062, from bot-2's verify killers):
+// Control characters inside diff text (from the verify pass's killers):
 // a step whose lines hold ESC, BEL, DEL, U+009B or U+0085 still draws the pane
 // with its buttons on both surfaces, its diff cleaned; a NUL makes it binary.
 

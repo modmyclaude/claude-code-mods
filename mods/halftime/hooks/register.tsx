@@ -170,7 +170,7 @@ async function setAuto($: EngineInterface, auto: boolean) {
 
 /**
  * True while a surface that draws the band (the terminal or the desktop app) is
- * attached. VS Code, mobile and a `-p` run draw none (API-GOTCHAS #28: not isInteractive).
+ * attached. VS Code, mobile and a `-p` run draw none (not isInteractive).
  */
 async function banded($: EngineInterface): Promise<boolean> {
   const surfaces = await $.session.surfaces().catch(() => [])
@@ -235,7 +235,7 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The answer is for the person, never the model (API-GOTCHAS #18): a command's `text` is
+  // The answer is for the person, never the model: a command's `text` is
   // a transcript row the model reads, so where the band draws, a toast says it and the
   // command answers {}. VS Code and mobile draw no band: there the row is the only place
   // to show anything, and the CommandOutput hook below draws the scorecard in it.
@@ -267,7 +267,7 @@ export const register: Register = on => {
     const s = await read($, session)
     if (s.phase === 'off') return next(e)
     const { Box, Text, Button, Client } = $.ui.resolve(e)
-    // Stack with what other mods draw here instead of replacing it (API-GOTCHAS #25). Their
+    // Stack with what other mods draw here instead of replacing it. Their
     // lines sit above ours, so a tight band clips the game, never another mod's prompt.
     const below = await next(e)
     const hasBelow = below !== null && below !== undefined
@@ -311,7 +311,7 @@ export const register: Register = on => {
       const run = s.run
       return stack(
         <Box flexDirection="row" columnGap={1}>
-          {/* Bolt (MM-091) beside the picker: two rows tall, as the picker is. */}
+          {/* Bolt beside the picker: two rows tall, as the picker is. */}
           {boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'idle' }, 'bolt')}
           <Box flexDirection="column">
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
@@ -345,8 +345,8 @@ export const register: Register = on => {
           {closeButton}
         </Box>
       )
-      // The result stays on screen, so where copy has no clipboard (the desktop app,
-      // API-GOTCHAS #22) the person can select it instead.
+      // The result stays on screen, so where copy has no clipboard (the desktop app)
+      // the person can select it instead.
       return stack(
         over ? (
           <Box flexDirection="column">

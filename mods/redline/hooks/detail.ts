@@ -129,7 +129,7 @@ export function detailLines(g: RedlineGauge, now: number, barCells = 20): Detail
 }
 
 /**
- * Bolt's pose beside the context row (MM-091): crashed once the context is
+ * Bolt's pose beside the context row: crashed once the context is
  * full or a 5-hour or weekly plan window is spent (OUT, its reset still to
  * come), idle otherwise.
  */

@@ -1,6 +1,6 @@
 // Glyph art (the gauge's bar) on the desktop app. Its Text is proportional, and a Text
 // that holds block characters is drawn in the code font, words and all, so a row with
-// a bar changed font and overflowed (API-GOTCHAS #40). There the bar is drawn one
+// a bar changed font and overflowed. There the bar is drawn one
 // code-font cell per character, apart from the words.
 
 import type { BoxProps, ElementConstructor, RenderElement, TextProps } from 'claude-code'

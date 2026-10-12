@@ -102,14 +102,15 @@ describe('redact', () => {
     })
   }
 
-  // The cross-review's 14 command-line and natural forms (R-crossroads-4), plus
+  // The cross-review's 14 command-line and natural forms, plus
   // a Twilio key: each secret value is gone from the output.
   const forms: [string, string][] = [
     ['mysql -u root -phunter2 shop', 'hunter2'],
     ['docker login -u alex --password hunter2 registry.io', 'hunter2'],
     ['npx vercel --token abc123SECRETxyz deploy', 'abc123SECRETxyz'],
     ['curl -u admin:s3cretPass https://api.example.com/v1', 's3cretPass'],
-    ['curl -X POST https://hooks.slack.com/services/T0AAAAAAA/B0BBBBBBB/abcdefghijklmnopqrstuvwx -d @m.json', 'abcdefghijklmnopqrstuvwx'],
+    // Fake keys. The scanner-shaped ones are split so no literal trips a secret scanner.
+    ['curl -X POST https://hooks.' + 'slack.com/services/T0AAAAAAA/B0BBBBBBB/abcdefghijklmnopqrstuvwx -d @m.json', 'abcdefghijklmnopqrstuvwx'],
     ['curl https://discord.com/api/webhooks/123456789012345678/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789', 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789'],
     ['export SECRET_KEY_BASE=9f8e7d6c5b4a39281706f5e4d3c2b1a0', '9f8e7d6c5b4a39281706f5e4d3c2b1a0'],
     ['dbpass=Tr0ub4dor psql', 'Tr0ub4dor'],
@@ -119,7 +120,7 @@ describe('redact', () => {
     ['glpat-AbCdEfGhIjKlMnOpQrSt', 'glpat-'],
     ['hf_AbCdEfGhIjKlMnOpQrStUvWxYz01234567', 'hf_'],
     ['Authorization: token 0123456789abcdef0123456789abcdef01234567', '0123456789abcdef'],
-    ['twilio key SK0123456789abcdef0123456789abcdef', 'SK0123456789abcdef'],
+    ['twilio key S' + 'K0123456789abcdef0123456789abcdef', 'SK0123456789abcdef'],
   ]
   for (const [text, secret] of forms) {
     test(`hides the secret in ${JSON.stringify(text.slice(0, 40))}`, () => {
@@ -232,7 +233,7 @@ describe('riskOf', () => {
     })
   }
 
-  // The cross-review's table (R-crossroads-1): 26 risky phrasings of the
+  // The cross-review's table: 26 risky phrasings of the
   // spec's own categories, each missed before, each with the note it gets.
   for (const [text, note] of REVIEW_RISKY) {
     test(`review: ${JSON.stringify(text)} is risky (${note})`, () => {
@@ -302,7 +303,7 @@ describe('endsWithNumberedOptions', () => {
     })
   }
 
-  // The cross-review's 9 formats Claude uses that were missed (R-crossroads-3).
+  // The cross-review's 9 formats Claude uses that were missed.
   const keycap = (n: number) => `${n}${String.fromCodePoint(0xfe0f, 0x20e3)}`
   const formats: [string, string][] = [
     ['four lines after the options, then a question', 'Two ways:\n1. Refresh silently\n2. Send to login\n\nThe first keeps the session.\nThe second is safer.\nBoth need a test.\nWhich do you prefer?'],
@@ -476,7 +477,7 @@ describe('parseReply', () => {
   }
 })
 
-describe('no privilege for our own suggestions (MM-077)', () => {
+describe('no privilege for our own suggestions', () => {
   // Two allowlist rounds still let 35 of 75 fresh risky phrasings through, so
   // v1 privileges nothing it writes: whatever the words, a row of ours never
   // leads Claude Code's guess and is never the engine's (digit-carrying) row.
@@ -516,7 +517,7 @@ describe('no privilege for our own suggestions (MM-077)', () => {
   })
 })
 
-describe('MM-069: Russian and Greek are normal text', () => {
+describe('Russian and Greek are normal text', () => {
   for (const text of [...RU_EL_SAFE, ...NON_LATIN_PLAIN]) {
     test(`${JSON.stringify(text)} is not marked`, () => {
       expect(riskOf(text)).toBe(null)

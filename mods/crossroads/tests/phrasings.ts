@@ -20,7 +20,7 @@ function mathBold(text: string): string {
   return Array.from(text, c => (/[a-z]/.test(c) ? String.fromCodePoint(0x1d41a + c.charCodeAt(0) - 97) : c)).join('')
 }
 
-/** The 26 risky phrasings from the cross-review (R-crossroads-1), each with its note. */
+/** The 26 risky phrasings from the cross-review, each with its note. */
 export const REVIEW_RISKY: readonly (readonly [string, string])[] = [
   ['ship it to production', 'deploys'],
   ['redeploy the auth service', 'deploys'],
@@ -87,15 +87,15 @@ export const NARROWED_SAFE: readonly string[] = [
   'ping the health endpoint',
 ]
 
-// ---------------------------------------------------------------- batteries (MM-068, MM-077)
+// ---------------------------------------------------------------- batteries
 
 /** A code point list as text: every non-ASCII character below is built at runtime. */
 const u = (...points: number[]) => String.fromCodePoint(...points)
 
 /**
- * bot-1's fresh adversarial battery (verify-the-fix of 1dced70, MM-068): 74
+ * A fresh adversarial battery (verify-the-fix of 1dced70): 74
  * risky phrasings, none of them in the tables above. Written by the model, none
- * may ever carry a digit (MM-077: no row of ours does).
+ * may ever carry a digit (no row of ours does).
  */
 export const BATTERY_RISKY: readonly (readonly [string, string])[] = [
   ['deploy', `npm run deploy:prod`],
@@ -256,7 +256,7 @@ export const SAFE_SET: readonly string[] = [
   `${u(0x03b5)}${u(0x03be)}${u(0x03ae)}${u(0x03b3)}${u(0x03b7)}${u(0x03c3)}${u(0x03b5)} ${u(0x03c4)}${u(0x03bf)}${u(0x03bd)} ${u(0x03ba)}${u(0x03ce)}${u(0x03b4)}${u(0x03b9)}${u(0x03ba)}${u(0x03b1)}`,
 ]
 
-/** The Russian, Ukrainian and Greek rows of SAFE_SET (MM-069): normal text, never "unusual letters". */
+/** The Russian, Ukrainian and Greek rows of SAFE_SET: normal text, never "unusual letters". */
 export const RU_EL_SAFE: readonly string[] = [
   `${u(0x0437)}${u(0x0430)}${u(0x043f)}${u(0x0443)}${u(0x0441)}${u(0x0442)}${u(0x0438)} ${u(0x0442)}${u(0x0435)}${u(0x0441)}${u(0x0442)}${u(0x044b)}`,
   `${u(0x043e)}${u(0x0431)}${u(0x044a)}${u(0x044f)}${u(0x0441)}${u(0x043d)}${u(0x0438)} ${u(0x044d)}${u(0x0442)}${u(0x043e)}${u(0x0442)} ${u(0x043a)}${u(0x043e)}${u(0x0434)}`,
@@ -266,7 +266,7 @@ export const RU_EL_SAFE: readonly string[] = [
   `${u(0x03b5)}${u(0x03be)}${u(0x03ae)}${u(0x03b3)}${u(0x03b7)}${u(0x03c3)}${u(0x03b5)} ${u(0x03c4)}${u(0x03bf)}${u(0x03bd)} ${u(0x03ba)}${u(0x03ce)}${u(0x03b4)}${u(0x03b9)}${u(0x03ba)}${u(0x03b1)}`,
 ]
 
-/** Everyday Russian and Greek, and Greek in units and maths (MM-069): never marked. */
+/** Everyday Russian and Greek, and Greek in units and maths: never marked. */
 export const NON_LATIN_PLAIN: readonly string[] = [
   `${u(0x0442)}${u(0x0435)}${u(0x0441)}${u(0x0442)}`,
   `${u(0x0444)}${u(0x0430)}${u(0x0439)}${u(0x043b)}`,

@@ -123,7 +123,7 @@ test('both commands run at once, even while a turn is in flight', async ($, on) 
 })
 
 describe('Bolt beside the receipt', () => {
-  // Bolt (MM-091): asleep beside the receipt's first line while the cache is cold or
+  // Bolt: asleep beside the receipt's first line while the cache is cold or
   // empty, up while it is warm, and out of the way in a narrow pane. A Raster on the
   // terminal, one code-font cell per character on the desktop. The hold notice and
   // the footer countdown never show it.

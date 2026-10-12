@@ -1,6 +1,5 @@
-// The consent and file-safety guards a cross-review asked to see tested
-// (_internal review of noted, R-noted-1..13): each test here fails if its
-// guard is removed.
+// The consent and file-safety guards a review asked to see tested: each
+// test here fails if its guard is removed.
 
 import { describe, expect, test } from 'claude-code/testing'
 import type { Engine, Mounted } from 'claude-code/testing'

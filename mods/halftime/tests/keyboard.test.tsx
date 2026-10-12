@@ -1,4 +1,4 @@
-// MM-081: a terminal with no mouse reporting (the classic renderer) never sends
+// A terminal with no mouse reporting (the classic renderer) never sends
 // the board its click. The band's focus chord (ctrl+x tab) and the letter pad
 // under the board take the keys instead, and the run plays from the keyboard.
 
@@ -21,7 +21,7 @@ async function boardUp($: Engine, on: On, game: string) {
   return { clock, ui }
 }
 
-test('MM-081: with no click, a pad letter takes the keys and a realtime run plays and ticks', async ($, on) => {
+test('with no click, a pad letter takes the keys and a realtime run plays and ticks', async ($, on) => {
   const { clock, ui } = await boardUp($, on, 'cratehop')
   const pad = await ui.findAll({ type: 'Button', in: (await boardOf(ui))!.key })
   expect(pad.map(button => [button.key, button.props.hotkey, button.props.label])).toEqual([['pad:w', 'w', 'jump'], ['pad:p', 'p', 'pause']])
@@ -40,7 +40,7 @@ test('MM-081: with no click, a pad letter takes the keys and a realtime run play
   expect((await boardOf(ui))?.wait).toContain('paused')
 })
 
-test('MM-081: a click takes the keys the usual way, and the pad steps aside', async ($, on) => {
+test('a click takes the keys the usual way, and the pad steps aside', async ($, on) => {
   const { ui } = await boardUp($, on, 'merge')
   expect(await ui.find({ key: 'pad:a', in: (await boardOf(ui))!.key })).toBeDefined()
   await ui.pointer({ type: 'down', x: 1, y: 1, button: 'left' })
@@ -48,7 +48,7 @@ test('MM-081: a click takes the keys the usual way, and the pad steps aside', as
   expect(await ui.find({ key: 'pad:a', in: (await boardOf(ui))!.key })).toBeUndefined()
 })
 
-test('MM-081: every pad is letters only, one per action, never y, n, Enter or a digit', () => {
+test('every pad is letters only, one per action, never y, n, Enter or a digit', () => {
   for (const game of GAME_IDS) {
     for (const status of ['ready', 'over'] as const) {
       const pad = padFor({ game, status } as Parameters<typeof padFor>[0]).map(([key]) => key)
@@ -63,7 +63,7 @@ test('MM-081: every pad is letters only, one per action, never y, n, Enter or a 
   }
 })
 
-// API-GOTCHAS #39 (MM-083): a live session refuses a band tree that puts the
+// A live session refuses a band tree that puts the
 // engine's own node under a Box that sizes, hides or moves it, and draws its
 // own band instead. The kit does not check this, so the test walks the tree.
 const ENGINE_BENEATH: Plugin = {
@@ -91,7 +91,7 @@ test('#39: the engine band beneath is never under a Box that sizes or hides it',
   expect(engineNodeConcealers(await ui.drawn())).toEqual([[]])
 })
 
-test('MM-091: Bolt stands beside the game picker, on the terminal and the desktop', async ($, on) => {
+test('Bolt stands beside the game picker, on the terminal and the desktop', async ($, on) => {
   world(on, { store: new Map() })
   await $.command.run(halftime(''))
   for (const surface of ['terminal', 'desktop'] as const) {

@@ -24,7 +24,7 @@ export type BoardProps = {
   wait: string
   needClick: boolean
   showHint: boolean
-  /** The keyboard pad (MM-081): [letter, word], one per action, for a terminal that sends no clicks. */
+  /** The keyboard pad: [letter, word], one per action, for a terminal that sends no clicks. */
   pad: [string, string][]
 }
 

@@ -1,4 +1,4 @@
-// MM-084: the desktop app draws Text in a proportional font, so the board's
+// The desktop app draws Text in a proportional font, so the board's
 // field is drawn one code-font cell per character there; the terminal keeps
 // its plain text rows.
 
@@ -13,7 +13,7 @@ function fieldRows(tree: unknown): Node[] {
   return kids(tree as Node).slice(1, 1 + 4)
 }
 
-test('MM-084: on desktop every field character sits in its own one-cell Box, so columns line up', async ($, on) => {
+test('on desktop every field character sits in its own one-cell Box, so columns line up', async ($, on) => {
   world(on, { store: new Map() })
   await $.turn.start({ text: 'refactor the parser', turnId: 'main-1' })
   await $.command.run(halftime('cratehop'))

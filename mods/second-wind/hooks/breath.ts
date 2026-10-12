@@ -267,7 +267,7 @@ export function frameAt(run: SecondWindRun, now: number): Frame | null {
   }
 }
 
-/** What the desktop guide draws now (MM-110): its timeline, how far in, Bolt's pose, and the still words beside it. */
+/** What the desktop guide draws now: its timeline, how far in, Bolt's pose, and the still words beside it. */
 export type GuideSpan = {
   key: string
   segments: readonly { steps: readonly Step[]; loop: boolean; atMs: number }[]

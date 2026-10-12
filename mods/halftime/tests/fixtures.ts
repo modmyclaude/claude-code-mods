@@ -129,7 +129,7 @@ export const halftime = (args: string) => ({
 /**
  * Runs `/halftime <args>` where the band draws and returns what it told the
  * person. It must answer {}: a command's text is a row the model reads
- * (API-GOTCHAS #18), so its words go to a toast instead.
+ *, so its words go to a toast instead.
  */
 export async function said($: Engine, seen: Seen, args: string): Promise<string> {
   const before = seen.toasts.length

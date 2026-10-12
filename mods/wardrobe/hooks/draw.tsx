@@ -227,7 +227,7 @@ const columnsOf = (text: string) => [...text].length
  * The band shown for a few seconds after `/wear`: one row filled with the
  * theme's background, its mark, `wearing <name>`, its five icons as chips, and
  * Bolt in the theme's costume at the right when there is room. The words and
- * icons are one Text of plain runs, no block glyph among them (MM-094); Bolt
+ * icons are one Text of plain runs, no block glyph among them; Bolt
  * is its own element, a cell grid (bolt-draw).
  */
 export function switchBand(t: Table, theme: Theme, columns: number, bolt: RenderElement | null): RenderElement {

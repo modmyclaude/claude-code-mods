@@ -2,7 +2,7 @@
 // the seed alone and opens with the same safe pocket for everyone, so the
 // daily board is identical; the score is the time to clear it (lower wins).
 //
-// Fair by construction (MM-089): a board is only dealt if plain logic clears
+// Fair by construction: a board is only dealt if plain logic clears
 // it from the opening pocket with no guess, checked by `solves` below (the
 // single-cell rules plus the subset rule). The seed is regenerated, in a fixed
 // order, until a board passes; the attempt count is bounded, and the last

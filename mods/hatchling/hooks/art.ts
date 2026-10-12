@@ -93,7 +93,7 @@ export function drawFrame(view: View, mood: HatchlingMood, tick: number, isWorki
   }
 
   if (view.species === 'bolt') {
-    // The secret pet keeps Bolt's own poses at every stage, never shiny (MM-093).
+    // The secret pet keeps Bolt's own poses at every stage, never shiny.
     const art = BOLT_MOODS[mood === 'idle' && isWorking ? 'working' : mood]
     drawBolt(frame, art.frames[Math.floor(Math.max(0, tick) / art.hold) % art.frames.length] ?? 'idle')
     if (pose.shell === true) drawShell(frame)
@@ -186,7 +186,7 @@ function eggPose(view: View, mood: HatchlingMood, pose: Pose): BoltSmallPose {
 }
 
 /**
- * One of Bolt's small poses (MM-091, brand/bolt-sprites): the egg, or the secret pet.
+ * One of Bolt's small poses (brand/bolt-sprites): the egg, or the secret pet.
  * Drawn exactly as Bolt is drawn, bottom-centred: never tilted, split or recoloured
  * here; its own poses lean, crack, hatch and move. Its letters (the sleep z) come
  * from bolt.ts's own cells, so they sit where Bolt puts them.

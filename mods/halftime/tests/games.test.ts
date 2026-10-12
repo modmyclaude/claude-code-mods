@@ -508,7 +508,7 @@ describe('drawing', () => {
     /** The courier's runs in each row (the only suggestion-colored thing in this field). */
     const courier = (rows: Seg[][]) => rows.map(row => runs(row).filter(([, seg]) => seg[1] === 'suggestion'))
 
-    /** Bolt's runs in each row: the cells painted in Bolt's own palette (MM-091). */
+    /** Bolt's runs in each row: the cells painted in Bolt's own palette. */
     const BOLT_COLORS = new Set<string>(Object.values(BOLT_PALETTE))
     const boltIn = (rows: Seg[][]) => rows.map(row => runs(row).filter(([, seg]) => BOLT_COLORS.has(seg[1]) || BOLT_COLORS.has(seg[2])))
     /** A pose's lines as drawn: its see-through cells left out. */

@@ -102,7 +102,7 @@ describe('parseWear()', () => {
 
 describe('resolveLook()', () => {
   const settings: Settings = { dayTheme: 'paper', nightTheme: 'nord', dayStarts: 420, nightStarts: 1140 }
-  // MM-108: resolveLook takes the clock reading itself (season needs the date), not a minute of the day.
+  // resolveLook takes the clock reading itself (season needs the date), not a minute of the day.
   const noon = at(12, 0)
   const midnight = at(0, 0)
 

@@ -136,7 +136,7 @@ async function guard($: EngineInterface, command: string, id: string, agentId: s
     return { deny: `last-look: nobody can review this command in this session, so it was stopped (${report.headline}). Ask the person to run it themselves if they intend it.` }
   }
   const outcome = await hold($, { id, report, isSubagent: agentId !== undefined }, surfaces, signal)
-  // Claude Code already labels the line with the plugin's name (MM-088).
+  // Claude Code already labels the line with the plugin's name.
   $.ui.log(`${LOGGED[outcome]}: ${clip(command, 80)}`)
   return outcome === 'proceed' ? 'run' : { deny: refusal(outcome, report) }
 }

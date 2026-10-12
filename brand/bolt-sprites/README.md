@@ -38,7 +38,7 @@ Mods install on their own, so a mod cannot import from `brand/`: copy `bolt.ts` 
 ## Drawing it
 
 - **Terminal:** draw the cells with one `Raster`. hatchling's `rasterCells` packs `BoltCell[][]` straight in.
-- **Desktop:** one fixed-width cell per character (Box width 1), as halftime does since MM-084. A missing `fg` or `bg` means
+- **Desktop:** one fixed-width cell per character (Box width 1), as halftime does. A missing `fg` or `bg` means
   the surface's own colour, so the sprite sits on any background.
 - **Coloured Text:** `boltRuns(line)` gives one span per colour run.
 

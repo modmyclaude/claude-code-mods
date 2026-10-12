@@ -1,7 +1,7 @@
 // tailchase: a snake on a wide, short field. The edges wrap, so the only way
 // to lose is to bite yourself. Each pip grows you by one and speeds you up.
 //
-// Fair by construction (MM-089):
+// Fair by construction:
 //  - Slow start, a little quicker per pip, with a cap: a step takes 230 ms at
 //    first (4.3 a second) and 3 ms less per pip, down to 120 ms (8.3 a second)
 //    at 37 pips. It never gets quicker than that.

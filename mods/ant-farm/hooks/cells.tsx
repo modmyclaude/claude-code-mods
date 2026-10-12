@@ -1,6 +1,6 @@
 // Glyph art (ants, progress bars) on the desktop app. Its Text is proportional, and a
 // Text that holds block characters is drawn in the code font, so words beside the art
-// change font and overflow (MM-094), and rows of art drift against each other (MM-084).
+// change font and overflow, and rows of art drift against each other.
 // There the art is drawn one code-font cell per character, apart from the words.
 
 import type { BoxProps, ElementConstructor, RenderElement, TextProps } from 'claude-code'

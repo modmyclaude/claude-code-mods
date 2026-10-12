@@ -1,8 +1,7 @@
 # modmyclaude UI standard
 
-One page for every pane, band, toast and status line in the collection. The ENG bots apply it mod by mod, and Bot 4
-checks it in every live test. Engine limits behind these rules are in `_internal/API-GOTCHAS.md` (#25, #35, #36, #39,
-#40) and MM-088 and MM-101.
+One page for every pane, band, toast and status line in the collection. Every mod follows it, and every live test
+checks it. The rules follow the engine's limits: how bands stack, how the desktop draws text, and how toasts are named.
 
 ## Three principles
 1. **Glance first.** A person should know the state in one second, before reading a word.
@@ -23,13 +22,13 @@ The engine already draws the pane's title bar with the mod's name, so never repe
 ## Bands
 - **One row,** two at most. A band never pushes another mod's band out of view.
 - **Exception for games and choice lists** (halftime's board, crossroads' suggestions): up to 8 rows while the person is playing or choosing. They fold back to one row, or nothing, when idle.
-- **Compose:** other mods draw first (`next(e)`). A pending safety hold renders alone and composes again once it resolves (#36).
+- **Compose:** other mods draw first (`next(e)`). A pending safety hold renders alone and composes again once it resolves.
 - **No sprite in a band,** except a game board.
 
 ## Toasts and hold messages
 - **Command answers** (the reply to a `/command` the person just typed, such as `/crossroads status`) may run longer: at most 3 short lines, answer first. Anything longer opens the mod's pane.
 - **Plain text,** at most 12 words, leading with the outcome: "Saved as a house rule." / "Cache went cold. Send again to pay it."
-- **Never start with the mod's name.** The engine prefixes it, and doubled names were MM-088.
+- **Never start with the mod's name.** The engine prefixes it, so a second name doubles it.
 - **A held prompt** shows inside the desktop's "A hook blocked your prompt" frame, so lead with what happened and the one thing to do, in at most 20 words: "Held: this send re-reads 98k tokens cold (≈$0.49). Send again to go ahead." Details live in the pane.
 - No emoji, no exclamation marks.
 
@@ -66,9 +65,9 @@ Every number carries its unit. Numbers right-align in rows.
 - A safety mod is "a safety net", never "prevents", "stops every" or "makes X safe".
 
 ## Desktop typography
-- Words are drawn in the app's proportional font. Never put block characters (U+2580 to U+259F) in the same Text as words: the whole Text switches to the code font and clips (#40).
+- Words are drawn in the app's proportional font. Never put block characters (U+2580 to U+259F) in the same Text as words: the whole Text switches to the code font and clips.
 - Glyph art (bars, sprites, game boards) is drawn one code-font cell per character (`Box width={1}`, a space run as one `Box width={n}`), in its own element apart from the words. On the terminal, use one Text or one Raster per row.
-- Never place the engine's own node under a Box that has a size or position prop (#39).
+- Never place the engine's own node under a Box that has a size or position prop.
 
 ## Bolt
 Sprites come from `brand/bolt-sprites` only, and are never recoloured.

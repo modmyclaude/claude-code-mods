@@ -2,7 +2,7 @@
 // jumps the crates. The course is laid out by distance from the seed alone,
 // so everyone's daily course is the same; speed rises with distance.
 //
-// Fair by construction (MM-089), in four rules the tests hold it to:
+// Fair by construction, in four rules the tests hold it to:
 //  1. Gentle start: the first 10 s (100 cells) run at the start speed, the
 //     first crate is 4.5 s out, and the gaps around the early crates are wide.
 //  2. A slow ramp with a cap: 0.18 cells/s of speed gained per second, from
@@ -209,7 +209,7 @@ export function drawCratehop(s: HalftimeCratehop, cols: number): Drawn {
   const width = clamp(cols - 2, 14, 70)
   const cam = Math.floor(s.x) - CRATEHOP.col
   const feet = 3 - clamp(Math.floor(s.y + 0.35), 0, 3)
-  // The courier is Bolt (MM-091): the tiny sprite, 3 cells by 2, centered on the courier's
+  // The courier is Bolt: the tiny sprite, 3 cells by 2, centered on the courier's
   // column, its feet on `feet`. Run frames swap every 1.5 cells run; jump and crash have their own.
   const pose = s.dead ? 'crash' : s.y > 0 ? 'jump' : BOLT_RUN[Math.floor(s.x / 1.5) % 2]!
   const bolt = boltCells('tiny', pose)

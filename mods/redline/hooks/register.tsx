@@ -250,7 +250,7 @@ export const register: Register = on => {
         <Box flexDirection="row" gap={1}>
           {e.surface === 'desktop' ? (
             // The desktop draws a Text with block characters in the code font, words and all
-            // (API-GOTCHAS #40): the bar sits in its own one-cell glyphs between the words.
+            //: the bar sits in its own one-cell glyphs between the words.
             <Box key="gauge" flexDirection="row" flexShrink={1}>
               <Text>
                 <Text bold>redline</Text> {p.context}{' '}
@@ -291,7 +291,7 @@ export const register: Register = on => {
         {mixedRow({ Box, Text }, e.surface, line.text, toneProps(line.tone))}
       </Box>
     )
-    // Bolt keeps watch beside the context row (MM-091): a static sprite, crashed
+    // Bolt keeps watch beside the context row: a static sprite, crashed
     // once the context is full or a plan window is spent; only where the pane has room.
     const at = lines.findIndex(line => line.key === 'context')
     const end = lines[at + 1]?.key === 'context-used' ? at + 2 : at + 1

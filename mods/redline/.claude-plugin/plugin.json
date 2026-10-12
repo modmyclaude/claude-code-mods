@@ -1,7 +1,7 @@
 {
   "name": "redline",
   "version": "0.1.0",
-  "description": "Context fill, session cost, pace and plan limits on one line, with a warning before the red line.",
+  "description": "Context fill, session cost and pace on one line, with a warning before the red line.",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["context", "cost", "usage", "tokens", "rate-limits", "status-line", "compact"],

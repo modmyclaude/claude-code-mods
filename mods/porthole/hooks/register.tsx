@@ -437,7 +437,7 @@ export const register: Register = (on, options) => {
     room = { columns, rows: Math.max(1, bodyRows - 1) } // the next shot's shape follows the pane
 
     if (current.url === null) {
-      // Bolt waits for the first address (MM-091): a static sprite, only where the
+      // Bolt waits for the first address: a static sprite, only where the
       // pane has room for it.
       const roomy = columns >= BOLT_MIN_COLUMNS
       return (

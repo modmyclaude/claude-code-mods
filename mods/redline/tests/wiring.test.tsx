@@ -349,14 +349,14 @@ describe('a spent window, idle past its reset', () => {
   })
 })
 
-/** The gauge's bar Text(s): one Text on the terminal, one-cell glyph Texts on the desktop (#40). */
+/** The gauge's bar Text(s): one Text on the terminal, one-cell glyph Texts on the desktop. */
 const barCells = <T extends { text: string }>(texts: T[]): T[] => {
   const whole = texts.filter(t => /^[\u2580-\u259f]{2,}$/u.test(t.text))
   return whole.length > 0 ? whole : texts.filter(t => /^[\u2580-\u259f]$/u.test(t.text))
 }
 const barOf = (texts: { text: string }[]) => barCells(texts).map(t => t.text).join('')
 
-describe('desktop: the bar apart from the words (API-GOTCHAS #40)', () => {
+describe('desktop: the bar apart from the words', () => {
   // The desktop draws a Text holding block characters in the code font, words and all, so
   // a gauge row changed font and overflowed. There the bar is one-cell glyphs of its own.
   const GLYPH = /[\u2580-\u259f]/u
@@ -833,7 +833,7 @@ describe('the recent rate everywhere', () => {
 })
 
 describe('Bolt beside the context row', () => {
-  // Bolt (MM-091): idle beside the context row of the detail pane, crashed once the
+  // Bolt: idle beside the context row of the detail pane, crashed once the
   // context is full or a 5-hour or weekly window is spent, and out of the way in a
   // narrow pane. A Raster on the terminal, one code-font cell per character on the
   // desktop. The status line and the band never show it.

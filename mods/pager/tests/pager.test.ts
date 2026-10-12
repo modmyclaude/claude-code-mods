@@ -111,7 +111,7 @@ async function pager($: Engine, w: W, args: string, origin: PromptOrigin = { kin
     presentation: { isFullscreen: false, columns: 100 },
   })
   await w.clock.settle()
-  // Nothing for the model to read: the answer is a toast (gotcha #18).
+  // Nothing for the model to read: the answer is a toast.
   expect(out.text, `/pager ${args} put text in the transcript`).toBeUndefined()
   expect(out.context).toBeUndefined()
   expect(w.toasts.length, `/pager ${args} showed no toast`).toBe(before + 1)
@@ -208,7 +208,7 @@ describe('alerts', () => {
 
   test('a session the desktop app draws pages like a terminal one', async ($, on) => {
     const w = world(on, { options: { surfaces: ['desktop'] } })
-    // As the desktop app starts it: headless at start (gotcha #28), the window attached after.
+    // As the desktop app starts it: headless at start, the window attached after.
     await $.session.start({ cwd: ROOT, surface: null, isInteractive: false })
     await w.clock.settle()
     await endTurn($, w, 30_000)
@@ -553,7 +553,7 @@ describe('phone push', () => {
   })
 })
 
-describe('untrusted text everywhere it is shown (gotcha #31)', () => {
+describe('untrusted text everywhere it is shown', () => {
   const NASTY = 'a\u0007\u001b[31mb\u007f\u0000\u009bc'
   const CONTROLS = /[\u0000-\u001f\u007f-\u009f]/
 

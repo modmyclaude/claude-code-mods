@@ -11,11 +11,11 @@ import type { World } from './world'
 
 type Ui = Mounted<'terminal' | 'desktop', 'AbovePrompt'>
 
-/** The step's words: the band's cue, or on the desktop the guide's own (its alt carries them, MM-110). */
-/** The step's words as text; on the desktop they live inside the guide (MM-110), which reads as 'guide'. */
+/** The step's words: the band's cue, or on the desktop the guide's own (its alt carries them). */
+/** The step's words as text; on the desktop they live inside the guide, which reads as 'guide'. */
 const cue = async (ui: Ui) => (await ui.find({ key: 'sw-cue' }))?.text ?? ((await ui.find({ type: 'Svg' })) !== undefined ? 'guide' : undefined)
 const caption = async (ui: Ui) => (await ui.find({ key: 'sw-caption' }))?.text
-/** The compact row's words: its text, or on the desktop the guide's (its alt carries the cue, MM-110). */
+/** The compact row's words: its text, or on the desktop the guide's (its alt carries the cue). */
 const compactWords = async (ui: Ui) => (await ui.find({ key: 'sw-compact' }))?.text ?? ''
 
 const fold = async (ui: Ui) => ui.find({ key: 'sw-fold' })
@@ -65,8 +65,8 @@ describe('when it shows', () => {
     expect((await term.find({ key: 'sw-shape' }))?.text.length).toBe(barWidth(100))
     const desk = await w.band($, 'desktop')
     const svg = await desk.find({ type: 'Svg' })
-    // An image, not a frame: the desktop reloads a frame on every band redraw (MM-110, seen live).
-    // A frame: the desktop draws an image still, so only a frame runs the keyframes (MM-110, seen live).
+    // An image, not a frame: the desktop reloads a frame on every band redraw (seen live).
+    // A frame: the desktop draws an image still, so only a frame runs the keyframes (seen live).
     expect(svg?.props.isInteractive).toBe(true)
     // Bolt breathing on the drawing's own clock: one stable markup, eased keyframes, reduced motion honoured.
     expect(String(svg?.props.source)).toContain('@keyframes h0{')
@@ -320,7 +320,7 @@ describe('typing', () => {
       await w.clock.settle()
       expect(await ui.find({ key: 'sw-breath' })).toBeUndefined()
       expect(await ui.find({ key: 'sw-compact' })).toBeDefined()
-      // The desktop's line holds for the span (a countdown would draw the band again, MM-110).
+      // The desktop's line holds for the span (a countdown would draw the band again).
       const words = surface === 'desktop' ? 'physiological sigh' : 'Breathe in 2'
       expect(await compactWords(ui)).toContain(words)
       expect((await ui.findAll({ type: 'Text' })).filter(t => t.text.includes(words)).every(t => t.props.dimColor === true)).toBe(true)
@@ -390,7 +390,7 @@ describe('the spinner', () => {
     await w.clock.advance(3000)
     expect(await spin('terminal', {})).toBe('Breathing in…')
     expect(await spin('terminal', { message: 'Compacting conversation' })).toBe('Compacting conversation…')
-    // The desktop's turn row is Claude's own: the guide in the band does the breathing (MM-110).
+    // The desktop's turn row is Claude's own: the guide in the band does the breathing.
     expect(await spin('desktop', { word: 'Working' })).toBe('Working…')
     expect(await spin('desktop', { word: 'Creating notes.md' })).toBe('Creating notes.md…')
     await w.clock.advance(6000)
@@ -436,7 +436,7 @@ describe('fitting the space', () => {
     for (const surface of SURFACES) {
       const ui = await w.band($, surface, { maxRows: 2 })
       expect(await ui.find({ key: 'sw-compact' })).toBeDefined()
-      // The desktop's line holds for the span (a countdown would draw the band again, MM-110).
+      // The desktop's line holds for the span (a countdown would draw the band again).
       expect(await compactWords(ui)).toContain(surface === 'desktop' ? 'physiological sigh' : 'Breathe in 4')
       expect(await ui.find({ key: 'sw-breath' })).toBeUndefined()
       await ui.unmount()
@@ -473,7 +473,7 @@ describe('theme and motion', () => {
     for (const surface of SURFACES) {
       const ui = await w.band($, surface)
       const colours = walk(await ui.drawn()).flatMap(el => [el.props.color, el.props.backgroundColor, el.props.borderColor]).filter(c => c !== undefined)
-      // On the desktop the guide's colours live inside its drawing (Bolt's own palette, MM-110).
+      // On the desktop the guide's colours live inside its drawing (Bolt's own palette).
       if (surface === 'terminal') expect(colours.length > 0).toBe(true)
       for (const c of colours) expect(THEME_KEYS.has(String(c))).toBe(true)
       await ui.unmount()
@@ -583,7 +583,7 @@ describe('mobile and VS Code', () => {
   })
 })
 
-// API-GOTCHAS #39 (MM-083): a live session refuses a band tree that puts the
+// A live session refuses a band tree that puts the
 // engine's own node under a Box that sizes, hides or moves it, and draws its
 // own band instead. The kit does not check this, so the test walks the tree.
 const ENGINE_BENEATH: Plugin = {
@@ -615,7 +615,7 @@ test('#39: the engine band beneath is never under a Box that sizes or hides it',
   }
 })
 
-test('MM-110: on the desktop the band is not drawn again across a span, so its frame is never re-set', { options: { eyeRest: false, stretch: false } }, async ($, on) => {
+test('on the desktop the band is not drawn again across a span, so its frame is never re-set', { options: { eyeRest: false, stretch: false } }, async ($, on) => {
   const w = world(on)
   await w.start($)
   await w.clock.advance(3000 + 500)
@@ -626,7 +626,7 @@ test('MM-110: on the desktop the band is not drawn again across a span, so its f
   const draws = w.rec.bandDraws
   // 70 s of ticks (the clock atom written 8 times a second) and the turn turning long at 60 s:
   // the desktop band is not drawn even once more. The desktop re-sets the guide's frame on every
-  // draw, identical tree or not (MM-110, seen live), so the only fix is no draw at all.
+  // draw, identical tree or not (seen live), so the only fix is no draw at all.
   for (let i = 0; i < 70; i += 1) {
     await w.clock.advance(1000)
     expect(JSON.stringify(await ui.drawn()), `t+${i + 1}s`).toBe(tree)
@@ -642,7 +642,7 @@ test('MM-110: on the desktop the band is not drawn again across a span, so its f
   await ui.unmount()
 })
 
-test('MM-110: a draft collapses the desktop band to one still line, and the guide comes back in step', async ($, on) => {
+test('a draft collapses the desktop band to one still line, and the guide comes back in step', async ($, on) => {
   const w = world(on)
   await w.start($)
   await w.clock.advance(3000 + 500)

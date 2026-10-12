@@ -439,7 +439,7 @@ test('the pane: an Image on the terminal, one line on the desktop', async ($, on
   }
 })
 
-// Bolt (MM-091): beside "No page yet" on the terminal, the one surface that draws
+// Bolt: beside "No page yet" on the terminal, the one surface that draws
 // it; gone once a page is open, and out of the way in a narrow pane. A Raster on
 // the terminal; the desktop keeps its one browser-pane line and no Bolt.
 type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
@@ -603,7 +603,7 @@ test('a Chrome that exits without the "written" line still counts when the file 
   expect(await paneText($, 'error')).toBeUndefined()
 })
 
-// MM-045: a site other than localhost opens only when the person typed the command.
+// A site other than localhost opens only when the person typed the command.
 const NOT_PERSON: PromptOrigin[] = [
   { kind: 'sdk' },
   { kind: 'task-notification' },
@@ -742,7 +742,7 @@ test('failed or staged edits do not refresh', async ($, on) => {
   expect(w.spawns).toHaveLength(1)
 })
 
-// MM-050: the engine refuses a drawn tree holding control characters, so untrusted text is cleaned.
+// The engine refuses a drawn tree holding control characters, so untrusted text is cleaned.
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
 
 test('control characters in a URL or in Chrome stderr never break the pane', async ($, on) => {
@@ -766,7 +766,7 @@ test('control characters in a URL or in Chrome stderr never break the pane', asy
   }
 })
 
-// MM-057 follow-ups.
+// Follow-ups from review.
 test('control characters never reach a command answer or toast', async ($, on) => {
   const w = world(on)
   const refused = await run($, 'foo\u0007\u009b31mbar')

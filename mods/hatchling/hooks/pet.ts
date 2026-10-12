@@ -21,7 +21,7 @@ export const RARITY_ODDS: readonly (readonly [HatchlingRarity, number])[] = [
   ['legendary', 2],
 ]
 
-/** One egg in this many hatches the secret Bolt instead of a species (MM-093). */
+/** One egg in this many hatches the secret Bolt instead of a species. */
 export const BOLT_ODDS = 100
 
 /** Names a pet can hatch with when you have not chosen one. */

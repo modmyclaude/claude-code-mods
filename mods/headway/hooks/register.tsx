@@ -148,7 +148,7 @@ export const register: Register = on => {
       argumentHint: '[hide|show]',
       immediate: true,
     })
-    // The desktop app gives Claude no todo tool (MM-111). There Headway lends one shaped like
+    // The desktop app gives Claude no todo tool. There Headway lends one shaped like
     // TodoWrite, so Claude can share its plan and the line can follow it; never beside a native one.
     try {
       const names = (await $.tool.list()).map(tool => tool.name)
@@ -163,7 +163,7 @@ export const register: Register = on => {
   on('tool.call', { tool: PLAN_TOOL_NAME }, async ($, e) => {
     const event = eventFromTool('TodoWrite', e, null, e.agentId === undefined)
     if (event !== null) await safely($, () => dispatch($, event))
-    // A lent (MCP) tool's result is text: Claude Code refuses an object there (MM-111, seen live).
+    // A lent (MCP) tool's result is text: Claude Code refuses an object there (seen live).
     const text = event === null ? 'No plan read: send todos as [{ content, status }].' : 'Plan updated.'
     return { result: text, text }
   }).catch(() => ({ result: 'Plan not recorded.', text: 'Plan not recorded.' }))

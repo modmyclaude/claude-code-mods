@@ -312,7 +312,7 @@ export const register: Register = on => {
     const at = await read($, view)
     const turn = list[list.length - at.back]
     if (turn === undefined || turn.steps.length === 0) {
-      // Bolt sleeps while there is nothing to replay (MM-091): a static sprite,
+      // Bolt sleeps while there is nothing to replay: a static sprite,
       // only where the pane has room for it.
       const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
       return (

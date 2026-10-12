@@ -2,7 +2,7 @@
 // tiers that meet become the next letter, once per tile per move. A new A
 // (sometimes a B) lands after every move that changed the board.
 //
-// Easy to start, a little harder as it goes (MM-089):
+// Easy to start, a little harder as it goes:
 //  - The deal is two A's in one row or column, so the first slide along that
 //    line already makes a B. A board with two tiles on sixteen cells always
 //    has a move, so a start is never dead.
