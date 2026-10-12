@@ -2,7 +2,9 @@
 // the inspector of the selected subagent, the finished list and the activity
 // timeline. Every value drawn comes from the farm's state and what the loop
 // events said; nothing is guessed. Words are drawn in Text, glyph art in
-// glyph rows (one code-font cell per character on the desktop).
+// glyph rows (one code-font cell per character on the desktop). Every row is
+// sized in cells so nothing wraps: a part too long for its room is cut at
+// its end, never folded onto a line of its own.
 
 import type { BoxProps, ButtonProps, ElementConstructor, RasterProps, RenderElement, TextProps } from 'claude-code'
 
@@ -11,7 +13,7 @@ import { boltSprite } from './bolt-draw'
 import type { BoltSmallPose } from './bolt'
 import { glyphRow } from './cells'
 import {
-  activityText, COMPACT_BELOW, eventLook, FRESH_MS, fmtShort, gridOf, hotkeyOf, met, ordered, pulse, rowsOf, SETTLE_MS,
+  activityText, COMPACT_BELOW, eventLook, FRESH_MS, gridOf, hotkeyOf, met, ordered, pulse, rowsOf, SETTLE_MS,
   sparkline, spinner, statusLook, TIMELINE_ROWS, TIMELINE_ROWS_EXPANDED,
 } from './mission'
 import type { LivePhase } from './mission'
@@ -63,9 +65,16 @@ export const BOLT_MIN_COLUMNS = 40
 export const BOLT_SMALL_COLUMNS = 56
 /** The finished subagents the pane lists one by one; the rest are counted. */
 export const MAX_FINISHED_SHOWN = 50
+/** A card this wide inside its border gives the ant three cells of walk and the sparkline twelve. */
+export const WIDE_CARD = 44
+/** A card this wide inside its border also counts its tools, edits and errors on the bottom row. */
+export const COUNTS_CARD = 50
 const SPARK_CELLS = 12
+const SPARK_MIN = 6
 const BAR_CELLS = 12
 const BUDGET_BAR_CELLS = 20
+/** Cells the `open` button and its gap take at the end of a row (`9: open`). */
+const OPEN_CELLS = 8
 
 const isRunning = (a: AntFarmAnt) => a.status === 'running'
 const taskOf = (a: AntFarmAnt) => clean(a.task)
@@ -84,20 +93,30 @@ export function headline(list: readonly AntFarmAnt[], live: ReadonlyMap<string, 
   return { text: `All done · ${finished.length} ${finished.length === 1 ? 'agent' : 'agents'}`, color: 'success', pose: 'cheer' }
 }
 
+/**
+ * The status line of a card or the inspector: the mark, the word and what
+ * follows it (`◐ WORKING · Bash npm test · 4s`, `◇ WAITING · permission for
+ * Bash`, `✓ DONE · 1m 20s`). The mark turns while the subagent works.
+ */
+export function stateLine(a: AntFarmAnt, live: LivePhase | undefined, now: number, frame: number): { text: string; color: string } {
+  const look = statusLook(a.status, live?.phase)
+  if (!isRunning(a)) return { text: `${look.glyph} ${look.word} · ${fmtDuration((a.endedAt ?? now) - a.startedAt)}`, color: look.color }
+  const glyph = look.word === 'WAITING' ? look.glyph : spinner(frame)
+  const rest = clean(activityText(live, now))
+  return { text: `${glyph} ${look.word}${rest !== '' ? ` · ${rest}` : ''}`, color: look.color }
+}
+
 export function drawControl(c: ControlInput): RenderElement {
   const { Box, Text, Button } = c.ui
   const { running, finished } = ordered(c.list)
   const failed = finished.filter(a => a.status === 'failed').length
+  const waiting = running.filter(a => c.live.get(a.id)?.phase === 'waiting').length
   const compact = c.columns < COMPACT_BELOW
   const firstStart = c.list.length > 0 ? Math.min(...c.list.map(a => a.startedAt)) : c.now
   const lastEnd = running.length > 0 ? c.now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
   const selected = c.view.selectedId !== undefined ? c.list.find(a => a.id === c.view.selectedId) : undefined
   const { cols, cardWidth } = gridOf(c.columns)
   const byId = new Map(c.list.map(a => [a.id, a] as const))
-
-  // Positions in display order give the first nine cards their digit hotkeys.
-  let position = 0
-  const nextHotkey = () => hotkeyOf(position++)
 
   const antPaint = (a: AntFarmAnt): TextProps => {
     if (a.status === 'failed') return { color: 'error' }
@@ -106,37 +125,44 @@ export function drawControl(c: ControlInput): RenderElement {
     return { color: 'subtle', dimColor: true }
   }
 
-  const inspectButton = (a: AntFarmAnt, isSelected: boolean, hotkey: string | undefined) => (
-    <Button
-      key={`inspect-${a.id}`}
-      plain
-      {...(hotkey !== undefined ? { hotkey } : {})}
-      dimColor={isSelected}
-      label={isSelected ? 'selected' : 'inspect'}
-      onPress={() => c.on.select(isSelected ? undefined : a.id)}
-    />
-  )
+  // The button that opens a subagent in the inspector, keyed by its mission number.
+  const openButton = (a: AntFarmAnt, isSelected: boolean) => {
+    const hotkey = hotkeyOf(a.n)
+    return (
+      <Button
+        key={`inspect-${a.id}`}
+        plain
+        {...(hotkey !== undefined ? { hotkey } : {})}
+        dimColor={!isRunning(a) && !isSelected}
+        label={isSelected ? 'close' : 'open'}
+        onPress={() => c.on.select(isSelected ? undefined : a.id)}
+      />
+    )
+  }
 
   // ---------------------------------------------------------------- a card
 
   const card = (a: AntFarmAnt): RenderElement => {
     const live = c.live.get(a.id)
-    const look = statusLook(a.status, live?.phase)
     const isSelected = selected?.id === a.id
     const justFinished = !isRunning(a) && a.endedAt !== undefined && c.now - a.endedAt < SETTLE_MS
     const border = isSelected ? 'claude' : a.status === 'failed' ? 'error' : justFinished ? 'success' : isRunning(a) ? c.colors.get(a.model) ?? 'subtle' : 'subtle'
     const rested = !isRunning(a) && !justFinished && !isSelected
     const tone: TextProps = a.status === 'failed' ? { color: 'error' } : { dimColor: !isRunning(a) }
     const p = progressOf(a, c.list, c.now)
-    const lane = ANT_WIDTH + 3
+    // The card's rows in cells: the art lane, one gap, the words beside it.
+    const inner = cardWidth - 4
+    const lane = ANT_WIDTH + (inner >= WIDE_CARD ? 3 : 2)
+    const meta = Math.max(1, inner - lane - 1)
+    const spark = Math.min(SPARK_CELLS, Math.max(SPARK_MIN, meta - 16))
     const rows = antRows(a.status, c.frame + phaseOf(a.id), lane)
-    const elapsed = fmtDuration((a.endedAt ?? c.now) - a.startedAt)
-    const activity = isRunning(a) ? `${spinner(c.frame)} ${clean(activityText(live, c.now))}` : a.status === 'done' ? `${look.glyph} Completed in ${elapsed}` : `${look.glyph} Failed after ${elapsed}`
-    const counts = [
+    const state = stateLine(a, live, c.now, c.frame)
+    const money = [
       fmtCost(a.usage),
-      ...((a.tools ?? 0) > 0 ? [`${a.tools} ${a.tools === 1 ? 'tool' : 'tools'}`] : []),
-      ...((a.edits ?? 0) > 0 ? [`${a.edits} ${a.edits === 1 ? 'edit' : 'edits'}`] : []),
-      ...((a.errors ?? 0) > 0 ? [`${a.errors} ${a.errors === 1 ? 'error' : 'errors'}`] : []),
+      ...(p.etaMs !== null ? [fmtEta(p.etaMs)] : []),
+      ...(inner >= COUNTS_CARD && (a.tools ?? 0) > 0 ? [`${a.tools} ${a.tools === 1 ? 'tool' : 'tools'}`] : []),
+      ...(inner >= COUNTS_CARD && (a.edits ?? 0) > 0 ? [`${a.edits} ${a.edits === 1 ? 'edit' : 'edits'}`] : []),
+      ...(inner >= COUNTS_CARD && (a.errors ?? 0) > 0 ? [`${a.errors} ${a.errors === 1 ? 'error' : 'errors'}`] : []),
     ].join(' · ')
     return (
       <Box
@@ -154,19 +180,17 @@ export function drawControl(c: ControlInput): RenderElement {
           <Box flexGrow={1} flexShrink={1}>
             <Text bold={isRunning(a) || isSelected} dimColor={rested} wrap="truncate-end">{numberOf(a)} {taskOf(a)}</Text>
           </Box>
-          <Box flexShrink={0} marginLeft={1}>
-            <Text bold color={look.color}>{look.glyph} {look.word}</Text>
-          </Box>
+          <Box flexShrink={0} marginLeft={1}>{openButton(a, isSelected)}</Box>
         </Box>
         <Box flexDirection="row">
           <Box key={`art-${a.id}`} flexDirection="column" width={lane} flexShrink={0}>
             {rows.map(row => glyphRow(c.ui, c.surface, row, antPaint(a)))}
           </Box>
-          <Box flexDirection="column" flexGrow={1} flexShrink={1} marginLeft={1}>
-            <Text dimColor wrap="truncate-end">{modelOf(a)} · {elapsed}{p.etaMs !== null ? ` · ${fmtEta(p.etaMs)}` : ''}</Text>
-            <Text wrap="truncate-end" {...(isRunning(a) ? { color: look.color } : tone)}>{activity}</Text>
+          <Box flexDirection="column" width={meta} flexShrink={0} marginLeft={1}>
+            <Text dimColor wrap="truncate-end">{modelOf(a)} · {fmtDuration((a.endedAt ?? c.now) - a.startedAt)}</Text>
+            <Text bold wrap="truncate-end" color={state.color} dimColor={rested}>{state.text}</Text>
             <Box flexDirection="row">
-              {glyphRow(c.ui, c.surface, sparkline(a.history ?? [], SPARK_CELLS), antPaint(a))}
+              {glyphRow(c.ui, c.surface, sparkline(a.history ?? [], spark), antPaint(a))}
               <Box marginLeft={1} flexShrink={1}>
                 <Text dimColor wrap="truncate-end">{a.usage.requests} req · {fmtTokens(a.usage.tokens)} tok</Text>
               </Box>
@@ -175,11 +199,9 @@ export function drawControl(c: ControlInput): RenderElement {
         </Box>
         <Box flexDirection="row">
           {glyphRow(c.ui, c.surface, bar(p.fraction, BAR_CELLS), tone)}
-          <Box marginLeft={1} flexShrink={1}>
-            <Text wrap="truncate-end" {...tone}>{counts}</Text>
+          <Box marginLeft={1} flexGrow={1} flexShrink={1}>
+            <Text wrap="truncate-end" {...tone}>{money}</Text>
           </Box>
-          <Box flexGrow={1} />
-          {inspectButton(a, isSelected, nextHotkey())}
         </Box>
       </Box>
     )
@@ -190,16 +212,30 @@ export function drawControl(c: ControlInput): RenderElement {
   const line = (a: AntFarmAnt): RenderElement => {
     const look = statusLook(a.status, c.live.get(a.id)?.phase)
     const isSelected = selected?.id === a.id
+    const paint = antPaint(a)
+    const numbers = `${modelOf(a)} · ${fmtDuration((a.endedAt ?? c.now) - a.startedAt)} · ${fmtTokens(a.usage.tokens)} tok · ${fmtCost(a.usage)}`
+    if (compact) {
+      return (
+        <Box flexDirection="row" key={`line-${a.id}`}>
+          {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), paint)}
+          <Box marginLeft={1} flexGrow={1} flexShrink={1}>
+            <Text dimColor={!isRunning(a)} wrap="truncate-end">{numberOf(a)} {a.status} · {taskOf(a)} · {numbers}</Text>
+          </Box>
+        </Box>
+      )
+    }
+    // The task gives way first; the numbers, the mark and the button keep their cells.
     return (
       <Box flexDirection="row" key={`line-${a.id}`}>
-        {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), antPaint(a))}
-        <Box flexGrow={1} flexShrink={1}>
-          <Text dimColor={!isRunning(a)} wrap="truncate-end">
-            {' '}{numberOf(a)} {a.status} · {taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? c.now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
-          </Text>
+        {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), paint)}
+        <Box marginLeft={1} flexGrow={1} flexShrink={1}>
+          <Text dimColor={!isRunning(a)} wrap="truncate-end">{numberOf(a)} {a.status} · {taskOf(a)}</Text>
         </Box>
-        {!compact ? <Box flexShrink={0} marginLeft={1}><Text color={look.color}>{look.glyph}</Text></Box> : null}
-        {!compact ? <Box flexShrink={0} marginLeft={1}>{inspectButton(a, isSelected, nextHotkey())}</Box> : null}
+        <Box flexShrink={0}>
+          <Text dimColor={!isRunning(a)} wrap="truncate-end"> · {numbers}</Text>
+        </Box>
+        <Box flexShrink={0} marginLeft={1}><Text color={look.color}>{look.glyph}</Text></Box>
+        <Box flexShrink={0} marginLeft={1}>{openButton(a, isSelected)}</Box>
       </Box>
     )
   }
@@ -208,7 +244,6 @@ export function drawControl(c: ControlInput): RenderElement {
 
   const head = headline(c.list, c.live)
   const clock = running.length > 0 ? met(c.now - firstStart) : c.list.length > 0 ? `${fmtDuration(lastEnd - firstStart)} wall` : ''
-  const waiting = running.filter(a => c.live.get(a.id)?.phase === 'waiting').length
   const source = c.spend.isEngine ? ' (Claude Code)' : ' (price table)'
   const budgetLine =
     c.budgetUsd > 0
@@ -227,18 +262,18 @@ export function drawControl(c: ControlInput): RenderElement {
         {clock !== '' ? <Box flexShrink={0} marginLeft={1}><Text dimColor>{clock}</Text></Box> : null}
       </Box>
       <Box key="counts" flexDirection="row">
-        <Text bold>{running.length}</Text><Text dimColor> running · </Text>
+        <Text bold>{running.length - waiting}</Text><Text dimColor> running · </Text>
         <Text bold>{finished.length - failed}</Text><Text dimColor> done · </Text>
         <Text bold {...(failed > 0 ? { color: 'error' } : {})}>{failed}</Text><Text dimColor> failed</Text>
         {waiting > 0 ? <Text color="warning"> · {waiting} waiting</Text> : null}
+      </Box>
+      <Box key="budget">
+        <Text wrap="truncate-end" {...budgetTone}>{budgetLine}</Text>
       </Box>
       <Box key="totals">
         <Text dimColor wrap="truncate-end">
           Subagents {fmtCost(c.subagents)} (price table) · {fmtTokens(c.subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
         </Text>
-      </Box>
-      <Box key="budget">
-        <Text wrap="truncate-end" {...budgetTone}>{budgetLine}</Text>
       </Box>
       {budgetFraction !== null ? (
         <Box key="budget-bar" flexDirection="row">
@@ -289,7 +324,7 @@ export function drawControl(c: ControlInput): RenderElement {
     const elapsed = fmtDuration((a.endedAt ?? c.now) - a.startedAt)
     const parent = a.parentId !== undefined ? byId.get(a.parentId) : undefined
     const from = a.parentId === undefined ? 'from the main loop' : `from ${parent !== undefined ? `${numberOf(parent)} ${taskOf(parent)}` : 'another agent'}`
-    const state = isRunning(a) ? `${spinner(c.frame)} ${clean(activityText(live, c.now))}` : a.status === 'done' ? `${look.glyph} Completed in ${elapsed}` : `${look.glyph} Failed after ${elapsed}`
+    const state = stateLine(a, live, c.now, c.frame)
     const own = c.events.filter(ev => ev.agentId === a.id).slice(-6).reverse()
     const tally = [
       `${a.usage.requests} ${a.usage.requests === 1 ? 'request' : 'requests'}`,
@@ -311,7 +346,7 @@ export function drawControl(c: ControlInput): RenderElement {
           </Box>
         </Box>
         <Text dimColor wrap="truncate-end">{clean(a.type)} · {modelOf(a)} · started {met(a.startedAt - firstStart)} · {elapsed} · {from}</Text>
-        <Text wrap="truncate-end" {...(isRunning(a) ? { color: look.color } : a.status === 'failed' ? { color: 'error' } : { dimColor: true })}>{state}</Text>
+        <Text bold wrap="truncate-end" color={state.color}>{state.text}</Text>
         <Text dimColor wrap="truncate-end">{tally}</Text>
         <Box flexDirection="row">
           {glyphRow(c.ui, c.surface, sparkline(a.history ?? [], Math.min(24, Math.max(SPARK_CELLS, c.columns - 24))), antPaint(a))}
@@ -397,12 +432,9 @@ export function drawControl(c: ControlInput): RenderElement {
       {timeline()}
       {c.isFocused ? (
         <Box key="keys" marginTop={1}>
-          <Text dimColor wrap="truncate-end">Keys · 1-9 inspect · n next · p previous · x close · f finished · t activity</Text>
+          <Text dimColor wrap="truncate-end">Keys · 1-9 open · n next · p previous · x close · f finished · t activity</Text>
         </Box>
       ) : null}
     </Box>
   )
 }
-
-/** The short form of a duration for a row's detail. */
-export { fmtShort }

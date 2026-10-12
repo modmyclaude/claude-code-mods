@@ -106,24 +106,28 @@ describe('what each subagent is doing, from what the engine said', () => {
   test('starting, thinking, writing and naming a tool, each from the chunks of its own requests', async ($, on) => {
     const w = world(on)
     const id = await w.spawn($, 'Phased')
-    const pane = await mountAt($, 'terminal')
+    const pane = await mountAt($, 'terminal', 60)
     const card = async () => textOf(cardsOf(await pane.drawn())[0])
-    expect(await card()).toContain('● WORKING')
-    expect(await card()).toContain('Starting')
+    expect(await card()).toContain('WORKING · starting')
     await w.step($, id, usage('claude-haiku-5-5', 100, 10), 'claude-haiku-5-5', ['thinking'])
-    expect(await card()).toContain('◌ THINKING')
-    expect(await card()).toContain('Thinking')
+    expect(await card()).toContain('THINKING')
+    expect(await card()).not.toContain('WORKING')
     await w.step($, id, usage('claude-haiku-5-5', 100, 10), 'claude-haiku-5-5', ['thinking', 'text'])
-    expect(await card()).toContain('● WORKING')
-    expect(await card()).toContain('Writing')
+    expect(await card()).toContain('WORKING · writing')
     await w.step($, id, usage('claude-haiku-5-5', 100, 10), 'claude-haiku-5-5', ['text', 'tool'])
-    expect(await card()).toContain('Bash')
+    expect(await card()).toContain('WORKING · Bash')
     // The main loop's chunks say nothing about any card.
     await w.step($, undefined, usage('claude-haiku-5-5', 100, 10), 'claude-haiku-5-5', ['thinking'])
-    expect(await card()).toContain('Bash')
-    // The activity line says for how long.
+    expect(await card()).toContain('WORKING · Bash')
+    // The status line says for how long.
     await w.clock.advance(4000)
-    expect(await card()).toContain('Bash · 4s')
+    expect(await card()).toContain('WORKING · Bash · 4s')
+    // The mark turns while it works: two frames differ.
+    const mark = async () => /([◐◓◑◒]) WORKING/.exec(await card())?.[1]
+    const one = await mark()
+    expect(one).toBeDefined()
+    await w.clock.advance(500)
+    expect(await mark()).not.toBe(one)
   })
 
   test('a tool call shows on the card while it runs and lands on the timeline once it answered', async ($, on) => {
@@ -132,15 +136,16 @@ describe('what each subagent is doing, from what the engine said', () => {
     let release: () => void = () => undefined
     w.rec.holdTool = new Promise<void>(resolve => { release = resolve })
     const pending = w.callTool($, id, 'Bash', { command: 'npm test\nmore' })
-    const pane = await mountAt($, 'terminal')
-    expect(textOf(cardsOf(await pane.drawn())[0])).toContain('Bash npm test')
+    const pane = await mountAt($, 'terminal', 60)
+    expect(textOf(cardsOf(await pane.drawn())[0])).toContain('WORKING · Bash npm test')
     expect(eventRows(await pane.drawn()).map(textOf).some(t => t.includes('npm test'))).toBe(false)
     release()
     const r = await pending
     expect(r).toEqual({ result: { ok: true }, text: 'ok' })
     expect(w.rec.toolCalls).toEqual([{ tool: 'Bash', agentId: id }])
     const card = textOf(cardsOf(await pane.drawn())[0])
-    expect(card).toContain('Working')
+    expect(card).toContain('WORKING')
+    expect(card).not.toContain('npm test')
     expect(card).toContain('1 tool')
     const rows = eventRows(await pane.drawn()).map(textOf)
     expect(rows[0]).toContain('#1')
@@ -154,7 +159,11 @@ describe('what each subagent is doing, from what the engine said', () => {
     await w.callTool($, id, 'Edit', { file_path: '/repo/src/auth.ts', old_string: 'a', new_string: 'b' })
     await w.callTool($, id, 'Bash', { command: 'exit 1' }, 'Command failed with exit code 1\nmore')
     await w.callTool($, id, 'Write', { file_path: '/etc/hosts', content: '' }, 'deny:not that file')
-    const pane = await mountAt($, 'terminal')
+    // A card two across has no room for the counts; a wide one shows them.
+    const narrow = await mountAt($, 'terminal', 84)
+    expect(textOf(cardsOf(await narrow.drawn())[0])).not.toContain('tools')
+    await narrow.unmount()
+    const pane = await mountAt($, 'terminal', 60)
     const card = textOf(cardsOf(await pane.drawn())[0])
     expect(card).toContain('3 tools · 2 edits · 2 errors')
     const rows = eventRows(await pane.drawn()).map(textOf)
@@ -180,17 +189,18 @@ describe('what each subagent is doing, from what the engine said', () => {
     for (const surface of SURFACES) {
       const pane = await mountAt($, surface)
       const all = (await texts(pane)).join('\n')
-      expect(all).toContain('◇ WAITING')
-      expect(all).toContain('Waiting · permission for Bash')
+      expect(all).toContain('◇ WAITING · permission for Bash')
       expect(all).toContain('Waiting · 1 held')
-      expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed · 1 waiting')
+      // A held agent counts once: as waiting, not as running too.
+      expect((await pane.find({ key: 'counts' }))?.text).toBe('0 running · 0 done · 0 failed · 1 waiting')
       await pane.unmount()
     }
     // Its next request frees it.
     await w.step($, id, usage('claude-haiku-5-5', 100, 10))
     const pane = await mountAt($, 'terminal')
     const all = (await texts(pane)).join('\n')
-    expect(all).toContain('● WORKING')
+    expect(all).toContain('WORKING')
+    expect(all).not.toContain('WAITING')
     expect(all).toContain('Working · 1 running')
     expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
   })
@@ -201,10 +211,10 @@ describe('what each subagent is doing, from what the engine said', () => {
     w.rec.listed = [{ id, description: 'Held', type: 'Explore', status: 'waiting' }]
     await w.clock.advance(10_000)
     const pane = await mountAt($, 'terminal')
-    expect(textOf(cardsOf(await pane.drawn())[0])).toContain('Waiting · held by the engine')
+    expect(textOf(cardsOf(await pane.drawn())[0])).toContain('WAITING · held by the engine')
     w.rec.listed = [{ id, description: 'Held', type: 'Explore', status: 'running' }]
     await w.clock.advance(10_000)
-    expect(textOf(cardsOf(await pane.drawn())[0])).toContain('Working')
+    expect(textOf(cardsOf(await pane.drawn())[0])).toContain('WORKING')
   })
 
   test('done and failed cards say so, keep their colour for a moment, then rest', async ($, on) => {
@@ -219,12 +229,10 @@ describe('what each subagent is doing, from what the engine said', () => {
     const cards = cardsOf(await pane.drawn())
     const bad = cards.find(c => keyOf(c) === `ant-${b}`)
     const good = cards.find(c => keyOf(c) === `ant-${a}`)
-    expect(textOf(good)).toContain('✓ DONE')
-    expect(textOf(good)).toContain('✓ Completed in 1m 05s')
+    expect(textOf(good)).toContain('✓ DONE · 1m 05s')
     expect(good?.props?.borderColor).toBe('success')
     expect(colorIn(walk(good, n => keyOf(n) === `art-${a}`)[0])).toBe('success')
-    expect(textOf(bad)).toContain('✗ FAILED')
-    expect(textOf(bad)).toContain('✗ Failed after 1m 05s')
+    expect(textOf(bad)).toContain('✗ FAILED · 1m 05s')
     expect(bad?.props?.borderColor).toBe('error')
     // The colour holds past the newest row's bold moment (1.5 s), then rests.
     await w.clock.advance(2000)
@@ -349,9 +357,9 @@ describe('what the pane keeps is safe to share', () => {
     let release: () => void = () => undefined
     w.rec.holdTool = new Promise<void>(resolve => { release = resolve })
     const pending = w.callTool($, id, 'Bash', { command: 'curl -H "Authorization: Bearer abcdefghijklmnopqrst" https://x' })
-    const pane = await mountAt($, 'terminal')
+    const pane = await mountAt($, 'terminal', 120)
     const live = textOf(cardsOf(await pane.drawn())[0])
-    expect(live).toContain('Bash curl -H "Authorization: Bearer [REDACTED]"')
+    expect(live).toContain('WORKING · Bash curl -H "Authorization: Bearer [REDACTED]"')
     expect(live).not.toContain('abcdefghijklmnopqrst')
     release()
     await pending
@@ -393,14 +401,15 @@ describe('state kept by an earlier version', () => {
     await w.callTool($, b, 'Bash', { command: 'false' }, 'exit 1')
     await w.finish($, b, 'error')
     for (const surface of SURFACES) {
-      const pane = await mountAt($, surface)
+      const pane = await mountAt($, surface, 60)
       const tree = await pane.drawn()
       const cards = cardsOf(tree)
       expect(cards.length).toBe(1)
       const card = textOf(cards[0])
       expect(card).toContain('· Old one') // no mission number: a dot
       expect(card).toContain('············') // no history: the sparkline rests
-      expect(card).not.toContain('tool') // no counters kept
+      expect(card).not.toContain('tools') // no counters kept
+      expect((await pane.find({ key: `inspect-${a}` }))?.props.hotkey).toBeUndefined() // no number, no digit
       expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 1 failed')
       expect((await pane.find({ key: `line-${b}` }))?.text).toContain('· failed · Old two')
       const rows = eventRows(tree).map(textOf)
@@ -436,7 +445,8 @@ describe('the inspector', () => {
     expect(await panel()).toContain('tokens per request')
     expect(await panel()).toContain('Grep TODO')
     expect(await panel()).toContain(`id ${b}`)
-    expect((await pane.find({ key: `inspect-${b}` }))?.props.label).toBe('selected')
+    expect((await pane.find({ key: `inspect-${b}` }))?.props.label).toBe('close')
+    expect((await pane.find({ key: `inspect-${a}` }))?.props.label).toBe('open')
     expect(cardsOf(await pane.drawn()).find(x => keyOf(x) === `ant-${b}`)?.props?.borderColor).toBe('claude')
     await pane.press({ key: 'inspector-next' })
     expect(await panel()).toContain('#3 Third')
@@ -456,7 +466,7 @@ describe('the inspector', () => {
     expect(await pane.find({ key: 'inspector' })).toBeUndefined()
   })
 
-  test('digits 1-9 are hotkeys for the first nine cards in display order; the tenth has none; the moves have theirs', async ($, on) => {
+  test('a card\'s digit is its mission number, running or finished; past nine none; the moves have theirs', async ($, on) => {
     const w = world(on)
     const ids: string[] = []
     for (let i = 0; i < 10; i += 1) ids.push(await w.spawn($, `Task ${i}`))
@@ -464,9 +474,9 @@ describe('the inspector', () => {
     const pane = await mountAt($, 'terminal')
     const buttons = await pane.findAll({ type: 'Button' })
     const hot = new Map(buttons.map(b => [b.key, b.props.hotkey]))
-    // Running cards first (1-9), then the finished line (none left).
-    for (let i = 1; i < 10; i += 1) expect(hot.get(`inspect-${ids[i]}`)).toBe(String(i))
-    expect(hot.get(`inspect-${ids[0]}`)).toBeUndefined()
+    // #1 is the finished line and keeps 1; #2 to #9 the running cards; #10 has no digit.
+    for (let i = 0; i < 9; i += 1) expect(hot.get(`inspect-${ids[i]}`), `#${i + 1}`).toBe(String(i + 1))
+    expect(hot.get(`inspect-${ids[9]}`)).toBeUndefined()
     expect(hot.get('toggle-finished')).toBe('f')
     expect(hot.get('toggle-timeline')).toBe('t')
     await pane.press({ key: `inspect-${ids[3]}` })
@@ -486,7 +496,7 @@ describe('the inspector', () => {
     expect(await blurred.find({ key: 'keys' })).toBeUndefined()
     await blurred.unmount()
     const focused = await mountAt($, 'terminal', 84, { isFocused: true })
-    expect((await focused.find({ key: 'keys' }))?.text).toContain('1-9 inspect · n next · p previous · x close · f finished · t activity')
+    expect((await focused.find({ key: 'keys' }))?.text).toContain('1-9 open · n next · p previous · x close · f finished · t activity')
   })
 
   test('the selection survives the pane closing and clears with the farm', async ($, on) => {

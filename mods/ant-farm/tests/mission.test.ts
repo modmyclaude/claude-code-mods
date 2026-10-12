@@ -22,14 +22,16 @@ describe('status words', () => {
     for (const phase of ['starting', 'writing', 'tool', 'working', undefined] as const) expect(statusLook('running', phase).word).toBe('WORKING')
   })
 
-  test('the activity line says what was seen and for how long', () => {
-    expect(activityText(undefined, 10_000)).toBe('Working')
-    expect(activityText({ phase: 'thinking', since: 6000 }, 10_000)).toBe('Thinking · 4s')
-    expect(activityText({ phase: 'thinking', since: 9800 }, 10_000)).toBe('Thinking')
+  test('what follows the status word: what was seen and for how long', () => {
+    expect(activityText(undefined, 10_000)).toBe('')
+    expect(activityText({ phase: 'thinking', since: 6000 }, 10_000)).toBe('4s')
+    expect(activityText({ phase: 'thinking', since: 9800 }, 10_000)).toBe('')
+    expect(activityText({ phase: 'working', since: 0 }, 3000)).toBe('3s')
     expect(activityText({ phase: 'tool', detail: 'Bash npm test', since: 0 }, 75_000)).toBe('Bash npm test · 1m 15s')
-    expect(activityText({ phase: 'waiting', detail: 'permission for Bash' }, 1)).toBe('Waiting · permission for Bash')
-    expect(activityText({ phase: 'starting' }, 1)).toBe('Starting')
-    expect(activityText({ phase: 'writing' }, 1)).toBe('Writing')
+    expect(activityText({ phase: 'waiting', detail: 'permission for Bash' }, 1)).toBe('permission for Bash')
+    expect(activityText({ phase: 'waiting' }, 1)).toBe('held')
+    expect(activityText({ phase: 'starting' }, 1)).toBe('starting')
+    expect(activityText({ phase: 'writing' }, 1)).toBe('writing')
   })
 })
 
@@ -174,10 +176,11 @@ describe('motion and keys', () => {
     expect(moveSelection(['a', 'b', 'c'], 'gone', 1)).toBe('a')
   })
 
-  test('digits for the first nine', () => {
-    expect(hotkeyOf(0)).toBe('1')
-    expect(hotkeyOf(8)).toBe('9')
-    expect(hotkeyOf(9)).toBeUndefined()
-    expect(hotkeyOf(-1)).toBeUndefined()
+  test('a digit for mission numbers one to nine', () => {
+    expect(hotkeyOf(1)).toBe('1')
+    expect(hotkeyOf(9)).toBe('9')
+    expect(hotkeyOf(10)).toBeUndefined()
+    expect(hotkeyOf(0)).toBeUndefined()
+    expect(hotkeyOf(undefined)).toBeUndefined()
   })
 })

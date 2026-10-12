@@ -54,7 +54,7 @@ describe('counting', () => {
       const all = (await texts(pane)).join('\n')
       expect(all).toContain('Map the auth flow')
       expect(all).toContain('opus-5-5 · 0s')
-      expect(all).toContain('● WORKING')
+      expect(all).toContain('WORKING')
       expect(all).toContain('2 req · 1.60M tok')
       expect(all).toContain('≈$6.10')
       expect((await pane.find({ key: 'totals' }))?.text).toBe('Subagents ≈$6.10 (price table) · 1.60M tokens · 0s wall')
@@ -84,7 +84,7 @@ describe('counting', () => {
     const all = (await texts(pane)).join('\n')
     expect(all).toContain('Review the diff')
     expect(all).toContain('sonnet-5-5 · 0s')
-    expect(all).toContain('● WORKING')
+    expect(all).toContain('WORKING')
     expect(all).toContain('1 req · 110k tok')
     expect(all).toContain('≈$0.30')
   })
@@ -209,7 +209,7 @@ describe('the ants and the clock', () => {
     const w = world(on)
     const id = await w.spawn($, 'Paced')
     const pane = await mountPane($, 'terminal')
-    const meta = async () => (await texts(pane)).find(t => t.startsWith('haiku-5-5 · ')) ?? ''
+    const meta = async () => (await texts(pane)).join('\n')
     for (let i = 0; i < 2; i += 1) {
       await w.clock.advance(10_000)
       await w.step($, id, usage('claude-haiku-5-5', 100, 100))
@@ -863,7 +863,8 @@ describe('untrusted text', () => {
       const each = await texts(pane)
       const all = each.join(' | ')
       expect(all).toContain(SHOWN)
-      expect(all).toContain(`done · ${SHOWN} 2 · odd\uFFFDmodel`)
+      expect(all).toContain(`done · ${SHOWN} 2`)
+      expect(all).toContain('odd\uFFFDmodel')
       expect(each.some(t => /[\x00-\x1f\x7f-\x9f]/.test(t))).toBe(false)
       await pane.unmount()
     }

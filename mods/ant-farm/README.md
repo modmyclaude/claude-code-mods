@@ -25,29 +25,31 @@ Watch your subagents work, and what they cost, live.
   budget (Claude Code's estimate where it keeps one) and a budget bar. With no
   subagents yet, Bolt naps here.
 - **The cards.** One bordered card per running subagent, one to three across
-  depending on the pane's width. Each shows its number and task, a status
-  pill, its ant, model, elapsed time and ETA, what it is doing right now, a
-  sparkline of tokens per request, requests and tokens, a progress bar, its
-  estimated cost and how many tools it called, files it edited and calls that
-  failed. The border takes the model's colour, green for a moment when it
+  depending on the pane's width. Each shows its number and task, its ant,
+  model and elapsed time, a status line (`WORKING · Bash npm test · 4s`,
+  `THINKING · 12s`, `WAITING · permission for Bash`), a sparkline of tokens
+  per request, requests and tokens, a progress bar, its estimated cost and
+  ETA, and on a wide card how many tools it called, files it edited and calls
+  that failed. The border takes the model's colour, green for a moment when it
   finishes, red when it fails, then rests dim. The pointer lights a card.
 - **The status is read, never guessed.** `THINKING` while a thinking block
   streams in its own model request, `WORKING` while it writes or runs a tool
-  (the activity line names the tool and what it touches: `Bash npm test`,
+  (the status line names the tool and what it touches: `Bash npm test`,
   `Edit auth.ts`), `WAITING` while Claude Code asks you for a permission on
   its tool, or its agent list says it is held, `DONE` and `FAILED` at its end.
+  A held subagent counts as waiting, not as running too.
 - **The activity timeline.** Under the cards, the last 80 things the subagents
   did, newest first on the mission clock: starts and handoffs (`from #1`),
   tool calls, edits, endings with their duration, tools that failed or were
   refused, responses that hit a limit, the budget alarm. 12 rows by default,
   `+N more` shows 40, `hide` folds it.
-- **The inspector.** `inspect` on a card (or its digit) opens a panel with the
+- **The inspector.** `open` on a card (or its number) opens a panel with the
   subagent's task, type, model, start, where it came from, its live state, its
   numbers, a longer sparkline and its own last rows; `previous`, `next` and
   `close` move between subagents.
 - **Keys.** While the pane holds the keyboard (ctrl+x tab, or a click into it)
-  the digits 1-9 inspect the first nine cards, `n` and `p` move, `x` closes
-  the inspector, `f` expands or collapses the finished list, `t` folds the
+  a subagent's number 1 to 9 opens it, `n` and `p` move, `x` closes the
+  inspector, `f` expands or collapses the finished list, `t` folds the
   timeline; a `Keys` line shows then. Esc hands the keyboard back.
 - **The ants.** Every subagent gets a small pixel-art ant, one colour per
   model. It walks while its subagent works, stands still and dims when it is

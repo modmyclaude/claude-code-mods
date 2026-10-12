@@ -37,19 +37,24 @@ export function statusLook(status: AntFarmAnt['status'], phase: AntFarmPhase | u
   return { word: 'WORKING', color: 'suggestion', glyph: '●' }
 }
 
-/** The activity line of a running card: "Thinking · 4s", "Bash: npm test", "Waiting · permission for Bash". */
+/**
+ * What follows the status word on a running card: the tool and what it
+ * touches, what is waited for, or the step ("starting", "writing"), then for
+ * how long; empty when there is nothing to add to the word.
+ */
 export function activityText(live: LivePhase | undefined, now: number): string {
-  if (live === undefined) return 'Working'
+  if (live === undefined) return ''
   const forMs = live.since !== undefined ? Math.max(0, now - live.since) : undefined
-  const since = forMs !== undefined && forMs >= 1000 ? ` · ${fmtShort(forMs)}` : ''
+  const parts: string[] = []
   switch (live.phase) {
-    case 'starting': return `Starting${since}`
-    case 'thinking': return `Thinking${since}`
-    case 'writing': return `Writing${since}`
-    case 'tool': return `${live.detail ?? 'A tool'}${since}`
-    case 'waiting': return `Waiting${live.detail !== undefined ? ` · ${live.detail}` : ''}${since}`
-    default: return `Working${since}`
+    case 'starting': parts.push('starting'); break
+    case 'writing': parts.push('writing'); break
+    case 'tool': parts.push(live.detail ?? 'a tool'); break
+    case 'waiting': parts.push(live.detail ?? 'held'); break
+    default: break
   }
+  if (forMs !== undefined && forMs >= 1000) parts.push(fmtShort(forMs))
+  return parts.join(' · ')
 }
 
 /** "4s", "1m 20s", "2h 05m": the short form used in activity lines and event rows. */
@@ -241,9 +246,9 @@ export function moveSelection(ids: readonly string[], current: string | undefine
   return ids[(at + by + ids.length) % ids.length]
 }
 
-/** Hotkeys for the first nine cards in display order: a bare digit each. */
-export function hotkeyOf(position: number): string | undefined {
-  return position >= 0 && position < 9 ? String(position + 1) : undefined
+/** A card's hotkey is its mission number while that is one digit; past nine, none. */
+export function hotkeyOf(n: number | undefined): string | undefined {
+  return n !== undefined && Number.isInteger(n) && n >= 1 && n <= 9 ? String(n) : undefined
 }
 
 // ---------------------------------------------------------------- order
