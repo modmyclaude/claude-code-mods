@@ -25,6 +25,7 @@ import {
   runOut,
   tokensPerMinute,
 } from '../hooks/gauge'
+import { detailChunks, detailLines } from '../hooks/detail'
 import { priceRequest, priceRow } from '../hooks/prices'
 
 const MIN = 60_000
@@ -360,5 +361,21 @@ describe('formatting', () => {
     expect(bar(52, 10)).toBe('█████░░░░░')
     expect(bar(150, 4)).toBe('████')
     expect(bar(undefined, 3)).toBe('░░░')
+  })
+})
+
+describe('the view where no pane is placed', () => {
+  test('transcript chunks are whole lines, each under the cap, and together the whole view', () => {
+    const g: RedlineGauge = { ...EMPTY_GAUGE, window: 200_000, contextTokens: 50_000 }
+    const lines = detailLines(g, NOW, 10).map(l => l.text)
+    expect(detailChunks(g, NOW).join('\n')).toBe(lines.join('\n'))
+    const small = detailChunks(g, NOW, 120)
+    expect(small.length).toBeGreaterThan(1)
+    expect(small.join('\n')).toBe(lines.join('\n'))
+    const longest = Math.max(...lines.map(l => l.length))
+    for (const chunk of small) {
+      expect(chunk.length).toBeLessThanOrEqual(Math.max(120, longest))
+      for (const row of chunk.split('\n')) expect(lines).toContain(row)
+    }
   })
 })

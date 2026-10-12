@@ -16,7 +16,7 @@ import type { EngineInterface, Register, SessionMeasureInput, ThemeKey, Timer } 
 
 import { boltSprite } from './bolt-draw'
 import { glyphRow, mixedRow } from './cells'
-import { boltPose, detailLines, detailText } from './detail'
+import { boltPose, detailChunks, detailLines } from './detail'
 import type { DetailLine, Tone } from './detail'
 import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
 import type { Level, Reading } from './gauge'
@@ -209,7 +209,8 @@ export const register: Register = on => {
   })
 
   // A command's text is read by the model, so redline answers {} and speaks
-  // through toasts and its pane; text only where nothing can draw the pane.
+  // through toasts and its pane; where nothing can draw the pane, the view goes
+  // to the transcript as dim rows of its own, which the model never reads.
   on('command.run', { command: 'redline' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'band') {
@@ -223,8 +224,9 @@ export const register: Register = on => {
     }
     const opened = await $.ui.open({ id: PANE, title: 'Redline', closeOnEscape: true })
     if (opened.isPlaced) return {}
-    // Nothing places the pane here: print the same view as the command's text.
-    return { text: detailText(await read($, gauge), await $.clock.now()) }
+    // Nothing places the pane here: the same view as transcript rows, never as command text.
+    for (const chunk of detailChunks(await read($, gauge), await $.clock.now())) $.ui.log(chunk)
+    return {}
   }).catch($ => {
     $.ui.toast('Could not open its detail view (run with --debug for the reason).')
     return {}

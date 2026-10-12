@@ -147,3 +147,23 @@ export function boltPose(g: RedlineGauge, now: number): 'idle' | 'crash' {
 export function detailText(g: RedlineGauge, now: number): string {
   return ['```text', ...detailLines(g, now, 10).map(l => l.text), '```'].join('\n')
 }
+
+/**
+ * The same view for a surface that places no pane, as transcript log rows:
+ * the terminal draws a row's first 2000 characters, so the lines are grouped
+ * under that, whole lines only. None of it is command text, so the model
+ * reads none of it.
+ */
+export function detailChunks(g: RedlineGauge, now: number, max = 1900): string[] {
+  const chunks: string[] = []
+  let chunk = ''
+  for (const line of detailLines(g, now, 10).map(l => l.text)) {
+    if (chunk !== '' && chunk.length + 1 + line.length > max) {
+      chunks.push(chunk)
+      chunk = ''
+    }
+    chunk = chunk === '' ? line : `${chunk}\n${line}`
+  }
+  if (chunk !== '') chunks.push(chunk)
+  return chunks
+}

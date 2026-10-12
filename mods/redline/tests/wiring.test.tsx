@@ -20,6 +20,7 @@ type World = {
   clock: ReturnType<typeof mock.clock>
   statuses: (string | undefined)[]
   toasts: string[]
+  logs: string[]
   opened: string[]
   closed: string[]
   registered: string[]
@@ -38,6 +39,7 @@ function world(on: On, usage: Partial<SessionUsage> = {}, store: Record<string, 
     clock: mock.clock(on, { now: T0 }),
     statuses: [],
     toasts: [],
+    logs: [],
     opened: [],
     closed: [],
     registered: [],
@@ -51,7 +53,7 @@ function world(on: On, usage: Partial<SessionUsage> = {}, store: Record<string, 
   on('session.usage', () => (w.isUsageDenied ? { deny: 'usage is not available here' } : { value: w.usage }))
   on('ui.status', ($, e) => (w.statuses.push(e.text), { value: undefined }))
   on('ui.toast', ($, e) => (w.toasts.push(e.text), { value: undefined }))
-  on('ui.log', () => ({ value: undefined }))
+  on('ui.log', ($, e) => (w.logs.push(e.text), { value: undefined }))
   on('command.register', ($, e) => (w.registered.push(e.name), w.specs.push({ ...e }), { value: { command: e.name } }))
   on('ui.open', ($, e) => {
     w.opened.push(e.id)
@@ -440,15 +442,20 @@ describe('/redline', () => {
     expect(await band.find({ key: 'gauge' })).toBeDefined()
   })
 
-  test('opens the detail pane, and prints the view where no pane is placed', async ($, on) => {
+  test('opens the detail pane; where no pane is placed the view goes to the transcript, never to the model', async ($, on) => {
     const w = world(on)
+    await $.turn.start({ text: 'rotate the deploy key before noon', turnId: 't1' })
     await request($, pct(50))
     expect(await runCommand($, '')).toEqual({})
     expect(w.opened).toEqual(['redline'])
     w.isPanePlaced = false
-    const printed = await runCommand($, '')
-    expect(printed.text).toContain('Redline - context, cost and pace')
-    expect(printed.text).toContain('50%')
+    // Still {}: command text is read by the model, and the busiest-turns rows carry prompt words.
+    expect(await runCommand($, '')).toEqual({})
+    const printed = w.logs.join('\n')
+    expect(printed).toContain('Redline - context, cost and pace')
+    expect(printed).toContain('50%')
+    expect(printed).toContain('rotate the deploy key')
+    for (const row of w.logs) expect(row.length).toBeLessThanOrEqual(1900)
   })
 
   test('answers unknown arguments with its usage', async ($, on) => {
