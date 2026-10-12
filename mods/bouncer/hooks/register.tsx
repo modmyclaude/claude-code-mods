@@ -126,7 +126,9 @@ async function checkOne($: EngineInterface, bin: string, root: string, name: str
     const before = seen[name]
     return { ok: true, name, version, root, isLoaded, reach: parsed.reach, hash, isNew: before === undefined, isChanged: before !== undefined && before !== hash }
   } catch (error) {
-    return { ok: false, name, version, root, isLoaded, reason: clean(error instanceof Error ? error.message : String(error), 120) }
+    // The engine names the call in the message ($.process.run: ...); the person needs the rest.
+    const message = (error instanceof Error ? error.message : String(error)).replace(/^(?:[\w-]+: )?\$\.process\.run: /, '')
+    return { ok: false, name, version, root, isLoaded, reason: clean(message, 120) }
   }
 }
 

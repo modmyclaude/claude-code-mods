@@ -66,7 +66,7 @@ describe('the check', () => {
     const w = world(on, { reports: { [NETTY]: 'missing', [ZEN]: 'missing', [GATEKEEPER]: 'missing' } })
     await start($, w)
     const { rows } = await pane($, 'terminal')
-    expect(rows.netty).toContain('could not check: spawn claude ENOENT')
+    expect(rows.netty, rows.netty).toContain('could not check: spawn claude ENOENT') // the call's own name is not repeated to the person
     expect(rows.netty).not.toContain('nothing declared')
     expect((await band($, 'terminal')).line ?? '').not.toContain('netty')
     expect(Object.keys(w.store.get('seen') as object)).toEqual(['bouncer'])
