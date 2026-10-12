@@ -525,7 +525,9 @@ export const register: Register = (on, options) => {
       const offered = await read($, card)
       if (view !== null && view.kind === 'guide' && view.phase === 'breathing' && !e.props.isWorking) {
         // Its turn.complete was lost (a reload at the wrong moment, a mod above that kept it):
-        // draw nothing and stop its clock; the next turn.start drops it uncounted.
+        // draw nothing and stop its clock; the next turn.start drops it uncounted. A guide drawn
+        // after this is a fresh frame, so it is rebuilt from now.
+        guide = { ...guide, shown: false }
         want($, null)
         return next(e)
       }

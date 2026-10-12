@@ -642,6 +642,24 @@ test('on the desktop the band is not drawn again across a span, so its frame is 
   await ui.unmount()
 })
 
+test('a desktop guide drawn again after its run was found orphaned is rebuilt from now, not reused', async ($, on) => {
+  const w = world(on)
+  await w.start($)
+  await w.clock.advance(3000 + 500)
+  const first = await w.band($, 'desktop')
+  expect(String((await first.find({ type: 'Svg' }))?.props.source)).toContain('linear -500ms')
+  await first.unmount()
+  // A draw that finds the breath running with no turn working: nothing is drawn and its clock stops.
+  const orphan = await w.band($, 'desktop', { isWorking: false })
+  expect(await orphan.find({ type: 'Svg' })).toBeUndefined()
+  await orphan.unmount()
+  await w.clock.advance(1000)
+  // Drawn again inside a second and a half: a new frame, so it starts 1.5 s in, not back at 0.5 s.
+  const again = await w.band($, 'desktop')
+  expect(String((await again.find({ type: 'Svg' }))?.props.source)).toContain('linear -1500ms')
+  await again.unmount()
+})
+
 test('a draft collapses the desktop band to one still line, and the guide comes back in step', async ($, on) => {
   const w = world(on)
   await w.start($)

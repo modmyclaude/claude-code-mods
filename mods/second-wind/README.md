@@ -54,7 +54,7 @@ Breathe gently and never strain. If you feel lightheaded, stop and breathe norma
 
 ## Settings
 
-Change them in `/config`.
+Change them in `/config`. Installing says these options are not yet set: each has the default below, so nothing needs setting first.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
