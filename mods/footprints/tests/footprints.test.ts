@@ -321,6 +321,63 @@ describe('the pane', () => {
     }
   })
 
+  test('a project with more than 50 folders opens touched-only and says why; the full tree is one press away, and a choice stands', async ($, on) => {
+    const many = Array.from({ length: 60 }, (_, i) => `pkg${String(i + 1).padStart(2, '0')}/index.ts`)
+    const w = world(on, { tracked: [...many, 'README.md'] })
+    await start($)
+    await $.tool.call({ tool: 'Read', file_path: abs('pkg07/index.ts') })
+    await footprints($)
+    for (const surface of SURFACES) {
+      const ui = await mount($, surface)
+      expect((await ui.find({ key: 'touched' }))?.props.label, surface).toBe('show all files')
+      expect((await ui.find({ key: 'big' }))?.text, surface).toBe('touched only, since this project has 60 folders · t or /footprints touched shows all files')
+      expect(await ui.find({ key: 'f:pkg07/index.ts' }), surface).toBeDefined()
+      expect(await ui.find({ key: 'f:pkg08/index.ts' }), surface).toBeUndefined()
+      expect(await ui.find({ key: 'f:README.md' }), surface).toBeUndefined()
+      await ui.unmount()
+    }
+    const ui = await mount($, 'terminal')
+    await ui.press({ key: 'touched' })
+    expect((await ui.find({ key: 'touched' }))?.props.label).toBe('touched only')
+    expect(await ui.find({ key: 'big' })).toBeUndefined()
+    expect(await ui.find({ key: 'f:README.md' })).toBeDefined()
+    await ui.press({ key: 'touched' }) // chosen now: touched-only again, and the note is gone for good
+    expect(await ui.find({ key: 'f:README.md' })).toBeUndefined()
+    expect(await ui.find({ key: 'big' })).toBeUndefined()
+    await ui.unmount()
+    // The choice stands on the other surface too, and from the prompt.
+    const desk = await mount($, 'desktop')
+    expect(await desk.find({ key: 'big' })).toBeUndefined()
+    expect(await desk.find({ key: 'f:README.md' })).toBeUndefined()
+    await desk.unmount()
+    await footprints($, 'touched')
+    expect(w.rec.toasts.at(-1)).toBe('All files')
+  })
+
+  test('on a big tree, /footprints touched starts from that default and shows all files first; a small tree starts open', async ($, on) => {
+    const many = Array.from({ length: 51 }, (_, i) => `d${i + 1}/a.ts`)
+    const w = world(on, { tracked: many })
+    await start($)
+    await footprints($)
+    await footprints($, 'touched')
+    expect(w.rec.toasts.at(-1)).toBe('All files')
+    const ui = await mount($, 'terminal')
+    expect((await ui.find({ key: 'touched' }))?.props.label).toBe('touched only')
+    expect(await ui.find({ key: 'f:d51/a.ts' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('exactly 50 folders is not big: the tree opens whole', async ($, on) => {
+    world(on, { tracked: Array.from({ length: 50 }, (_, i) => `d${i + 1}/a.ts`) })
+    await start($)
+    await footprints($)
+    const ui = await mount($, 'terminal')
+    expect((await ui.find({ key: 'touched' }))?.props.label).toBe('touched only')
+    expect(await ui.find({ key: 'big' })).toBeUndefined()
+    expect(await ui.find({ key: 'f:d50/a.ts' })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('the button answers the t key', async ($, on) => {
     world(on, { tracked: files })
     await start($)
@@ -668,6 +725,7 @@ describe('review fixes', () => {
     world(on, { tracked: many })
     await start($)
     await footprints($)
+    await footprints($, 'touched') // 201 folders: it opened touched-only, so show every file
     const ui = await mount($, 'terminal')
     expect((await ui.find({ key: 'note' }))?.text).toBe('showing 20000 files of a longer list')
     expect(await ui.find({ key: 'd:d199' })).toBeDefined()

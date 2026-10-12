@@ -10,23 +10,24 @@ import type { EngineInterface, Register, Timer, ToolCallResult } from 'claude-co
 import type { FootprintsMark as Mark, FootprintsTree as Tree } from '../types'
 import { boltSprite } from './bolt-draw'
 import {
-  BIG_FOLDER,
-  HEADER_SEPARATOR,
-  MAX_FILES,
-  MAX_ROWS,
-  MAX_STATS,
-  MAX_WALK_DIRS,
-  SKIP_DIRS,
   applyShell,
+  BIG_FOLDER,
+  BIG_TREE_FOLDERS,
   buildRows,
   clean,
   countMarks,
   endEdit,
+  folderCount,
+  HEADER_SEPARATOR,
   headerParts,
   isEditing,
   isTouched,
   looksLikeCommit,
   markRead,
+  MAX_FILES,
+  MAX_ROWS,
+  MAX_STATS,
+  MAX_WALK_DIRS,
   normalize,
   orNothing,
   parseNulList,
@@ -35,6 +36,7 @@ import {
   settleEdits,
   shellChanges,
   shimmerParts,
+  SKIP_DIRS,
   startEdit,
   statOrder,
   statusText,
@@ -61,7 +63,23 @@ const BOLT_MIN_COLUMNS = 40
 const MARKS = { plugin: 'footprints', key: 'marks' } as const
 const TREE = { plugin: 'footprints', key: 'tree' } as const
 const marksAtom = atom(MARKS, {})
-const touchedOnlyAtom = atom({ plugin: 'footprints', key: 'touchedOnly' } as const, false)
+const touchedOnlyAtom = atom({ plugin: 'footprints', key: 'touchedOnly' } as const, null as boolean | null)
+
+/** Whether a tree is big, remembered by the state version it came with. */
+let bigTree: { version: unknown; isBig: boolean; folders: number } | null = null
+function foldersOf(tree: Tree | null, version: unknown): number {
+  if (tree === null) return 0
+  if (bigTree === null || bigTree.version !== version) {
+    const folders = folderCount(tree.files)
+    bigTree = { version, isBig: folders > BIG_TREE_FOLDERS, folders }
+  }
+  return bigTree.folders
+}
+
+/** Touched-only as it stands: the person's choice, else on for a big tree (over BIG_TREE_FOLDERS folders). */
+function touchedOnlyFor(chosen: boolean | null, tree: Tree | null, version: unknown): boolean {
+  return chosen ?? (tree !== null && foldersOf(tree, version) > BIG_TREE_FOLDERS)
+}
 const phaseAtom = atom({ plugin: 'footprints', key: 'phase' } as const, 0)
 const SHELL_PAUSED = { plugin: 'footprints', key: 'shellPaused' } as const
 const shellPausedAtom = atom(SHELL_PAUSED, false)
@@ -413,7 +431,8 @@ export const register: Register = on => {
   on('command.run', { command: 'footprints' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'touched') {
-      const isOn = await update($, touchedOnlyAtom, value => !value)
+      const treeRead = await $.state.get(TREE)
+      const isOn = await update($, touchedOnlyAtom, value => !touchedOnlyFor(value, treeRead.value ?? null, treeRead.version))
       $.ui.toast(isOn ? 'Touched files only' : 'All files')
       if (!(await paneIsOpen($))) await openPane($)
     } else if (arg !== '') {
@@ -487,13 +506,16 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
-    const [marksRead, treeRead, touchedOnly, phase] = await Promise.all([
+    const [marksRead, treeRead, chosen, phase] = await Promise.all([
       $.state.get(MARKS),
       $.state.get(TREE),
       read($, touchedOnlyAtom),
       read($, phaseAtom),
     ])
     const tree = treeRead.value ?? null
+    // A big tree opens touched-only until the person chooses; the note under the controls says so.
+    const touchedOnly = touchedOnlyFor(chosen, tree, treeRead.version)
+    const isDefaultTouched = chosen === null && touchedOnly
     const view = viewOf(tree, marksRead.value ?? {}, touchedOnly, `${marksRead.version}:${treeRead.version}:${touchedOnly}`)
 
     /** A name styled by what Claude did to it: blue read, amber edited (shimmering while it runs), green committed. */
@@ -585,7 +607,7 @@ export const register: Register = on => {
             hotkey="t"
             plain
             label={touchedOnly ? 'show all files' : 'touched only'}
-            onPress={() => update($, touchedOnlyAtom, value => !value)}
+            onPress={() => update($, touchedOnlyAtom, value => !touchedOnlyFor(value, tree, treeRead.version))}
           />
           {tree ? (
             <Text dimColor wrap="truncate-end">{`${rootName}${tree.source === 'walk' ? ' (not a git repo)' : ''}`}</Text>
@@ -593,6 +615,13 @@ export const register: Register = on => {
             ''
           )}
         </Box>
+        {isDefaultTouched ? (
+          <Box key="big">
+            <Text dimColor wrap="truncate-end">{`touched only, since this project has ${foldersOf(tree, treeRead.version)} folders · t or /footprints touched shows all files`}</Text>
+          </Box>
+        ) : (
+          ''
+        )}
         {tree?.note ? (
           <Box key="note">
             <Text dimColor wrap="truncate-end">{clean(tree.note)}</Text>

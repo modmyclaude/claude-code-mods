@@ -21,7 +21,7 @@ A live file tree beside the chat that shows where Claude has been.
   - ~~struck through~~ - deleted (a file created this session and then deleted leaves no trace)
   - **(shell)** - changed by a Bash command rather than an edit tool
 - The header counts it up: `read 12 · edited 4 · new 1`, plus `deleted` and `committed` once there are any. New, deleted and committed files are counted in edited too.
-- **Touched only**: press `t` while the pane has the keys (click it, or ctrl+x tab), or type `/footprints touched`. Every folder Claude did not touch collapses, and untouched files fold into one `+ N untouched files` line.
+- **Touched only**: press `t` while the pane has the keys (click it, or ctrl+x tab), or type `/footprints touched`. Every folder Claude did not touch collapses, and untouched files fold into one `+ N untouched files` line. A project with more than 50 folders opens this way, with a note under the header saying so; one press shows the whole tree, and your choice then stands for the session.
 - **Status line**: `edited 4` under the prompt, so you see activity with the pane closed.
 - Untouched folders with more than 40 files start collapsed, showing their file count. Files Claude touched outside the project are listed under `outside <folder>`.
 - `/clear` starts a clean trail.

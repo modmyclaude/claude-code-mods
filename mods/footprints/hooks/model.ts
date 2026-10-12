@@ -12,6 +12,8 @@ export const MTIME_SLACK_MS = 1000
 export const MAX_FILES = 20000
 /** Folders a walk outside git lists before it stops. */
 export const MAX_WALK_DIRS = 400
+/** Over this many folders a project opens in touched-only view, the full tree one press away. */
+export const BIG_TREE_FOLDERS = 50
 /** Dirty paths a Bash call stats at most. */
 export const MAX_STATS = 400
 /** Skipped by the walk outside git, where there is no .gitignore to ask. */
@@ -276,6 +278,16 @@ export function statusText(counts: Counts): string | undefined {
 }
 
 // ---------------------------------------------------------------- tree rows
+
+/** How many folders a file list spans: every ancestor of every file, the root itself not counted. */
+export function folderCount(files: readonly string[]): number {
+  const dirs = new Set<string>()
+  for (const path of files) {
+    const parts = path.split('/').filter(part => part !== '')
+    for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join('/'))
+  }
+  return dirs.size
+}
 
 export type Row =
   | { kind: 'dir'; depth: number; name: string; path: string; isOpen: boolean; files: number; isTouched: boolean; mark?: Mark }

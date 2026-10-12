@@ -43,7 +43,8 @@ declare module 'claude-code' {
       /** Absolute path to its mark. */
       marks: Record<string, FootprintsMark>
       tree: FootprintsTree | null
-      touchedOnly: boolean
+      /** Touched-only as the person chose it with t or /footprints touched; null until they do, when a big tree (over 50 folders) opens touched-only. */
+      touchedOnly: boolean | null
       /** Animation frame of the shimmer; only moves while an edit runs. */
       phase: number
       /** True once git status proved too slow here: Bash calls are no longer checked. */

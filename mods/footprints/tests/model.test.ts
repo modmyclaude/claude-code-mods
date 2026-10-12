@@ -9,6 +9,7 @@ import {
   clean,
   countMarks,
   endEdit,
+  folderCount,
   headerText,
   looksLikeCommit,
   markRead,
@@ -282,5 +283,14 @@ describe('statOrder', () => {
     const after = { old1: '??', old2: '??', a: 'M.', b: '.M' }
     expect(statOrder(before, after)).toEqual(['a', 'gone', 'b', 'old1', 'old2'])
     expect(statOrder({}, {})).toEqual([])
+  })
+})
+
+describe('folder count', () => {
+  test('every ancestor of every file, once, the root not counted', () => {
+    expect(folderCount([])).toBe(0)
+    expect(folderCount(['README.md'])).toBe(0)
+    expect(folderCount(['a/b/c.ts', 'a/d.ts', 'e.ts', 'a/b/f.ts'])).toBe(2)
+    expect(folderCount(['x/y/z/w.ts', '/x/q.ts', 'x//y/r.ts'])).toBe(3)
   })
 })
