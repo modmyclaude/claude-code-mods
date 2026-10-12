@@ -36,6 +36,13 @@ const PANE = 'ant-farm'
 const TITLE = 'Ant farm'
 /** The body columns /antfarm asks the dock for: two cards side by side. */
 const PANE_COLUMNS = 84
+/**
+ * A moment after a pane opens, ask for a draw again. On the desktop app the
+ * first draw of a pane opened by a command did not land once (the pane said
+ * nothing had been drawn until a resize asked again); the second ask costs one
+ * render and makes the pane whole either way.
+ */
+const OPEN_NUDGE_MS = 300
 /** One frame of the ants, and of every elapsed time shown. */
 const TICK_MS = 500
 /** Every this many ticks, running ants are checked against the engine's agent list. */
@@ -313,6 +320,12 @@ async function openUnasked($: EngineInterface) {
   if (!isClaimed) return
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   if (!opened.isPlaced) await update($, view, v => ({ ...v, isListInBand: true }))
+  else nudgeAfterOpen($)
+}
+
+/** One more draw shortly after an open, so a first draw that did not land is drawn after all. */
+function nudgeAfterOpen($: EngineInterface) {
+  $.clock.after(OPEN_NUDGE_MS, () => $.ui.invalidate('ui.render'))
 }
 
 async function isPanePlaced($: EngineInterface): Promise<boolean> {
@@ -366,6 +379,7 @@ export const register: Register = (on, options) => {
     const opened = await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
     if (opened.isPlaced) {
       await update($, view, v => ({ ...v, isListInBand: false, isClosedByHand: false }))
+      nudgeAfterOpen($)
       return {}
     }
     await update($, view, v => ({ ...v, isListInBand: true }))

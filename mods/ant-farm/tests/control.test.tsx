@@ -93,6 +93,10 @@ describe('the command grid', () => {
     await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
     expect(w.rec.openColumns).toEqual([84])
     expect(w.rec.opens).toEqual([PANE])
+    // A moment after the open, one more draw is asked for: a first draw that did not land is drawn then.
+    const before = w.rec.invalidates
+    await w.clock.advance(300)
+    expect(w.rec.invalidates).toBeGreaterThan(before)
     // Opening itself at the first spawn, it asks for nothing: the dock's share.
     w.rec.panes = [] // the person closed it
     const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }, viewport: DOCKED })
