@@ -473,6 +473,25 @@ icon("bouncer", "A post and its velvet rope: every installed mod gets checked at
     "................",
 ])
 
+icon("chapters", "An open book: a diff read as ordered chapters, one at a time.", [
+    "................",
+    "................",
+    ".PP..........PP.",
+    ".PPPP......PPPP.",
+    ".PPPPPP..PPPPPP.",
+    ".PDDDPPGGPPDDDP.",
+    ".PPPPPPGGPPPPPP.",
+    ".PDDDDPGGPDDDDP.",
+    ".PPPPPPGGPPPPPP.",
+    ".PDDDPPGGPPDDDP.",
+    "..PPPPPGGPPPPP..",
+    "...LLLLLLLLLL...",
+    "......LLLL......",
+    "................",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

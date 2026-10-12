@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/chapters.svg" width="64" height="64" alt="">
+
 # Chapters
 
 A readable review of a diff: `/chapters` asks the model for ordered chapters with risk marks, and a pane walks you through them beside the hunks.

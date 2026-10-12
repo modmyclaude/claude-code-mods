@@ -1,7 +1,7 @@
 ---
 mod: chapters
 title: Chapters
-tagline: A readable review of a diff - the model writes ordered chapters with risk marks, and a pane walks you through them beside the hunks.
+tagline: A diff, told in ordered chapters with risk marks, and a pane that walks you through them.
 category: review
 surfaces: [terminal, desktop]
 model_calls: one per review you ask for (two for a big diff)

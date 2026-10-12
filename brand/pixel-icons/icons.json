@@ -568,6 +568,29 @@
       ]
     },
     {
+      "name": "chapters",
+      "kind": "mod",
+      "meaning": "An open book: a diff read as ordered chapters, one at a time.",
+      "rows": [
+        "................",
+        "................",
+        ".PP..........PP.",
+        ".PPPP......PPPP.",
+        ".PPPPPP..PPPPPP.",
+        ".PDDDPPGGPPDDDP.",
+        ".PPPPPPGGPPPPPP.",
+        ".PDDDDPGGPDDDDP.",
+        ".PPPPPPGGPPPPPP.",
+        ".PDDDPPGGPPDDDP.",
+        "..PPPPPGGPPPPP..",
+        "...LLLLLLLLLL...",
+        "......LLLL......",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",
