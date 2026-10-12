@@ -202,7 +202,7 @@ Every mod is tested on the terminal and the desktop app's Code tab. The VS Code 
 <details>
 <summary><b>Is this made by Anthropic?</b></summary>
 
-No. This is an independent community project. It uses only the public mods API.
+No. This is an independent community project. It uses only Claude Code's mods API, which is in early access and may change.
 
 </details>
 

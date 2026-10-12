@@ -4,9 +4,9 @@ Mods run inside Claude Code with your permissions. They can see your prompts and
 
 ## How mods here are checked
 
-- Every mod is reviewed by a second maintainer against its prompt before it is listed.
-- CI runs `claude plugin validate --strict`, a strict type check and the mod's tests on every commit, on a pinned and on the latest Claude Code, and installs every mod from the marketplace into a throwaway config.
-- Installs come from this repository's commits, so a listed mod cannot change without a reviewed commit.
+- Every mod is reviewed against its prompt by a second builder before it is listed.
+- CI runs `claude plugin validate --strict` and every mod's tests on every commit, on a pinned and on the latest Claude Code, and installs every mod from the marketplace into a throwaway config. The TypeScript type check runs locally against the engine's own types before a change is pushed; CI does not have those types yet.
+- Installs come from this repository's `main` branch, which is protected against force pushes and deletion, so a listed mod changes only by a new commit in its public history.
 - CI runs with read-only repository permissions, and its actions are pinned to exact commits.
 
 ## Supported versions

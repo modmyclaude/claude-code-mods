@@ -34,7 +34,7 @@ None. The thresholds (60%, 80%, re-arm under 75%) and the 10-minute window are f
 
 - Reads: what Claude Code reports about the session (`$.session.usage()`, the `session.measure` event), each model request's token counts (`turn.step`), each turn's prompt text (`turn.start`, shown only in the busiest-turns list), and compactions, `/clear` and an in-session `/resume` (each starts the gauge over). Model ids, plan window names and prompt text are cleaned of control characters before anything is drawn.
 - Writes: one remembered value in the plugin's own store (whether the band is on). No files.
-- No processes, no network, no model calls. It costs nothing to run.
+- No processes, no network, no model calls. No tokens: nothing it draws reaches the model.
 
 ## Where the numbers come from
 
