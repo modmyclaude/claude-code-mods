@@ -157,34 +157,43 @@ describe('the breath bar in text cells', () => {
 })
 
 describe('the desktop guide (MM-110)', () => {
-  const box = PATTERNS.box
+  const loop = [{ steps: PATTERNS.box, loop: true, atMs: 0 }]
+  const wait = [
+    { steps: PATTERNS.sigh, loop: false, atMs: 0 },
+    { steps: PATTERNS.box, loop: true, atMs: 15000 },
+  ]
 
-  test('one markup per span: the drawing runs the whole loop itself, eased, never swapped mid-breath', () => {
-    const a = guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'calm' })
-    expect(a).toBe(guideSvg(box, { motion: 'full', delayMs: 3000, loop: true, pose: 'calm' }))
-    expect(a).toContain('16000ms linear -3000ms infinite')
+  test('one drawing per span: the sigh, then the paced loop, on its own eased clock', () => {
+    const a = guideSvg(wait, { motion: 'full', delayMs: 3000, pose: 'calm' })
+    expect(a).toBe(guideSvg(wait, { motion: 'full', delayMs: 3000, pose: 'calm' }))
+    // The sigh plays once from 3 s in; the loop takes over at 15 s and repeats.
+    expect(a).toContain('.h{animation:h0 15000ms linear -3000ms 1 both,h1 16000ms linear 12000ms infinite none}')
     expect(a).toContain('cubic-bezier(.45,0,.55,1)')
-    expect(a).toContain('@keyframes h{0%{r:12px')
+    expect(a).toContain('@keyframes h0{0%{r:12px')
     expect(a).not.toContain('<script')
     expect(a).not.toContain('<animate')
-    // Each step's word, cross-fading on the same clock: never a blank between them.
-    for (const word of ['Breathe in', 'Hold', 'Breathe out']) expect(a).toContain(`>${word}</text>`)
-    expect(a).toContain('@keyframes w0{0%{opacity:0.5}')
+    expect(a).toContain('background:transparent')
+    for (const word of ['Breathe in', 'Sip in', 'Hold', 'Breathe out']) expect(a).toContain(`>${word}</text>`)
+  })
+
+  test('a word fades out before the next fades in: never two on top of each other', () => {
+    const a = guideSvg(loop, { motion: 'full', delayMs: 0, pose: 'calm' })
+    // Box: four 4 s steps. "Hold" (step 1) is in from 25% (+250 ms) to 50% (-250 ms), out by 50%.
+    expect(a).toContain('@keyframes w0_1{0%{opacity:0}25%{opacity:0}26.56%{opacity:1}48.44%{opacity:1}50%{opacity:0}100%{opacity:0}}')
   })
 
   test('reduced motion stills Bolt and the halo, which stay drawn', () => {
-    const a = guideSvg(box, { motion: 'full', delayMs: 0, loop: true, pose: 'calm' })
+    const a = guideSvg(loop, { motion: 'full', delayMs: 0, pose: 'calm' })
     expect(a).toContain('@media (prefers-reduced-motion:reduce){.h,.b{animation:none}}')
     expect(a).toContain('<circle class="h"')
     expect(a).toContain('<rect ')
-    const still = guideSvg(box, { motion: 'still', delayMs: 0, loop: true, pose: 'calm' })
-    expect(still).not.toContain('@keyframes h{')
+    expect(guideSvg(loop, { motion: 'still', delayMs: 0, pose: 'calm' })).not.toContain('.h{animation')
   })
 
   test('gentle travels less; the closing exhale plays once', () => {
-    expect(guideSvg(box, { motion: 'gentle', delayMs: 0, loop: true, pose: 'calm' })).toContain('@keyframes h{0%{r:15px')
-    const finish = guideSvg([{ phase: 'out', ms: 2000, from: 0.6, to: 0 }], { motion: 'full', delayMs: 0, loop: false, pose: 'calm' })
-    expect(finish).toContain('2000ms linear 0ms 1 both')
+    expect(guideSvg(loop, { motion: 'gentle', delayMs: 0, pose: 'calm' })).toContain('@keyframes h0{0%{r:15px')
+    const finish = guideSvg([{ steps: [{ phase: 'out', ms: 2000, from: 0.6, to: 0 }], loop: false, atMs: 0 }], { motion: 'full', delayMs: 0, pose: 'calm' })
+    expect(finish).toContain('h0 2000ms linear 0ms 1 both')
   })
 })
 
@@ -237,7 +246,7 @@ describe('settings and copy', () => {
 })
 
 test('MM-110: a rest is a still Bolt with no words inside the drawing', () => {
-  const rest = guideSvg([], { motion: 'full', delayMs: 0, loop: false, pose: 'idle', words: false })
+  const rest = guideSvg([], { motion: 'full', delayMs: 0, pose: 'idle', words: false })
   expect(rest).not.toContain('<text')
   expect(rest).not.toContain('@keyframes')
   expect(rest).toContain('<rect ')

@@ -267,29 +267,71 @@ export function frameAt(run: SecondWindRun, now: number): Frame | null {
   }
 }
 
-/** What the desktop guide draws now (MM-110): one run of steps, how far in, and Bolt's pose. */
-export type GuideSpan = { key: string; steps: readonly Step[]; loop: boolean; offsetMs: number; pose: 'calm' | 'idle' }
+/** What the desktop guide draws now (MM-110): its timeline, how far in, Bolt's pose, and the still words beside it. */
+export type GuideSpan = {
+  key: string
+  segments: readonly { steps: readonly Step[]; loop: boolean; atMs: number }[]
+  offsetMs: number
+  pose: 'calm' | 'idle'
+  words: boolean
+  /** Beside the drawing, unchanged for the whole span: what is running. */
+  label: string
+  /** An interlude's instruction, also unchanged for the span; null when the drawing carries the words. */
+  still: string | null
+}
 
 /**
- * The span of breathing the desktop guide animates by itself: the opening sigh
- * once, a paced pattern on a loop until the next interlude, a still Bolt for an
- * interlude, or the closing exhale. `key` changes only when the span does, so
- * the guide's markup is built once per span.
+ * The stretch of the wait the desktop guide animates by itself, so the band
+ * around it holds still: the opening sigh then the paced pattern on a loop,
+ * until the next interlude; a still Bolt for an interlude; or the closing
+ * exhale. `key` changes only when the span does.
  */
 export function guideSpan(run: SecondWindRun, now: number): GuideSpan | null {
   if (run.phase === 'finishing' && run.finish !== null && run.finish.ms > 0) {
     const f = run.finish
-    return { key: `finish:${f.at}`, steps: [{ phase: 'out', ms: f.ms, from: f.fromFill, to: 0 }], loop: false, offsetMs: Math.max(0, now - f.at), pose: 'calm' }
+    return {
+      key: `finish:${f.at}`,
+      segments: [{ steps: [{ phase: 'out', ms: f.ms, from: f.fromFill, to: 0 }], loop: false, atMs: 0 }],
+      offsetMs: Math.max(0, now - f.at),
+      pose: 'calm',
+      words: true,
+      label: plural(f.breaths, 'breath'),
+      still: null,
+    }
   }
   if (run.phase !== 'breathing') return null
   const t = Math.max(0, now - run.breathStartedAt)
   const seg = segmentAt(run.plan, t)
-  if (seg.kind === 'interlude') return { key: `rest:${run.breathStartedAt}:${seg.index}`, steps: [], loop: false, offsetMs: 0, pose: 'idle' }
-  if (t < SIGH_MS) return { key: `sigh:${run.breathStartedAt}`, steps: PATTERNS.sigh, loop: false, offsetMs: t, pose: 'calm' }
-  const first = firstInterludeAt(run.plan)
-  const block = INTERLUDE_MS + cyclesPerGap(run.plan) * cycleMs(run.plan.pattern)
-  const k = interludes(run.plan).length === 0 || t < first ? -1 : Math.floor((t - first) / block)
-  const spanStart = k < 0 ? SIGH_MS : first + k * block + INTERLUDE_MS
+  if (seg.kind === 'interlude') {
+    const still = seg.interlude === 'eyes' ? EYE_REST : STRETCHES[seg.nth % STRETCHES.length]!
+    return { key: `rest:${run.breathStartedAt}:${seg.index}`, segments: [], offsetMs: 0, pose: 'idle', words: false, label: LABELS[seg.interlude], still }
+  }
   const pattern = run.plan.pattern
-  return { key: `${pattern}:${run.breathStartedAt}:${spanStart}`, steps: PATTERNS[pattern], loop: true, offsetMs: (t - spanStart) % cycleMs(pattern), pose: 'calm' }
+  const first = firstInterludeAt(run.plan)
+  const block = INTERLUDE_MS + cyclesPerGap(run.plan) * cycleMs(pattern)
+  const k = interludes(run.plan).length === 0 || t < first ? -1 : Math.floor((t - first) / block)
+  if (k < 0) {
+    return {
+      key: `breath:${run.breathStartedAt}:start`,
+      segments: [
+        { steps: PATTERNS.sigh, loop: false, atMs: 0 },
+        { steps: PATTERNS[pattern], loop: true, atMs: SIGH_MS },
+      ],
+      offsetMs: t,
+      pose: 'calm',
+      words: true,
+      label: `${LABELS.sigh}, then ${LABELS[pattern]}`,
+      still: null,
+    }
+  }
+  const spanStart = first + k * block + INTERLUDE_MS
+  return {
+    key: `breath:${run.breathStartedAt}:${k}`,
+    segments: [{ steps: PATTERNS[pattern], loop: true, atMs: 0 }],
+    offsetMs: t - spanStart,
+    pose: 'calm',
+    words: true,
+    label: LABELS[pattern],
+    still: null,
+  }
 }

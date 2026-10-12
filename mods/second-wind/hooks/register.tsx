@@ -11,6 +11,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderNode, Timer } from 'claude-code'
 
 import { LONG_MS, frameAt, guideSpan, softFinish } from './breath'
+import type { GuideSpan } from './breath'
 import { GUIDE_SIZE, barCells, barWidth, fitHead, guideSvg, shownFill } from './draw'
 import {
   CARD_TEXT, SAFETY, TICK_MS, USAGE, draftAfter, foldLine, planOf, readSettings, shareCard, statusText, unknownWord,
@@ -364,7 +365,7 @@ async function end($: EngineInterface, turnId: string, isAborted: boolean): Prom
 }
 
 /** The desktop guide's markup for the span it was built for (MM-110). */
-let guide: { key: string; source: string; shown: boolean; words: boolean } = { key: '', source: '', shown: false, words: true }
+let guide: { key: string; source: string; shown: boolean; span: GuideSpan | null } = { key: '', source: '', shown: false, span: null }
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
@@ -527,13 +528,12 @@ export const register: Register = (on, options) => {
           // not drawn last time is rebuilt from now, so a fresh mount starts in step.
           const key = `${span.key}:${motion}`
           if (guide.key !== key || !guide.shown) {
-            const words = span.pose !== 'idle'
-            guide = { key, shown: true, words, source: guideSvg(span.steps, { motion, delayMs: span.offsetMs, loop: span.loop, pose: span.pose, words }) }
+            guide = { key, shown: true, span, source: guideSvg(span.segments, { motion, delayMs: span.offsetMs, pose: span.pose, words: span.words }) }
           }
           const { Svg } = $.ui.resolve(e)
-          // An image, not a frame: the desktop keeps an image whose source is unchanged, while a
-          // frame is set again on every redraw of the band and restarts (MM-110, seen live).
-          shape = <Svg key="sw-guide" source={guide.source} alt="Breathing guide" width={GUIDE_SIZE.width} height={GUIDE_SIZE.height} />
+          // A frame (the desktop draws an image still: its keyframes never run), loaded once per
+          // span: everything around it holds still, so nothing sets it again (MM-110, seen live).
+          shape = <Svg key="sw-guide" source={guide.source} alt="Breathing guide" width={GUIDE_SIZE.width} height={GUIDE_SIZE.height} isInteractive />
         } else if (!isSmall) {
           const [left, body, right] = barCells(fill, barWidth(cols))
           shape = (
@@ -558,8 +558,8 @@ export const register: Register = (on, options) => {
       } else if (e.surface === 'desktop' && shape !== null) {
         // Everything the desktop draws holds still for the whole span: the step's words live in
         // the drawing, and beside it only what never changes mid-span (no countdown, no count).
-        const still = guide.words ? null : frame.cue.replace(/ · \d+$/, '')
-        const label = frame.mode === 'breath' ? frame.caption.replace(/ · \d+ breaths?$/, '') : frame.caption
+        const still = guide.span?.still ?? null
+        const label = guide.span?.label ?? frame.caption
         rows.push(
           <Box key="sw-breath" flexDirection="row" gap={2} alignItems="center">
             {shape}
@@ -615,11 +615,11 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // The spinner carries the phase only when Claude Code shows nothing of its
-  // own there: no status message, and on the desktop no step of its own.
+  // The spinner carries the phase only in the terminal, and only when Claude Code shows nothing of
+  // its own there. The desktop's turn row is left alone: swapping Claude's word in and out read as
+  // flashing, and the band's guide already breathes (MM-110, seen live).
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    if (e.props.message !== null) return next(e)
-    if (e.surface === 'desktop' && e.props.word !== 'Working') return next(e)
+    if (e.props.message !== null || e.surface === 'desktop') return next(e)
     const r = await read($, run)
     if (r === null) return next(e)
     const frame = frameAt(r, await read($, clock))

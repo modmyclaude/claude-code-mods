@@ -71,63 +71,74 @@ function boltRects(pose: GuidePose): string {
   return out
 }
 
+/** One stretch of the guide's timeline: its steps, whether they loop, and when it starts. */
+export type GuideSegment = { steps: readonly GuideStep[]; loop: boolean; atMs: number }
+
 /**
  * The desktop breathing guide: Bolt in his calm pose with a soft halo that
  * swells on the in-breath and settles on the out-breath, and the step's word
- * beside him ("Breathe in", "Hold", "Breathe out") cross-fading into the next,
- * all on the drawing's own eased keyframes. Built once per span of breathing
- * and drawn as an image whose source never changes mid-span, so the desktop
- * never reloads or restarts it (MM-110). `delayMs` is how far into the steps it
- * opens. Bolt, the halo and a word are always drawn; reduced motion (the
- * setting or the system's) keeps Bolt and the halo still.
+ * beside him ("Breathe in", "Hold", "Breathe out"), all on the drawing's own
+ * eased keyframes. One drawing carries a whole stretch of the wait (the
+ * opening sigh, then the paced pattern on a loop), so the desktop loads it
+ * once and the band around it never changes (MM-110). `delayMs` is how far
+ * into the timeline it opens. Reduced motion (the setting or the system's)
+ * keeps Bolt and the halo still; the words still change.
  */
-export function guideSvg(steps: readonly GuideStep[], opts: { motion: Motion; delayMs: number; loop: boolean; pose: GuidePose; words?: boolean }): string {
-  const total = steps.reduce((n, s) => n + s.ms, 0)
-  const isMoving = opts.motion !== 'still' && total > 0
+export function guideSvg(segments: readonly GuideSegment[], opts: { motion: Motion; delayMs: number; pose: GuidePose; words?: boolean }): string {
+  const isMoving = opts.motion !== 'still'
   const [r0, r1] = opts.motion === 'gentle' ? [15, 19] : [12, 21]
   const grow = opts.motion === 'gentle' ? 0.03 : 0.06
   const r = (f: number) => round(r0 + (r1 - r0) * clamp01(f))
   const scale = (f: number) => round(1 + grow * clamp01(f))
   const eased = 'animation-timing-function:cubic-bezier(.45,0,.55,1)'
-  const run = (name: string) =>
-    `animation:${name} ${Math.round(total)}ms linear ${-Math.round(Math.max(0, opts.delayMs))}ms ${opts.loop ? 'infinite' : '1'} both`
-  let css = '.h{fill:#C8F53C;fill-opacity:.2}.t{font:600 13px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;fill:#8a94a6}' +
+  let css = ':root{background:transparent}.h{fill:#C8F53C;fill-opacity:.2}.t{font:600 13px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;fill:#8a94a6}' +
     '@media (prefers-color-scheme:dark){.h{fill-opacity:.16}.t{fill:#c9d1d9}}.b{transform-box:fill-box;transform-origin:center}'
   let words = ''
-  const last = steps[steps.length - 1]
-  if (total > 0 && last) {
+  const halos: string[] = []
+  const bodies: string[] = []
+  segments.forEach((seg, j) => {
+    const total = seg.steps.reduce((n, step) => n + step.ms, 0)
+    const last = seg.steps[seg.steps.length - 1]
+    if (total <= 0 || !last) return
+    // A later segment takes over when it starts (later in the list wins); before that it draws nothing.
+    const delay = Math.round(seg.atMs - Math.max(0, opts.delayMs))
+    const play = (name: string, fill: string) => `${name} ${Math.round(total)}ms linear ${delay}ms ${seg.loop ? 'infinite' : '1'} ${fill}`
     let at = 0
     const halo: string[] = []
     const body: string[] = []
-    steps.forEach((s, i) => {
-      halo.push(`${pct(at, total)}{r:${r(s.from)}px;${eased}}`)
-      body.push(`${pct(at, total)}{transform:scale(${scale(s.from)});${eased}}`)
+    seg.steps.forEach((step, i) => {
+      halo.push(`${pct(at, total)}{r:${r(step.from)}px;${eased}}`)
+      body.push(`${pct(at, total)}{transform:scale(${scale(step.from)});${eased}}`)
       if (opts.words !== false) {
-        // Each step's word cross-fades with the next around their shared boundary, so a word
-        // is always showing: never a blank between "Breathe in" and "Breathe out".
-        const fade = Math.min(500, s.ms / 3)
-        const end = at + s.ms
-        const first = i === 0
-        const last = i === steps.length - 1
+        // A word fades out, then the next fades in: never two words on top of each other.
+        const half = Math.min(250, step.ms / 6)
+        const end = at + step.ms
+        const opensAtOne = i === 0 && !seg.loop
+        const endsAtOne = i === seg.steps.length - 1 && !seg.loop
         const points: [number, number][] = []
-        if (first) points.push([0, opts.loop && steps.length > 1 ? 0.5 : 1], [fade / 2, 1])
-        else points.push([0, 0], [at - fade / 2, 0], [at + fade / 2, 1])
-        if (last) points.push([total - (opts.loop && steps.length > 1 ? fade / 2 : 0), 1], [total, opts.loop && steps.length > 1 ? 0.5 : 1])
-        else points.push([end - fade / 2, 1], [end + fade / 2, 0], [total, 0])
+        if (opensAtOne) points.push([0, 1])
+        else points.push([0, 0], [at, 0], [at + half, 1])
+        if (endsAtOne) points.push([total, 1])
+        else points.push([end - half, 1], [end, 0], [total, 0])
         const frames = points.map(([t, o]) => `${pct(Math.max(0, Math.min(total, t)), total)}{opacity:${o}}`).join('')
-        css += `@keyframes w${i}{${frames}}.w${i}{${run(`w${i}`)}}`
-        words += `<text class="t w${i}" x="52" y="26.5" opacity="${first ? 1 : 0}">${GUIDE_WORDS[s.phase]}</text>`
+        const fill = j === 0 && segments.length > 1 ? 'backwards' : seg.loop ? 'none' : 'both'
+        css += `@keyframes w${j}_${i}{${frames}}.w${j}_${i}{animation:${play(`w${j}_${i}`, fill)}}`
+        words += `<text class="t w${j}_${i}" x="52" y="26.5" opacity="0">${GUIDE_WORDS[step.phase]}</text>`
       }
-      at += s.ms
+      at += step.ms
     })
     halo.push(`100%{r:${r(last.to)}px}`)
     body.push(`100%{transform:scale(${scale(last.to)})}`)
-    if (isMoving) css += `@keyframes h{${halo.join('')}}@keyframes b{${body.join('')}}.h{${run('h')}}.b{${run('b')}}`
-  }
+    css += `@keyframes h${j}{${halo.join('')}}@keyframes b${j}{${body.join('')}}`
+    halos.push(play(`h${j}`, j === 0 ? 'both' : 'none'))
+    bodies.push(play(`b${j}`, j === 0 ? 'both' : 'none'))
+  })
+  if (isMoving && halos.length > 0) css += `.h{animation:${halos.join(',')}}.b{animation:${bodies.join(',')}}`
   css += '@media (prefers-reduced-motion:reduce){.h,.b{animation:none}}'
-  const still = r(isMoving ? steps[0]?.from ?? 0.5 : 0.5)
+  const first = segments[0]?.steps[0]
+  const still = r(isMoving && first ? first.from : 0.5)
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 44" width="${GUIDE_SIZE.width}" height="${GUIDE_SIZE.height}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 44" width="${GUIDE_SIZE.width}" height="${GUIDE_SIZE.height}" style="background:transparent">` +
     `<style>${css}</style>` +
     `<circle class="h" cx="22" cy="22" r="${still}"/>` +
     `<g transform="translate(12 12)" shape-rendering="crispEdges"><g class="b">${boltRects(opts.pose)}</g></g>` +

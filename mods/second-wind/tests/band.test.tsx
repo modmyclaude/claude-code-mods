@@ -55,7 +55,8 @@ describe('when it shows', () => {
     for (const surface of SURFACES) {
       const ui = await w.band($, surface)
       expect(await cue(ui)).toBe(surface === 'desktop' ? 'guide' : 'Breathe in 4')
-      expect(await caption(ui)).toBe('physiological sigh')
+      // The desktop's label holds for the whole span, which runs on into the paced pattern.
+      expect(await caption(ui)).toBe(surface === 'desktop' ? 'physiological sigh, then slow paced breathing' : 'physiological sigh')
       // What was beneath (the engine's own band) is still drawn under ours.
       expect(await ui.find({ key: 'engine-band' })).toBeDefined()
       await ui.unmount()
@@ -65,9 +66,10 @@ describe('when it shows', () => {
     const desk = await w.band($, 'desktop')
     const svg = await desk.find({ type: 'Svg' })
     // An image, not a frame: the desktop reloads a frame on every band redraw (MM-110, seen live).
-    expect(svg?.props.isInteractive).toBeUndefined()
+    // A frame: the desktop draws an image still, so only a frame runs the keyframes (MM-110, seen live).
+    expect(svg?.props.isInteractive).toBe(true)
     // Bolt breathing on the drawing's own clock: one stable markup, eased keyframes, reduced motion honoured.
-    expect(String(svg?.props.source)).toContain('@keyframes h{')
+    expect(String(svg?.props.source)).toContain('@keyframes h0{')
     expect(String(svg?.props.source)).toContain('cubic-bezier(.45,0,.55,1)')
     expect(String(svg?.props.source)).toContain('prefers-reduced-motion')
     expect(Number(svg?.props.height)).toBeLessThanOrEqual(72)
@@ -386,7 +388,8 @@ describe('the spinner', () => {
     await w.clock.advance(3000)
     expect(await spin('terminal', {})).toBe('Breathing in…')
     expect(await spin('terminal', { message: 'Compacting conversation' })).toBe('Compacting conversation…')
-    expect(await spin('desktop', { word: 'Working' })).toBe('Breathing in…')
+    // The desktop's turn row is Claude's own: the guide in the band does the breathing (MM-110).
+    expect(await spin('desktop', { word: 'Working' })).toBe('Working…')
     expect(await spin('desktop', { word: 'Creating notes.md' })).toBe('Creating notes.md…')
     await w.clock.advance(6000)
     expect(await spin('terminal', {})).toBe('Breathing out…')
@@ -615,9 +618,9 @@ test('MM-110: on the desktop the guide is built once per span, so nothing flashe
   await w.clock.advance(3000 + 500)
   const ui = await w.band($, 'desktop')
   const first = await ui.find({ type: 'Svg' })
-  expect(first?.props.isInteractive).toBeUndefined()
+  expect(first?.props.isInteractive).toBe(true)
   const tree = JSON.stringify(await ui.drawn())
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 20; i += 1) {
     await w.clock.advance(1000)
     // The whole band is the same tree, byte for byte, across the span: nothing to redraw,
     // and the drawing's own clock carries the breath (MM-110).
