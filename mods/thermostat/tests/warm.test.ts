@@ -25,7 +25,7 @@ test('/warm keeps a subscription cache warm with a ping just before each expiry,
 
   // Past the original expiry, the ping has kept it warm.
   await w.clock.advance(4 * MIN)
-  expect(await command($, w, 'thermostat')).toContain('Cache: warm, 56m left')
+  expect(await command($, w, 'thermostat')).toContain('Warm · 56m left')
 
   await w.clock.advance(120 * MIN)
   expect(w.forks).toHaveLength(3)
@@ -34,10 +34,11 @@ test('/warm keeps a subscription cache warm with a ping just before each expiry,
   // Coming back after 3h, the send reads the cache the pings kept.
   await step($, w, usage(149_000, 2_000))
   const receipt = await command($, w, 'thermostat')
-  expect(receipt).toContain('Keep-warm pings: 3 (~$0.09)')
-  expect(receipt).toContain('Sends that found the cache warm thanks to them: 1 (~$1.16 not spent)')
-  expect(receipt).toContain('Estimated saved: ~$1.07')
-  expect(receipt).toContain('Cold sends paid: 0')
+  expect(receipt).toContain('Keep-warm pings: 3')
+  expect(receipt).toContain('≈$0.09')
+  expect(receipt).toContain('1 send found the cache warm thanks to them, ≈$1.16 not spent')
+  expect(receipt).toContain('Saved: ≈$1.07')
+  expect(receipt).not.toContain('Cold sends paid')
 })
 
 test('smart keep-warm refuses a window whose pings would cost more than one cold re-read', SLOW, async ($, on) => {
@@ -132,7 +133,7 @@ test('a model switch stops keep-warm and starts the new cache empty, with the en
   })
   expect(w.logs.at(-1)).toContain('keep-warm stopped, the model changed')
   // An API key login, but Claude Code reported a 1-hour window.
-  expect(await command($, w, 'thermostat')).toContain('Cache: nothing cached yet (60m window, as Claude Code reported it)')
+  expect(await command($, w, 'thermostat')).toContain('Nothing cached yet\n60m window, as Claude Code reported it')
   await w.clock.advance(30 * MIN)
   expect(w.forks).toEqual([])
 })
@@ -149,7 +150,7 @@ test('a ping that did not read the conversation back from the cache stops keep-w
   expect(w.logs.at(-1)).toContain('the ping read only 2k of 150k tokens from the cache, so it was not keeping this conversation warm')
   // Its clock did not move: the cache still goes cold at the first expiry.
   await w.clock.advance(3 * MIN)
-  expect(await command($, w, 'thermostat')).toContain('Cache: cold for 1m')
+  expect(await command($, w, 'thermostat')).toContain('cold for 1m')
   expect(w.forks).toHaveLength(1)
 })
 
@@ -184,7 +185,7 @@ test('a send the cache would have served anyway is not credited to the pings', S
   // 59 minutes after the last real request: inside the 60-minute window without any ping.
   await w.clock.advance(30 * 1000)
   await step($, w, usage(149_000, 2_000))
-  expect(await command($, w, 'thermostat')).toContain('Sends that found the cache warm thanks to them: 0')
+  expect(await command($, w, 'thermostat')).not.toContain('found the cache warm')
 })
 
 test('smart keep-warm weighs pings against what going cold adds, not the whole cold price', SLOW, async ($, on) => {

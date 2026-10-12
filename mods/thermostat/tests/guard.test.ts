@@ -131,8 +131,9 @@ test('a hold answered with /clear is counted as money not spent', SLOW, async ($
   await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } })
 
   const receipt = await command($, w, 'thermostat')
-  expect(receipt).toContain('Prompts held: 1, followed by /clear instead: 1 (~$1.20 not spent)')
-  expect(receipt).toContain('Cache: nothing cached yet')
+  expect(receipt).toContain('Prompts held: 1')
+  expect(receipt).toContain('1 answered with /clear, ≈$1.20 not spent')
+  expect(receipt).toContain('Nothing cached yet')
 })
 
 test('a prompt typed while a turn runs joins that turn and is never held', SLOW, async ($, on) => {

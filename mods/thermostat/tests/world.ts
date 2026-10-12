@@ -175,7 +175,24 @@ export const PANE_PROPS = {
 /** The receipt pane's lines, as drawn on `surface`. */
 export async function paneText($: Engine, surface: RenderSurface = 'terminal'): Promise<string> {
   const ui = await $.ui.mount({ plugin: 'thermostat', surface, component: 'Pane', requestId: 'thermostat-receipt', props: PANE_PROPS })
-  const lines = (await ui.findAll({ type: 'Text' })).map(one => one.text)
+  type Node = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  const texts = (node: unknown, out: string[] = []): string[] => {
+    if (node === null || typeof node !== 'object') return out
+    const n = node as Node
+    if (n.type === 'Text') out.push((n.children ?? []).filter((c): c is string => typeof c === 'string').join(''))
+    else for (const c of n.children ?? []) texts(c, out)
+    return out
+  }
+  const lines: string[] = []
+  const walk = (node: unknown): void => {
+    if (node === null || typeof node !== 'object') return
+    const n = node as Node
+    const key = n.key ?? n.props?.key
+    if (n.type === 'Box' && typeof key === 'string' && key.startsWith('row-')) return void lines.push(texts(n).join(': '))
+    if (n.type === 'Text') return void lines.push(texts(n).join(''))
+    for (const c of n.children ?? []) walk(c)
+  }
+  walk(await ui.drawn())
   await ui.unmount()
   return lines.join('\n')
 }

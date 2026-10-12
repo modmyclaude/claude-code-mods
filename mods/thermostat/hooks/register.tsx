@@ -3,31 +3,16 @@
 // stop paying, and a receipt of what it all cost and saved.
 
 import { atom, read, update } from 'claude-code'
-import type { ClassicEventOf, EngineInterface, PromptOrigin, Register, Timer, TurnUsage } from 'claude-code'
+import type { ClassicEventOf, EngineInterface, PromptOrigin, Register, ThemeKey, Timer, TurnUsage } from 'claude-code'
 
 import type { ThermostatAuth, ThermostatCache, ThermostatEngineWrite, ThermostatReceipt, ThermostatWarm } from '../types'
 import { boltSprite } from './bolt-draw'
+import { glyphRow } from './cells'
+import { receiptLines, receiptText } from './receipt'
+import type { ReceiptLine, ReceiptTone } from './receipt'
 import { engineWriteRate, estimatePingUsd, estimateSend, pricesFor, pricesLabel, usageUsd, writeRate } from './pricing'
 import type { Prices, SendEstimate } from './pricing'
-import {
-  HOUR,
-  MINUTE,
-  SECOND,
-  describeTtlSource,
-  formatDuration,
-  formatTokens,
-  formatUsd,
-  parseDuration,
-  pingLeadMs,
-  planKeepWarm,
-  readSettings,
-  resolveTtl,
-  statusColor,
-  statusText,
-  temperature,
-  ttlFromResume,
-  clean,
-} from './thermo'
+import { HOUR, MINUTE, SECOND, formatDuration, formatTokens, formatUsd, parseDuration, pingLeadMs, planKeepWarm, readSettings, resolveTtl, statusColor, statusText, temperature, ttlFromResume, clean } from './thermo'
 import type { Settings, Temperature, Ttl } from './thermo'
 
 type Dollar = EngineInterface
@@ -53,6 +38,8 @@ const PING_PROMPT =
 const RECEIPT_PANE = 'thermostat-receipt'
 /** Narrower than this, the receipt keeps every column for its lines and Bolt steps out. */
 const BOLT_MIN_COLUMNS = 40
+/** The receipt lines drawn beside Bolt: the state, the window and the next send. */
+const HEAD_KEYS = new Set(['state', 'window', 'next'])
 const USAGE = 'Use /warm 90m (or 2h, 1h30m, 45) to keep the cache warm while you are away, and /warm off to stop.'
 
 const EMPTY_CACHE: ThermostatCache = { lastAt: null, lastRealAt: null, tokens: 0, model: null, isOff: false }
@@ -514,56 +501,19 @@ async function showReceipt($: Dollar): Promise<void> {
     const opened = await $.ui.open({ id: RECEIPT_PANE, title: 'Thermostat' })
     if (opened.isPlaced) return
   }
-  $.ui.log(await receiptText($, await snapshot($)))
+  $.ui.log(receiptText(await receipt($, await snapshot($))))
 }
 
-async function receiptText($: Dollar, s: Snapshot): Promise<string> {
+/** The receipt's lines, from the moment's snapshot and what the session booked; the note joins their text. */
+async function receipt($: Dollar, s: Snapshot): Promise<ReceiptLine[]> {
   const r = await read($, receiptState)
-  const window = `${formatDuration(s.ttlMs)} window, ${describeTtlSource(s.ttl.source)}`
-  const tokens = `${formatTokens(s.cache.tokens)} tokens at ${s.prices.family} prices`
-  const lines = ['Thermostat receipt for this session']
-  switch (s.temp.kind) {
-    case 'empty':
-      lines.push(`Cache: nothing cached yet (${window}).`)
-      break
-    case 'off':
-      lines.push('Cache: caching looks switched off, the last large request neither read nor wrote it.')
-      break
-    case 'warm':
-      lines.push(
-        `Cache: warm, ${formatDuration(s.temp.msLeft)} left (${window}). ${tokens}: ` +
-          `~${formatUsd(s.send.warmUsd)} to send warm, ~${formatUsd(s.send.coldUsd)} cold.`,
-      )
-      break
-    case 'cold':
-      lines.push(
-        `Cache: cold for ${formatDuration(s.temp.msAgo)} (${window}). ${tokens}: ` +
-          `the next send costs ~${formatUsd(s.send.coldUsd)} instead of ~${formatUsd(s.send.warmUsd)}.`,
-      )
-      break
-  }
-  lines.push(
-    `Cold sends paid: ${r.coldSends} (${formatTokens(r.coldTokens)} tokens re-read, ~${formatUsd(r.coldExtraUsd)} more than warm).`,
-  )
-  lines.push(
-    `Prompts held: ${r.held}, followed by /clear instead: ${r.clearedAfterHold} (~${formatUsd(r.clearAvoidedUsd)} not spent).`,
-  )
-  const running = s.warm === null ? '' : ` Running now, ${formatDuration(s.warm.until - s.now)} left.`
-  lines.push(
-    `Keep-warm pings: ${r.pings} (~${formatUsd(r.pingUsd)}). Sends that found the cache warm thanks to them: ` +
-      `${r.rescued} (~${formatUsd(r.rescuedUsd)} not spent).${running}`,
-  )
-  const saved = r.clearAvoidedUsd + r.rescuedUsd - r.pingUsd
-  lines.push(
-    saved >= 0
-      ? `Estimated saved: ~${formatUsd(saved)} (not spent, less what the pings cost).`
-      : `Estimated saved: -${formatUsd(-saved)} so far (the pings cost more than they saved).`,
-  )
   const total = await sessionTotalUsd($)
-  if (total !== undefined) lines.push(`Session total so far: ≈${formatUsd(total)} (Claude Code's estimate).`)
-  const plan = s.auth === 'bearer' ? ' On a subscription these measure plan usage, not a bill.' : ''
-  lines.push(`Guard: ${live.settings.guard}. Dollars are API list prices.${plan}`)
-  return lines.join('\n')
+  return receiptLines(
+    { now: s.now, tokens: s.cache.tokens, warm: s.warm, auth: s.auth, ttl: s.ttl, ttlMs: s.ttlMs, temp: s.temp, family: s.prices.family, warmUsd: s.send.warmUsd, coldUsd: s.send.coldUsd },
+    r,
+    total,
+    live.settings.guard,
+  )
 }
 
 export const register: Register = (on, options) => {
@@ -700,16 +650,76 @@ export const register: Register = (on, options) => {
   // The receipt pane: one line each, live, since the state reads subscribe it.
   // Bolt minds the cache beside the first line: asleep while it is cold
   // or empty, up while warm. A static sprite, only where the pane has room.
+  // The receipt pane, after brand/UI-STANDARD.md: the state as a hero line in its colour, the
+  // window's bar and the next send's price beneath, Bolt beside them (asleep while the cache is
+  // cold or empty); then label and value rows, the value at the right edge and the detail dim
+  // beneath; one footnote. The engine draws the title bar, so the title line is for the note only.
   on('ui.render', { component: 'Pane', requestId: RECEIPT_PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const elements = $.ui.resolve(e)
+    const { Box, Text } = elements
     const s = await snapshot($)
-    const [title, ...lines] = (await receiptText($, s)).split('\n')
-    const head = <Text bold>{title}</Text>
+    const lines = await receipt($, s)
+    const paint = (tone: ReceiptTone): { color?: ThemeKey } => (tone === 'plain' ? {} : { color: tone })
+    const barColor: ThemeKey = s.temp.kind === 'warm' && s.temp.isAmber ? 'warning' : 'success'
+    const draw = (line: ReceiptLine) => {
+      switch (line.kind) {
+        case 'title':
+          return null
+        case 'hero':
+          return (
+            <Box key={line.key}>
+              <Text bold {...paint(line.tone)}>
+                {line.value ?? ''}
+              </Text>
+            </Box>
+          )
+        case 'bar':
+          return (
+            <Box key={line.key} flexDirection="row" gap={1}>
+              {glyphRow(elements, e.surface, line.bar ?? '', { color: barColor })}
+              <Box key="words" flexShrink={1}>
+                <Text wrap="wrap" {...paint(line.tone)}>
+                  {line.value ?? ''}
+                </Text>
+              </Box>
+            </Box>
+          )
+        case 'row':
+          return (
+            <Box key={`row-${line.key}`} flexDirection="row" gap={1}>
+              <Box key="label" flexGrow={1} flexShrink={1}>
+                <Text color="subtle">{line.label ?? ''}</Text>
+              </Box>
+              <Box key="value" flexShrink={0} justifyContent="flex-end">
+                <Text {...paint(line.tone)}>{line.value ?? ''}</Text>
+              </Box>
+            </Box>
+          )
+        case 'note':
+          return (
+            <Box key={line.key} marginTop={1}>
+              <Text wrap="wrap" color="subtle">
+                {line.value ?? ''}
+              </Text>
+            </Box>
+          )
+        default:
+          return (
+            <Box key={line.key} paddingLeft={2} flexShrink={1}>
+              <Text wrap="wrap" {...paint(line.tone)}>
+                {line.value ?? ''}
+              </Text>
+            </Box>
+          )
+      }
+    }
+    const head = lines.filter(l => HEAD_KEYS.has(l.key)).map(draw)
+    const rest = lines.filter(l => !HEAD_KEYS.has(l.key) && l.kind !== 'title').map(draw)
     return (
       <Box flexDirection="column">
         {e.props.bodyColumns >= BOLT_MIN_COLUMNS ? (
           <Box key="head" flexDirection="row" gap={1}>
-            {boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: s.temp.kind === 'warm' ? 'idle' : 'sleep' })}
+            {boltSprite(elements, e.surface, { size: 'small', pose: s.temp.kind === 'warm' ? 'idle' : 'sleep' })}
             <Box flexDirection="column" flexShrink={1}>
               {head}
             </Box>
@@ -717,9 +727,8 @@ export const register: Register = (on, options) => {
         ) : (
           head
         )}
-        {lines.map(line => (
-          <Text>{line}</Text>
-        ))}
+        <Box key="gap" height={1} />
+        {rest}
       </Box>
     )
   })
