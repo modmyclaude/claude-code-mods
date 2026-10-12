@@ -476,6 +476,29 @@
       ]
     },
     {
+      "name": "swear-jar",
+      "kind": "mod",
+      "meaning": "A jar with a coin slot in its lid: every verbal tic the model says goes in the swear jar.",
+      "rows": [
+        "................",
+        "................",
+        ".....LLLLLL.....",
+        "....LLLKKLLS....",
+        "....SSSSSSSS....",
+        ".....GGGGGG.....",
+        "...GGGGGGGGGG...",
+        "...GP.......G...",
+        "...G........G...",
+        "...GLLLLLLLLG...",
+        "...GLLLLLLLSG...",
+        "...GLLLLLLLSG...",
+        "...GSSSSSSSSG...",
+        "....GGGGGGGG....",
+        "................",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",

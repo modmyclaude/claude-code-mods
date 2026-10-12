@@ -397,6 +397,25 @@ icon("trim", "A pair of scissors, blades open: long shell output gets trimmed be
     "................",
 ])
 
+icon("swear-jar", "A jar with a coin slot in its lid: every verbal tic the model says goes in the swear jar.", [
+    "................",
+    "................",
+    ".....LLLLLL.....",
+    "....LLLKKLLS....",
+    "....SSSSSSSS....",
+    ".....GGGGGG.....",
+    "...GGGGGGGGGG...",
+    "...GP.......G...",
+    "...G........G...",
+    "...GLLLLLLLLG...",
+    "...GLLLLLLLSG...",
+    "...GLLLLLLLSG...",
+    "...GSSSSSSSSG...",
+    "....GGGGGGGG....",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

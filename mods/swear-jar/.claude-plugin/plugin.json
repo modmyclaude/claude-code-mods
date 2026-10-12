@@ -1,7 +1,7 @@
 {
   "name": "swear-jar",
   "version": "0.1.0",
-  "description": "A jar that counts the model's verbal tics, 'You're absolutely right' and friends, in a line above the prompt and a scoreboard.",
+  "description": "Counts the model's verbal tics, from \"You're absolutely right\" to the em dash.",
   "homepage": "https://modmyclaude.com/mods/swear-jar",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },

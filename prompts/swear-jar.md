@@ -1,7 +1,7 @@
 ---
 mod: swear-jar
 title: Swear jar
-tagline: A jar that counts the model's verbal tics, "You're absolutely right" and friends, in a line above the prompt and a scoreboard.
+tagline: Counts the model's verbal tics, from "You're absolutely right" to the em dash.
 category: fun
 surfaces: [terminal, desktop]
 model_calls: none

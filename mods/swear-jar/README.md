@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/swear-jar.svg" width="64" height="64" alt="">
+
 # Swear jar
 
 A jar that counts the model's verbal tics ("You're absolutely right", "Great question", the em dash) in one dim line above the prompt and a scoreboard. It never rewrites a reply.
