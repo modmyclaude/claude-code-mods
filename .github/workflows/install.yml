@@ -1,0 +1,31 @@
+name: install
+
+# Installs the mods from GitHub the two ways the README documents, in a throwaway config, every day:
+# what a new person does, against the default branch, on the pinned Claude Code and the latest.
+on:
+  schedule:
+    - cron: '30 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  from-github:
+    name: install from GitHub (Claude Code ${{ matrix.claude }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        claude: ['2.1.293', 'latest']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: npm install -g @anthropic-ai/claude-code@${{ matrix.claude }}
+      - name: Both documented install paths work from GitHub
+        run: CLAUDE_BIN=claude scripts/smoke-github.sh
