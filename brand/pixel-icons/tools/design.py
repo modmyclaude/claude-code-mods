@@ -359,6 +359,25 @@ icon("rain-check", "A rain cloud over a check mark: a rain check, the prompt goe
     "................",
 ])
 
+icon("switchboard", "A switchboard panel with one lamp lit and its cord plugged in: every session in one place, and the one that needs you.", [
+    "................",
+    "................",
+    "..LLLLLLLLLLLS..",
+    "..LPPLLKKLLKKS..",
+    "..LLLLLLLLLLLS..",
+    "..LKKLLKKLLKKS..",
+    "..LKKLLKKLLKKS..",
+    "..LLLLLLLLLLLS..",
+    "..SSSSSSSSSSSS..",
+    "...PP......PP...",
+    "....P......P....",
+    "....P......P....",
+    "....P......P....",
+    ".....PPPPPP.....",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

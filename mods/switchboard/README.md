@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/switchboard.svg" width="64" height="64" alt="">
+
 # Switchboard
 
 Every Claude Code session on your machine in one pane, and which one needs you.
