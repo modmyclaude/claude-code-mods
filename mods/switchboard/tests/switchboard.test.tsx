@@ -133,6 +133,23 @@ describe('this session reports itself', () => {
     expect(mine(w, 'bbbb2222')).toMatchObject({ id: 'bbbb2222', state: 'idle', name: 'api-server' })
   })
 
+  test('the conversation after a /clear is new, and a resumed one keeps none of the last one\'s turns', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await turnStart($)
+    await turnEnd($, 'answer')
+    expect(mine(w)?.lastActiveAt).toBe(T0)
+    w.turns = 0
+    await $.session.end({ sessionId: MINE, reason: 'clear', resume: { id: MINE } } as never)
+    await $.classic.SessionStart({ source: 'clear', session_id: 'bbbb2222' } as never)
+    expect(mine(w, 'bbbb2222')).toMatchObject({ isNew: true })
+    expect(mine(w, 'bbbb2222')?.lastActiveAt).toBeUndefined()
+    w.turns = 4
+    await $.classic.SessionStart({ source: 'resume', session_id: 'cccc3333' } as never)
+    expect(mine(w, 'cccc3333')?.isNew).toBeUndefined()
+    expect(mine(w, 'cccc3333')?.lastActiveAt).toBeUndefined()
+  })
+
   test('between a /clear and its new id, no heartbeat brings the old conversation back', SLOW, async ($, on) => {
     const w = world(on)
     await start($)

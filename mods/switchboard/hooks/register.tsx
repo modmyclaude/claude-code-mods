@@ -222,10 +222,11 @@ async function tick($: EngineInterface): Promise<void> {
   if ((await $.session.surfaces()).length > 0) await readOthers($)
 }
 
-/** This session under a new id (a /clear or a resume): it starts idle, with no title yet. */
+/** This session under a new id (a /clear or a resume): it starts idle, with no title and none of the old conversation's turns. */
 async function becomeSession($: EngineInterface, id: string): Promise<void> {
   if (me === null || me.id === id) return
-  me = { ...me, id, title: undefined, state: 'idle', since: await $.clock.now(), waitingOn: undefined, writtenAt: 0, transcript: undefined, titleCheckedAt: 0 }
+  const isNew = (await $.session.turns().catch(() => 1)) === 0
+  me = { ...me, id, title: undefined, state: 'idle', since: await $.clock.now(), waitingOn: undefined, isNew, lastActiveAt: undefined, writtenAt: 0, transcript: undefined, titleCheckedAt: 0 }
   await writeMine($)
   await readOthers($)
 }
