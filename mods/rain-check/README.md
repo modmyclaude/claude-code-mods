@@ -1,6 +1,8 @@
+<img src="../../brand/pixel-icons/svg/rain-check.svg" width="64" height="64" alt="">
+
 # Rain Check
 
-Hit your usage limit? Send your prompt anyway: it goes out when the limit resets.
+Hit your usage limit? Your prompt waits and goes out when the limit resets.
 
 ```
 Sends 2:01pm · in 3h 12m   [Send now] [Cancel]

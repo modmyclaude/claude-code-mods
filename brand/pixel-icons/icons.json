@@ -407,6 +407,29 @@
       ]
     },
     {
+      "name": "rain-check",
+      "kind": "mod",
+      "meaning": "A rain cloud over a check mark: a rain check, the prompt goes out when the limit resets.",
+      "rows": [
+        "................",
+        "................",
+        ".......PPP......",
+        "...PP.PPPPP.PP..",
+        "..PPPPPPPPPPPPP.",
+        ".PPPPPPPPPPPPPP.",
+        ".GGGGGGGGGGGGGG.",
+        "................",
+        "............LL..",
+        "...........LL...",
+        "..LL......LL....",
+        "...LL....LL.....",
+        "....LL..LL......",
+        ".....LLLL.......",
+        "......LL........",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",

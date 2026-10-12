@@ -1,7 +1,7 @@
 ---
 mod: rain-check
 title: Rain Check
-tagline: Hit your usage limit? Send your prompt anyway: it goes out when the limit resets.
+tagline: Hit your usage limit? Your prompt waits and goes out when the limit resets.
 category: workflow
 surfaces: [terminal, desktop]
 model_calls: none
@@ -10,7 +10,7 @@ draft: true
 
 # Rain Check
 
-Hit your usage limit? Send your prompt anyway: it goes out when the limit resets.
+Hit your usage limit? Your prompt waits and goes out when the limit resets.
 
 ## The prompt
 

@@ -340,6 +340,25 @@ icon("cloakroom", "A cloakroom ticket stamped with a keyhole: the secret stays c
     "................",
 ])
 
+icon("rain-check", "A rain cloud over a check mark: a rain check, the prompt goes out when the limit resets.", [
+    "................",
+    "................",
+    ".......PPP......",
+    "...PP.PPPPP.PP..",
+    "..PPPPPPPPPPPPP.",
+    ".PPPPPPPPPPPPPP.",
+    ".GGGGGGGGGGGGGG.",
+    "................",
+    "............LL..",
+    "...........LL...",
+    "..LL......LL....",
+    "...LL....LL.....",
+    "....LL..LL......",
+    ".....LLLL.......",
+    "......LL........",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [
