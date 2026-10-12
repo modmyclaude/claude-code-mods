@@ -369,16 +369,6 @@ export const register: Register = (on, options) => {
     return wearingLabel($.ui.resolve(e), theme, e.props.modes.length > 0, await next(e))
   }).catch(($, e, next) => next(e))
 
-  // The hint line under the prompt, on the terminal: the engine's line and its
-  // live pills as they are, with the theme's mark and name dim at the end. Not
-  // while typing, when the line is about the draft. The desktop draws no tail.
-  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    if (e.surface !== 'terminal' || e.props.isDraft) return next(e)
-    const theme = themeById((await read($, look)).theme)
-    if (!theme) return next(e)
-    return next({ ...e, props: { ...e.props, tail: ` ${theme.mark} ${theme.id}` } })
-  }).catch(($, e, next) => next(e))
-
   // The spinner: the theme's suffix after the word; on the terminal, a chip
   // naming what the turn is doing. Elapsed time and tokens stay the engine's,
   // and so does any status message of its own ("Running tests..."): while one
@@ -435,6 +425,7 @@ export const register: Register = (on, options) => {
   // costume, the worn one marked, a `wear` button on each.
   // Box, Text and Button, but for Bolt's Raster on the terminal.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const tone = (await read($, app)).tone
     const onWear = (choice: string) => {
       wear($, settings, choice)
         .then(async text => say($, text + autoNote(choice) + (await lightNoteNow($))))
@@ -449,6 +440,7 @@ export const register: Register = (on, options) => {
       columns: e.props.bodyColumns,
       now: await $.clock.now(),
       onWear,
+      fills: (theme: Theme) => fills(theme, e.surface, tone),
       onMatch: (choice: string) => {
         wear($, settings, choice)
           .then(async text => say($, text + autoNote(choice) + ' ' + (await matchTheme($, settings)), 6000))

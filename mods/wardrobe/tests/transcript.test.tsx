@@ -78,21 +78,20 @@ describe('the transcript rows in a dark look', () => {
     })
   }
 
-  test("the person's message: tinted on the terminal; on the desktop the stripe alone, top-aligned, beside the engine's own bubble", { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  test("the person's message: the stripe alone beside the engine's own band, on both surfaces; the stripe runs the row's full height", { plugins: [ENGINE_BENEATH] }, async ($, on) => {
     world(on, { surfaces: ['terminal', 'desktop'] })
     await start($)
     await wear($, 'dracula')
-    const term = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'UserMessage', props: ROWS.UserMessage })
-    expect(tintsAbove(await term.drawn())).toEqual([[dracula.palette.bg]])
-    await term.unmount()
-    const desk = await $.ui.mount({ plugin: 'wardrobe', surface: 'desktop', component: 'UserMessage', props: ROWS.UserMessage })
-    const drawn = await desk.drawn()
-    expect(engineNodeConcealers(drawn)).toEqual([[]])
-    expect(tintsAbove(drawn)).toEqual([[]])
-    expect(await desk.find({ key: 'stripe' })).toBeDefined()
-    expect(await desk.find({ key: 'tint' })).toBeUndefined()
-    expect((await desk.find({ key: 'look-UserMessage' }))?.props.alignItems).toBe('flex-start')
-    await desk.unmount()
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'UserMessage', props: ROWS.UserMessage })
+      const drawn = await ui.drawn()
+      expect(engineNodeConcealers(drawn), surface).toEqual([[]])
+      expect(tintsAbove(drawn), surface).toEqual([[]])
+      const stripe = await ui.find({ key: 'stripe' })
+      expect(stripe?.props, surface).toMatchObject({ width: 1, backgroundColor: dracula.palette.accent })
+      expect(await ui.find({ key: 'tint' }), surface).toBeUndefined()
+      await ui.unmount()
+    }
   })
 
   test('the row is a pure function of the look: a second later, the same tree', { plugins: [ENGINE_BENEATH] }, async ($, on) => {

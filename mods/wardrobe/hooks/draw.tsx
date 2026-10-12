@@ -313,6 +313,30 @@ export type Gallery = {
   onWear: (choice: string) => void
   /** What a theme card's `match theme` button does: wear it and set Claude Code's own theme to match. */
   onMatch: (choice: string) => void
+  /** Whether a look may paint its background here (a light look on a dark app may not). */
+  fills: (theme: Theme) => boolean
+}
+
+const SAMPLE_PROMPT = 'add a /health endpoint'
+const SAMPLE_REPLY = 'Adding it now.'
+
+/** One line of a gallery card's mini session: the look's stripe, then the words on its background where it may paint. */
+function sampleRow(t: Table, theme: Theme, key: string, role: Role, text: string, fill: boolean): RenderElement {
+  const { Box, Text } = t
+  return (
+    <Box key={key} flexDirection="row">
+      <Box flexShrink={0}>
+        <Text color={theme.palette.bg} backgroundColor={theme.palette[role]}>
+          {' '}
+        </Text>
+      </Box>
+      <Text color={fill ? theme.palette.text : undefined} backgroundColor={fill ? theme.palette.bg : undefined}>
+        {' '}
+        {text}
+        {' '}
+      </Text>
+    </Box>
+  )
 }
 
 /**
@@ -342,19 +366,25 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
     </Box>
   )
 
-  const card = (theme: Theme) => (
-    <Box key={`theme-${theme.id}`} flexDirection="row" gap={2} marginBottom={1}>
-      {size === null ? null : dressedBolt(t, g.surface, theme, size, `bolt-${theme.id}`)}
-      <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+  // A card is a mini session in the look: the person's prompt, a reply, a tool row with its
+  // diff chips, and the footer label, so the difference shows before choosing. Bolt is an
+  // accent at the end of the head row, never the main surface.
+  const card = (theme: Theme) => {
+    const fill = g.fills(theme)
+    return (
+      <Box key={`theme-${theme.id}`} flexDirection="column" marginBottom={1}>
         <Box key="head" flexDirection="row" gap={1}>
           <Text bold>{theme.id}</Text>
           <Text dimColor>{theme.tone}</Text>
           {wearing(theme.id)}
           {wearButton(theme.id)}
           <Button key={`match-${theme.id}`} label="match theme" onPress={() => g.onMatch(theme.id)} />
+          {size === null ? null : dressedBolt(t, g.surface, theme, 'tiny', `bolt-${theme.id}`)}
         </Box>
         <Text>{theme.blurb}</Text>
         {theme.tone === 'light' ? <Text dimColor>best on a light theme</Text> : null}
+        {sampleRow(t, theme, `you-${theme.id}`, 'accent', `> ${SAMPLE_PROMPT}`, fill)}
+        {sampleRow(t, theme, `reply-${theme.id}`, 'info', SAMPLE_REPLY, fill)}
         <Box key="sample" flexDirection="row" gap={1}>
           {toolRow(t, theme, SAMPLE_CALL, SAMPLE_TIMING, <Text>{SAMPLE_TEXT}</Text>, columns)}
           <Text color={theme.diff.addFg} backgroundColor={theme.diff.addBg}>
@@ -364,9 +394,12 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
             {' - del '}
           </Text>
         </Box>
+        <Text key={`footer-${theme.id}`} color={theme.palette.muted}>
+          {theme.mark} wearing {theme.id}
+        </Text>
       </Box>
-    </Box>
-  )
+    )
+  }
 
   return (
     <Box flexDirection="column">
@@ -431,19 +464,15 @@ export function messageRow(
   engine: RenderElement,
   opts: { surface: string; fill: boolean },
 ): RenderElement {
-  const { Box, Text } = t
-  const stripe = (
-    <Box key="stripe" flexShrink={0}>
-      <Text color={theme.palette.bg} backgroundColor={theme.palette[ROW_ROLE[row]]}>
-        {' '}
-      </Text>
-    </Box>
-  )
-  // The desktop draws the person's message as its own bubble with margins of its own:
-  // a panel around it reads as an empty box, so there the stripe alone marks the row, top-aligned.
-  if (row === 'UserMessage' && opts.surface === 'desktop') {
+  const { Box } = t
+  // The stripe is a one-cell column; a row aligns its children to its full height by default, so it runs beside
+  // every line of the row and its margins, never on the blank line above the text.
+  const stripe = <Box key="stripe" width={1} flexShrink={0} backgroundColor={theme.palette[ROW_ROLE[row]]} />
+  // Both surfaces draw the person's message in a band of their own: a panel around it
+  // reads as a box in a box, so there the stripe alone marks the row.
+  if (row === 'UserMessage') {
     return (
-      <Box key={`look-${row}`} flexDirection="row" alignItems="flex-start">
+      <Box key={`look-${row}`} flexDirection="row" alignItems="stretch">
         {stripe}
         <Box key="plain" flexDirection="column" flexGrow={1} flexShrink={1}>
           {engine}
@@ -452,7 +481,7 @@ export function messageRow(
     )
   }
   return (
-    <Box key={`look-${row}`} flexDirection="row">
+    <Box key={`look-${row}`} flexDirection="row" alignItems="stretch">
       {stripe}
       {opts.fill ? (
         <Box key="tint" flexDirection="column" flexGrow={1} flexShrink={1} backgroundColor={theme.palette.bg} paddingX={1}>

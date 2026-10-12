@@ -284,7 +284,7 @@ describe('the /wear gallery', () => {
         expect(JSON.stringify(card)).toContain(JSON.stringify({ color: theme.diff.addFg, backgroundColor: theme.diff.addBg }))
         expect(JSON.stringify(card)).toContain(JSON.stringify({ color: theme.diff.removeFg, backgroundColor: theme.diff.removeBg }))
         // Bolt, small, in this theme's costume (plain where the theme has none).
-        expect(drawnBolt(under(card, `bolt-${theme.id}`)), `${surface} ${theme.id}`).toEqual(cellsAs(surface, wearBolt(theme, 'small', 'idle')))
+        expect(drawnBolt(under(card, `bolt-${theme.id}`)), `${surface} ${theme.id}`).toEqual(cellsAs(surface, wearBolt(theme, 'tiny', 'idle')))
         const button = (await ui.findAll({ type: 'Button' })).find(b => b.key === `wear-${theme.id}`)
         expect(button?.props.label).toBe('wear')
         expect(button?.props.hotkey).toBeUndefined() // the pane can hold the focus
@@ -301,12 +301,12 @@ describe('the /wear gallery', () => {
     }
   })
 
-  test('Bolt is small from 60 columns, tiny from 40, and out under 40', async ($, on) => {
+  test('Bolt is a tiny accent on each card from 40 columns, and out under 40', async ($, on) => {
     world(on)
     await start($)
     for (const surface of SURFACES) {
       const wide = await pane($, surface, 60)
-      expect(drawnBolt(under(await wide.drawn(), 'bolt-dracula'))).toEqual(cellsAs(surface, wearBolt(dracula, 'small', 'idle')))
+      expect(drawnBolt(under(await wide.drawn(), 'bolt-dracula'))).toEqual(cellsAs(surface, wearBolt(dracula, 'tiny', 'idle')))
       await wide.unmount()
       const mid = await pane($, surface, 59)
       expect(drawnBolt(under(await mid.drawn(), 'bolt-dracula'))).toEqual(cellsAs(surface, wearBolt(dracula, 'tiny', 'idle')))

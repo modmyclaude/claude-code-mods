@@ -58,22 +58,16 @@ describe('the prompt footer names the look', () => {
 })
 
 describe('the hint line', () => {
-  test('on the terminal the engine\'s line gets the mark and theme as a tail; not while typing; the desktop gets none', async ($, on) => {
+  test('is the engine\'s own on both surfaces: the footer label already names the look', async ($, on) => {
     const w = world(on, { surfaces: ['terminal', 'desktop'] })
     await start($)
     await wear($, 'halloween')
-    const idle = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'PromptHint', props: HINT })
-    await idle.drawn()
-    expect(w.drawnByEngine.at(-1)).toEqual({ ...HINT, tail: ` ${halloween.mark} halloween` })
-    await idle.unmount()
-    const typing = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'PromptHint', props: { ...HINT, isDraft: true } })
-    await typing.drawn()
-    expect(w.drawnByEngine.at(-1)).toEqual({ ...HINT, isDraft: true })
-    await typing.unmount()
-    const desk = await $.ui.mount({ plugin: 'wardrobe', surface: 'desktop', component: 'PromptHint', props: HINT })
-    await desk.drawn()
-    expect(w.drawnByEngine.at(-1)).toEqual(HINT)
-    await desk.unmount()
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'PromptHint', props: HINT })
+      expect(await ui.drawn(), surface).toEqual(ENGINE)
+      expect(w.drawnByEngine.at(-1), surface).toEqual(HINT)
+      await ui.unmount()
+    }
   })
 })
 

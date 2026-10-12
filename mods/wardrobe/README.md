@@ -91,6 +91,12 @@ Set these in `/config`. A time wardrobe cannot read falls back to its default, a
 - Reads the project root, the attached surfaces and the clock.
 - No files, no processes, no network, no model calls. It never refuses or changes a tool call: its tool hook only notes when a call starts and ends.
 
+### What a look changes, and what it cannot
+
+**It changes:** tool rows and folded groups, diff cards and small shell output, the spinner's word and suffix, the turn line, the switch band, your prompt rows, Claude's reply rows and command output rows (a stripe, and the look's background where it may paint), the `wearing <look>` label in the prompt footer, the `/wear` gallery, and, only when you ask with `--match` or the `match theme` button, Claude Code's own theme: in the terminal the input box border, your message background, the text and the diff colours then follow the look.
+
+**It cannot change:** the desktop app's window frame, sidebar, input box, page background and fonts; Claude Code's own text colours inside the rows, which follow `/theme` unless you match it; the spinner's word, which keeps Claude Code's own colour; permission dialogs, errors, diffs over the size limits and long shell output, which Claude Code draws itself; the terminal emulator's background and font; VS Code and the mobile app; rows already printed on the terminal's main screen; and a light look's panels on a dark app, which stay stripe-only until the theme is matched.
+
 ## Limits
 
 - It restyles what Claude Code lets a mod draw. Claude Code's own text keeps its colours: the tool's own row inside wardrobe's stripe, icon and status, Read and Grep results, the prompt, dialogs and the transcript all follow Claude Code's own `/theme`. Wardrobe styles around them (the stripe, the chips, the band, the gallery); pick a matching `/theme` for the same reading everywhere.
