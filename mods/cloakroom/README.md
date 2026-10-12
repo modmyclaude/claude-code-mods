@@ -14,7 +14,7 @@ Read this first. Cloakroom lowers the chance that a secret ends up somewhere it 
 - Learn the secret-named values in your project's `.env` files when the session starts (those long and varied enough to be a real secret, see Limits), then hide them wherever they show up later, including their base64, URL-encoded and JSON-escaped forms. That catches an `echo` or `printenv` that no pattern would.
 - Turn tickets back into real values only inside Write, Edit and NotebookEdit, and inside a Bash command made only of local file tools (see "Which Bash commands get the real value"), so Claude can still write your `.env`. Web fetches, MCP tools, subagent prompts, messages to other sessions and questions shown to you keep the ticket.
 - Hold any other Bash command that carries a known secret until you press **Allow once**: one that names a network program (curl, wget, nc, ssh, scp, rsync to a remote, git push, bash's /dev/tcp, a remote URL beside the value), and one it cannot vouch for at all (`sh -c`, `bash -c`, `eval`, `source`, `node`, `python`, `npm`, `make`, `find`, `xargs` to a shell, a script, a variable used as the program). A hold needs a positive reason to pass, never the absence of a known threat.
-- Find secrets already written into your past Claude Code transcripts (`/cloakroom audit`), so you know what to rotate.
+- Find secrets already written into your past Claude Code transcripts (`/cloakroom audit`), so you know what to rotate. The findings are drawn in a pane on your screen, never sent to Claude.
 
 **It CANNOT:**
 
@@ -32,10 +32,10 @@ Read this first. Cloakroom lowers the chance that a secret ends up somewhere it 
 What the validator sees it reach (`claude plugin validate --strict`):
 
 ```
-hooks: session.start, tool.call, prompt.submit, prompt.mention, prompt.attachment, prompt.context, prompt.compose, skill.prompt, session.append, session.send, session.receive, telemetry.log{to=collector}, ui.render{component=AbovePrompt}, command.run{command=cloakroom}
+hooks: session.start, tool.call, prompt.submit, prompt.mention, prompt.attachment, prompt.context, prompt.compose, skill.prompt, session.append, session.send, session.receive, telemetry.log{to=collector}, ui.render{component=AbovePrompt}, ui.render{component=Pane, requestId=cloakroom-audit}, command.run{command=cloakroom}
 answers its own command: command.run{command=cloakroom}
 gating hook with .catch: tool.call, prompt.submit, prompt.mention, session.append, session.send, session.receive, telemetry.log{to=collector}
-calls: $.clock.after (via show), $.clock.now, $.command.register, $.env.get, $.fs.exists, $.fs.list (via listDir), $.fs.read, $.fs.write, $.prompt.submit, $.session.surfaces (via show), $.ui.invalidate (via redraw, rescanCached), $.ui.resolve, $.ui.toast
+calls: $.clock.after (via show), $.clock.now, $.command.register, $.env.get, $.fs.exists, $.fs.list (via listDir), $.fs.read, $.fs.write, $.prompt.submit, $.session.surfaces (via audit, show), $.ui.invalidate (via redraw, rescanCached), $.ui.open (via audit), $.ui.resolve, $.ui.toast
 env writes: nothing
 env reads: CLAUDE_CONFIG_DIR, HOME, TEMP, TMP, TMPDIR, USERPROFILE
 hooks telemetry for: collector
@@ -83,10 +83,10 @@ The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and 
 
 **Commands:**
 
-- `/cloakroom` lists this session's tickets: the name, the kind, where it was found, and how often it was hidden and restored. It never prints a value.
+- `/cloakroom` lists this session's tickets: the name, the kind, where it was found, and how often it was hidden and restored. It never prints a value. Like any command's output, the list is a transcript row that Claude reads; Claude already sees the tickets themselves.
 - `/cloakroom show <ticket>` draws the value in the band above the prompt for 30 seconds, with a Hide button. It goes to your screen only, never into the transcript or to Claude. Control characters in a value show as U+FFFD.
 - `/cloakroom forget <ticket>` stops hiding that value for the rest of the session (for a false positive). Its ticket stops working in tools.
-- `/cloakroom audit` checks your past transcripts and lists each exposed secret by kind and date, with a preview such as `sk_live_...9f2`. Values under 16 characters show only their length. Run it again to continue past the time budget.
+- `/cloakroom audit` checks your past transcripts and lists each exposed secret by kind and date, with a preview such as `sk_live_...9f2`, in a pane on your screen only. Claude is told only that the results are in the pane: not a preview, name, date or file. Values under 16 characters show only their length. Run it again to continue past the time budget.
 
 `show`, `forget` and `audit` run only when you type them (in the terminal, the desktop app or Remote Control). Another plugin, a peer session, a channel or a prompt-injected Claude running them is refused. The plain list runs from anywhere.
 
@@ -98,7 +98,8 @@ None.
 
 - **Files read:** your project's `.env` and `.env.*` files at session start, at the root and up to two folder levels down (`apps/web/.env`), skipping `node_modules`, `.git`, build output and hidden folders, at most 120 folders. A file you `@`-mention, so it can be checked first. Your transcripts under `~/.claude/projects` (or `$CLAUDE_CONFIG_DIR/projects`), only when you run `/cloakroom audit`, newest first, at most 4 MiB per file and about 6 seconds and 96 MB per run.
 - **Files written:** a copy of an `@`-mentioned file that held a secret, with tickets in place of the values, under `$TMPDIR/cloakroom-<id>/`. Claude reads that copy and is told the real path. Nothing else is written: no store, no settings, no plugin state. A real value is never written to disk by cloakroom.
-- **Memory:** the ticket-to-value map, in the mod's own memory, gone when the session ends or the mod reloads.
+- **Memory:** the ticket-to-value map and the last audit's results, in the mod's own memory, gone when the session ends or the mod reloads.
+- **Shown to Claude:** the plain `/cloakroom` list and the one-line answers of `show`, `forget` and `audit`, as any command's output is. Never a value, and never the audit's findings.
 - **Environment:** reads `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE` (to find transcripts) and `TMPDIR`, `TEMP` and `TMP` (for mention copies). Writes none.
 - **Prompts sent:** one, only after you press Allow once, telling Claude it may run the held command again.
 - **Telemetry:** rewrites records bound for your own OpenTelemetry collector when one is configured. It never touches Anthropic's own analytics.
@@ -110,7 +111,7 @@ None.
 - Only a value that is at least 8 characters, varied enough (about 3 bits of entropy per character), not a filesystem path and not a common default (`postgres`, `password`, `admin`, `changeme`, `localhost` and the like) is learned and hidden everywhere it appears. A short or common-default value is not learned and is only caught by shape: `DB_PASSWORD=hunter2` is hidden where it sits next to its name, but the bare word `hunter2` later in a log is not, and `POSTGRES_PASSWORD=postgres` is left alone so `postgres` in image names, lockfiles and package lists stays readable. A path next to a password-like name (`PWD`, `OLDPWD`, `PASSWORD_STORE_DIR`) is never treated as a secret.
 - Every pattern runs in linear time. A test sends 1 MB and 5 MB of text built to stall pattern matchers through a real tool call, best of three runs each, and requires the 5 MB run to take under 8 times as long as the 1 MB one (linear is about 5 times, quadratic 25), with a 15-second backstop (alone, 5 MB measured about 0.6 seconds on a laptop). Text over 16 MB, text whose check overruns 4 seconds, or a value nested too deep to walk is withheld rather than passed on unchecked.
 - If a check fails, the text is withheld, not sent. A tool result becomes `[cloakroom: result withheld, redaction failed]`, a prompt is not sent (it says why), an `@`-file is not attached, and a call that could not be checked does not run.
-- The band (holds and `show`) draws in the terminal and the desktop app. In VS Code and on mobile there is no band: a held command stays refused (run it yourself), and `show` says it needs one of the other two.
+- The band (holds and `show`) draws in the terminal and the desktop app. In VS Code and on mobile there is no band: a held command stays refused (run it yourself), and `show` says it needs one of the other two. So does `audit`, whose pane is drawn only there too.
 - Some things are written by Claude Code itself, outside the doors cloakroom hooks: a large tool output it saves to its tool-results folder, and its own prompt history (what the up arrow recalls), which may keep a pasted key as you typed it.
 - A row may flash on screen, or reach an SDK stream or Remote Control, just before cloakroom rewrites it. Neither the model nor the transcript file reads that form. Tool results are rewritten before they are drawn.
 - Context another mod attaches to a tool result cannot be changed at that point (Claude Code requires it word for word). It is scrubbed when it reaches Claude, as an attachment and as a stored row.

@@ -42,6 +42,7 @@ const AUDIT_MS = 6_000
 const AUDIT_BYTES = 96 * 1024 * 1024
 const FS_READ_MAX = 4 * 1024 * 1024
 const MAX_HOLDS = 5
+const AUDIT_PANE = 'cloakroom-audit'
 
 const LINE: PromptComposeSection = {
   id: 'cloakroom:tickets',
@@ -87,6 +88,8 @@ type Room = {
   reveal: Entry | undefined
   revealTimer: Timer | undefined
   audit: AuditState
+  /** The last audit's lines, drawn in its pane only: command text is a transcript row Claude reads. */
+  auditView: string[] | undefined
   loadId: string
   copies: number
 }
@@ -312,14 +315,14 @@ async function listTranscripts($: Dollar, projects: string): Promise<Transcript[
 }
 
 /** Reads past transcripts, newest first, within a time and size budget; read-only. */
-async function runAudit($: Dollar, room: Room): Promise<string> {
+async function runAudit($: Dollar, room: Room): Promise<string[]> {
   const config = await $.env.get('CLAUDE_CONFIG_DIR')
   const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
   const base = config ? trimEnd(config) : home ? `${trimEnd(home)}/.claude` : undefined
-  if (!base) return 'cloakroom audit: cannot find your Claude Code folder (HOME is not set).'
+  if (!base) return ['cloakroom audit: cannot find your Claude Code folder (HOME is not set).']
   const shownBase = home && base.startsWith(trimEnd(home)) ? `~${base.slice(trimEnd(home).length)}` : base
   const files = await listTranscripts($, `${base}/projects`)
-  if (files.length === 0) return `cloakroom audit: no transcripts found in ${shownBase}/projects.`
+  if (files.length === 0) return [`cloakroom audit: no transcripts found in ${shownBase}/projects.`]
 
   const { audit } = room
   const started = performance.now()
@@ -361,7 +364,24 @@ async function runAudit($: Dollar, room: Room): Promise<string> {
     lines.push(...found)
   }
   if (isCut) lines.push('Run /cloakroom audit again to check older transcripts.')
-  return lines.join('\n')
+  return lines
+}
+
+/**
+ * The audit's findings go to a pane on the person's screen, never into the command's text:
+ * that is a transcript row Claude reads, and even a masked preview is a key's fingerprint.
+ */
+async function audit($: Dollar, room: Room): Promise<string> {
+  const surfaces = await $.session.surfaces()
+  if (!surfaces.some(s => s === 'terminal' || s === 'desktop')) {
+    return 'cloakroom audit: the results draw in a pane, which only the terminal and the desktop app have.'
+  }
+  room.auditView = await runAudit($, room)
+  const opened = await $.ui.open({ id: AUDIT_PANE, title: 'Cloakroom audit', focus: true, closeOnEscape: true })
+  redraw($)
+  return opened.isPlaced
+    ? 'cloakroom audit: the results are in the Cloakroom audit pane, on your screen only. Claude is not sent them.'
+    : 'cloakroom audit: the results are ready, but the pane could not be drawn here. Run it again in a wider window.'
 }
 
 /** The command's output: file names, previews and echoed arguments are cleaned by the caller. */
@@ -384,7 +404,7 @@ async function answer($: Dollar, room: Room, args: string, origin: string): Prom
     case 'forget':
       return forget(room, arg)
     case 'audit':
-      return runAudit($, room)
+      return audit($, room)
     default:
       return `cloakroom: unknown command "${verb}". ${USAGE}`
   }
@@ -400,6 +420,7 @@ export const register: Register = on => {
     reveal: undefined,
     revealTimer: undefined,
     audit: newAudit(),
+    auditView: undefined,
     loadId: shortId(),
     copies: 0,
   }
@@ -634,6 +655,19 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {mine}
         {below}
+      </Box>
+    )
+  })
+
+  // The audit's findings, on the person's screen only. File names and previews are untrusted: clean() each line.
+  on('ui.render', { component: 'Pane', requestId: AUDIT_PANE }, ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const lines = room.auditView ?? ['Run /cloakroom audit to check your past transcripts.']
+    return (
+      <Box flexDirection="column" paddingX={1}>
+        {lines.map((line, i) => (
+          <Text key={`line-${i}`}>{clean(line)}</Text>
+        ))}
       </Box>
     )
   })

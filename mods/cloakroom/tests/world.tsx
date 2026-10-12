@@ -48,6 +48,10 @@ export type World = {
   invalidated: string[]
   /** Paths that exist but cannot be read. */
   unreadable: Set<string>
+  /** Panes the mod opened, by id, in order. */
+  opened: string[]
+  /** Whether a pane opened now is drawn. */
+  isPanePlaced: boolean
 }
 
 export function world(on: On, files: Record<string, string> = {}): World {
@@ -64,12 +68,18 @@ export function world(on: On, files: Record<string, string> = {}): World {
     persisted: [],
     invalidated: [],
     unreadable: new Set(),
+    opened: [],
+    isPanePlaced: true,
   }
   mock.env(on, { HOME, TMPDIR: TMP })
 
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.surfaces', () => ({ value: w.surfaces }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('ui.open', ($, e) => {
+    w.opened.push(e.id)
+    return { value: w.isPanePlaced ? { isPlaced: true } : { isPlaced: false, reason: 'no room' } }
+  })
   on('ui.toast', ($, e) => {
     w.toasts.push(e.text)
     return { value: undefined }
@@ -166,6 +176,20 @@ export async function cloakroom($: Engine, args = ''): Promise<string> {
     presentation: { isFullscreen: true, columns: 140 },
   })
   return ran.text ?? ''
+}
+
+/** The audit pane's lines, as the person sees them. */
+export async function auditPane($: Engine, surface: RenderSurface = 'terminal'): Promise<string[]> {
+  const ui = await $.ui.mount({
+    plugin: 'cloakroom',
+    surface,
+    component: 'Pane',
+    requestId: 'cloakroom-audit',
+    props: { title: 'Cloakroom audit', isFocused: true, bodyColumns: 140, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 60 }, view: {} },
+  })
+  const lines = (await ui.findAll({ type: 'Text' })).map(found => found.text)
+  await ui.unmount()
+  return lines
 }
 
 /** Runs one Bash command through every plugin, as the model's call is run. */

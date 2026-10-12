@@ -6,7 +6,7 @@ import type { On, PromptOrigin } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 import { alnum } from './corpus'
-import { BAND, bash, cloakroom, HOME, ROOT, runBash, start, stdoutOf, SURFACES, TICKET, world, type World } from './world'
+import { auditPane, BAND, bash, cloakroom, HOME, ROOT, runBash, start, stdoutOf, SURFACES, TICKET, world, type World } from './world'
 
 const KEY = ['sk', '_live_', alnum(24, 700)].join('')
 const PASSWORD = 'Zq8-fakepw-4Lt7'
@@ -152,30 +152,61 @@ describe('/cloakroom audit', () => {
     }
   }
 
-  test('lists exposed secrets by kind and date with masked previews, and writes nothing', async ($, on) => {
+  test('lists exposed secrets by kind and date with masked previews in a pane, and writes nothing', async ($, on) => {
     const w = await setUp($, on, transcripts())
-    const text = (await run($, 'audit', { kind: 'composer' })).text ?? ''
-    expect(text).toContain('cloakroom audit (read-only): 4 of 4 transcripts in ~/.claude/projects checked')
-    expect(text).toContain(`- GitHub token: ghp_...${GH.slice(-3)} (GITHUB_TOKEN) - 2 transcripts, 2026-09-12 to 2026-10-01`)
-    expect(text).toContain(`- From a .env file: sk_live_...${KEY.slice(-3)} (STRIPE_SECRET_KEY) - 1 transcript, 2026-10-02`)
-    expect(text).toContain('- From a .env file: (15 chars) (DB_PASSWORD) - 1 transcript, 2026-10-01')
-    for (const secret of [GH, KEY, PASSWORD]) expect(text).not.toContain(secret)
+    await run($, 'audit', { kind: 'composer' })
+    expect(w.opened).toEqual(['cloakroom-audit'])
+    for (const surface of SURFACES) {
+      const lines = await auditPane($, surface)
+      expect(lines[0], surface).toBe('cloakroom audit (read-only): 4 of 4 transcripts in ~/.claude/projects checked, newest first (4 read just now).')
+      expect(lines).toContain(`- GitHub token: ghp_...${GH.slice(-3)} (GITHUB_TOKEN) - 2 transcripts, 2026-09-12 to 2026-10-01`)
+      expect(lines).toContain(`- From a .env file: sk_live_...${KEY.slice(-3)} (STRIPE_SECRET_KEY) - 1 transcript, 2026-10-02`)
+      expect(lines).toContain('- From a .env file: (15 chars) (DB_PASSWORD) - 1 transcript, 2026-10-01')
+      for (const secret of [GH, KEY, PASSWORD]) expect(lines.join('\n')).not.toContain(secret)
+    }
     expect(w.writes).toEqual([])
     // Values found in old transcripts are reported, not learned.
     expect(await cloakroom($)).not.toMatch(/GITHUB_TOKEN#/)
   })
 
+  test('its command text, a transcript row Claude reads, carries no finding: no preview, name, date or path', async ($, on) => {
+    await setUp($, on, transcripts())
+    const text = (await run($, 'audit', { kind: 'composer' })).text ?? ''
+    expect(text).toBe('cloakroom audit: the results are in the Cloakroom audit pane, on your screen only. Claude is not sent them.')
+  })
+
   test('counts transcripts too big to read, and reads none of them', async ($, on) => {
     const big = `${PROJECTS}/-work-app/2026-10-05_big.jsonl`
     const w = await setUp($, on, { ...transcripts(), [big]: 'x'.repeat(4 * 1024 * 1024 + 1) })
-    const text = (await run($, 'audit', { kind: 'composer' })).text ?? ''
-    expect(text).toContain('Not checked: 1 over 4 MiB')
+    await run($, 'audit', { kind: 'composer' })
+    expect(await auditPane($)).toContain('Not checked: 1 over 4 MiB (the most one file read can take) and 0 unreadable.')
     expect(w.reads).not.toContain(big)
+  })
+
+  test('a finding is drawn cleaned: a control character in a value shows as U+FFFD, never blanking the pane', async ($, on) => {
+    const odd = `${alnum(20, 702)}\u001b`
+    const w = await setUp($, on, { [`${ROOT}/.env`]: `SERVICE_SECRET="${odd}"\n`, [`${PROJECTS}/-work-app/2026-10-03_d.jsonl`]: row('2026-10-03T08:00:00.000Z', `here ${odd}`) })
+    await run($, 'audit', { kind: 'composer' })
+    expect(w.opened).toEqual(['cloakroom-audit'])
+    expect(await auditPane($)).toContain(`- From a .env file: ...${odd.slice(-3, -1)}\uFFFD (21 chars) (SERVICE_SECRET) - 1 transcript, 2026-10-03`)
   })
 
   test('says so when there are no transcripts', async ($, on) => {
     await setUp($, on)
-    expect((await run($, 'audit', { kind: 'composer' })).text).toBe('cloakroom audit: no transcripts found in ~/.claude/projects.')
+    await run($, 'audit', { kind: 'composer' })
+    expect(await auditPane($)).toEqual(['cloakroom audit: no transcripts found in ~/.claude/projects.'])
+  })
+
+  test('where no pane can be drawn it reads nothing and says why; a pane with no room says so', async ($, on) => {
+    const w = await setUp($, on, transcripts())
+    const reads = w.reads.length
+    w.surfaces = ['vscode']
+    expect((await run($, 'audit', { kind: 'composer' })).text).toBe('cloakroom audit: the results draw in a pane, which only the terminal and the desktop app have.')
+    expect(w.reads.length).toBe(reads)
+    expect(w.opened).toEqual([])
+    w.surfaces = ['terminal']
+    w.isPanePlaced = false
+    expect((await run($, 'audit', { kind: 'composer' })).text).toBe('cloakroom audit: the results are ready, but the pane could not be drawn here. Run it again in a wider window.')
   })
 
   test('is refused for anyone but the person, and reads nothing', async ($, on) => {
@@ -184,5 +215,6 @@ describe('/cloakroom audit', () => {
     const out = await run($, 'audit', { kind: 'peer' })
     expect(out.text).toContain('runs only when you type it yourself')
     expect(w.reads.length).toBe(reads)
+    expect(w.opened).toEqual([])
   })
 })

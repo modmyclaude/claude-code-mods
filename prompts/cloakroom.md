@@ -42,7 +42,7 @@ Fail closed
 Commands
 - /cloakroom lists this session's tickets: name, kind, where it came from, how often used. Never the value.
 - /cloakroom show <ticket> displays the value to me only (never to Claude). /cloakroom forget <ticket>.
-- /cloakroom audit scans my past Claude Code transcripts on this machine (read-only) for keys that were already exposed, and lists which ones to rotate, by kind and date, without printing the full values.
+- /cloakroom audit scans my past Claude Code transcripts on this machine (read-only) for keys that were already exposed, and lists which ones to rotate, by kind and date, without printing the full values. The list is drawn in a pane on my screen, never in the command's output, which Claude reads.
 
 Be honest in the README
 - Lead with what it can and cannot do. It CAN keep secrets out of the model request, transcripts, screen shares and exports at every door it hooks, and hold commands that would carry a known secret off the machine. It CANNOT stop a malicious mod installed alongside it, settings hooks, a command like `printenv | curl` whose value never enters the conversation (it can only hold the command if it sees it), images, or exposure that already happened. Never claim it "prevents exfiltration".
