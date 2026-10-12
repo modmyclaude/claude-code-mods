@@ -95,6 +95,8 @@ export function world(on: On, setup: WorldSetup = {}) {
     surfaces: setup.surfaces ?? (['terminal'] as RenderSurface[]),
     edits: [] as PromptEditInput[],
     storeFails: setup.storeFails ?? false,
+    /** How many times a band's render chain reached the engine beneath: one per draw of an instance. */
+    bandDraws: 0,
   }
 
   // An in-memory store the test can read back (JSON in, JSON out, as the engine keeps it).
@@ -153,6 +155,7 @@ export function world(on: On, setup: WorldSetup = {}) {
     )
   })
   on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    rec.bandDraws += 1
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box key="engine-band">

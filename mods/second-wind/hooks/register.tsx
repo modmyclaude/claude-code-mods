@@ -11,7 +11,6 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderNode, Timer } from 'claude-code'
 
 import { LONG_MS, frameAt, guideSpan, softFinish } from './breath'
-import type { GuideSpan } from './breath'
 import { GUIDE_SIZE, barCells, barWidth, fitHead, guideSvg, shownFill } from './draw'
 import {
   CARD_TEXT, SAFETY, TICK_MS, USAGE, draftAfter, foldLine, planOf, readSettings, shareCard, statusText, unknownWord,
@@ -19,17 +18,22 @@ import {
 import type { Settings } from './settings'
 import { EMPTY_STATS, SWITCH_ON, addCounts, isOn, localDay, parseStats, parseSwitch } from './stats'
 import type { Stats, Switch } from './stats'
-import type { SecondWindRun } from '../types'
+import type { SecondWindDesk, SecondWindRun } from '../types'
 
 const RUN = { plugin: 'second-wind', key: 'run' } as const
 const NOW = { plugin: 'second-wind', key: 'now' } as const
 const TYPING = { plugin: 'second-wind', key: 'isTyping' } as const
 const CARD = { plugin: 'second-wind', key: 'card' } as const
+const DESK = { plugin: 'second-wind', key: 'desk' } as const
 
 const run = atom(RUN, null)
 const clock = atom(NOW, 0)
 const typing = atom(TYPING, false)
 const card = atom(CARD, null)
+const desk = atom(DESK, null)
+
+/** A desktop guide drawn again this long after it was built is rebuilt from now, so the reload lands in step (MM-110). */
+const REBUILD_MS = 1500
 
 const FADE_MS = 3000 // the fold line dims after this
 const FOLD_MS = 6000 // and clears after this
@@ -146,6 +150,7 @@ async function step($: EngineInterface): Promise<void> {
   }
   await $.state.set(NOW, now)
   const cur = await read($, run)
+  await syncDesk($, cur, now)
   const text = cur === null ? null : cur.phase === 'folded' ? (cur.fold?.text ?? null) : (frameAt(cur, now)?.cue ?? null)
   await mirrorStatus($, text)
   want($, timerFor(cur, now, TICK_MS[settings.motion]))
@@ -208,9 +213,43 @@ async function mirrorStatus($: EngineInterface, text: string | null): Promise<vo
   }
 }
 
+/** What the desktop should draw for the run now: the guide for its span, the fold line, or nothing. */
+function deskView(r: SecondWindRun | null, now: number): SecondWindDesk | null {
+  if (r === null) return null
+  if (r.phase === 'folded') {
+    return r.fold === null ? null : { kind: 'fold', key: `fold:${r.fold.until}`, text: r.fold.text, isFaded: now >= r.fold.fadeAt }
+  }
+  const span = guideSpan(r, now)
+  if (span === null) return null
+  return {
+    kind: 'guide',
+    key: span.key,
+    phase: r.phase === 'finishing' ? 'finishing' : 'breathing',
+    at: now - span.offsetMs,
+    segments: span.segments.map(s => ({ steps: s.steps.map(st => ({ phase: st.phase, ms: st.ms, from: st.from, to: st.to })), loop: s.loop, atMs: s.atMs })),
+    pose: span.pose,
+    words: span.words,
+    label: span.label,
+    still: span.still,
+  }
+}
+
+/** What a desk view amounts to on screen: a write that changes nothing here is skipped. */
+const deskKey = (v: SecondWindDesk | null): string => (v === null ? '' : v.kind === 'fold' ? `${v.key}:${v.isFaded}` : v.key)
+
+/**
+ * Writes the desktop's view when, and only when, it changed. Each write draws the
+ * desktop band again, and the desktop re-sets the guide's frame on every draw
+ * (MM-110, seen live), so the view holds for a whole span of breathing.
+ */
+async function syncDesk($: EngineInterface, r: SecondWindRun | null, now: number): Promise<void> {
+  const next = deskView(r, now)
+  if (deskKey(next) !== deskKey(await read($, desk))) await $.state.set(DESK, next)
+}
+
 /** After a hot reload the run is still in $.state but its timer is gone. */
-function heal($: EngineInterface, r: SecondWindRun | null): void {
-  if (r === null || timer !== null || isHealing) return
+function heal($: EngineInterface, hasRun: boolean): void {
+  if (!hasRun || timer !== null || isHealing) return
   isHealing = true
   $.clock.after(0, () => {
     isHealing = false
@@ -221,6 +260,7 @@ function heal($: EngineInterface, r: SecondWindRun | null): void {
 async function stop($: EngineInterface): Promise<void> {
   await $.state.set(RUN, null)
   await $.state.set(CARD, null)
+  await $.state.set(DESK, null)
   want($, null)
   await mirrorStatus($, null)
 }
@@ -364,8 +404,8 @@ async function end($: EngineInterface, turnId: string, isAborted: boolean): Prom
   await pump($)
 }
 
-/** The desktop guide's markup for the span it was built for (MM-110). */
-let guide: { key: string; source: string; shown: boolean; span: GuideSpan | null } = { key: '', source: '', shown: false, span: null }
+/** The desktop guide's markup for the span it was built for, and when (MM-110). */
+let guide: { key: string; source: string; shown: boolean; builtAt: number } = { key: '', source: '', shown: false, builtAt: 0 }
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
@@ -474,6 +514,86 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
+
+    // The desktop runs the guide in a frame of its own, and re-sets that frame on every draw of
+    // the band, identical tree or not (MM-110, seen live four times). So this path reads only
+    // what changes at a span's edges: the desk view, the draft and the card. Never the per-tick
+    // clock, never the run (its isLong flips at 60 s). With motion off it draws words like the
+    // terminal, below.
+    if (e.surface === 'desktop' && settings.motion !== 'still') {
+      const view = await read($, desk)
+      const isTyping = await read($, typing)
+      const offered = await read($, card)
+      if (view !== null && view.kind === 'guide' && view.phase === 'breathing' && !e.props.isWorking) {
+        // Its turn.complete was lost (a reload at the wrong moment, a mod above that kept it):
+        // draw nothing and stop its clock; the next turn.start drops it uncounted.
+        want($, null)
+        return next(e)
+      }
+      heal($, view !== null)
+      const rest = await next(e)
+      if (view === null && offered === null) return rest
+      const { Box, Text, Button, Svg } = $.ui.resolve(e)
+      const motion = settings.motion
+      const rows: RenderNode[] = []
+      if (offered !== null) {
+        rows.push(
+          <Box key="sw-card" flexDirection="row" gap={1}>
+            <Text bold color={ACCENT} wrap="truncate-end">{CARD_TEXT[offered.kind]}</Text>
+            <Button key="sw-did" label="Did it" variant="primary" onPress={() => answerCard($, true)} />
+            <Button key="sw-skip" label="Skip" onPress={() => answerCard($, false)} />
+          </Box>,
+        )
+      }
+      if (view !== null && view.kind === 'fold') {
+        rows.push(
+          <Box key="sw-fold">
+            <Text dimColor={view.isFaded} color={view.isFaded ? QUIET : undefined} wrap="truncate-end">{view.text}</Text>
+          </Box>,
+        )
+      } else if (view !== null && (isTyping || e.props.maxRows < 3)) {
+        // One quiet line while the next prompt is typed, or when the band has under three rows:
+        // what holds for the span, never a countdown, so the line is drawn once.
+        guide = { ...guide, shown: false }
+        rows.push(
+          <Box key="sw-compact">
+            <Text dimColor wrap="truncate-end">{view.still ?? view.label}</Text>
+          </Box>,
+        )
+      } else if (view !== null) {
+        const now = await $.clock.now()
+        const key = `${view.key}:${motion}`
+        // Built once per span. A draw that lands later anyway (a card, a draft cleared, a resize)
+        // loads the frame again, so it is rebuilt from now and lands in step instead of jumping back.
+        if (guide.key !== key || !guide.shown || now - guide.builtAt > REBUILD_MS) {
+          const source = guideSvg(view.segments, { motion, delayMs: Math.max(0, now - view.at), pose: view.pose, words: view.words })
+          guide = { key, shown: true, builtAt: now, source }
+        }
+        rows.push(
+          <Box key="sw-breath" flexDirection="row" gap={2} alignItems="center">
+            <Svg key="sw-guide" source={guide.source} alt="Breathing guide" width={GUIDE_SIZE.width} height={GUIDE_SIZE.height} isInteractive />
+            <Box key="sw-head" flexDirection="column">
+              {view.still !== null ? (
+                <Box key="sw-cue">
+                  <Text bold color={ACCENT} wrap="truncate-end">{view.still}</Text>
+                </Box>
+              ) : null}
+              <Box key="sw-caption">
+                <Text dimColor>{view.label}</Text>
+              </Box>
+            </Box>
+          </Box>,
+        )
+      }
+      // What other mods draw here comes first (API-GOTCHAS #25).
+      return (
+        <Box key="second-wind" flexDirection="column">
+          {rest}
+          {rows}
+        </Box>
+      )
+    }
+
     const r = await read($, run)
     const now = await read($, clock)
     const isTyping = await read($, typing)
@@ -484,7 +604,7 @@ export const register: Register = (on, options) => {
     // turn.start drops it uncounted.
     const isOrphan = r !== null && r.phase === 'breathing' && !e.props.isWorking
     if (isOrphan) want($, null)
-    else heal($, r)
+    else heal($, r !== null)
     const rest = await next(e)
 
     const frame = r !== null && !isOrphan ? frameAt(r, now) : null
@@ -520,32 +640,16 @@ export const register: Register = (on, options) => {
       // One quiet line while the next prompt is typed, or when the band has under three rows to give.
       const isSmall = isTyping || e.props.maxRows < 3
       let shape: RenderNode | null = null
-      if (motion !== 'still') {
-        const span = e.surface === 'desktop' && r !== null && !isSmall ? guideSpan(r, now) : null
-        if (span !== null && e.surface === 'desktop') {
-          // Built once per span and drawn with props that never change (source, alt, size), so
-          // the desktop never reloads it: it runs its own smooth clock (MM-110). A guide that was
-          // not drawn last time is rebuilt from now, so a fresh mount starts in step.
-          const key = `${span.key}:${motion}`
-          if (guide.key !== key || !guide.shown) {
-            guide = { key, shown: true, span, source: guideSvg(span.segments, { motion, delayMs: span.offsetMs, pose: span.pose, words: span.words }) }
-          }
-          const { Svg } = $.ui.resolve(e)
-          // A frame (the desktop draws an image still: its keyframes never run), loaded once per
-          // span: everything around it holds still, so nothing sets it again (MM-110, seen live).
-          shape = <Svg key="sw-guide" source={guide.source} alt="Breathing guide" width={GUIDE_SIZE.width} height={GUIDE_SIZE.height} isInteractive />
-        } else if (!isSmall) {
-          const [left, body, right] = barCells(fill, barWidth(cols))
-          shape = (
-            <Box key="sw-shape" flexDirection="row">
-              <Text color={QUIET}>{left}</Text>
-              <Text color={ACCENT}>{body}</Text>
-              <Text color={QUIET}>{right}</Text>
-            </Box>
-          )
-        }
+      if (motion !== 'still' && !isSmall) {
+        const [left, body, right] = barCells(fill, barWidth(cols))
+        shape = (
+          <Box key="sw-shape" flexDirection="row">
+            <Text color={QUIET}>{left}</Text>
+            <Text color={ACCENT}>{body}</Text>
+            <Text color={QUIET}>{right}</Text>
+          </Box>
+        )
       }
-      if (e.surface === 'desktop' && shape === null) guide = { ...guide, shown: false }
       if (isSmall) {
         const room = cols - frame.cue.length - 1
         const mini = e.surface === 'terminal' && motion !== 'still' && room >= 4 ? barCells(fill, Math.min(8, room)).join('') : null
@@ -555,28 +659,8 @@ export const register: Register = (on, options) => {
             {mini !== null ? <Text dimColor>{mini}</Text> : null}
           </Box>,
         )
-      } else if (e.surface === 'desktop' && shape !== null) {
-        // Everything the desktop draws holds still for the whole span: the step's words live in
-        // the drawing, and beside it only what never changes mid-span (no countdown, no count).
-        const still = guide.span?.still ?? null
-        const label = guide.span?.label ?? frame.caption
-        rows.push(
-          <Box key="sw-breath" flexDirection="row" gap={2} alignItems="center">
-            {shape}
-            <Box key="sw-head" flexDirection="column">
-              {still !== null ? (
-                <Box key="sw-cue">
-                  <Text bold color={ACCENT} wrap="truncate-end">{still}</Text>
-                </Box>
-              ) : null}
-              <Box key="sw-caption">
-                <Text dimColor>{label}</Text>
-              </Box>
-            </Box>
-          </Box>,
-        )
       } else {
-        const head = fitHead(frame.cue, frame.caption, e.surface === 'desktop' && shape !== null ? Math.max(1, cols - 10) : cols)
+        const head = fitHead(frame.cue, frame.caption, cols)
         const words = (
           <Box key="sw-head" flexDirection="row">
             <Box key="sw-cue">
@@ -590,17 +674,10 @@ export const register: Register = (on, options) => {
           </Box>
         )
         rows.push(
-          e.surface === 'desktop' && shape !== null ? (
-            <Box key="sw-breath" flexDirection="row" gap={2} alignItems="center">
-              {shape}
-              {words}
-            </Box>
-          ) : (
-            <Box key="sw-breath" flexDirection="column">
-              {words}
-              {shape}
-            </Box>
-          ),
+          <Box key="sw-breath" flexDirection="column">
+            {words}
+            {shape}
+          </Box>,
         )
       }
     }

@@ -320,8 +320,10 @@ describe('typing', () => {
       await w.clock.settle()
       expect(await ui.find({ key: 'sw-breath' })).toBeUndefined()
       expect(await ui.find({ key: 'sw-compact' })).toBeDefined()
-      expect(await compactWords(ui)).toContain('Breathe in 2')
-      expect((await ui.findAll({ type: 'Text' })).filter(t => t.text.includes('Breathe in')).every(t => t.props.dimColor === true)).toBe(true)
+      // The desktop's line holds for the span (a countdown would draw the band again, MM-110).
+      const words = surface === 'desktop' ? 'physiological sigh' : 'Breathe in 2'
+      expect(await compactWords(ui)).toContain(words)
+      expect((await ui.findAll({ type: 'Text' })).filter(t => t.text.includes(words)).every(t => t.props.dimColor === true)).toBe(true)
       await draft.unmount()
       const empty = await w.hint($, surface, false) // however the box was emptied
       await w.clock.settle()
@@ -434,7 +436,8 @@ describe('fitting the space', () => {
     for (const surface of SURFACES) {
       const ui = await w.band($, surface, { maxRows: 2 })
       expect(await ui.find({ key: 'sw-compact' })).toBeDefined()
-      expect(await compactWords(ui)).toContain('Breathe in 4')
+      // The desktop's line holds for the span (a countdown would draw the band again, MM-110).
+      expect(await compactWords(ui)).toContain(surface === 'desktop' ? 'physiological sigh' : 'Breathe in 4')
       expect(await ui.find({ key: 'sw-breath' })).toBeUndefined()
       await ui.unmount()
     }
@@ -612,7 +615,7 @@ test('#39: the engine band beneath is never under a Box that sizes or hides it',
   }
 })
 
-test('MM-110: on the desktop the guide is built once per span, so nothing flashes mid-breath', async ($, on) => {
+test('MM-110: on the desktop the band is not drawn again across a span, so its frame is never re-set', { options: { eyeRest: false, stretch: false } }, async ($, on) => {
   const w = world(on)
   await w.start($)
   await w.clock.advance(3000 + 500)
@@ -620,11 +623,41 @@ test('MM-110: on the desktop the guide is built once per span, so nothing flashe
   const first = await ui.find({ type: 'Svg' })
   expect(first?.props.isInteractive).toBe(true)
   const tree = JSON.stringify(await ui.drawn())
-  for (let i = 0; i < 20; i += 1) {
+  const draws = w.rec.bandDraws
+  // 70 s of ticks (the clock atom written 8 times a second) and the turn turning long at 60 s:
+  // the desktop band is not drawn even once more. The desktop re-sets the guide's frame on every
+  // draw, identical tree or not (MM-110, seen live), so the only fix is no draw at all.
+  for (let i = 0; i < 70; i += 1) {
     await w.clock.advance(1000)
-    // The whole band is the same tree, byte for byte, across the span: nothing to redraw,
-    // and the drawing's own clock carries the breath (MM-110).
     expect(JSON.stringify(await ui.drawn()), `t+${i + 1}s`).toBe(tree)
+    expect(w.rec.bandDraws, `t+${i + 1}s`).toBe(draws)
   }
+  // The count counts: the terminal band carries a text bar and draws on every tick.
+  const term = await w.band($, 'terminal')
+  const before = w.rec.bandDraws
+  await w.clock.advance(1000)
+  await term.drawn()
+  expect(w.rec.bandDraws).toBeGreaterThan(before)
+  await term.unmount()
+  await ui.unmount()
+})
+
+test('MM-110: a draft collapses the desktop band to one still line, and the guide comes back in step', async ($, on) => {
+  const w = world(on)
+  await w.start($)
+  await w.clock.advance(3000 + 500)
+  const ui = await w.band($, 'desktop')
+  const draft = await w.hint($, 'desktop', true)
+  await w.clock.settle()
+  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  expect(await compactWords(ui)).toBe('physiological sigh, then slow paced breathing')
+  await w.clock.advance(5000)
+  await draft.unmount()
+  const empty = await w.hint($, 'desktop', false)
+  await w.clock.settle()
+  // Rebuilt from now, 5.5 s into the span (which began at 3 s): its first keyframes already behind it.
+  const svg = await ui.find({ type: 'Svg' })
+  expect(String(svg?.props.source)).toContain('linear -5500ms')
+  await empty.unmount()
   await ui.unmount()
 })
