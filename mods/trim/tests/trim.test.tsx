@@ -43,6 +43,18 @@ describe('the fold Claude reads', () => {
     expect(w.status).toMatch(/^trim ~/)
   })
 
+  test('an image, a background job and output Claude Code already saved to a file pass untouched', async ($, on) => {
+    const w = world(on)
+    w.stdout['npm test'] = BIG
+    await start($)
+    for (const extra of [{ isImage: true }, { backgroundTaskId: 'b1' }, { persistedOutputPath: '/tmp/out.txt' }, { structuredContent: [] }]) {
+      w.extra = extra
+      expect(stdoutOf(await bash($, 'npm test')), JSON.stringify(extra)).toBe(BIG)
+    }
+    w.extra = {}
+    expect(stdoutOf(await bash($, 'npm test'))).not.toBe(BIG)
+  })
+
   test('stderr is never touched, however long', async ($, on) => {
     const w = world(on)
     w.stdout['build'] = BIG
@@ -139,6 +151,17 @@ describe('/trim', () => {
     expect(full).toContain('line 1000')
     expect(full).toContain('line 3 red�')
     expect(full).not.toContain('\x1b')
+  })
+
+  test('a very long output draws its first 90,000 characters in the pane, and says so', async ($, on) => {
+    const w = world(on)
+    w.stdout['cat big.log'] = numbered(20_000)
+    await start($)
+    await bash($, 'cat big.log')
+    await trim($, 'show 1')
+    const texts = await paneTexts($, 'trim-output')
+    expect(texts[1]).toHaveLength(90_000)
+    expect(texts[2]).toBe(`Showing the first 90,000 of ${numbered(20_000).length.toLocaleString('en-US')} characters.`)
   })
 
   test(`only the last ${KEEP_CALLS} full outputs are kept; an older one says so`, async ($, on) => {

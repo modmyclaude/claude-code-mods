@@ -21,7 +21,7 @@ Build me a Claude Code mod called "trim": it makes long shell output cheaper for
 
 When a Bash command prints more than about 120 lines or 6,000 characters, fold what Claude reads: keep the first 15 lines, the last 40, every line that looks like an error or a warning, and every line my own pattern names. Each gap becomes one "[... N lines folded ...]" line. Keep an error repeated word for word once, with how many times it came, but never merge two errors at different places. A run of lines that differ only in a percentage or a counter (a progress bar) folds to its first line with a count. Cut a kept line past 2,000 characters in its middle.
 
-Append one footer line that says how many lines were folded, about how many tokens that saved, and that Claude can run the command again through grep, sed -n or tail to read a folded part. Skip folding when it would save less than a quarter of the output.
+Append one footer line that says how many lines were folded and about how many tokens that saved. It tells Claude that a command that only reads (a test run, a build, a listing) can be run again through grep, sed -n or tail to read a folded part, and that one that changes anything (an install, a migration, a deploy) must never be repeated: ask me instead, since I can see the whole output. Skip folding when it would save less than a quarter of the output.
 
 Never touch: short output, stderr, a command that failed (its output goes to Claude whole), images, background jobs, output Claude Code already saved to a file, or any tool but Bash.
 

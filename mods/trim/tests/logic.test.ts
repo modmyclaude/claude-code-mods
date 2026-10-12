@@ -24,9 +24,26 @@ describe('what stays', () => {
     expect(kept).not.toContain('line 500')
     expect(t.text.length).toBeLessThan(stdout.length / 5)
     expect(t.text.endsWith('\n')).toBe(true)
-    expect(kept.at(-2)).toMatch(/^\[trim: 1,942 of 2,000 lines folded, about [\d,]+ tokens saved\. The folded lines were not sent; to read a part, run the command again through a filter such as grep, sed -n or tail\.\]$/)
+    expect(kept.at(-2)).toMatch(/^\[trim: 1,942 of 2,000 lines folded, about [\d,]+ tokens saved\. The folded lines were not sent\. /)
+    // A re-run is offered only for a command that is safe to repeat; else the person, who sees it all.
+    expect(kept.at(-2)).toContain('If the command only reads (a test run, a build, a listing), run it again through grep, sed -n or tail to read a part')
+    expect(kept.at(-2)).toContain('never repeat one that changes anything (an install, a migration, a deploy): ask the person, who can see the whole output.]')
     expect(t).toMatchObject({ linesIn: 2_000, folded: 1_942 })
     expect(t.saved).toBe(stdout.length - t.text.length)
+  })
+
+  test('test runners\' failure marks are kept from the middle, whatever the exit code', () => {
+    const marks = [
+      '  ✕ adds two numbers (3 ms)', // Jest
+      '  ● math › adds two numbers', // Jest's failure header
+      ' × src/sum.test.ts > adds two numbers', // Vitest
+      'not ok 3 - adds ✗', // others
+      '✘ renders the header',
+    ]
+    const rows = lines(1_000)
+    marks.forEach((mark, i) => (rows[400 + i * 50] = mark))
+    const kept = trimOutput(out(rows), DEFAULTS)!.text.split('\n')
+    for (const mark of marks) expect(kept).toContain(mark)
   })
 
   test('output under both limits is left alone', () => {

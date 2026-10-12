@@ -30,6 +30,8 @@ const OUTPUT_PANE = 'trim-output'
 /** Full outputs kept for showing: the last 20 calls, two million characters in all. */
 export const KEEP_CALLS = 20
 export const KEEP_CHARS = 2_000_000
+/** The most of one output the pane draws at once. */
+const SHOW_CHARS = 90_000
 /** Origins that are the person: typed, the phone bridge, the desktop app's box. */
 const PERSON = new Set(['composer', 'bridge', 'sdk'])
 const USAGE = '/trim lists the folded calls; /trim show <n> shows one in full; /trim off pauses it; /trim on resumes it.'
@@ -273,7 +275,12 @@ export const register: Register = (on, options) => {
         <Text key="command" bold>
           {call ? `#${call.n} ${call.command}` : 'No call to show'}
         </Text>
-        <Text key="output">{full === undefined ? 'This output is no longer kept: only the last 20 calls are.' : clean(full)}</Text>
+        <Text key="output">{full === undefined ? 'This output is no longer kept: only the last 20 calls are.' : clean(full.slice(0, SHOW_CHARS))}</Text>
+        {full !== undefined && full.length > SHOW_CHARS ? (
+          <Text key="more" dimColor>
+            {`Showing the first ${grouped(SHOW_CHARS)} of ${grouped(full.length)} characters.`}
+          </Text>
+        ) : null}
       </Box>
     )
   })

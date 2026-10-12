@@ -24,9 +24,9 @@ trim: 1,892 lines folded · ~11k tokens saved   [expand]
 
 Nothing to set up. When a Bash command prints more than 120 lines or 6,000 characters, Claude reads a folded copy:
 
-- **What stays:** the first 15 lines, the last 40, every line that reads like an error or a warning (error, failed, exception, traceback, warning, panic, fatal, not found, cannot and the like), and every line your own pattern names.
+- **What stays:** the first 15 lines, the last 40, every line that reads like an error or a warning (error, failed, exception, traceback, warning, panic, fatal, not found, cannot and the like, and the marks test runners print on a failed test: `✕`, `×`, `●`, `✗`, `✘`), and every line your own pattern names. A failed test stays even when the command itself exits cleanly (piped into `tee`, or after `|| true`).
 - **What folds:** everything else, as one `[... N lines folded ...]` line per gap. An error line repeated word for word is kept once with how many times it came (`warning: slow test [3 times]`); two errors at different places are always two lines. A run of lines that differ only in a percentage or a counter (a progress bar) folds to its first line with a count.
-- **The footer** tells Claude what was folded, about how many tokens it saved, and to run the command again through `grep`, `sed -n` or `tail` if it needs a folded part. Claude never mistakes the folded copy for the whole output.
+- **The footer** tells Claude what was folded and about how many tokens it saved. If Claude needs a folded part of a command that only reads (a test run, a build, a listing), it can run it again through `grep`, `sed -n` or `tail`; for one that changes anything (an install, a migration, a deploy) it is told never to repeat it, and to ask you instead, since you can see the whole output. Claude never mistakes the folded copy for the whole output.
 - **Never touched:** short output, stderr, a command that failed (its output reaches Claude whole: the errors are what Claude needs), images, background jobs, output Claude Code already saved to a file, and every tool but Bash.
 - **Folding that saves little** (under a quarter of the output, or under 1,000 characters) is skipped.
 

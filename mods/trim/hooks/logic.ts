@@ -31,9 +31,13 @@ export type Settings = {
 
 export const DEFAULTS: Settings = { lines: 120, chars: 6_000, keep: undefined }
 
-/** Words that mark a line worth keeping wherever it is: errors, failures, warnings. */
+/**
+ * What marks a line worth keeping wherever it is: error, failure and warning words, and the marks
+ * test runners print on a failed test (Jest's ✕ and ● headers, Vitest's ×, others' ✗ and ✘), which a
+ * passing exit code (a pipe into tee, `|| true`) would otherwise fold away.
+ */
 export const ERROR_LINE =
-  /\b(?:err(?:or)?s?|fail(?:s|ed|ure|ures|ing)?|exception|traceback|warn(?:ing|ings)?|panic(?:ked)?|fatal|denied|refused|not found|cannot|can't|unable to|abort(?:ed)?|segmentation fault)\b|ERR!|✗|✘/i
+  /\b(?:err(?:or)?s?|fail(?:s|ed|ure|ures|ing)?|exception|traceback|warn(?:ing|ings)?|panic(?:ked)?|fatal|denied|refused|not found|cannot|can't|unable to|abort(?:ed)?|segmentation fault)\b|ERR!|[✗✘✕×●]/i
 
 export type Trimmed = {
   /** What Claude reads in place of stdout, footer included. */
@@ -101,11 +105,17 @@ export function shortTokens(chars: number): string {
   return `~${Math.max(10, Math.round(tokens / 10) * 10)}`
 }
 
-/** The line Claude reads last, so it never takes the folded output for the whole of it. */
+/**
+ * The line Claude reads last, so it never takes the folded output for the whole of it. A re-run is
+ * offered only for a command that is safe to repeat: an install, a migration or a deploy must not
+ * run twice to read its log, and the person can see the whole output under the call.
+ */
 export function footer(folded: number, linesIn: number, saved: number): string {
   return (
     `[trim: ${grouped(folded)} of ${grouped(linesIn)} lines folded, ${aboutTokens(saved)} tokens saved. ` +
-    'The folded lines were not sent; to read a part, run the command again through a filter such as grep, sed -n or tail.]'
+    'The folded lines were not sent. If the command only reads (a test run, a build, a listing), run it again ' +
+    'through grep, sed -n or tail to read a part; never repeat one that changes anything (an install, a migration, ' +
+    'a deploy): ask the person, who can see the whole output.]'
   )
 }
 

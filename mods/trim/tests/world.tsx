@@ -12,6 +12,8 @@ export type World = {
   /** What the next Bash call prints, by command; a missing command prints nothing. */
   stdout: Record<string, string>
   stderr: Record<string, string>
+  /** Fields added to every Bash record (an image, a background job, a saved output). */
+  extra: Record<string, unknown>
   /** Commands that fail (core reports an error with this text). */
   failing: Record<string, string>
   /** The id each call ran under, in order. */
@@ -26,7 +28,7 @@ export type World = {
 }
 
 export function world(on: On): World {
-  const w: World = { stdout: {}, stderr: {}, failing: {}, ids: [], toasts: [], status: undefined, opened: [], isPanePlaced: true, surfaces: ['terminal'] }
+  const w: World = { stdout: {}, stderr: {}, extra: {}, failing: {}, ids: [], toasts: [], status: undefined, opened: [], isPanePlaced: true, surfaces: ['terminal'] }
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.surfaces', () => ({ value: w.surfaces }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
@@ -50,7 +52,7 @@ export function world(on: On): World {
     if (failure !== undefined) return { isError: true, result: failure, text: failure }
     const stdout = w.stdout[e.command] ?? ''
     const stderr = w.stderr[e.command] ?? ''
-    return { result: { stdout, stderr, interrupted: false }, text: stdout + (stderr ? `\n${stderr}` : '') }
+    return { result: { stdout, stderr, interrupted: false, ...w.extra }, text: stdout + (stderr ? `\n${stderr}` : '') }
   })
   // The engine's own row: how many lines of stdout it was handed to draw, so a test sees what reached it.
   on('ui.render', { component: 'ToolResult' }, ($, e) => {
