@@ -86,10 +86,10 @@ Set these in `/config`. A time wardrobe cannot read falls back to its default, a
 
 ## What it can touch
 
-- Its own store: the global choice and the per-project pins, keyed by the path of the folder the session started in.
+- Its own store: the global choice, the per-project pins (keyed by the path of the folder the session started in), and, once you have matched a theme, the Claude Code theme you had before, so `/wear default` can put it back.
 - For the session, in memory: each tool call's start and end time, for its row.
-- Reads the project root, the attached surfaces and the clock.
-- No files, no processes, no network, no model calls. It never refuses or changes a tool call: its tool hook only notes when a call starts and ends.
+- Reads the project root, the attached surfaces, the clock, and Claude Code's own theme setting (the `/config` theme row) at session start and before a match; it also notices when you change that setting.
+- Writes Claude Code's theme setting only when you ask: `/wear <look> --match`, `/wear match` and the `match theme` button set it, and `/wear default` sets it back to the one you had. No files, no processes, no network, no model calls. It never refuses or changes a tool call: its tool hook only notes when a call starts and ends.
 
 ### What a look changes, and what it cannot
 
