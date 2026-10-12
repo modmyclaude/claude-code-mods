@@ -24,9 +24,10 @@ Watch your subagents work, and what they cost, live.
   subagents' total (price-table estimate), the session's spend against your
   budget (Claude Code's estimate where it keeps one) and a budget bar. With no
   subagents yet, Bolt naps here. From 84 columns a heat strip sits beside the
-  hero line: one column per subagent, one row per ten seconds of the last
-  minute, each cell shaded by how much that subagent did in that window, in
-  its colour, with the mission numbers underneath.
+  hero line: one column per subagent (running ones first, twelve at most), one
+  row per ten seconds of the last minute, each cell shaded by how much that
+  subagent did in that window, in its colour, with the mission numbers
+  underneath. It steps once every ten seconds.
 - **The cards.** One bordered card per running subagent, one to three across
   depending on the pane's width. Each shows its number and task, its ant,
   model and elapsed time, a status line (`WORKING · Bash npm test · 4s`,

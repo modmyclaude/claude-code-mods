@@ -76,9 +76,9 @@ const BUDGET_BAR_CELLS = 20
 /** Cells the `open` button and its gap take at the end of a row (`9: open`). */
 const OPEN_CELLS = 8
 /** A finished line names its model from this pane width; narrower, the ant's colour says it. */
-export /** From this many columns the header holds the heat strip beside the hero column. */
+/** From this many columns the header holds the heat strip beside the hero column. */
 const HEAT_MIN_COLUMNS = 84
-const LINE_MODEL_COLUMNS = 100
+export const LINE_MODEL_COLUMNS = 100
 
 const isRunning = (a: AntFarmAnt) => a.status === 'running'
 const taskOf = (a: AntFarmAnt) => clean(a.task)
@@ -349,10 +349,10 @@ export function drawControl(c: ControlInput): RenderElement {
       )}
     </Box>
   )
-  // The heat strip: one column per subagent in mission order, one row per ten seconds of the
-  // last minute (oldest on top), each cell shaded by how many rows the subagent put on the
-  // timeline in that window, in its own colour; the mission numbers underneath. On a pane wide
-  // enough to hold it beside the hero column.
+  // The heat strip: one column per subagent (running ones first), one row per ten seconds of
+  // the last minute (oldest on top, the windows anchored to the clock), each cell shaded by how
+  // many rows the subagent put on the timeline in that window, in its own colour; the mission
+  // numbers underneath. On a pane wide enough to hold it beside the hero column.
   const heat = !compact && c.columns >= HEAT_MIN_COLUMNS && c.list.length > 0 ? heatGrid(c.list, c.events, c.now) : undefined
   const heatBlock =
     heat !== undefined && heat.ids.length > 0 ? (

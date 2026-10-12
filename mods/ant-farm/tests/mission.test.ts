@@ -187,27 +187,43 @@ describe('motion and keys', () => {
 })
 
 describe('heatGrid', () => {
-  const ant = (id: string, n: number, startedAt = 0) => ({ id, n, task: id, type: 't', model: 'm', startedAt, status: 'running', usage: { requests: 0, tokens: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }) as never
+  type Ant = Parameters<typeof heatGrid>[0][number]
+  const ant = (id: string, n: number, startedAt = 0): Ant => ({ id, n, task: id, type: 't', model: 'm', startedAt, status: 'running', usage: { requests: 0, tokens: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } } as unknown as Ant)
   const ev = (agentId: string, at: number) => ({ at, kind: 'tool' as const, agentId, text: 'x' })
-  test('one column per subagent in mission order, one row per window with the oldest on top', () => {
-    const now = 100_000
+  test('one column per subagent in mission order, one row per window anchored to the clock, the oldest on top', () => {
+    const now = 103_000 // inside the window 100 s to 110 s
     const list = [ant('b', 2, 5), ant('a', 1, 1), ant('c', 3, 9)]
-    const events = [ev('a', now - 1_000), ev('a', now - 1_500), ev('b', now - 55_000), ev('c', now - 70_000), ev('a', now + 1)]
+    const events = [ev('a', now - 1_000), ev('a', 98_500), ev('b', 55_000), ev('c', 49_999), ev('a', now + 1)]
     const { ids, grid } = heatGrid(list, events, now)
     expect(ids).toEqual(['a', 'b', 'c'])
     expect(grid.length).toBe(6)
-    expect(grid[5]).toEqual([2, 0, 0]) // the newest window, at the bottom; the row from the future is not counted
-    expect(grid[0]).toEqual([0, 1, 0]) // fifty-five seconds ago is the oldest window
-    expect(grid.flat().reduce((x, y) => x + y, 0)).toBe(3) // seventy seconds ago has scrolled off
+    expect(grid[5]).toEqual([1, 0, 0]) // the window now falls in, at the bottom; the row from the future is not counted
+    expect(grid[4]).toEqual([1, 0, 0]) // 98.5 s falls in the window before, 90 s to 100 s
+    expect(grid[0]).toEqual([0, 1, 0]) // 55 s falls in the oldest window, 50 s to 60 s
+    expect(grid.flat().reduce((x, y) => x + y, 0)).toBe(3) // 49.999 s has scrolled off
+  })
+  test('the strip steps once per window, not with every tick', () => {
+    const list = [ant('a', 1)]
+    const events = [ev('a', 61_000), ev('a', 64_000), ev('a', 67_000)]
+    const at = (now: number) => heatGrid(list, events, now).grid.map(r => r[0]).join('')
+    expect(at(72_000)).toBe(at(79_999)) // the same drawing all through one window
+    expect(at(72_000)).not.toBe(at(80_000)) // and a step at its edge
+  })
+  test('a running subagent always has a column: running first, then the latest finished', () => {
+    const list: Ant[] = [...Array.from({ length: 12 }, (_, i) => ({ ...ant(`f${i}`, i + 1), status: 'done' as const, endedAt: 1_000 + i })), ant('r', 13)]
+    const { ids } = heatGrid(list, [], 60_000)
+    expect(ids[0]).toBe('r')
+    expect(ids.length).toBe(12)
+    expect(ids).not.toContain('f0') // the earliest finished one gives way
   })
   test('a window boundary lands in the later window, and columns stop at the cap', () => {
     const now = 60_000
     const list = Array.from({ length: 14 }, (_, i) => ant(`id${i}`, i + 1))
     const { ids, grid } = heatGrid(list, [ev('id0', now - HEAT_WINDOW_MS), ev('id1', now - 2 * HEAT_WINDOW_MS), ev('id13', now)], now, 6, 12)
     expect(ids.length).toBe(12)
-    expect(grid[5]![0]).toBe(1) // exactly ten seconds ago: the newest window
-    expect(grid[4]![0]).toBe(0)
-    expect(grid[4]![1]).toBe(1) // exactly twenty seconds ago: the window before
+    expect(grid[4]![0]).toBe(1) // 50 s: the window 50 s to 60 s, the one before the one 60 s falls in
+    expect(grid[5]![0]).toBe(0)
+    expect(grid[3]![1]).toBe(1) // 40 s: the window before that
     expect(grid.flat().reduce((x, y) => x + y, 0)).toBe(2) // the thirteenth subagent has no column
   })
   test('the shades climb from a dot to a full block and stop there', () => {

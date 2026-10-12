@@ -277,9 +277,14 @@ export function heatGlyph(count: number): string {
 }
 
 /**
- * The heat strip's cells: one column per subagent in mission order (at most
- * `maxColumns`), one row per window with the oldest on top, each cell how
- * many timeline rows that subagent produced in that window.
+ * The heat strip's cells: one column per subagent (running ones first in
+ * mission order, then the finished, latest first, at most `maxColumns`), one
+ * row per window with the oldest on top, each cell how many timeline rows
+ * that subagent produced in that window.
+ *
+ * The windows are anchored to the clock (each starts on a multiple of the
+ * window), so the strip steps once per window instead of sliding with every
+ * tick; the newest window is the one `now` falls in.
  */
 export function heatGrid(
   list: readonly AntFarmAnt[],
@@ -288,13 +293,14 @@ export function heatGrid(
   rows = HEAT_ROWS,
   maxColumns = HEAT_COLUMNS_MAX,
 ): { ids: string[]; grid: number[][] } {
-  const ids = [...list]
-    .sort((a, b) => (a.n ?? Number.MAX_SAFE_INTEGER) - (b.n ?? Number.MAX_SAFE_INTEGER) || a.startedAt - b.startedAt)
-    .slice(0, maxColumns)
-    .map(a => a.id)
+  const byMission = (a: AntFarmAnt, b: AntFarmAnt) => (a.n ?? Number.MAX_SAFE_INTEGER) - (b.n ?? Number.MAX_SAFE_INTEGER) || a.startedAt - b.startedAt
+  const running = list.filter(a => a.status === 'running').sort(byMission)
+  const finished = list.filter(a => a.status !== 'running').sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt) || byMission(a, b))
+  const ids = [...running, ...finished].slice(0, maxColumns).map(a => a.id)
   const column = new Map(ids.map((id, i) => [id, i] as const))
   const grid = Array.from({ length: rows }, () => ids.map(() => 0))
-  const start = now - rows * HEAT_WINDOW_MS
+  const end = Math.floor(now / HEAT_WINDOW_MS) * HEAT_WINDOW_MS + HEAT_WINDOW_MS
+  const start = end - rows * HEAT_WINDOW_MS
   for (const ev of events) {
     const col = ev.agentId !== undefined ? column.get(ev.agentId) : undefined
     if (col === undefined || ev.at < start || ev.at > now) continue
