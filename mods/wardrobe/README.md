@@ -28,6 +28,8 @@ Each command answers in a toast (an unknown theme's message stays longer). Nothi
 
 Themes: `noir`, `paper` (light), `tokyo-night`, `dracula`, `catppuccin`, `solarized`, `nord`, `high-contrast`, `colorblind`, and the seasonal packs `halloween`, `christmas`, `spring` (light), `summer`, `autumn`. Short forms work too: `drac`, `hc`, `colourblind`, `tokyo night`, `xmas`, `fall`, `spooky`, and any prefix that names one theme alone (`sp` is spring, `su` is summer).
 
+Every look also ships as a Claude Code theme file (`themes/<look>.json`), listed in `/theme` as "<Look> (wardrobe)". `--match` prefers it, so in the terminal the input box border, your message background, the text and the diff colours follow the look too; the desktop app keeps its own theme.
+
 What changes, on the terminal and in the desktop app:
 
 | Where | What wardrobe draws |

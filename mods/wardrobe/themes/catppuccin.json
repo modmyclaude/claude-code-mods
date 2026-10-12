@@ -1,0 +1,22 @@
+{
+  "name": "Catppuccin (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#cba6f7",
+    "claudeShimmer": "#f5c2e7",
+    "text": "#cdd6f4",
+    "subtle": "#a6adc8",
+    "inactive": "#a6adc8",
+    "suggestion": "#89dceb",
+    "success": "#a6e3a1",
+    "error": "#f38ba8",
+    "warning": "#f9e2af",
+    "permission": "#f5c2e7",
+    "promptBorder": "#cba6f7",
+    "bashBorder": "#cba6f7",
+    "userMessageBackground": "#1e1e2e",
+    "userMessageBackgroundHover": "#1e1e2e",
+    "diffAdded": "#253a2c",
+    "diffRemoved": "#3e2433"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Spring (wardrobe)",
+  "base": "light",
+  "overrides": {
+    "claude": "#2e7d32",
+    "claudeShimmer": "#a8307a",
+    "text": "#2f3a2f",
+    "subtle": "#5e6a5e",
+    "inactive": "#5e6a5e",
+    "suggestion": "#1769aa",
+    "success": "#2e7d32",
+    "error": "#b3261e",
+    "warning": "#8a5a00",
+    "permission": "#a8307a",
+    "promptBorder": "#2e7d32",
+    "bashBorder": "#2e7d32",
+    "userMessageBackground": "#fbf7ec",
+    "userMessageBackgroundHover": "#fbf7ec",
+    "diffAdded": "#dff3dc",
+    "diffRemoved": "#fbdde6"
+  }
+}

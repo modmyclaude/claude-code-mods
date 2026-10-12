@@ -1,0 +1,22 @@
+{
+  "name": "Dracula (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#bd93f9",
+    "claudeShimmer": "#ff79c6",
+    "text": "#f8f8f2",
+    "subtle": "#c0c4d8",
+    "inactive": "#c0c4d8",
+    "suggestion": "#8be9fd",
+    "success": "#50fa7b",
+    "error": "#ff6e6e",
+    "warning": "#f1fa8c",
+    "permission": "#ff79c6",
+    "promptBorder": "#bd93f9",
+    "bashBorder": "#bd93f9",
+    "userMessageBackground": "#282a36",
+    "userMessageBackgroundHover": "#282a36",
+    "diffAdded": "#1e3a2b",
+    "diffRemoved": "#46222b"
+  }
+}

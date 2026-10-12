@@ -1,0 +1,22 @@
+{
+  "name": "Autumn (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#f5a623",
+    "claudeShimmer": "#e0a884",
+    "text": "#f3e9d7",
+    "subtle": "#c0b19b",
+    "inactive": "#c0b19b",
+    "suggestion": "#9ec5b8",
+    "success": "#a9c46c",
+    "error": "#ff7a66",
+    "warning": "#e8884f",
+    "permission": "#e0a884",
+    "promptBorder": "#f5a623",
+    "bashBorder": "#f5a623",
+    "userMessageBackground": "#241a12",
+    "userMessageBackgroundHover": "#241a12",
+    "diffAdded": "#2f3a1a",
+    "diffRemoved": "#4a2418"
+  }
+}

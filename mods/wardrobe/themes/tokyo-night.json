@@ -1,0 +1,22 @@
+{
+  "name": "Tokyo Night (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#7aa2f7",
+    "claudeShimmer": "#bb9af7",
+    "text": "#c0caf5",
+    "subtle": "#9aa5ce",
+    "inactive": "#9aa5ce",
+    "suggestion": "#7dcfff",
+    "success": "#9ece6a",
+    "error": "#f7768e",
+    "warning": "#e0af68",
+    "permission": "#bb9af7",
+    "promptBorder": "#7aa2f7",
+    "bashBorder": "#7aa2f7",
+    "userMessageBackground": "#1a1b26",
+    "userMessageBackgroundHover": "#1a1b26",
+    "diffAdded": "#1f3326",
+    "diffRemoved": "#3a1f2a"
+  }
+}

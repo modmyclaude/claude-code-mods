@@ -128,3 +128,21 @@ describe('the gallery button', () => {
     await ui.unmount()
   })
 })
+
+describe('the looks as Claude Code themes', () => {
+  test('when Claude Code lists the look\'s own theme file, --match prefers it to the nearest built-in, and default still restores', async ($, on) => {
+    const w = world(on, { surfaces: ['terminal'], pluginThemes: true })
+    await start($)
+    const said = await wear($, 'paper --match')
+    expect(said).toContain("Claude Code's theme set to custom:wardrobe:paper to match paper (was dark). /wear default puts it back.")
+    expect(w.config.theme).toBe('custom:wardrobe:paper')
+    await wear($, 'default')
+    expect(w.config.theme).toBe('dark')
+  })
+
+  test('a matched plugin theme counts as its own tone: paper then paints on the terminal', async ($, on) => {
+    world(on, { surfaces: ['terminal'], pluginThemes: true })
+    await start($)
+    expect(await wear($, 'paper --match')).not.toContain('made for a light theme')
+  })
+})

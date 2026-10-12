@@ -1,0 +1,22 @@
+{
+  "name": "Summer (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ffd84d",
+    "claudeShimmer": "#ff9aa8",
+    "text": "#f1f5fb",
+    "subtle": "#b4c1d6",
+    "inactive": "#b4c1d6",
+    "suggestion": "#4fd8d0",
+    "success": "#5fe0a8",
+    "error": "#ff8a73",
+    "warning": "#ffc14d",
+    "permission": "#ff9aa8",
+    "promptBorder": "#ffd84d",
+    "bashBorder": "#ffd84d",
+    "userMessageBackground": "#0b1e3a",
+    "userMessageBackgroundHover": "#0b1e3a",
+    "diffAdded": "#0f3a2e",
+    "diffRemoved": "#3e1c22"
+  }
+}

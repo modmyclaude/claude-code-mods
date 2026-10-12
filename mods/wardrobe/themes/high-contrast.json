@@ -1,0 +1,22 @@
+{
+  "name": "High contrast (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ffff00",
+    "claudeShimmer": "#ffafff",
+    "text": "#ffffff",
+    "subtle": "#e0e0e0",
+    "inactive": "#e0e0e0",
+    "suggestion": "#00ffff",
+    "success": "#7fff7f",
+    "error": "#ff8f8f",
+    "warning": "#ffd75f",
+    "permission": "#ffafff",
+    "promptBorder": "#ffff00",
+    "bashBorder": "#ffff00",
+    "userMessageBackground": "#000000",
+    "userMessageBackgroundHover": "#000000",
+    "diffAdded": "#9dff9d",
+    "diffRemoved": "#ffb0b0"
+  }
+}

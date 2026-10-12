@@ -1,0 +1,22 @@
+{
+  "name": "Christmas (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ff7b86",
+    "claudeShimmer": "#ffd766",
+    "text": "#f6faf4",
+    "subtle": "#b9cdbe",
+    "inactive": "#b9cdbe",
+    "suggestion": "#9fdcff",
+    "success": "#8ee08e",
+    "error": "#ff8a93",
+    "warning": "#f2c94c",
+    "permission": "#ffd766",
+    "promptBorder": "#ff7b86",
+    "bashBorder": "#ff7b86",
+    "userMessageBackground": "#0e2a1c",
+    "userMessageBackgroundHover": "#0e2a1c",
+    "diffAdded": "#174a2a",
+    "diffRemoved": "#4a1e26"
+  }
+}

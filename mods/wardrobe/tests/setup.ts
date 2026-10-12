@@ -4,6 +4,8 @@ import { expect, mock } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { On, RenderPropsOf, RenderSurface } from 'claude-code'
 
+import { THEMES } from '../hooks/themes'
+
 export const SURFACES = ['terminal', 'desktop'] as const
 
 /** What the engine's own drawing looks like in a test: an `engine` element. */
@@ -46,7 +48,7 @@ export const THEME_OPTIONS = ['dark', 'light', 'dark-daltonized', 'light-daltoni
  */
 export function world(
   on: On,
-  options: { now?: number; root?: string; store?: Record<string, unknown>; surfaces?: readonly RenderSurface[]; placesPanes?: boolean; theme?: string; themeLocked?: boolean } = {},
+  options: { now?: number; root?: string; store?: Record<string, unknown>; surfaces?: readonly RenderSurface[]; placesPanes?: boolean; theme?: string; themeLocked?: boolean; pluginThemes?: boolean } = {},
 ): World {
   const clock = mock.clock(on, { now: options.now ?? at(12, 0) })
   const store = new Map<string, unknown>(Object.entries(options.store ?? {}))
@@ -85,7 +87,7 @@ export function world(
   // Claude Code's own /config rows, as far as wardrobe reads them: the theme row, with a refusal a test can arm.
   const config: ConfigWorld = { theme: options.theme ?? 'dark', sets: [], deny: null }
   on('config.list', () => ({
-    value: [{ key: 'theme', label: 'Theme', kind: 'choice', value: config.theme, options: THEME_OPTIONS, provider: { plugin: 'engine', tier: 'core' }, isLocked: options.themeLocked === true } as never],
+    value: [{ key: 'theme', label: 'Theme', kind: 'choice', value: config.theme, options: options.pluginThemes ? [...THEME_OPTIONS, ...THEMES.map(t => `custom:wardrobe:${t.id}`)] : THEME_OPTIONS, provider: { plugin: 'engine', tier: 'core' }, isLocked: options.themeLocked === true } as never],
   }))
   on('config.set', ($, e) => {
     config.sets.push({ key: e.key, value: e.value })

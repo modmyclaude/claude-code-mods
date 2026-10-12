@@ -1,0 +1,22 @@
+{
+  "name": "Halloween (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ff8c2b",
+    "claudeShimmer": "#dcb8ff",
+    "text": "#f2ead8",
+    "subtle": "#b7acc4",
+    "inactive": "#b7acc4",
+    "suggestion": "#c9a6ff",
+    "success": "#a6e85c",
+    "error": "#ff6b6b",
+    "warning": "#ffb347",
+    "permission": "#dcb8ff",
+    "promptBorder": "#ff8c2b",
+    "bashBorder": "#ff8c2b",
+    "userMessageBackground": "#0f0a16",
+    "userMessageBackgroundHover": "#0f0a16",
+    "diffAdded": "#1b2a12",
+    "diffRemoved": "#3a1a12"
+  }
+}

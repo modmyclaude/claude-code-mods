@@ -40,7 +40,7 @@ jobs:
       - name: Every mod installs from the marketplace
         run: CLAUDE_BIN=claude scripts/smoke-install.sh
       - name: Generated files are up to date
-        run: CLAUDE_BIN=claude node scripts/build-catalog.mjs --check
+        run: CLAUDE_BIN=claude node scripts/build-catalog.mjs --check && node scripts/build-themes.mjs --check
 
   docs:
     runs-on: ubuntu-latest

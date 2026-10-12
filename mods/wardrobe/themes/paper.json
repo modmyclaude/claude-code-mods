@@ -1,0 +1,22 @@
+{
+  "name": "Paper (wardrobe)",
+  "base": "light",
+  "overrides": {
+    "claude": "#1f5fbf",
+    "claudeShimmer": "#7a3a9e",
+    "text": "#2b2b2b",
+    "subtle": "#5c5c5c",
+    "inactive": "#5c5c5c",
+    "suggestion": "#0f6a80",
+    "success": "#1e6b34",
+    "error": "#b3261e",
+    "warning": "#8a5300",
+    "permission": "#7a3a9e",
+    "promptBorder": "#1f5fbf",
+    "bashBorder": "#1f5fbf",
+    "userMessageBackground": "#fbf8f1",
+    "userMessageBackgroundHover": "#fbf8f1",
+    "diffAdded": "#dcf2df",
+    "diffRemoved": "#fbe0dd"
+  }
+}

@@ -12,7 +12,7 @@ import type { WardrobeApp, WardrobeLook } from '../types'
 import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
-import { pickVerb, themeById, type Theme } from './themes'
+import { pickVerb, themeById, THEMES, type Theme } from './themes'
 
 const LOOK = { plugin: 'wardrobe', key: 'look' } as const
 const TIMING = { plugin: 'wardrobe', key: 'timing' } as const
@@ -80,17 +80,25 @@ async function wear($: Dollar, settings: Settings, choice: string): Promise<stri
     await $.state.set(SWITCH, { theme: look.theme, at: await $.clock.now() })
     $.clock.after(BAND_MS, () => $.ui.invalidate('ui.render'))
   }
-  const worn = themeById(look.theme)
-  const note = worn ? lightNote(worn, (await read($, app)).tone) : ''
-  return describeLook(look, settings) + note + (await elsewhere($, look))
+  return describeLook(look, settings) + (await elsewhere($, look))
+}
+
+/** The light-look line for what is worn now, where it cannot paint; empty otherwise. */
+async function lightNoteNow($: Dollar): Promise<string> {
+  const worn = themeById((await read($, look)).theme)
+  return worn ? lightNote(worn, (await read($, app)).tone) : ''
 }
 
 /** The tone of a Claude Code theme value: `dark`, `dark-ansi`, `light-daltonized`, or a plugin's `custom:...` (unknown). */
+/** The id Claude Code gives a theme file wardrobe ships: `custom:<plugin>:<slug>`, one per look. */
+const ownThemeId = (id: string) => `custom:wardrobe:${id}`
+
 function toneOf(value: unknown): WardrobeApp['tone'] {
   if (typeof value !== 'string') return 'unknown'
   if (value.startsWith('light')) return 'light'
   if (value.startsWith('dark')) return 'dark'
-  return 'unknown'
+  const own = THEMES.find(t => ownThemeId(t.id) === value)
+  return own ? own.tone : 'unknown'
 }
 
 /** Reads Claude Code's theme tone into state; a row that cannot be read leaves it unknown. */
@@ -137,7 +145,10 @@ async function matchTheme($: Dollar, settings: Settings): Promise<string> {
   const row = (await $.config.list()).find(r => r.key === 'theme')
   if (!row || typeof row.value !== 'string') return "Claude Code's theme setting was not found; nothing changed."
   const current = row.value
-  const target = nearestTheme(theme.tone, current, row.options ?? [])
+  // The look's own theme file when Claude Code lists it (the input box border, the message
+  // background and the diff colours then follow the look); else the nearest built-in.
+  const options = row.options ?? []
+  const target = options.includes(ownThemeId(theme.id)) ? ownThemeId(theme.id) : nearestTheme(theme.tone, current, options)
   if (target === current) return `Claude Code's theme is already ${current}.`
   if (row.isLocked) return `Claude Code's theme stays ${current}: the setting is locked.`
   const own = await $.store.get(OWN_THEME)
@@ -246,6 +257,7 @@ export const register: Register = (on, options) => {
       let text = (await wear($, settings, command.choice)) + autoNote(command.choice)
       if (command.choice === DEFAULT) text += await restoreTheme($)
       else if (command.match) text += ' ' + (await matchTheme($, settings))
+      else text += await lightNoteNow($)
       await say($, text)
     } else if (command.kind === 'match') {
       await say($, await matchTheme($, settings), 6000)
@@ -425,7 +437,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const onWear = (choice: string) => {
       wear($, settings, choice)
-        .then(text => say($, text + autoNote(choice)))
+        .then(async text => say($, text + autoNote(choice) + (await lightNoteNow($))))
         .catch(() => undefined)
         .finally(() => $.ui.invalidate('ui.render'))
     }

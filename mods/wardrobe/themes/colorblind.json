@@ -1,0 +1,22 @@
+{
+  "name": "Colorblind (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#56b4e9",
+    "claudeShimmer": "#cc79a7",
+    "text": "#e6e6e6",
+    "subtle": "#b4b8c0",
+    "inactive": "#b4b8c0",
+    "suggestion": "#8fd0ff",
+    "success": "#56b4e9",
+    "error": "#ffa94d",
+    "warning": "#f0e442",
+    "permission": "#cc79a7",
+    "promptBorder": "#56b4e9",
+    "bashBorder": "#56b4e9",
+    "userMessageBackground": "#1b1d23",
+    "userMessageBackgroundHover": "#1b1d23",
+    "diffAdded": "#0c2a45",
+    "diffRemoved": "#3d2608"
+  }
+}

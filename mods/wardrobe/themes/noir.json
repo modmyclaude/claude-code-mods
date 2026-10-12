@@ -1,0 +1,22 @@
+{
+  "name": "Noir (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ffffff",
+    "claudeShimmer": "#e0e0e0",
+    "text": "#e8e8e8",
+    "subtle": "#a8a8a8",
+    "inactive": "#a8a8a8",
+    "suggestion": "#cfcfcf",
+    "success": "#d8d8d8",
+    "error": "#ff8a8a",
+    "warning": "#bdbdbd",
+    "permission": "#e0e0e0",
+    "promptBorder": "#ffffff",
+    "bashBorder": "#ffffff",
+    "userMessageBackground": "#101010",
+    "userMessageBackgroundHover": "#101010",
+    "diffAdded": "#3a3a3a",
+    "diffRemoved": "#1c1c1c"
+  }
+}

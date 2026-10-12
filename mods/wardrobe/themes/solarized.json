@@ -1,0 +1,22 @@
+{
+  "name": "Solarized (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#41a7e8",
+    "claudeShimmer": "#a6a9e8",
+    "text": "#93a1a1",
+    "subtle": "#8a9a9c",
+    "inactive": "#8a9a9c",
+    "suggestion": "#2fb5aa",
+    "success": "#97ad00",
+    "error": "#ff6e5c",
+    "warning": "#c99a00",
+    "permission": "#a6a9e8",
+    "promptBorder": "#41a7e8",
+    "bashBorder": "#41a7e8",
+    "userMessageBackground": "#002b36",
+    "userMessageBackgroundHover": "#002b36",
+    "diffAdded": "#0b3a2a",
+    "diffRemoved": "#3a1f24"
+  }
+}
