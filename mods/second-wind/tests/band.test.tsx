@@ -466,6 +466,33 @@ describe('fitting the space', () => {
 const THEME_KEYS = new Set(['text', 'inverseText', 'inactive', 'subtle', 'suggestion', 'remember', 'success', 'error', 'warning', 'merged', 'claude', 'permission', 'planMode', 'autoAccept', 'promptBorder', 'bashBorder', 'ide'])
 
 describe('theme and motion', () => {
+  // The desktop sets text in a proportional font, so a block-character bar beside words drifts out
+  // of its cells: there the breath is the guide image, or words alone with motion off.
+  const BLOCKS = /[\u2580-\u259f]/
+  for (const motion of ['full', 'gentle', 'still'] as const) {
+    test(`no block-character bar is drawn as text on the desktop, at full size or in one line, with ${motion} motion`, { options: { motion } }, async ($, on) => {
+      const w = world(on)
+      await w.start($)
+      await w.clock.advance(3000)
+      for (const step of [0, 1500, 4000]) {
+        await w.clock.advance(step)
+        for (const surface of SURFACES) {
+          for (const over of [{}, { maxRows: 2 }]) {
+            const ui = await w.band($, surface, over)
+            const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+            if (surface === 'desktop') expect(BLOCKS.test(texts), JSON.stringify(over)).toBe(false)
+            await ui.unmount()
+          }
+        }
+      }
+      // The probe is live: the terminal draws its bar in block characters while motion is on.
+      const ui = await w.band($, 'terminal')
+      const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+      expect(BLOCKS.test(texts)).toBe(motion !== 'still')
+      await ui.unmount()
+    })
+  }
+
   test('every colour the band names is a theme key', async ($, on) => {
     const w = world(on)
     await w.start($)
