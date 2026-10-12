@@ -28,3 +28,24 @@ export function glyphRow(elements: Elements, surface: string, text: string, pain
     </Box>
   )
 }
+
+/** A cell of glyph art with its own paint. */
+export type PaintedCell = { glyph: string; paint: TextProps }
+
+/** One row of cells painted one by one: inline Texts on the terminal, one-cell Boxes on the desktop. */
+export function paintedRow(elements: Elements, surface: string, cells: readonly PaintedCell[]): RenderElement {
+  const { Box, Text } = elements
+  if (surface !== 'desktop') {
+    return (
+      <Box flexDirection="row" flexShrink={0}>
+        {cells.map(cell => <Text {...cell.paint}>{cell.glyph}</Text>)}
+      </Box>
+    )
+  }
+  return (
+    <Box flexDirection="row" flexWrap="nowrap" flexShrink={0}>
+      {cells.map(cell => <Box width={1}><Text {...cell.paint}>{cell.glyph}</Text></Box>)}
+    </Box>
+  )
+}
+

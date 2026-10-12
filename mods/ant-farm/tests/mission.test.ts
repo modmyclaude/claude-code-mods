@@ -1,3 +1,4 @@
+import { heatGlyph, heatGrid, HEAT_WINDOW_MS } from '../hooks/mission'
 // The pure arithmetic and words of mission control.
 
 import { describe, expect, test } from 'claude-code/testing'
@@ -184,3 +185,33 @@ describe('motion and keys', () => {
     expect(hotkeyOf(undefined)).toBeUndefined()
   })
 })
+
+describe('heatGrid', () => {
+  const ant = (id: string, n: number, startedAt = 0) => ({ id, n, task: id, type: 't', model: 'm', startedAt, status: 'running', usage: { requests: 0, tokens: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }) as never
+  const ev = (agentId: string, at: number) => ({ at, kind: 'tool' as const, agentId, text: 'x' })
+  test('one column per subagent in mission order, one row per window with the oldest on top', () => {
+    const now = 100_000
+    const list = [ant('b', 2, 5), ant('a', 1, 1), ant('c', 3, 9)]
+    const events = [ev('a', now - 1_000), ev('a', now - 1_500), ev('b', now - 55_000), ev('c', now - 70_000), ev('a', now + 1)]
+    const { ids, grid } = heatGrid(list, events, now)
+    expect(ids).toEqual(['a', 'b', 'c'])
+    expect(grid.length).toBe(6)
+    expect(grid[5]).toEqual([2, 0, 0]) // the newest window, at the bottom; the row from the future is not counted
+    expect(grid[0]).toEqual([0, 1, 0]) // fifty-five seconds ago is the oldest window
+    expect(grid.flat().reduce((x, y) => x + y, 0)).toBe(3) // seventy seconds ago has scrolled off
+  })
+  test('a window boundary lands in the later window, and columns stop at the cap', () => {
+    const now = 60_000
+    const list = Array.from({ length: 14 }, (_, i) => ant(`id${i}`, i + 1))
+    const { ids, grid } = heatGrid(list, [ev('id0', now - HEAT_WINDOW_MS), ev('id1', now - 2 * HEAT_WINDOW_MS), ev('id13', now)], now, 6, 12)
+    expect(ids.length).toBe(12)
+    expect(grid[5]![0]).toBe(1) // exactly ten seconds ago: the newest window
+    expect(grid[4]![0]).toBe(0)
+    expect(grid[4]![1]).toBe(1) // exactly twenty seconds ago: the window before
+    expect(grid.flat().reduce((x, y) => x + y, 0)).toBe(2) // the thirteenth subagent has no column
+  })
+  test('the shades climb from a dot to a full block and stop there', () => {
+    expect([0, 1, 2, 3, 4, 9].map(heatGlyph).join('')).toBe('·░▒▓██')
+  })
+})
+

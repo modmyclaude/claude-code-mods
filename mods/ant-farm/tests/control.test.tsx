@@ -861,3 +861,49 @@ describe('the hover card', () => {
   })
 })
 
+// ---------------------------------------------------------------- the heat strip
+
+describe('the heat strip', () => {
+  test('a wide header shows one column per subagent and one row per ten seconds, shaded and coloured by the subagent; a narrow one shows none', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'Busy', { model: 'claude-haiku-5-5' })
+    const b = await w.spawn($, 'Idle', { model: 'claude-sonnet-5-5' })
+    for (let i = 0; i < 4; i += 1) await w.callTool($, a, 'Grep', { pattern: `p${i}` })
+    for (const surface of SURFACES) {
+      const pane = await mountAt($, surface, 84)
+      const strip = (await pane.find({ key: 'heat' })) as Drawn | undefined
+      expect(strip, surface).toBeDefined()
+      const rows = (strip!.children ?? []).slice(1) as Drawn[] // after the label
+      expect(rows.length, surface).toBe(7) // six windows and the numbers
+      const cells = (row: Drawn) => walk(row, n => n.type === 'Text').map(n => ({ glyph: textOf(n), color: n.props?.color, dim: n.props?.dimColor }))
+      const newest = cells(rows[5]!)
+      expect(newest.map(x => x.glyph), surface).toEqual(['█', '░']) // five rows just now for #1 (its start and four tools), its start alone for #2
+      expect(newest[0]!.color, surface).toBeDefined()
+      expect(newest[1]!.color, surface).toBeDefined()
+      expect(newest[0]!.color).not.toBe(newest[1]!.color) // each column in its subagent's colour
+      expect(cells(rows[4]!).map(x => x.dim)).toEqual([true, true]) // an empty cell is a dim dot
+      expect(cells(rows[6]!).map(x => x.glyph)).toEqual(['1', '2'])
+      for (const row of rows.slice(0, 5)) expect(cells(row).map(x => x.glyph), surface).toEqual(['·', '·'])
+      await pane.unmount()
+    }
+    const narrow = await mountAt($, 'terminal', 60)
+    expect(await narrow.find({ key: 'heat' })).toBeUndefined()
+    await narrow.unmount()
+    expect([a, b].length).toBe(2)
+  })
+
+  test('activity scrolls up the strip as the minute passes', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'One')
+    await w.callTool($, a, 'Read', { file_path: 'x.ts' })
+    const pane = await mountAt($, 'terminal', 100)
+    const column = async () => ((await pane.find({ key: 'heat' })) as Drawn).children!.slice(1, 7).map(r => textOf(r as Drawn))
+    expect(await column()).toEqual(['·', '·', '·', '·', '·', '▒']) // its start and one tool, just now
+    await w.clock.advance(31_000)
+    expect(await column()).toEqual(['·', '·', '▒', '·', '·', '·'])
+    await w.clock.advance(40_000)
+    expect(await column()).toEqual(['·', '·', '·', '·', '·', '·']) // gone past the minute
+    await pane.unmount()
+  })
+})
+

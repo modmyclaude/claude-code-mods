@@ -11,9 +11,9 @@ import type { BoxProps, ButtonProps, ElementConstructor, RasterProps, RenderElem
 import type { AntFarmAnt, AntFarmEvent, AntFarmUsage, AntFarmView } from '../types'
 import { boltSprite } from './bolt-draw'
 import type { BoltSmallPose } from './bolt'
-import { glyphRow } from './cells'
+import { glyphRow, paintedRow } from './cells'
 import {
-  activityText, COMPACT_BELOW, eventLook, FRESH_MS, gridOf, hotkeyOf, met, ordered, pulse, rowsOf, SETTLE_MS,
+  activityText, COMPACT_BELOW, eventLook, FRESH_MS, gridOf, heatGlyph, heatGrid, hotkeyOf, met, ordered, pulse, rowsOf, SETTLE_MS,
   sparkline, spinner, statusLook, TIMELINE_ROWS, TIMELINE_ROWS_EXPANDED,
 } from './mission'
 import type { LivePhase } from './mission'
@@ -76,7 +76,9 @@ const BUDGET_BAR_CELLS = 20
 /** Cells the `open` button and its gap take at the end of a row (`9: open`). */
 const OPEN_CELLS = 8
 /** A finished line names its model from this pane width; narrower, the ant's colour says it. */
-export const LINE_MODEL_COLUMNS = 100
+export /** From this many columns the header holds the heat strip beside the hero column. */
+const HEAT_MIN_COLUMNS = 84
+const LINE_MODEL_COLUMNS = 100
 
 const isRunning = (a: AntFarmAnt) => a.status === 'running'
 const taskOf = (a: AntFarmAnt) => clean(a.task)
@@ -347,14 +349,30 @@ export function drawControl(c: ControlInput): RenderElement {
       )}
     </Box>
   )
+  // The heat strip: one column per subagent in mission order, one row per ten seconds of the
+  // last minute (oldest on top), each cell shaded by how many rows the subagent put on the
+  // timeline in that window, in its own colour; the mission numbers underneath. On a pane wide
+  // enough to hold it beside the hero column.
+  const heat = !compact && c.columns >= HEAT_MIN_COLUMNS && c.list.length > 0 ? heatGrid(c.list, c.events, c.now) : undefined
+  const heatBlock =
+    heat !== undefined && heat.ids.length > 0 ? (
+      <Box key="heat" flexDirection="column" flexShrink={0} marginLeft={1}>
+        <Text dimColor>last 60 s</Text>
+        {heat.grid.map(row =>
+          paintedRow(c.ui, c.surface, row.map((count, i) => ({ glyph: heatGlyph(count), paint: count === 0 ? { dimColor: true } : antPaint(byId.get(heat.ids[i]!)!) }))),
+        )}
+        {paintedRow(c.ui, c.surface, heat.ids.map(id => ({ glyph: hotkeyOf(byId.get(id)?.n) ?? '·', paint: { dimColor: true } })))}
+      </Box>
+    ) : null
   const header =
     boltSize !== undefined && c.list.length > 0 ? (
       <Box key="head" flexDirection="row" gap={1} marginBottom={1}>
         {boltSize === 'small' ? boltSprite(c.ui, c.surface, { size: 'small', pose: head.pose }) : boltSprite(c.ui, c.surface, { size: 'tiny', pose: 'idle' })}
         {headColumn}
+        {heatBlock}
       </Box>
     ) : (
-      <Box key="head" flexDirection="row" marginBottom={1}>{headColumn}</Box>
+      <Box key="head" flexDirection="row" marginBottom={1}>{headColumn}{heatBlock}</Box>
     )
 
   // ---------------------------------------------------------------- the inspector

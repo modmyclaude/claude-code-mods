@@ -261,3 +261,46 @@ export function ordered(list: readonly AntFarmAnt[]): { running: AntFarmAnt[]; f
     .sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt))
   return { running, finished }
 }
+
+// ---------------------------------------------------------------- the heat strip
+
+/** Rows of the heat strip: the last minute in ten-second windows, oldest on top. */
+export const HEAT_ROWS = 6
+export const HEAT_WINDOW_MS = 10_000
+/** Columns at most: one per subagent in mission order; the rest are not shown. */
+export const HEAT_COLUMNS_MAX = 12
+/** The shade for 0, 1, 2, 3 and 4 or more rows a subagent put on the timeline in a window. */
+export const HEAT_GLYPHS = '·░▒▓█'
+
+export function heatGlyph(count: number): string {
+  return HEAT_GLYPHS[Math.min(HEAT_GLYPHS.length - 1, Math.max(0, Math.floor(count)))] ?? '·'
+}
+
+/**
+ * The heat strip's cells: one column per subagent in mission order (at most
+ * `maxColumns`), one row per window with the oldest on top, each cell how
+ * many timeline rows that subagent produced in that window.
+ */
+export function heatGrid(
+  list: readonly AntFarmAnt[],
+  events: readonly AntFarmEvent[],
+  now: number,
+  rows = HEAT_ROWS,
+  maxColumns = HEAT_COLUMNS_MAX,
+): { ids: string[]; grid: number[][] } {
+  const ids = [...list]
+    .sort((a, b) => (a.n ?? Number.MAX_SAFE_INTEGER) - (b.n ?? Number.MAX_SAFE_INTEGER) || a.startedAt - b.startedAt)
+    .slice(0, maxColumns)
+    .map(a => a.id)
+  const column = new Map(ids.map((id, i) => [id, i] as const))
+  const grid = Array.from({ length: rows }, () => ids.map(() => 0))
+  const start = now - rows * HEAT_WINDOW_MS
+  for (const ev of events) {
+    const col = ev.agentId !== undefined ? column.get(ev.agentId) : undefined
+    if (col === undefined || ev.at < start || ev.at > now) continue
+    const row = Math.min(rows - 1, Math.floor((ev.at - start) / HEAT_WINDOW_MS))
+    grid[row]![col] = (grid[row]![col] ?? 0) + 1
+  }
+  return { ids, grid }
+}
+
