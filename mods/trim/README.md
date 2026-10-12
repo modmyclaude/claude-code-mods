@@ -44,6 +44,8 @@ You still see everything:
 | `/trim off` | Pause it for this session (only when you type it) |
 | `/trim on` | Resume it |
 
+"Only when you type it" means typed by you in the terminal, the desktop app or Remote Control. A program you run that drives Claude Code through its SDK counts as you too, since the desktop app sends that way; another mod, a peer session or Claude running the command is refused.
+
 Every token figure is an estimate (about four characters per token) and says "about" or `~`.
 
 ## Settings

@@ -33,6 +33,8 @@ Type `/pop-quiz on`. From then on, every third turn in which Claude changed file
 | `/pop-quiz ask` | Quiz the last changed turn now (only when you type it) |
 | `/pop-quiz score` | Asked, shown and skipped, this session and all time, and what this session's quizzes cost |
 
+"Only when you type it" means typed by you in the terminal, the desktop app or Remote Control. A program you run that drives Claude Code through its SDK counts as you too, since the desktop app sends that way; another mod, a peer session or Claude running the command is refused.
+
 ## Settings
 
 - **On from the start:** quiz in every session without `/pop-quiz on`. Off by default.

@@ -34,6 +34,8 @@ It finds the test command once per session: your setting, else the one you set f
 | `/umpire command <cmd>` | Set this project's test command, as you would type it (only when you type it) |
 | `/umpire tell` | Put the failures in your prompt box (only when you type it) |
 
+"Only when you type it" means typed by you in the terminal, the desktop app or Remote Control. A program you run that drives Claude Code through its SDK counts as you too, since the desktop app sends that way; another mod, a peer session or Claude running the command is refused.
+
 ## Settings
 
 - **On from the start:** run in every session without `/umpire on`. Off by default.

@@ -43,6 +43,8 @@ The same commands last-look holds take a snapshot, and nothing else: a listing, 
 | `/mulligan diff <n>` | What differs now from snapshot `n` |
 | `/mulligan drop <n>` | Forget snapshot `n` and empty its archive (only when you type it) |
 
+"Only when you type it" means typed by you in the terminal, the desktop app or Remote Control. A program you run that drives Claude Code through its SDK counts as you too, since the desktop app sends that way; another mod, a peer session or Claude running the command is refused.
+
 ## Settings
 
 - **Always save before commands matching:** a pattern (a regular expression, case-insensitive; `|` between several) for commands that should save the whole project first, such as `prisma migrate|npm uninstall`.
