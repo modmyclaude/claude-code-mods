@@ -404,3 +404,31 @@ export function listText(look: WardrobeLook, settings: Settings, problems: reado
     HELP,
   ].join('\n')
 }
+
+/** Which transcript rows a look tints, and the palette role of each one's stripe. */
+export type TranscriptRow = 'UserMessage' | 'AssistantMessage' | 'CommandOutput'
+const ROW_ROLE: Record<TranscriptRow, Role> = { UserMessage: 'accent', AssistantMessage: 'info', CommandOutput: 'muted' }
+
+/**
+ * A transcript row (the person's prompt, a reply block, a command's output) in
+ * the look: a one-cell stripe in the row's colour, then the engine's own row on
+ * the theme's background with a cell of padding each side. The engine's node
+ * sits under Boxes with layout-neutral props only, and the
+ * tree reads nothing that changes per tick, so a redraw never changes it
+ *: the whole row is a pure function of the theme.
+ */
+export function messageRow(t: Table, theme: Theme, row: TranscriptRow, engine: RenderElement): RenderElement {
+  const { Box, Text } = t
+  return (
+    <Box key={`look-${row}`} flexDirection="row">
+      <Box key="stripe" flexShrink={0}>
+        <Text color={theme.palette.bg} backgroundColor={theme.palette[ROW_ROLE[row]]}>
+          {' '}
+        </Text>
+      </Box>
+      <Box key="tint" flexDirection="column" flexGrow={1} flexShrink={1} backgroundColor={theme.palette.bg} paddingX={1}>
+        {engine}
+      </Box>
+    </Box>
+  )
+}

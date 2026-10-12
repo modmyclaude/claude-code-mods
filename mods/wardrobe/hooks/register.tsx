@@ -10,7 +10,7 @@ import type { EngineInterface, Register, RenderElement, Timer } from 'claude-cod
 
 import type { WardrobeLook } from '../types'
 import { clean, diffCard, shellCard } from './content'
-import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, shellTree, spinnerRow, switchBand, toolRow, turnRow } from './draw'
+import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow } from './draw'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
 import { themeById } from './themes'
 
@@ -215,6 +215,29 @@ export const register: Register = (on, options) => {
     if (drewOwn(below)) return below
     if (diff) return diffTree($.ui.resolve(e), theme, diff, worn.root)
     return shell ? shellTree($.ui.resolve(e), theme, shell) : below
+  }).catch(($, e, next) => next(e))
+
+  // Transcript rows (transcript rows): the person's prompt, each reply block and a
+  // command's output drawn on the look's background behind a stripe. The engine's row
+  // stays its own (a rewrite of its props is never made); only the look is read,
+  // never the clock, so the desktop has nothing to redraw mid-turn.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
+    const theme = themeById((await read($, look)).theme)
+    if (!theme) return next(e)
+    return messageRow($.ui.resolve(e), theme, 'UserMessage', await next(e))
+  }).catch(($, e, next) => next(e))
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
+    const theme = themeById((await read($, look)).theme)
+    if (!theme) return next(e)
+    return messageRow($.ui.resolve(e), theme, 'AssistantMessage', await next(e))
+  }).catch(($, e, next) => next(e))
+  on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
+    const theme = themeById((await read($, look)).theme)
+    if (!theme) return next(e)
+    return messageRow($.ui.resolve(e), theme, 'CommandOutput', await next(e))
   }).catch(($, e, next) => next(e))
 
   // The spinner: the theme's suffix after the word; on the terminal, a chip
