@@ -1,6 +1,7 @@
-// The /redline detail view as plain lines, each keyed. The pane draws them as
-// Text rows (colouring by `tone`); where no surface places the pane, the same
-// lines print as the command's text, so the two can never disagree.
+// The /redline detail view as structured lines, each keyed: a hero line, label
+// and value rows, bars, items and one footnote, after brand/UI-STANDARD.md.
+// The pane draws them by kind; where no surface places the pane, each line's
+// plain `text` prints as the command's answer, so the two can never disagree.
 
 import type { RedlineGauge, RedlineLimit } from '../types'
 import {
@@ -27,103 +28,127 @@ import type { Level } from './gauge'
 
 export type Tone = Level | 'dim' | 'title' | 'plain'
 
-export type DetailLine = { key: string; text: string; tone: Tone }
+/** How the pane draws a line: a section title, the hero, a label and value row, a dim line under a row, a labelled bar, a list item, the footnote. */
+export type Kind = 'title' | 'hero' | 'row' | 'sub' | 'bar' | 'item' | 'note'
 
+export type DetailLine = {
+  key: string
+  /** The line as plain text, for a surface that places no pane. */
+  text: string
+  tone: Tone
+  kind: Kind
+  /** Rows and bars: the label on the left. */
+  label?: string
+  /** The words: a row's value (drawn right-aligned), the text beside a bar, a title, an item, the note. */
+  value?: string
+  /** The hero's and a plan window's bar: glyphs, drawn apart from the words on the desktop. */
+  bar?: string
+}
+
+/** The label column of the plain-text view. */
 const LABEL = 13
-const row = (label: string, text: string): string => `${label.padEnd(LABEL)}${text}`
-const more = (text: string): string => `${''.padEnd(LABEL)}${text}`
+const padded = (label: string, text: string): string => `${label.padEnd(LABEL)}${text}`
 
-export function detailLines(g: RedlineGauge, now: number, barCells = 20): DetailLine[] {
+export function detailLines(g: RedlineGauge, now: number, barCells = 10): DetailLine[] {
   const lines: DetailLine[] = []
-  // Model ids, plan window kinds and prompts are outside text: cleaned here,
-  // at the one place every line passes, before the pane or the command draws it.
-  const add = (key: string, text: string, tone: Tone = 'plain') => lines.push({ key, text: clean(text), tone })
+  // Model ids, plan window kinds and prompts are outside text: cleaned here, at the one
+  // place every line passes, before the pane or the command draws it.
+  const add = (key: string, kind: Kind, tone: Tone, words: { label?: string; value?: string; bar?: string; text?: string }): void => {
+    const label = words.label === undefined ? undefined : clean(words.label)
+    const value = words.value === undefined ? undefined : clean(words.value)
+    const text =
+      words.text !== undefined
+        ? clean(words.text)
+        : kind === 'row' || kind === 'bar'
+          ? padded(label ?? '', `${words.bar ? `${words.bar} ` : ''}${value ?? ''}`)
+          : kind === 'sub' || kind === 'item'
+            ? padded('', value ?? '')
+            : (value ?? '')
+    lines.push({ key, text, tone, kind, ...(label === undefined ? {} : { label }), ...(value === undefined ? {} : { value }), ...(words.bar === undefined ? {} : { bar: words.bar }) })
+  }
 
-  add('title', 'Redline - context, cost and pace', 'title')
+  // For the text view only: the pane's title bar already names the mod.
+  add('title', 'title', 'title', { value: 'Redline - context, cost and pace' })
 
-  // Context fill against the window Claude Code reports for the model.
+  // The hero: context fill against the window Claude Code reports for the model, its bar beneath.
   const percent = percentOf(g)
   const level = levelOf(percent)
   if (percent === undefined || g.contextTokens === null || g.window === null) {
-    add('context', row('Context', 'no reading yet - it appears after the next reply'), 'dim')
+    add('context', 'hero', 'dim', { value: 'No context reading yet', text: padded('Context', 'no reading yet') })
+    add('context-used', 'sub', 'dim', { value: 'it appears after the next reply' })
   } else {
     const word = levelWord(level)
-    add('context', row('Context', `${bar(percent, barCells)} ${percent}%${word ? ` ${word}` : ''}`), level)
-    const model = g.model ? ` · ${g.model}` : ''
-    add('context-used', more(`${fmtTokens(g.contextTokens)} of ${fmtTokens(g.window)} tokens in the window${model}`), 'dim')
+    const state = `${percent}%${word ? ` ${word}` : ''}`
+    add('context', 'hero', level, { value: `Context ${state}`, text: padded('Context', state) })
+    add('context-used', 'bar', level, { label: '', bar: bar(percent, barCells), value: `${fmtTokens(g.contextTokens)} of ${fmtTokens(g.window)} tokens${g.model ? ` · ${g.model}` : ''}` })
   }
 
   const growth = contextGrowth(g.samples, now)
   const pace = fmtPace(paceEta(g.samples, g.window, now))
-  add(
-    'pace',
-    pace && growth
-      ? row('Pace', `${pace} at the last 10 minutes' rate (+${fmtTokens(growth.perMs * 60_000)} tokens/min)`)
-      : row('Pace', 'no estimate - the context has not grown for a minute of the last 10'),
-    pace ? 'plain' : 'dim',
-  )
+  add('pace', 'row', pace && growth ? 'plain' : 'dim', { label: 'Pace', value: pace && growth ? pace : 'not enough data yet' })
+  if (pace && growth) add('pace-rate', 'sub', 'dim', { value: `the context grows +${fmtTokens(growth.perMs * 60_000)} tokens/min` })
 
   const rate = tokensPerMinute(g.flow, now, g.trackingSince)
-  add('rate', row('Throughput', `${fmtTokens(rate)} new tokens/min over the last ${SPAN_MS / 60_000} minutes`))
-  add('rate-note', more('new = uncached input + cache writes + output; cache reads are not counted'), 'dim')
+  add('rate', 'row', 'plain', { label: 'Throughput', value: `${fmtTokens(rate)} new tokens/min` })
 
-  // Token counts: every request redline has seen, main loop and subagents.
+  // Token counts and cost: every request redline has seen, main loop and subagents. Nothing is
+  // drawn for figures that are zero before the first request.
   const t = g.totals
-  add(
-    'tokens',
-    row('Tokens', `input ${fmtTokens(t.input)} · output ${fmtTokens(t.output)} · cache read ${fmtTokens(t.cacheRead)} · cache write ${fmtTokens(t.cacheWrite)}`),
-  )
   const requests = g.turns.reduce((n, turn) => n + turn.requests, 0)
-  const since = g.trackingSince === null ? '' : `, since redline started counting ${fmtDuration(now - g.trackingSince)} ago`
-  add('tokens-note', more(`${requests} model requests${since}`), 'dim')
-
-  // Cost: Claude Code's ledger when it keeps one, the price table beside it.
-  if (g.ledgerUsd !== null) add('cost', row('Cost', `${fmtUsd(g.ledgerUsd)} this session, Claude Code's estimate (as /cost shows it)`))
-  if (g.unpriced.length > 0) {
-    add('cost-table', row(g.ledgerUsd === null ? 'Cost' : '', `no price for ${g.unpriced.join(', ')} - tokens only`), 'dim')
-  } else if (requests > 0) {
+  if (requests > 0) {
+    add('tokens', 'row', 'plain', { label: 'Tokens', value: fmtTokens(sumTokens(t)) })
+    add('tokens-detail', 'sub', 'dim', { value: `input ${fmtTokens(t.input)} · output ${fmtTokens(t.output)} · cache read ${fmtTokens(t.cacheRead)} · cache write ${fmtTokens(t.cacheWrite)}` })
+  }
+  // One headline: Claude Code's own estimate when it keeps one, else the price table's; the rest beneath.
+  const family = g.model ? priceRow(g.model)?.label : undefined
+  const table = g.unpriced.length === 0 && requests > 0 ? fmtUsd(sumTokens(g.tableUsd)) : undefined
+  if (g.ledgerUsd !== null || requests > 0) {
+    const headline = g.ledgerUsd !== null ? fmtUsd(g.ledgerUsd) : (table ?? 'no price')
+    add('cost', 'row', headline === 'no price' ? 'dim' : 'plain', { label: 'Cost', value: headline })
     const u = g.tableUsd
-    const family = g.model ? priceRow(g.model)?.label : undefined
-    const by = family ? `redline's price table (${family})` : `redline's price table`
-    const what = g.ledgerUsd === null ? '' : 'for the requests counted, '
-    add(
-      'cost-table',
-      row(g.ledgerUsd === null ? 'Cost' : '', `${fmtUsd(sumTokens(u))} ${what}by ${by}: input ${fmtUsd(u.input)} · output ${fmtUsd(u.output)} · cache read ${fmtUsd(u.cacheRead)} · cache write ${fmtUsd(u.cacheWrite)}`),
-      'dim',
-    )
+    const parts = `input ${fmtUsd(u.input)} · output ${fmtUsd(u.output)} · cache read ${fmtUsd(u.cacheRead)} · cache write ${fmtUsd(u.cacheWrite)}`
+    const by = `redline's price table${family ? ` (${family})` : ''}`
+    if (g.unpriced.length > 0) add('cost-table', 'sub', 'dim', { value: `no price for ${g.unpriced.join(', ')} - tokens only` })
+    else if (table !== undefined && g.ledgerUsd !== null) {
+      add('cost-table', 'sub', 'dim', { value: `Claude Code's estimate for the whole session (as /cost shows it); ${table} for the requests redline counted, by ${by}: ${parts}` })
+    } else if (table !== undefined) add('cost-table', 'sub', 'dim', { value: `by ${by}: ${parts}` })
+    else add('cost-table', 'sub', 'dim', { value: "Claude Code's estimate for the whole session (as /cost shows it)" })
   }
 
-  add('session', row('Session', g.sessionStartedAt === null ? 'start time unknown' : fmtDuration(now - g.sessionStartedAt)))
+  add('session', 'row', g.sessionStartedAt === null ? 'dim' : 'plain', { label: 'Session', value: g.sessionStartedAt === null ? 'start time unknown' : fmtDuration(now - g.sessionStartedAt) })
+  if (requests > 0) add('requests', 'row', 'plain', { label: 'Requests', value: `${requests}` })
+  else add('requests-none', 'sub', 'dim', { value: 'no model requests counted yet' })
 
-  // Plan windows, as the API's last response reported them.
-  add('limits-title', 'Plan limits', 'title')
+  // Plan windows, as the API's last response reported them: a bar each, its words beside it.
+  add('limits-title', 'title', 'title', { value: 'Plan limits' })
   if (g.limits.length === 0) {
-    add('limits-none', '  none reported for this session: Claude Code shares the 5-hour and weekly windows on a Claude plan, after the first reply', 'dim')
+    add('limits-none', 'sub', 'dim', { value: 'none reported for this session: Claude Code shares the 5-hour and weekly windows on a Claude plan, after the first reply' })
   }
   for (const l of g.limits) {
     const pct = Math.round(l.percentUsed)
     const reset = Date.parse(l.resetsAt ?? '')
     // Past its reset the figure is stale: say so, and judge no run-out on it.
     const isPast = !Number.isNaN(reset) && reset <= now
-    const resets = Number.isNaN(reset)
-      ? ''
-      : isPast
-        ? ` · reset ${fmtDuration(now - reset)} ago; the next reply brings the new figure`
-        : ` · resets in ${fmtDuration(reset - now)}`
+    const resets = Number.isNaN(reset) ? '' : isPast ? ` · reset ${fmtDuration(now - reset)} ago, a new figure after the next reply` : ` · resets in ${fmtDuration(reset - now)}`
     const r = isPast ? undefined : runOut(l, now, g.limitHistory[l.kind])
-    const pace = r && r.kind !== 'out' && r.basis === 'recent' ? "at the last 15 minutes' rate" : "at this window's average pace"
-    const out =
-      r === undefined ? '' : r.kind === 'at' ? ` · ${fmtRunOut(r)} ${pace}` : r.kind === 'out' ? ' · used up' : ` · on pace to reset first (${pace})`
+    const basis = r !== undefined && r.kind !== 'out' ? (r.basis === 'recent' ? ' (recent rate)' : ' (average)') : ''
+    const out = r === undefined ? '' : r.kind === 'at' ? ` · ${fmtRunOut(r)}${basis}` : r.kind === 'out' ? ' · used up' : ` · resets first${basis}`
     const tone: Tone = r?.kind === 'out' || r?.kind === 'at' ? 'red' : isPast ? 'dim' : levelOf(pct)
-    add(`limit-${l.kind}`, `  ${limitLabel(l.kind).padEnd(LABEL - 2)}${bar(Math.min(100, pct), 10)} ${pct}%${resets}${out}`, tone)
+    add(`limit-${l.kind}`, 'bar', tone, { label: limitLabel(l.kind), bar: bar(Math.min(100, pct), 10), value: `${pct}%${resets}${out}` })
   }
 
-  add('busiest-title', 'Busiest turns', 'title')
+  add('busiest-title', 'title', 'title', { value: 'Busiest turns' })
   const top = busiest(g)
-  if (top.length === 0) add('busiest-none', '  none yet', 'dim')
+  if (top.length === 0) add('busiest-none', 'sub', 'dim', { value: 'none yet' })
   top.forEach((turn, i) => {
     const usd = turn.usd === null ? 'no price' : fmtUsd(turn.usd)
-    add(`busiest-${i + 1}`, `  ${i + 1}. ${fmtTokens(sumTokens(turn.tokens))} tok · ${turn.requests} req · ${usd} · ${turn.label}`)
+    add(`busiest-${i + 1}`, 'item', 'plain', { value: `${i + 1}. ${fmtTokens(sumTokens(turn.tokens))} tok · ${turn.requests} req · ${usd} · ${turn.label}` })
+  })
+
+  // The one footnote: what the figures count, and over what span.
+  const since = g.trackingSince === null ? '' : ` Counting since redline started, ${fmtDuration(now - g.trackingSince)} ago.`
+  add('note', 'note', 'dim', {
+    value: `New tokens are uncached input, cache writes and output; cache reads are not counted. Throughput is over the last ${SPAN_MS / 60_000} minutes, pace over the last 10, and run-out from the window's average or the last 15 minutes when that is faster.${since}`,
   })
   return lines
 }

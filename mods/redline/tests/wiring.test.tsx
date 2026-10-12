@@ -690,9 +690,10 @@ describe('detail view', () => {
       const text = async (key: string) => (await ui.find({ key }))?.text ?? `(no ${key})`
       expect(await text('context')).toContain('46%')
       expect(await text('context-used')).toContain('92k of 200k tokens')
-      expect(await text('tokens')).toMatch(/input 6\.0k · output 3\.2k · cache read 2\d\dk · cache write 10k/)
-      expect(await text('cost')).toContain("≈$1.25 this session, Claude Code's estimate (as /cost shows it)")
-      expect(await text('cost-table')).toMatch(/≈\$\d+\.\d\d for the requests counted, by redline's price table \(Opus 5\.5\)/)
+      expect(await text('tokens')).toMatch(/^Tokens\s*\d+(\.\d)?k$/)
+      expect(await text('tokens-detail')).toMatch(/input 6\.0k · output 3\.2k · cache read 2\d\dk · cache write 10k/)
+      expect(await text('cost')).toMatch(/^Cost\s*≈\$1\.25$/)
+      expect(await text('cost-table')).toMatch(/^Claude Code's estimate for the whole session \(as \/cost shows it\); ≈\$\d+\.\d\d for the requests redline counted, by redline's price table \(Opus 5\.5\)/)
       expect(await text('session')).toContain('30m')
       expect(await text('limit-five_hour')).toContain('80%')
       expect(await text('limit-five_hour')).toContain('out in ~30m')
@@ -713,7 +714,7 @@ describe('detail view', () => {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
       expect((await ui.find({ key: 'limits-none' }))?.text).toContain('none reported')
       expect((await ui.find({ key: 'cost-table' }))?.text).toContain('no price for claude-nova-1 - tokens only')
-      expect(await ui.find({ key: 'cost' })).toBeUndefined()
+      expect((await ui.find({ key: 'cost' }))?.text).toMatch(/^Cost\s*no price$/)
       await ui.unmount()
     }
   })
@@ -827,7 +828,7 @@ describe('the recent rate everywhere', () => {
     expect(w.status()).toContain('5h 50% out in ~17m')
     for (const surface of SURFACES) {
       const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
-      expect((await pane.find({ key: 'limit-five_hour' }))?.text).toContain("out in ~17m at the last 15 minutes' rate")
+      expect((await pane.find({ key: 'limit-five_hour' }))?.text).toContain('out in ~17m (recent rate)')
       await pane.unmount()
     }
   })
@@ -974,6 +975,56 @@ describe('Bolt beside the context row', () => {
       expect(await band.find({ key: 'gauge' })).toBeDefined()
       expect(await band.find({ key: 'bolt' })).toBeUndefined()
       await band.unmount()
+    }
+  })
+})
+
+describe('the pane follows the UI standard', () => {
+  type Node = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
+  const walk = (node: unknown, out: Node[] = []): Node[] => {
+    if (node === null || typeof node !== 'object') return out
+    const n = node as Node
+    out.push(n)
+    for (const c of n.children ?? []) walk(c, out)
+    return out
+  }
+  const textOf = (n: Node) => (n.children ?? []).filter((c): c is string => typeof c === 'string').join('')
+  const keyOf = (n: Node) => (n.key ?? n.props?.key) as string | undefined
+
+  test('a coloured hero, values at the right edge, nothing cut at 40 columns, plain limit rows, one footnote, on both surfaces', async ($, on) => {
+    world(on, { rateLimits: [{ kind: 'seven_day', percentUsed: 84, resetsAt: new Date(T0 + (17 * 60 + 23) * MIN).toISOString() }] })
+    await request($, pct(30))
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: { ...PANE_PROPS, bodyColumns: 40 } })
+      const nodes = walk(await ui.drawn())
+      const texts = nodes.filter(n => n.type === 'Text')
+      // The engine draws the title bar: the title line is for the text view only.
+      expect(texts.some(n => textOf(n).startsWith('Redline - context')), surface).toBe(false)
+      // The hero: the state, bold and in the level's colour.
+      expect(texts.find(n => textOf(n) === 'Context 30%')?.props, surface).toMatchObject({ bold: true, color: 'success' })
+      // Nothing is cut: no Text truncates.
+      for (const n of texts) expect(n.props?.wrap, `${surface}: ${textOf(n)}`).not.toBe('truncate-end')
+      // Rows: a subtle label that takes the room, and the value pushed to the right edge.
+      for (const key of ['pace', 'rate', 'session']) {
+        const parts = (nodes.find(n => n.type === 'Box' && keyOf(n) === key)?.children ?? []) as Node[]
+        expect(parts.map(keyOf), key).toEqual(['label', 'value'])
+        expect(parts[0]?.props, key).toMatchObject({ flexGrow: 1 })
+        expect(parts[1]?.props, key).toMatchObject({ justifyContent: 'flex-end', flexShrink: 0 })
+        expect(walk(parts[0]).find(n => n.type === 'Text')?.props?.color, key).toBe('subtle')
+      }
+      // A plan window: its figure, its reset, no pace clause, and words that wrap.
+      const weekly = (await ui.find({ key: 'limit-seven_day' }))?.text ?? ''
+      expect(weekly).toContain('84%')
+      expect(weekly).toContain('resets in 17h 23m')
+      expect(weekly).not.toContain('on pace')
+      // The jargon lives in the one footnote, in subtle.
+      const notes = texts.filter(n => textOf(n).includes('cache reads are not counted'))
+      expect(notes, surface).toHaveLength(1)
+      expect(notes[0]?.props?.color).toBe('subtle')
+      expect((await ui.find({ key: 'pace' }))?.text).toContain('not enough data yet')
+      expect((await ui.find({ key: 'cost' }))?.text).toMatch(/^Cost\s*≈\$/)
+      expect(await ui.find({ key: 'rate-note' })).toBeUndefined()
+      await ui.unmount()
     }
   })
 })

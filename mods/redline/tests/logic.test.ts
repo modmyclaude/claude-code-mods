@@ -9,19 +9,20 @@ import {
   alarm,
   bar,
   busiest,
+  clean,
   EMPTY_GAUGE,
   fmtDuration,
   fmtPace,
   fmtTokens,
   fmtUsd,
-  clean,
   gaugeLine,
   levelOf,
+  levelWord,
   limitText,
   paceEta,
   percentOf,
-  reduce,
   recordLimits,
+  reduce,
   runOut,
   tokensPerMinute,
 } from '../hooks/gauge'
@@ -377,5 +378,31 @@ describe('the view where no pane is placed', () => {
       expect(chunk.length).toBeLessThanOrEqual(Math.max(120, longest))
       for (const row of chunk.split('\n')) expect(lines).toContain(row)
     }
+  })
+})
+
+describe('the detail lines by kind', () => {
+  test('before any request: a dim hero, no token or cost rows, one line that nothing is counted yet, one footnote; with a reading: the hero in its level', () => {
+    const fresh = detailLines(EMPTY_GAUGE, NOW)
+    expect(fresh[0]).toMatchObject({ key: 'title', kind: 'title', text: 'Redline - context, cost and pace' })
+    expect(fresh.find(l => l.key === 'context')).toMatchObject({ kind: 'hero', tone: 'dim', value: 'No context reading yet' })
+    const keys = fresh.map(l => l.key)
+    expect(keys).not.toContain('tokens')
+    expect(keys).not.toContain('cost')
+    expect(keys).not.toContain('requests')
+    expect(fresh.find(l => l.key === 'requests-none')).toMatchObject({ kind: 'sub', tone: 'dim', value: 'no model requests counted yet' })
+    expect(fresh.filter(l => l.kind === 'note')).toHaveLength(1)
+    expect(fresh.filter(l => l.kind === 'row').map(l => l.label)).toEqual(['Pace', 'Throughput', 'Session'])
+    const g: RedlineGauge = { ...EMPTY_GAUGE, window: 200_000, contextTokens: 170_000, model: 'claude-opus-5-5' }
+    const lines = detailLines(g, NOW)
+    const level = levelOf(85)
+    const word = levelWord(level)
+    expect(word).not.toBe('')
+    expect(lines.find(l => l.key === 'context')).toMatchObject({ kind: 'hero', tone: level, value: `Context 85% ${word}`, text: `Context      85% ${word}` })
+    const used = lines.find(l => l.key === 'context-used')
+    expect(used).toMatchObject({ kind: 'bar', tone: level, bar: bar(85, 10) })
+    expect(used?.value).toBe('170k of 200k tokens · claude-opus-5-5')
+    expect(used?.bar).toHaveLength(10)
+    for (const l of lines) expect(l.text, l.key).not.toContain('\u001b')
   })
 })

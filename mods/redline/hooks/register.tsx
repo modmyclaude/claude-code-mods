@@ -15,7 +15,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput, ThemeKey, Timer } from 'claude-code'
 
 import { boltSprite } from './bolt-draw'
-import { glyphRow, mixedRow } from './cells'
+import { glyphRow } from './cells'
 import { boltPose, detailChunks, detailLines } from './detail'
 import type { DetailLine, Tone } from './detail'
 import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
@@ -25,6 +25,8 @@ import type { RedlineGauge } from '../types'
 const PANE = 'redline'
 /** Narrower than this, the detail pane keeps every column for the figures and Bolt steps out. */
 const BOLT_MIN_COLUMNS = 40
+/** The label column of a plan window's bar row. */
+const LIMIT_LABEL_CELLS = 8
 const BAND_STORE_KEY = 'isBandOn'
 const gauge = atom({ plugin: 'redline', key: 'gauge' } as const, EMPTY_GAUGE)
 const isBandOn = atom({ plugin: 'redline', key: 'isBandOn' } as const, false)
@@ -284,17 +286,78 @@ export const register: Register = on => {
     const g = await read($, gauge)
     const band = await read($, isBandOn)
     const now = await $.clock.now()
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const lines = detailLines(g, now, e.props.bodyColumns >= 70 ? 20 : 10)
-    const toneProps = (tone: Tone) =>
-      tone === 'title' ? { bold: true } : tone === 'dim' ? { dimColor: true } : tone === 'plain' ? {} : { color: LEVEL_COLOR[tone] }
-    const row = (line: DetailLine) => (
-      <Box key={line.key}>
-        {mixedRow({ Box, Text }, e.surface, line.text, toneProps(line.tone))}
-      </Box>
-    )
-    // Bolt keeps watch beside the context row: a static sprite, crashed
-    // once the context is full or a plan window is spent; only where the pane has room.
+    const elements = $.ui.resolve(e)
+    const { Box, Text, Button } = elements
+    const lines = detailLines(g, now, 10)
+    const paint = (tone: Tone): { bold?: boolean; color?: ThemeKey } =>
+      tone === 'title' ? { bold: true } : tone === 'dim' ? { color: 'subtle' } : tone === 'plain' ? {} : { color: LEVEL_COLOR[tone] }
+    // Each line by its kind, after brand/UI-STANDARD.md: the hero in colour; label and value rows,
+    // the value pushed to the right edge; a bar drawn apart from its words, which wrap; sub-lines
+    // and items indented and wrapping; one footnote. The engine draws the pane's title bar, so
+    // the title line is left to the text view.
+    const draw = (line: DetailLine) => {
+      switch (line.kind) {
+        case 'title':
+          return line.key === 'title' ? null : (
+            <Box key={line.key} marginTop={1}>
+              <Text bold>{line.value ?? ''}</Text>
+            </Box>
+          )
+        case 'hero':
+          return (
+            <Box key={line.key}>
+              <Text bold {...paint(line.tone)}>
+                {line.value ?? ''}
+              </Text>
+            </Box>
+          )
+        case 'bar':
+          return (
+            <Box key={line.key} flexDirection="row" gap={1}>
+              {line.label ? (
+                <Box key="label" width={LIMIT_LABEL_CELLS} flexShrink={0}>
+                  <Text color="subtle">{line.label}</Text>
+                </Box>
+              ) : null}
+              {line.bar ? glyphRow(elements, e.surface, line.bar, paint(line.tone)) : null}
+              <Box key="words" flexShrink={1}>
+                <Text wrap="wrap" {...paint(line.tone)}>
+                  {line.value ?? ''}
+                </Text>
+              </Box>
+            </Box>
+          )
+        case 'row':
+          return (
+            <Box key={line.key} flexDirection="row" gap={1}>
+              <Box key="label" flexGrow={1} flexShrink={1}>
+                <Text color="subtle">{line.label ?? ''}</Text>
+              </Box>
+              <Box key="value" flexShrink={0} justifyContent="flex-end">
+                <Text {...paint(line.tone)}>{line.value ?? ''}</Text>
+              </Box>
+            </Box>
+          )
+        case 'note':
+          return (
+            <Box key={line.key} marginTop={1}>
+              <Text wrap="wrap" color="subtle">
+                {line.value ?? ''}
+              </Text>
+            </Box>
+          )
+        default:
+          return (
+            <Box key={line.key} paddingLeft={2} flexShrink={1}>
+              <Text wrap="wrap" {...paint(line.tone)}>
+                {line.value ?? ''}
+              </Text>
+            </Box>
+          )
+      }
+    }
+    // Bolt keeps watch beside the hero: a static sprite, crashed once the context is full
+    // or a plan window is spent; only where the pane has room.
     const at = lines.findIndex(line => line.key === 'context')
     const end = lines[at + 1]?.key === 'context-used' ? at + 2 : at + 1
     const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
@@ -302,16 +365,16 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {roomy
           ? [
-              ...lines.slice(0, at).map(row),
+              ...lines.slice(0, at).map(draw),
               <Box key="context-row" flexDirection="row" gap={2}>
                 <Box flexDirection="column" flexShrink={1}>
-                  {lines.slice(at, end).map(row)}
+                  {lines.slice(at, end).map(draw)}
                 </Box>
-                {boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: boltPose(g, now) })}
+                {boltSprite(elements, e.surface, { size: 'tiny', pose: boltPose(g, now) })}
               </Box>,
-              ...lines.slice(end).map(row),
+              ...lines.slice(end).map(draw),
             ]
-          : lines.map(row)}
+          : lines.map(draw)}
         <Box flexDirection="row" gap={1} marginTop={1}>
           <Button key="band" label={band ? 'Hide band' : 'Show band'} onPress={() => setBand($, was => !was)} />
           <Button key="close" label="Close" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
