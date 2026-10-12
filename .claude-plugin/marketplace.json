@@ -12,7 +12,7 @@
       "name": "ant-farm",
       "source": "./mods/ant-farm",
       "description": "Mission control for your subagents: what each one is doing, its activity and its cost, live.",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "category": "visibility",
       "keywords": [
         "subagents",
