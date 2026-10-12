@@ -435,6 +435,25 @@ icon("mulligan", "A dimpled golf ball on its tee: a mulligan, the shot you get t
     "................",
 ])
 
+icon("pop-quiz", "A speech bubble holding a question mark: two short questions about the last change.", [
+    "................",
+    "................",
+    "...LLLLLLLLLL...",
+    "..LLLLKKKKLLLL..",
+    ".LLLLKKLLKKLLLS.",
+    ".LLLLLLLLKKLLLS.",
+    ".LLLLLLLKKLLLLS.",
+    ".LLLLLLKKLLLLLS.",
+    ".LLLLLLLLLLLLLS.",
+    "..LLLLLKKLLLLS..",
+    "...SSLLLLSSSS...",
+    "....SLLS........",
+    "....SLS.........",
+    "....SS..........",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

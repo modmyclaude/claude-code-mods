@@ -1,7 +1,7 @@
 {
   "name": "pop-quiz",
   "version": "0.1.0",
-  "description": "A learning mode, off by default: after a turn that changed code, two short questions about the change, each answer one press away.",
+  "description": "Two short questions about Claude's latest code change, answers one press away. Off by default.",
   "homepage": "https://modmyclaude.com/mods/pop-quiz",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },

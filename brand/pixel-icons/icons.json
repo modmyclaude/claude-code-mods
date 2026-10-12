@@ -522,6 +522,29 @@
       ]
     },
     {
+      "name": "pop-quiz",
+      "kind": "mod",
+      "meaning": "A speech bubble holding a question mark: two short questions about the last change.",
+      "rows": [
+        "................",
+        "................",
+        "...LLLLLLLLLL...",
+        "..LLLLKKKKLLLL..",
+        ".LLLLKKLLKKLLLS.",
+        ".LLLLLLLLKKLLLS.",
+        ".LLLLLLLKKLLLLS.",
+        ".LLLLLLKKLLLLLS.",
+        ".LLLLLLLLLLLLLS.",
+        "..LLLLLKKLLLLS..",
+        "...SSLLLLSSSS...",
+        "....SLLS........",
+        "....SLS.........",
+        "....SS..........",
+        "................",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",

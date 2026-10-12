@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/pop-quiz.svg" width="64" height="64" alt="">
+
 # Pop Quiz
 
 A learning mode, off by default: after a turn that changed code, two short questions about the change, each answer one press away.

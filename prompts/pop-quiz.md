@@ -1,7 +1,7 @@
 ---
 mod: pop-quiz
 title: Pop Quiz
-tagline: A learning mode, off by default - after a turn that changed code, two short questions about the change, each answer one press away.
+tagline: Two short questions about Claude's latest code change, answers one press away. Off by default.
 category: insight
 surfaces: [terminal, desktop]
 model_calls: one small-model call per quiz (opt-in)
