@@ -864,9 +864,12 @@ describe('untrusted text', () => {
       const all = each.join(' | ')
       expect(all).toContain(SHOWN)
       expect(all).toContain(`done · ${SHOWN} 2`)
-      expect(all).toContain('odd\uFFFDmodel')
       expect(each.some(t => /[\x00-\x1f\x7f-\x9f]/.test(t))).toBe(false)
       await pane.unmount()
+      // A finished line names its model only on a wide pane.
+      const wide = await mountPane($, surface, 100)
+      expect((await texts(wide)).join(' | ')).toContain('odd\uFFFDmodel')
+      await wide.unmount()
     }
     expect(w.rec.toasts.every(t => !/[\x00-\x1f\x7f-\x9f]/.test(t))).toBe(true)
   })

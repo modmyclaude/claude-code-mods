@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-12
 
+- ant-farm 0.2.4: a subagent held on a permission shows no time left (the estimate climbed while it waited); a finished line keeps its numbers whole wherever they fit and names its model only from 100 columns; no colour of another brand anywhere in the pane (the working state and the thinking word now use the theme's own green and accent keys, and the ant palette no longer reaches for the terracotta key).
 - ant-farm 0.2.3: a subagent that has made more requests than finished ones needed shows no time left (the bar stays nearly full) instead of a fixed few seconds; a finished line gives its numbers up too when the pane is too narrow for them, so no row is ever wider than the pane.
 - ant-farm 0.2.2: every card row is sized in cells so nothing wraps at two cards across: the status word and what follows it share one line (`WORKING · Bash npm test · 4s`), the ETA sits with the cost, the sparkline narrows on a narrow card, the tools and edits counts show only on a wide card; a finished line cuts its task before its numbers; a card's digit is its mission number (1 to 9); a held subagent counts as waiting, not as running too; the session line sits above the subagents' total.
 - ant-farm 0.2.1: anything shaped like a credential in a subagent's tool words or an error's first words is replaced with [REDACTED] before the pane keeps it, so the pane stays safe to share; the farm also proves it draws state kept by an earlier version.

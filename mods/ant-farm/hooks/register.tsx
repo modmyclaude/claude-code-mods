@@ -562,7 +562,8 @@ export const register: Register = (on, options) => {
           </Box>
           {shown.map(a => {
             const p = progressOf(a, list, now)
-            const tail = isRunning(a) ? (p.etaMs !== null ? fmtEta(p.etaMs) : 'running') : a.status
+            const held = live.get(a.id)?.phase === 'waiting'
+            const tail = isRunning(a) ? (held ? 'waiting' : p.etaMs !== null ? fmtEta(p.etaMs) : 'running') : a.status
             return (
               <Box flexDirection="row" key={`row-${a.id}`}>
                 {glyphRow($.ui.resolve(e), e.surface, miniAnt(a.status, frame + phaseOf(a.id)), { color: colors.get(a.model) ?? 'subtle' })}

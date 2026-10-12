@@ -33,8 +33,8 @@ export function statusLook(status: AntFarmAnt['status'], phase: AntFarmPhase | u
   if (status === 'failed') return { word: 'FAILED', color: 'error', glyph: '✗' }
   if (status === 'done') return { word: 'DONE', color: 'success', glyph: '✓' }
   if (phase === 'waiting') return { word: 'WAITING', color: 'warning', glyph: '◇' }
-  if (phase === 'thinking') return { word: 'THINKING', color: 'claude', glyph: '◌' }
-  return { word: 'WORKING', color: 'suggestion', glyph: '●' }
+  if (phase === 'thinking') return { word: 'THINKING', color: 'suggestion', glyph: '◌' }
+  return { word: 'WORKING', color: 'success', glyph: '●' }
 }
 
 /**
@@ -155,8 +155,8 @@ export type EventLook = { glyph: string; word: string; color?: string }
 /** How a kind of row reads: its mark, its word and its colour (none: the surface's text colour). */
 export function eventLook(kind: AntFarmEventKind): EventLook {
   switch (kind) {
-    case 'spawn': return { glyph: '⇢', word: 'start', color: 'claude' }
-    case 'handoff': return { glyph: '⇢', word: 'handoff', color: 'claude' }
+    case 'spawn': return { glyph: '⇢', word: 'start', color: 'suggestion' }
+    case 'handoff': return { glyph: '⇢', word: 'handoff', color: 'suggestion' }
     case 'file': return { glyph: '✎', word: 'edit', color: 'suggestion' }
     case 'done': return { glyph: '✓', word: 'done', color: 'success' }
     case 'failed': return { glyph: '✗', word: 'failed', color: 'error' }

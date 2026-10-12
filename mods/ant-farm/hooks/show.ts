@@ -186,9 +186,10 @@ export function bar(fraction: number | null, width: number): string {
 
 // Theme keys, so the ants follow the person's light or dark theme. The status
 // colours (success, warning, error) are kept for status and the budget.
-const PALETTE = ['claude', 'autoAccept', 'suggestion', 'planMode', 'permission', 'ide', 'merged', 'remember'] as const
+// Never the `claude` key: that is the terracotta of another brand (brand/BRAND.md).
+const PALETTE = ['remember', 'autoAccept', 'suggestion', 'planMode', 'permission', 'ide', 'merged'] as const
 const FAMILY: readonly [RegExp, (typeof PALETTE)[number]][] = [
-  [/fable|mythos/, 'claude'],
+  [/fable|mythos/, 'remember'],
   [/opus/, 'autoAccept'],
   [/sonnet/, 'suggestion'],
   [/haiku/, 'planMode'],

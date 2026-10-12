@@ -95,7 +95,7 @@ describe('the timeline', () => {
   })
 
   test('each kind has a mark, a word and a colour; a tool row takes the text colour', () => {
-    expect(eventLook('spawn')).toEqual({ glyph: '⇢', word: 'start', color: 'claude' })
+    expect(eventLook('spawn')).toEqual({ glyph: '⇢', word: 'start', color: 'suggestion' })
     expect(eventLook('handoff').word).toBe('handoff')
     expect(eventLook('file')).toEqual({ glyph: '✎', word: 'edit', color: 'suggestion' })
     expect(eventLook('done').color).toBe('success')

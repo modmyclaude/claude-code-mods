@@ -426,6 +426,86 @@ describe('state kept by an earlier version', () => {
   })
 })
 
+describe('colours, estimates and numbers after the live look', () => {
+  const colorsIn = (node: unknown, out: string[] = []): string[] => {
+    if (node === null || typeof node !== 'object') return out
+    const n = node as Drawn
+    for (const k of ['color', 'borderColor', 'backgroundColor']) if (typeof n.props?.[k] === 'string') out.push(n.props[k] as string)
+    const hover = (n as { hover?: Record<string, unknown> }).hover ?? n.props?.hover
+    if (hover !== null && typeof hover === 'object') for (const v of Object.values(hover as Record<string, unknown>)) if (typeof v === 'string') out.push(v)
+    for (const c of n.children ?? []) colorsIn(c, out)
+    return out
+  }
+
+  test('no theme key of another brand: never claude, every colour a theme key', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'Fable one', { model: 'claude-fable-5-1' })
+    const b = await w.spawn($, 'Thinker', { model: 'claude-opus-5-5' })
+    await w.step($, b, usage('claude-opus-5-5', 100, 10), 'claude-opus-5-5', ['thinking'])
+    const c = await w.spawn($, 'Done one')
+    await w.finish($, c)
+    for (const surface of SURFACES) {
+      const pane = await mountAt($, surface, 100)
+      await pane.press({ key: `inspect-${a}` })
+      const colors = colorsIn(await pane.drawn())
+      expect(colors.length).toBeGreaterThan(20)
+      expect(colors).not.toContain('claude')
+      // Theme keys for every word and bar; raw colours only in Bolt's own cells.
+      for (const k of colors) expect(k, k).toMatch(/^([a-zA-Z]+|#[0-9A-Fa-f]{6})$/)
+      await pane.unmount()
+    }
+  })
+
+  test('a card held on the person shows no time left, on the card, in the inspector and in the band', async ($, on) => {
+    const w = world(on, { placed: false }) // the band lists the ants where the pane cannot be placed
+    engineBand(on)
+    const id = await w.spawn($, 'Held one')
+    const other = await w.spawn($, 'Finished one')
+    for (let i = 0; i < 4; i += 1) await w.step($, other, usage('claude-haiku-5-5', 100, 10))
+    await w.finish($, other)
+    for (let i = 0; i < 3; i += 1) {
+      await w.clock.advance(10_000)
+      await w.step($, id, usage('claude-haiku-5-5', 100, 10))
+    }
+    const pane = await mountAt($, 'terminal', 60)
+    expect(textOf(cardsOf(await pane.drawn())[0])).toContain('left')
+    w.rec.checkDecision = 'ask'
+    await w.check($, id, 'Bash', { command: 'rm x' })
+    await w.clock.advance(20_000)
+    expect(textOf(cardsOf(await pane.drawn())[0])).not.toContain('left')
+    await pane.press({ key: `inspect-${id}` })
+    expect((await pane.find({ key: 'inspector' }))?.text).not.toContain('left')
+    const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }, viewport: DOCKED })
+    await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
+    expect((await band.find({ key: `row-${id}` }))?.text).toContain('· waiting')
+  })
+
+  test('a finished line keeps its numbers whole at the 84-column dock, names the model from 100, and shrinks them only under a narrow pane', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'A finished task with a long description that goes on well past the room a line has for it')
+    for (let i = 0; i < 3; i += 1) await w.step($, id, usage('claude-haiku-5-5', 2000, 100))
+    await w.clock.advance(8000)
+    await w.finish($, id)
+    const lineOf = async (columns: number) => {
+      const pane = await mountAt($, 'terminal', columns)
+      const row = walk(await pane.drawn(), n => keyOf(n) === `line-${id}`)[0]
+      const numbers = walk(row, n => n.type === 'Box' && (n.children ?? []).some(c => (c as Drawn).type === 'Text' && textOf(c as Drawn).startsWith(' · ')))[0]
+      const out = { text: textOf(row), shrink: numbers?.props?.flexShrink }
+      await pane.unmount()
+      return out
+    }
+    const at84 = await lineOf(84)
+    expect(at84.text).toContain(' · 8s · 6.3k tok · ≈$0.0008')
+    expect(at84.text).not.toContain('haiku')
+    expect(at84.shrink).toBe(0)
+    const at100 = await lineOf(100)
+    expect(at100.text).toContain(' · haiku-5-5 · 8s · 6.3k tok · ≈$0.0008')
+    expect(at100.shrink).toBe(0)
+    const at44 = await lineOf(44)
+    expect(at44.shrink).toBe(1)
+  })
+})
+
 describe('the inspector', () => {
   test('inspect opens the panel: task, where it came from, numbers, sparkline, its recent rows; n, p and x move and close', async ($, on) => {
     const w = world(on)
@@ -447,7 +527,7 @@ describe('the inspector', () => {
     expect(await panel()).toContain(`id ${b}`)
     expect((await pane.find({ key: `inspect-${b}` }))?.props.label).toBe('close')
     expect((await pane.find({ key: `inspect-${a}` }))?.props.label).toBe('open')
-    expect(cardsOf(await pane.drawn()).find(x => keyOf(x) === `ant-${b}`)?.props?.borderColor).toBe('claude')
+    expect(cardsOf(await pane.drawn()).find(x => keyOf(x) === `ant-${b}`)?.props?.borderColor).toBe('suggestion')
     await pane.press({ key: 'inspector-next' })
     expect(await panel()).toContain('#3 Third')
     expect(await panel()).toContain('from the main loop')

@@ -18,7 +18,7 @@ import {
 } from './mission'
 import type { LivePhase } from './mission'
 import {
-  ANT_WIDTH, antRows, bar, clean, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt, phaseOf, progressOf, shortModel,
+  ANT_WIDTH, antRows, bar, clean, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt, MINI_WIDTH, phaseOf, progressOf, shortModel,
 } from './show'
 import type { Spend } from './show'
 
@@ -75,6 +75,8 @@ const BAR_CELLS = 12
 const BUDGET_BAR_CELLS = 20
 /** Cells the `open` button and its gap take at the end of a row (`9: open`). */
 const OPEN_CELLS = 8
+/** A finished line names its model from this pane width; narrower, the ant's colour says it. */
+export const LINE_MODEL_COLUMNS = 100
 
 const isRunning = (a: AntFarmAnt) => a.status === 'running'
 const taskOf = (a: AntFarmAnt) => clean(a.task)
@@ -88,7 +90,7 @@ export function headline(list: readonly AntFarmAnt[], live: ReadonlyMap<string, 
   const failed = finished.filter(a => a.status === 'failed').length
   if (list.length === 0) return { text: 'Standing by', color: 'subtle', pose: 'sleep' }
   if (waiting > 0) return { text: `Waiting · ${waiting} held`, color: 'warning', pose: 'think' }
-  if (running.length > 0) return { text: `Working · ${running.length} running`, color: 'claude', pose: 'think' }
+  if (running.length > 0) return { text: `Working · ${running.length} running`, color: 'success', pose: 'think' }
   if (failed > 0) return { text: `${failed} failed · ${finished.length - failed} done`, color: 'error', pose: 'sweat' }
   return { text: `All done · ${finished.length} ${finished.length === 1 ? 'agent' : 'agents'}`, color: 'success', pose: 'cheer' }
 }
@@ -146,10 +148,12 @@ export function drawControl(c: ControlInput): RenderElement {
     const live = c.live.get(a.id)
     const isSelected = selected?.id === a.id
     const justFinished = !isRunning(a) && a.endedAt !== undefined && c.now - a.endedAt < SETTLE_MS
-    const border = isSelected ? 'claude' : a.status === 'failed' ? 'error' : justFinished ? 'success' : isRunning(a) ? c.colors.get(a.model) ?? 'subtle' : 'subtle'
+    const border = isSelected ? 'suggestion' : a.status === 'failed' ? 'error' : justFinished ? 'success' : isRunning(a) ? c.colors.get(a.model) ?? 'subtle' : 'subtle'
     const rested = !isRunning(a) && !justFinished && !isSelected
     const tone: TextProps = a.status === 'failed' ? { color: 'error' } : { dimColor: !isRunning(a) }
     const p = progressOf(a, c.list, c.now)
+    // Held on the person, a subagent makes no progress: no time left to show.
+    const etaMs = live?.phase === 'waiting' ? null : p.etaMs
     // The card's rows in cells: the art lane, one gap, the words beside it.
     const inner = cardWidth - 4
     const lane = ANT_WIDTH + (inner >= WIDE_CARD ? 3 : 2)
@@ -159,7 +163,7 @@ export function drawControl(c: ControlInput): RenderElement {
     const state = stateLine(a, live, c.now, c.frame)
     const money = [
       fmtCost(a.usage),
-      ...(p.etaMs !== null ? [fmtEta(p.etaMs)] : []),
+      ...(etaMs !== null ? [fmtEta(etaMs)] : []),
       ...(inner >= COUNTS_CARD && (a.tools ?? 0) > 0 ? [`${a.tools} ${a.tools === 1 ? 'tool' : 'tools'}`] : []),
       ...(inner >= COUNTS_CARD && (a.edits ?? 0) > 0 ? [`${a.edits} ${a.edits === 1 ? 'edit' : 'edits'}`] : []),
       ...(inner >= COUNTS_CARD && (a.errors ?? 0) > 0 ? [`${a.errors} ${a.errors === 1 ? 'error' : 'errors'}`] : []),
@@ -174,7 +178,7 @@ export function drawControl(c: ControlInput): RenderElement {
         borderColor={border}
         borderDimColor={rested}
         paddingX={1}
-        hover={{ borderColor: 'claude' }}
+        hover={{ borderColor: 'suggestion' }}
       >
         <Box flexDirection="row">
           <Box flexGrow={1} flexShrink={1}>
@@ -213,7 +217,10 @@ export function drawControl(c: ControlInput): RenderElement {
     const look = statusLook(a.status, c.live.get(a.id)?.phase)
     const isSelected = selected?.id === a.id
     const paint = antPaint(a)
-    const numbers = `${modelOf(a)} · ${fmtDuration((a.endedAt ?? c.now) - a.startedAt)} · ${fmtTokens(a.usage.tokens)} tok · ${fmtCost(a.usage)}`
+    // The model name goes first on a narrow pane (the ant carries its colour); the rest stays whole
+    // wherever the pane has room for the mini ant, a few cells of task, the numbers, the mark and the button.
+    const numbers = `${c.columns >= LINE_MODEL_COLUMNS ? `${modelOf(a)} · ` : ''}${fmtDuration((a.endedAt ?? c.now) - a.startedAt)} · ${fmtTokens(a.usage.tokens)} tok · ${fmtCost(a.usage)}`
+    const numbersFit = c.columns >= MINI_WIDTH + 1 + 8 + 3 + [...numbers].length + 3 + OPEN_CELLS
     if (compact) {
       return (
         <Box flexDirection="row" key={`line-${a.id}`}>
@@ -229,10 +236,10 @@ export function drawControl(c: ControlInput): RenderElement {
     return (
       <Box flexDirection="row" key={`line-${a.id}`}>
         {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), paint)}
-        <Box marginLeft={1} flexGrow={1} flexShrink={2}>
+        <Box marginLeft={1} flexGrow={1} flexShrink={1}>
           <Text dimColor={!isRunning(a)} wrap="truncate-end">{numberOf(a)} {a.status} · {taskOf(a)}</Text>
         </Box>
-        <Box flexShrink={1}>
+        <Box flexShrink={numbersFit ? 0 : 1}>
           <Text dimColor={!isRunning(a)} wrap="truncate-end"> · {numbers}</Text>
         </Box>
         <Box flexShrink={0} marginLeft={1}><Text color={look.color}>{look.glyph}</Text></Box>
@@ -322,6 +329,7 @@ export function drawControl(c: ControlInput): RenderElement {
     const live = c.live.get(a.id)
     const look = statusLook(a.status, live?.phase)
     const p = progressOf(a, c.list, c.now)
+    const etaMs = live?.phase === 'waiting' ? null : p.etaMs
     const elapsed = fmtDuration((a.endedAt ?? c.now) - a.startedAt)
     const parent = a.parentId !== undefined ? byId.get(a.parentId) : undefined
     const from = a.parentId === undefined ? 'from the main loop' : `from ${parent !== undefined ? `${numberOf(parent)} ${taskOf(parent)}` : 'another agent'}`
@@ -334,10 +342,10 @@ export function drawControl(c: ControlInput): RenderElement {
       `${a.tools ?? 0} tools`,
       `${a.edits ?? 0} edits`,
       `${a.errors ?? 0} errors`,
-      ...(p.etaMs !== null ? [fmtEta(p.etaMs)] : []),
+      ...(etaMs !== null ? [fmtEta(etaMs)] : []),
     ].join(' · ')
     return (
-      <Box key="inspector" flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1} marginBottom={1}>
+      <Box key="inspector" flexDirection="column" borderStyle="round" borderColor="suggestion" paddingX={1} marginBottom={1}>
         <Box flexDirection="row">
           <Box flexGrow={1} flexShrink={1}>
             <Text bold wrap="truncate-end">{numberOf(a)} {taskOf(a)}</Text>
@@ -378,7 +386,7 @@ export function drawControl(c: ControlInput): RenderElement {
       <Box key="timeline" flexDirection="column" marginTop={1}>
         <Box key="timeline-head" flexDirection="row">
           <Text bold>Activity</Text>
-          <Text {...pulse(c.frame)} color={running.length > 0 ? 'claude' : 'subtle'}> ●</Text>
+          <Text {...pulse(c.frame)} color={running.length > 0 ? 'success' : 'subtle'}> ●</Text>
           <Text dimColor> {c.events.length} {c.events.length === 1 ? 'row' : 'rows'}</Text>
           <Box flexGrow={1} />
           {!hidden && left > 0 && c.view.isTimelineExpanded !== true ? (
