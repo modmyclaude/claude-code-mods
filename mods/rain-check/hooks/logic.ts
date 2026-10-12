@@ -36,22 +36,33 @@ export function outWindow(windows: readonly Window[], now: number): RainCheckLim
   return out
 }
 
+/** How close together two refusals must come for a window under 100% to count as out. */
+export const SECOND_REFUSAL_MS = 10 * 60_000
+
 /**
  * The window a turn that ended on `rate_limit` ran into: one that reads used
- * up, else the fullest at 95% or more (the last reading can trail the
- * refusal). Null when none is near full: that 429 passes on its own, and an
- * API key reports no windows at all.
+ * up (`isSure`), else the fullest at 95% or more (the reading can trail the
+ * refusal), which counts only on a second refusal soon after: one 429 near a
+ * weekly cap may be a passing one, and holding on it would hold for days.
+ * Null when none is near full: that 429 passes on its own, and an API key
+ * reports no windows at all.
  */
-export function cutOffWindow(windows: readonly Window[], now: number): RainCheckLimit | null {
+export function cutOffWindow(windows: readonly Window[], now: number): (RainCheckLimit & { isSure: boolean }) | null {
   const out = outWindow(windows, now)
-  if (out !== null) return out
+  if (out !== null) return { ...out, isSure: true }
   let fullest: Window | null = null
   for (const window of windows) {
     const resetsAt = resetOf(window)
     if (Number.isNaN(resetsAt) || resetsAt <= now || window.percentUsed < NEAR_FULL) continue
     if (fullest === null || window.percentUsed > fullest.percentUsed) fullest = window
   }
-  return fullest === null ? null : { kind: fullest.kind, resetsAt: resetOf(fullest) }
+  return fullest === null ? null : { kind: fullest.kind, resetsAt: resetOf(fullest), isSure: false }
+}
+
+/** The person's own words in what waits: the pick-up line is not theirs, so it never goes back in the box. */
+export function ownWords(queued: RainCheckQueued): string {
+  if (queued.source === 'continue') return ''
+  return queued.text.startsWith(`${CONTINUE_TEXT}\n\n`) ? queued.text.slice(CONTINUE_TEXT.length + 2) : queued.text
 }
 
 /** `8am`, `8:01am`, or `Tue 8am` when it is not today: the way Claude Code names a reset. */

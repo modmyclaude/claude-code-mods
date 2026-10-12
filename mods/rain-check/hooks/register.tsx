@@ -11,9 +11,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PromptOrigin, Register, RenderNode, Timer } from 'claude-code'
 
-import type { RainCheckLimit, RainCheckQueued } from '../types'
+import type { RainCheckQueued } from '../types'
 import {
-  CONTINUE_TEXT, TICK_MS, clockWords, cutOffWindow, holdText, joined, limitLine, preview, sendTime, waitingLine,
+  CONTINUE_TEXT, SECOND_REFUSAL_MS, TICK_MS, clockWords, cutOffWindow, holdText, joined, limitLine, oneLine, ownWords, preview,
+  sendTime, waitingLine,
 } from './logic'
 import type { Window } from './logic'
 
@@ -31,6 +32,10 @@ const lastSent = atom(LAST, null)
 // reported, and the countdown's timer (a reload starts both over; heal re-arms it).
 let windows: readonly Window[] = []
 let timer: Timer | null = null
+/** When the last refusal near (not at) a cap came: a second one soon after makes it count. */
+let nearRefusalAt = -Infinity
+/** Set before send's first await, so two presses (or a press and the tick) cannot both send. */
+let isSending = false
 
 /** A prompt the person sent themselves: typed, from the phone bridge, or the desktop app's box. */
 async function isPerson($: EngineInterface, origin: PromptOrigin | undefined): Promise<boolean> {
@@ -63,7 +68,7 @@ async function tick($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
   await update($, clock, () => now)
   const waiting = await read($, queued)
-  if (waiting !== null && now >= waiting.sendAt) return send($, waiting)
+  if (waiting !== null && now >= waiting.sendAt) return send($)
   const cur = await read($, limit)
   if (waiting === null && cur !== null && now >= sendTime(cur)) {
     await update($, limit, () => null)
@@ -72,25 +77,66 @@ async function tick($: EngineInterface): Promise<void> {
   }
 }
 
-/** Sends what waits as a turn of its own, once the session is idle. A refusal queues it again. */
-async function send($: EngineInterface, waiting: RainCheckQueued): Promise<void> {
-  await update($, queued, () => null)
-  await update($, limit, () => null)
-  await update($, lastSent, () => waiting)
-  await sync($)
-  $.ui.toast(waiting.source === 'continue' ? 'Usage limit reset. Picking up where Claude stopped.' : 'Usage limit reset. Your waiting prompt is sent.')
-  void $.prompt.submit({ text: waiting.text })
+/**
+ * Sends what waits as a turn of its own. It reads the queue afresh, so the tick, Send now and
+ * /rain-check now never send it twice. A prompt another hook drops comes back to the person;
+ * one the limit refuses again waits again (classic.StopFailure, from lastSent).
+ */
+async function send($: EngineInterface): Promise<void> {
+  if (isSending) return
+  isSending = true
+  try {
+    const waiting = await read($, queued)
+    if (waiting === null) return
+    await update($, queued, () => null)
+    await update($, limit, () => null)
+    await update($, lastSent, () => waiting)
+    await sync($)
+    const result = await $.prompt.submit({ text: waiting.text })
+    if (result.drop !== undefined) {
+      await update($, lastSent, () => null)
+      await giveBack($, waiting, `Not sent: ${oneLine(result.drop, 80)}.`)
+      return
+    }
+    $.ui.toast(waiting.source === 'continue' ? 'Usage limit reset. Picking up where Claude stopped.' : 'Usage limit reset. Your waiting prompt is sent.')
+  } finally {
+    isSending = false
+  }
 }
 
-/** The window a refused turn ran into, from the last reading or, after a reload, a fresh one. */
-async function refusedWindow($: EngineInterface, now: number): Promise<RainCheckLimit | null> {
-  const found = cutOffWindow(windows, now)
-  if (found !== null) return found
+/** Puts the person's own words back in the prompt box (after any draft there), or in a toast where no box takes them. */
+async function giveBack($: EngineInterface, waiting: RainCheckQueued, lead: string): Promise<void> {
+  const words = ownWords(waiting)
+  if (words === '') return $.ui.toast(lead)
+  let isFilled = false
   try {
-    return cutOffWindow((await $.session.usage()).rateLimits, now)
+    const box = await $.prompt.read()
+    const text = box.text.trim() === '' ? words : `${box.text}\n\n${words}`
+    isFilled = (await $.prompt.fill({ text, mode: 'replace' })).isFilled
   } catch {
-    return null
+    isFilled = false
   }
+  $.ui.toast(isFilled ? `${lead} Your words are back in the prompt box.` : `${lead} "${oneLine(words, 60)}"`)
+}
+
+/** Drops what waits, and never the person's words: they go back in the box. */
+async function cancel($: EngineInterface): Promise<void> {
+  const waiting = await read($, queued)
+  if (waiting === null) return $.ui.toast('Nothing is waiting.')
+  await update($, queued, () => null)
+  await sync($)
+  await giveBack($, waiting, 'Cancelled.')
+}
+
+/** The window a refused turn ran into, from a reading taken now (the last one can trail), else the last one. */
+async function refusedWindow($: EngineInterface, now: number): Promise<ReturnType<typeof cutOffWindow>> {
+  try {
+    const fresh = (await $.session.usage()).rateLimits
+    if (fresh.length > 0) return cutOffWindow(fresh, now)
+  } catch {
+    // No fresh reading: the last one stands.
+  }
+  return cutOffWindow(windows, now)
 }
 
 export const register: Register = on => {
@@ -121,9 +167,14 @@ export const register: Register = on => {
         const out = await refusedWindow($, now)
         // No window near full: a passing 429 (or an API key, which has none). Claude Code retries those itself.
         if (out === null) return
-        await update($, limit, () => out)
-        // What Rain Check sent was refused again: it waits for this reset instead.
         const again = await read($, lastSent)
+        // Near a cap but not at it, one refusal may be a passing one: hold only on a second soon after
+        // (or on a refusal of what Rain Check just sent, which follows a limit already seen).
+        const isFirstNear = !out.isSure && again === null && now - nearRefusalAt > SECOND_REFUSAL_MS
+        nearRefusalAt = out.isSure ? -Infinity : now
+        if (isFirstNear) return
+        await update($, limit, () => ({ kind: out.kind, resetsAt: out.resetsAt }))
+        // What Rain Check sent was refused again: it waits for this reset instead.
         if (again !== null) {
           await update($, lastSent, () => null)
           await update($, queued, cur => joined(cur, again.text, sendTime(out)))
@@ -158,8 +209,8 @@ export const register: Register = on => {
         await update($, lastSent, () => null)
         if ((await read($, limit)) === null) return
         await update($, limit, () => null)
-        const waiting = await read($, queued)
-        if (waiting !== null) await send($, waiting)
+        // A hook cannot submit inside the turn it is ending: the send goes one clock turn later.
+        if ((await read($, queued)) !== null) $.clock.after(0, () => void safely($, () => send($)))
         else await sync($)
       })
     }
@@ -188,16 +239,11 @@ export const register: Register = on => {
     if (word === 'now') {
       // A command's hook holds the turn it runs in: the send waits one clock turn, past it.
       if (waiting === null) $.ui.toast('Nothing is waiting.')
-      else $.clock.after(0, () => void safely($, () => send($, waiting)))
+      else $.clock.after(0, () => void safely($, () => send($)))
       return {}
     }
     if (word === 'cancel') {
-      if (waiting === null) $.ui.toast('Nothing is waiting.')
-      else {
-        await update($, queued, () => null)
-        await sync($)
-        $.ui.toast('The waiting prompt is dropped.')
-      }
+      await cancel($)
       return {}
     }
     if (word !== '') {
@@ -228,17 +274,8 @@ export const register: Register = on => {
       rows.push(
         <Box key="rain-waiting" flexDirection="row" gap={1}>
           <Text color="warning" wrap="truncate-end">{waitingLine(waiting, now)}</Text>
-          <Button key="rain-now" label="Send now" onPress={() => safely($, () => send($, waiting))} />
-          <Button
-            key="rain-cancel"
-            label="Cancel"
-            onPress={() =>
-              safely($, async () => {
-                await update($, queued, () => null)
-                await sync($)
-              })
-            }
-          />
+          <Button key="rain-now" label="Send now" onPress={() => safely($, () => send($))} />
+          <Button key="rain-cancel" label="Cancel" onPress={() => safely($, () => cancel($))} />
         </Box>,
         <Box key="rain-preview">
           <Text dimColor wrap="truncate-end">{preview(waiting, e.props.bodyColumns)}</Text>

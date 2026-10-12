@@ -35,11 +35,21 @@ export type World = {
   usage: SessionRateLimit[]
   /** Makes every `$.state` write fail, to break the mod mid-hold. */
   isStateBroken: boolean
+  /** What the prompt box holds, and every text the mod put in it. */
+  box: string
+  fills: string[]
+  /** False where no box can take text (a headless session). */
+  canFill: boolean
+  /** Another hook beneath that drops prompts plugins send. */
+  dropsPlugins: boolean
 }
 
 export function world(on: On): World {
   on('state.set', ($, e, next) => (w.isStateBroken ? { deny: 'state unavailable' } : next(e)))
-  const w: World = { clock: mock.clock(on, { now: T0 }), toasts: [], sent: [], surfaces: ['terminal'], usage: [], isStateBroken: false }
+  const w: World = {
+    clock: mock.clock(on, { now: T0 }), toasts: [], sent: [], surfaces: ['terminal'], usage: [], isStateBroken: false,
+    box: '', fills: [], canFill: true, dropsPlugins: false,
+  }
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.surfaces', () => ({ value: w.surfaces }))
@@ -50,8 +60,16 @@ export function world(on: On): World {
   })
   on('ui.log', () => ({ value: undefined }))
   on('prompt.submit', ($, e) => {
+    if (w.dropsPlugins && e.origin.kind === 'plugin') return { drop: 'a policy hook blocked it' }
     w.sent.push({ text: e.text, origin: e.origin })
     return { text: e.text }
+  })
+  on('prompt.read', () => ({ value: { text: w.box, cursor: w.box.length } }))
+  on('prompt.fill', ($, e) => {
+    if (!w.canFill) return { isFilled: false }
+    w.fills.push(e.text)
+    w.box = e.text
+    return { isFilled: true }
   })
   on('turn.complete', () => ({ text: '' }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))

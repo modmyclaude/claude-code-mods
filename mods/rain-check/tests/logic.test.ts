@@ -15,7 +15,8 @@ describe('which window ran out', () => {
   })
 
   test('after a refusal, a window that trails at 95% or more is taken; a fuller one wins', () => {
-    expect(cutOffWindow([window(40), window(97, RESET + HOUR, 'seven_day')], T0)).toEqual({ kind: 'seven_day', resetsAt: RESET + HOUR })
+    expect(cutOffWindow([window(40), window(97, RESET + HOUR, 'seven_day')], T0)).toEqual({ kind: 'seven_day', resetsAt: RESET + HOUR, isSure: false })
+    expect(cutOffWindow([window(100)], T0)?.isSure).toBe(true)
     expect(cutOffWindow([window(96), window(98, RESET + HOUR, 'seven_day')], T0)?.kind).toBe('seven_day')
   })
 

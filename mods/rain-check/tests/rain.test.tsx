@@ -24,6 +24,31 @@ describe('it holds only after a real refusal', () => {
     }
   })
 
+  test('near a cap but not at it, one refusal holds nothing; a second within 10 minutes does', async ($, on) => {
+    const w = world(on)
+    await start($)
+    const weekly = RESET + 72 * HOUR
+    await measure($, [window(40), window(97, weekly, 'seven_day')])
+    await refuse($) // perhaps a passing 429: holding on it would hold for three days
+    expect((await submit($, 'first')).drop).toBeUndefined()
+    await w.clock.advance(11 * MIN)
+    await refuse($) // too long after the first: still one
+    expect((await submit($, 'second')).drop).toBeUndefined()
+    await w.clock.advance(4 * MIN)
+    await refuse($) // a second refusal soon after: the weekly window is out
+    expect((await submit($, 'third')).drop).toContain('Usage limit reached')
+    expect(w.sent.map(s => s.text)).toEqual(['first', 'second'])
+  })
+
+  test('the refusal reads usage afresh: a trailing reading under 100% does not delay a real limit', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await measure($, [window(97)])
+    w.usage = [window(100)]
+    await refuse($)
+    expect((await submit($, 'run the tests')).drop).toContain('Usage limit reached')
+  })
+
   test('a refusal with no window near full holds nothing: a passing 429, which Claude Code retries', async ($, on) => {
     const w = world(on)
     await start($)
@@ -161,6 +186,60 @@ describe('after the limit refuses a turn', () => {
   })
 })
 
+describe('never losing the person\'s words', () => {
+  test('Cancel puts the words back in the prompt box, after any draft there', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await measure($, [window(100)])
+    await refuse($)
+    await submit($, 'run the tests')
+    w.box = 'a new draft'
+    await press($, 'terminal', 'rain-cancel')
+    expect(w.box).toBe('a new draft\n\nrun the tests')
+    expect(w.toasts.pop()).toBe('Cancelled. Your words are back in the prompt box.')
+  })
+
+  test('where no box takes them, the toast carries the words; the pick-up line is never put back', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await measure($, [window(100)])
+    await refuse($)
+    await press($, 'desktop', 'rain-continue')
+    await submit($, 'and run the tests')
+    w.canFill = false
+    await press($, 'desktop', 'rain-cancel')
+    expect(w.toasts.pop()).toBe('Cancelled. "and run the tests"')
+  })
+
+  test('a send another hook drops comes back to the person, and is not sent later behind their back', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await measure($, [window(100)])
+    await refuse($)
+    await submit($, 'run the tests')
+    w.dropsPlugins = true
+    await w.clock.advance(5 * HOUR + MIN)
+    expect(w.sent).toEqual([])
+    expect(w.box).toBe('run the tests')
+    expect(w.toasts.pop()).toBe('Not sent: a policy hook blocked it. Your words are back in the prompt box.')
+    await w.clock.advance(HOUR)
+    expect(w.sent).toEqual([])
+  })
+
+  test('Send now pressed twice, with the tick due too, sends once', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await measure($, [window(100)])
+    await refuse($)
+    await submit($, 'run the tests')
+    await w.clock.advance(5 * HOUR + MIN - 1000)
+    const ui = await $.ui.mount({ plugin: 'rain-check', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 10 }, view: {} } })
+    await Promise.all([ui.press({ key: 'rain-now' }), ui.press({ key: 'rain-now' }), w.clock.advance(2000)])
+    await ui.unmount()
+    expect(w.sent).toHaveLength(1)
+  })
+})
+
 describe('every way out', () => {
   test('Cancel drops the waiting prompt; Dismiss stops holding', async ($, on) => {
     const w = world(on)
@@ -199,6 +278,7 @@ describe('every way out', () => {
     await refuse($)
     await submit($, 'run the tests')
     await answered($) // another prompt got through: the limit lifted early
+    await w.clock.settle() // sent one clock turn later, past the turn that just ended
     expect(w.sent.map(s => s.text)).toEqual(['run the tests'])
     expect((await submit($, 'next')).drop).toBeUndefined()
   })
@@ -217,7 +297,8 @@ describe('every way out', () => {
     await run('')
     expect(w.toasts.pop()).toContain('Sends 2:01pm · in 5h 1m. /rain-check now sends it')
     expect(await run('cancel')).toEqual({})
-    expect(w.toasts.pop()).toBe('The waiting prompt is dropped.')
+    expect(w.toasts.pop()).toBe('Cancelled. Your words are back in the prompt box.')
+    w.box = ''
     await submit($, 'again')
     await run('now')
     await w.clock.settle() // sent one clock turn later, past the command's own turn
