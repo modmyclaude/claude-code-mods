@@ -80,8 +80,20 @@ export function parseReport(text: string): { success: boolean; reach: BouncerRea
     network: has(/^\$\.http\./),
     model: has(/^\$\.model\./),
     sound: has(/^\$\.audio\./),
-    env: has(/^\$\.env\./),
-    settings: has(/^\$\.settings\./),
+    env: has(/^\$\.env\.get/),
+    setsEnv: has(/^\$\.env\.set/),
+    settings: has(/^\$\.settings\.|^\$\.config\.list/),
+    changesSettings: has(/^\$\.config\.set/),
+    runsTools: has(/^\$\.tool\.call/),
+    mcp: has(/^\$\.mcp\./),
+    usesLogin: has(/^\$\.session\.authorize/),
+    startsAgents: has(/^\$\.agent\.spawn/),
+    addsTools: has(/^\$\.(tool|agent)\.register/),
+    addsToConversation: has(/^\$\.session\.append/),
+    readsConversation: has(/^\$\.session\.(messages|turns)/),
+    messagesSessions: has(/^\$\.session\.send/),
+    stopsTurns: has(/^\$\.turn\.abort/),
+    clipboard: has(/^\$\.ui\.copy/),
     typesForYou: has(/^\$\.prompt\.(submit|fill)/),
     changesToolCalls: hooksOn('tool.call'),
     holdsPrompts: hooksOn('prompt.submit'),
@@ -105,20 +117,33 @@ export function hashOf(reach: Pick<BouncerReach, 'calls' | 'hooks'>): string {
 }
 
 /** The reach in words for a row; `warn` marks the ones worth a second look. */
+/** The warning colour marks the words a person should read twice: a way out of the session, or a hand on its controls. */
 export function reachWords(reach: BouncerReach): { word: string; warn: boolean }[] {
   const out: { word: string; warn: boolean }[] = []
   if (reach.files === 'read') out.push({ word: 'reads files', warn: false })
   if (reach.files === 'read-write') out.push({ word: 'reads and writes files', warn: false })
   if (reach.processes) out.push({ word: 'runs programs', warn: true })
+  if (reach.runsTools) out.push({ word: 'runs tools (commands, file writes)', warn: true })
   if (reach.network) out.push({ word: 'reaches the network', warn: true })
+  if (reach.mcp) out.push({ word: 'calls MCP tools', warn: true })
+  if (reach.usesLogin) out.push({ word: 'calls the API as you', warn: true })
   if (reach.model) out.push({ word: 'calls the model', warn: false })
+  if (reach.startsAgents) out.push({ word: 'starts subagents', warn: true })
   if (reach.typesForYou) out.push({ word: 'can type for you', warn: true })
   if (reach.changesToolCalls) out.push({ word: 'can change tool calls', warn: true })
   if (reach.holdsPrompts) out.push({ word: 'can hold your prompts', warn: false })
   if (reach.changesPrompt) out.push({ word: 'changes the system prompt', warn: false })
+  if (reach.addsTools) out.push({ word: 'adds a tool for Claude', warn: false })
+  if (reach.addsToConversation) out.push({ word: 'adds to the conversation', warn: false })
+  if (reach.readsConversation) out.push({ word: 'reads the conversation', warn: false })
+  if (reach.messagesSessions) out.push({ word: 'messages other sessions', warn: true })
+  if (reach.stopsTurns) out.push({ word: 'can stop a turn', warn: false })
   if (reach.sound) out.push({ word: 'plays sound', warn: false })
   if (reach.env) out.push({ word: 'reads environment variables', warn: false })
+  if (reach.setsEnv) out.push({ word: 'sets environment variables', warn: false })
   if (reach.settings) out.push({ word: 'reads settings', warn: false })
+  if (reach.changesSettings) out.push({ word: 'changes your settings', warn: true })
+  if (reach.clipboard) out.push({ word: 'writes your clipboard', warn: false })
   if (out.length === 0) out.push({ word: 'nothing declared', warn: false })
   return out
 }
@@ -199,11 +224,28 @@ export function manifestOf(text: string): { name?: string; version?: string } {
 }
 
 /** The seen record as the store holds it: mod name to reach hash, anything else dropped. */
-export function seenOf(stored: unknown): Record<string, string> {
+/** What one plugin folder was last seen as: the mod's name there and the hash of its reach. */
+export type SeenMod = { name: string; hash: string }
+
+/** The seen record, by plugin folder; anything of another shape is dropped. */
+export function seenOf(stored: unknown): Record<string, SeenMod> {
   if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return {}
-  const out: Record<string, string> = {}
-  for (const [name, hash] of Object.entries(stored as Record<string, unknown>)) if (typeof hash === 'string' && /^[0-9a-f]{8}$/.test(hash)) out[name] = hash
+  const out: Record<string, SeenMod> = {}
+  for (const [root, value] of Object.entries(stored as Record<string, unknown>)) {
+    const v = value as { name?: unknown; hash?: unknown } | null
+    if (typeof v === 'object' && v !== null && typeof v.name === 'string' && typeof v.hash === 'string' && /^[0-9a-f]{8}$/.test(v.hash)) out[root] = { name: v.name, hash: v.hash }
+  }
   return out
+}
+
+/**
+ * The folder a mod of this name was last seen in when `root` itself is unseen and that folder is
+ * no longer among the ones checked: an update that installed into a new folder. A second folder
+ * with the name beside one still present (a copy under development) is new, not moved.
+ */
+export function movedFrom(seen: Record<string, SeenMod>, name: string, root: string, present: ReadonlySet<string>): string | undefined {
+  if (seen[root] !== undefined) return undefined
+  return Object.entries(seen).find(([r, s]) => s.name === name && !present.has(r))?.[0]
 }
 
 /** The pane as plain lines, for a surface that places no pane. */

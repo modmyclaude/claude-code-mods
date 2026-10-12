@@ -13,7 +13,8 @@ import type { EngineInterface, Register, RenderNode } from 'claude-code'
 
 import type { BouncerRow } from '../types'
 import { BOLT_COLUMNS, boltSprite } from './bolt-draw'
-import { bandWords, clean, directoryMarketplaces, doorText, hashOf, installedRoots, manifestOf, marketplaceRoots, parseReport, reachWords, seenOf } from './door'
+import { bandWords, clean, directoryMarketplaces, doorText, hashOf, installedRoots, manifestOf, marketplaceRoots, movedFrom, parseReport, reachWords, seenOf } from './door'
+import type { SeenMod } from './door'
 
 const PANE = 'bouncer'
 const SEEN = 'seen'
@@ -113,8 +114,8 @@ async function rootsToCheck($: EngineInterface): Promise<Map<string, { name?: st
   return roots
 }
 
-/** One folder through the validator: its reach and hash, or why it could not be checked. */
-async function checkOne($: EngineInterface, bin: string, root: string, name: string, version: string | undefined, isLoaded: boolean, seen: Record<string, string>): Promise<BouncerRow> {
+/** One folder through the validator: its reach and hash, or why it could not be checked. `before`: the hash it was last seen with, if any. */
+async function checkOne($: EngineInterface, bin: string, root: string, name: string, version: string | undefined, isLoaded: boolean, before: string | undefined): Promise<BouncerRow> {
   try {
     const ran = await $.process.run([bin, 'plugin', 'validate', '--json', root], { timeoutMs: 30_000 })
     if (ran.isStdoutTruncated) return { ok: false, name, version, root, isLoaded, reason: 'the report was too long to read' }
@@ -123,7 +124,6 @@ async function checkOne($: EngineInterface, bin: string, root: string, name: str
       return { ok: false, name, version, root, isLoaded, reason: ran.exitCode === 0 ? 'the report could not be read' : `the validator exited with ${ran.exitCode}` }
     }
     const hash = hashOf(parsed.reach)
-    const before = seen[name]
     return { ok: true, name, version, root, isLoaded, reach: parsed.reach, hash, isNew: before === undefined, isChanged: before !== undefined && before !== hash }
   } catch (error) {
     // The engine names the call in the message ($.process.run: ...); the person needs the rest.
@@ -144,15 +144,24 @@ async function check($: EngineInterface, bin: string): Promise<void> {
   await update($, isChecking, () => true)
   try {
     const roots = [...(await rootsToCheck($)).entries()].slice(0, MAX_MODS)
+    // Seen by plugin folder, so a copy under development beside the installed one is its own row with
+    // its own hash. A folder that is new while a folder of the same name is gone (an update installed
+    // into a new one) is compared with the old folder's hash, and the old entry goes.
     const seen = seenOf(await $.store.get(SEEN))
-    const nowSeen: Record<string, string> = { ...seen }
+    const present = new Set(roots.map(([root]) => root))
+    const nowSeen: Record<string, SeenMod> = { ...seen }
     const next: BouncerRow[] = []
     for (const [root, who] of roots) {
       const manifest = who.name !== undefined ? who : manifestOf((await readText($, `${root}/.claude-plugin/plugin.json`)) ?? '')
       const name = clean(manifest.name ?? root.split('/').pop() ?? 'mod', 60)
-      const row = await checkOne($, bin, root, name, manifest.version, who.isLoaded, seen)
+      const moved = movedFrom(seen, name, root, present)
+      const before = seen[root]?.hash ?? (moved === undefined ? undefined : seen[moved]?.hash)
+      const row = await checkOne($, bin, root, name, manifest.version, who.isLoaded, before)
       next.push(row)
-      if (row.ok) nowSeen[row.name] = row.hash
+      if (row.ok) {
+        nowSeen[root] = { name: row.name, hash: row.hash }
+        if (moved !== undefined) delete nowSeen[moved]
+      }
     }
     next.sort(byConcern)
     const now = await $.clock.now()
@@ -262,14 +271,29 @@ export const register: Register = (on, options) => {
     const checking = await read($, isChecking)
     const columns = e.props.bodyColumns
     const body: RenderNode[] = []
+    // Two folders with one name (a copy under development beside the installed one) are two rows: numbered keys, and each shows its folder.
+    const twins = new Map<string, number>()
+    for (const row of list) twins.set(row.name, (twins.get(row.name) ?? 0) + 1)
+    const numbered = new Map<string, number>()
     for (const row of list) {
       const tag = row.ok ? (row.isNew ? 'new' : row.isChanged ? 'changed' : '') : ''
+      const nth = (numbered.get(row.name) ?? 0) + 1
+      numbered.set(row.name, nth)
+      const isTwin = (twins.get(row.name) ?? 0) > 1
+      const key = isTwin ? `${row.name}-${nth}` : row.name
       body.push(
-        <Box key={`row-${row.name}`} flexDirection="column">
+        <Box key={`row-${key}`} flexDirection="column">
           <Box key="line" flexDirection="row" gap={1}>
             <Box key="name" flexShrink={0}>
               <Text bold={tag !== ''}>{row.name}</Text>
             </Box>
+            {isTwin ? (
+              <Box key="folder" flexShrink={1} minWidth={12}>
+                <Text dimColor wrap="truncate-start">
+                  {row.root}
+                </Text>
+              </Box>
+            ) : null}
             {row.version ? (
               <Box key="version" flexShrink={0}>
                 <Text dimColor>{row.version}</Text>
@@ -297,10 +321,10 @@ export const register: Register = (on, options) => {
               )}
             </Box>
             {row.ok ? (
-              <Button key={`details-${row.name}`} label={unfolded === row.name ? 'less' : 'details'} onPress={() => update($, open, was => (was === row.name ? null : row.name))} />
+              <Button key={`details-${key}`} label={unfolded === row.root ? 'less' : 'details'} onPress={() => update($, open, was => (was === row.root ? null : row.root))} />
             ) : null}
           </Box>
-          {row.ok && unfolded === row.name ? (
+          {row.ok && unfolded === row.root ? (
             <Box key="details" flexDirection="column" paddingLeft={2}>
               {(row.reach.notes.length === 0 ? ['the validator reported no hooks and no calls'] : row.reach.notes).map((note, i) => (
                 <Text key={`note-${i}`} dimColor wrap="wrap">
@@ -327,7 +351,7 @@ export const register: Register = (on, options) => {
         {body}
         <Box key="foot" marginTop={1}>
           <Text color="subtle" wrap="wrap">
-            In the warning colour: runs programs, reaches the network, can type for you, can change tool calls. Bouncer never blocks, unloads or changes a mod.
+            In the warning colour: runs programs, runs tools, reaches the network, calls MCP tools, calls the API as you, starts subagents, can type for you, can change tool calls, messages other sessions, changes your settings. Bouncer never blocks, unloads or changes a mod.
           </Text>
         </Box>
       </Box>

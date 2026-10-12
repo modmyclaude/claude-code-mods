@@ -2,9 +2,9 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import { bandWords, clean, directoryMarketplaces, doorText, hashOf, installedRoots, manifestOf, marketplaceRoots, parseReport, reachWords, seenOf, splitTop } from '../hooks/door'
+import { bandWords, clean, directoryMarketplaces, doorText, hashOf, installedRoots, manifestOf, marketplaceRoots, movedFrom, parseReport, reachWords, seenOf, splitTop } from '../hooks/door'
 import type { BouncerRow } from '../types'
-import { CLEAN, GATEKEEPER_REPORT, NETTY_REPORT, ZEN_REPORT, report } from './world'
+import { CLEAN, GATEKEEPER_REPORT, HEADWAY_REPORT, NETTY_REPORT, SWITCHBOARD_REPORT, WARDROBE_REPORT, ZEN_REPORT, report } from './world'
 
 describe('reading a report', () => {
   test('calls and hooks come off the notes; the reach follows them', () => {
@@ -52,7 +52,7 @@ describe('the registry files', () => {
     expect(manifestOf(JSON.stringify({ name: 'a\u001b[31m', version: '1.0' }))).toEqual({ name: 'a', version: '1.0' }) // an escape sequence is dropped
     expect(manifestOf(JSON.stringify({ name: 'a\u0007b' }))).toEqual({ name: 'a\ufffdb' }) // a control character is marked
     expect(manifestOf('nope')).toEqual({})
-    expect(seenOf({ a: '0123abcd', b: 'x', c: 1 })).toEqual({ a: '0123abcd' })
+    expect(seenOf({ '/r/a': { name: 'a', hash: '0123abcd' }, '/r/b': { name: 'b', hash: 'x' }, '/r/c': '0123abcd', '/r/d': { hash: '0123abcd' } })).toEqual({ '/r/a': { name: 'a', hash: '0123abcd' } })
   })
 })
 
@@ -71,6 +71,39 @@ describe('the words', () => {
     expect(reachWords(parseReport(GATEKEEPER_REPORT)!.reach)).toEqual([{ word: 'can change tool calls', warn: true }])
   })
 
+  test('every call that acts outside the mod has a word; each is pinned by one call', () => {
+    const cases: [string, string, boolean][] = [
+      ['$.tool.call', 'runs tools (commands, file writes)', true],
+      ['$.mcp.call', 'calls MCP tools', true],
+      ['$.mcp.connect', 'calls MCP tools', true],
+      ['$.session.authorize', 'calls the API as you', true],
+      ['$.agent.spawn', 'starts subagents', true],
+      ['$.tool.register', 'adds a tool for Claude', false],
+      ['$.agent.register', 'adds a tool for Claude', false],
+      ['$.session.append', 'adds to the conversation', false],
+      ['$.session.messages', 'reads the conversation', false],
+      ['$.session.turns', 'reads the conversation', false],
+      ['$.session.send', 'messages other sessions', true],
+      ['$.turn.abort', 'can stop a turn', false],
+      ['$.env.set', 'sets environment variables', false],
+      ['$.config.list', 'reads settings', false],
+      ['$.settings.read', 'reads settings', false],
+      ['$.config.set', 'changes your settings', true],
+      ['$.ui.copy', 'writes your clipboard', false],
+    ]
+    for (const [call, word, warn] of cases) {
+      expect(reachWords(parseReport(report([`./a.ts calls: ${call} (via x), $.ui.toast, $.clock.now`]))!.reach), call).toEqual([{ word, warn }])
+    }
+    // Calls that stay inside the session's own drawing and state have no word.
+    expect(reachWords(parseReport(report(['./a.ts calls: $.tool.list, $.tool.check, $.agent.list, $.session.root, $.session.cwd, $.session.surfaces, $.state.set, $.store.set, $.ui.open, $.ui.status, $.clock.every']))!.reach)).toEqual([{ word: 'nothing declared', warn: false }])
+  })
+
+  test('real reports: wardrobe changes your settings, headway adds a tool for Claude, switchboard runs programs and reads the conversation', () => {
+    expect(reachWords(parseReport(WARDROBE_REPORT)!.reach).map(w => w.word)).toEqual(['reads settings', 'changes your settings'])
+    expect(reachWords(parseReport(HEADWAY_REPORT)!.reach).map(w => w.word)).toEqual(['adds a tool for Claude'])
+    expect(reachWords(parseReport(SWITCHBOARD_REPORT)!.reach).map(w => w.word)).toEqual(['reads and writes files', 'runs programs', 'reads the conversation', 'reads environment variables'])
+  })
+
   test('the band names new and changed mods with their notable reach, and nothing otherwise', () => {
     expect(bandWords([ok('zen', ZEN_REPORT)])).toBeNull()
     expect(bandWords([ok('netty', NETTY_REPORT, { isNew: true }), ok('zen', ZEN_REPORT, { isNew: true })])).toBe('bouncer: 2 new mods: netty (runs programs, reaches the network); zen (nothing notable)')
@@ -85,5 +118,15 @@ describe('the words', () => {
     expect(lines[2]).toBe('  x: could not check (boom)')
     expect(clean('a\u001b[2Jb\u0007 c')).toBe('ab� c')
     expect(parseReport(CLEAN)?.reach.calls).toEqual(['$.command.register', '$.ui.toast'])
+  })
+})
+
+describe('the seen record', () => {
+  test('a new folder whose mod was last seen in a folder now gone was moved by an update; a second folder beside one still present is new', () => {
+    const seen = { '/cache/netty/1.0.0': { name: 'netty', hash: 'aaaaaaaa' }, '/dev/netty': { name: 'netty', hash: 'bbbbbbbb' } }
+    expect(movedFrom(seen, 'netty', '/cache/netty/1.1.0', new Set(['/cache/netty/1.1.0', '/dev/netty']))).toBe('/cache/netty/1.0.0')
+    expect(movedFrom(seen, 'netty', '/dev/netty', new Set(['/dev/netty']))).toBeUndefined()
+    expect(movedFrom(seen, 'netty', '/third/netty', new Set(['/third/netty', '/cache/netty/1.0.0', '/dev/netty']))).toBeUndefined()
+    expect(movedFrom(seen, 'other', '/x', new Set(['/x']))).toBeUndefined()
   })
 })

@@ -38,6 +38,16 @@ export const GATEKEEPER_REPORT = report(
   ['tool.call{tool=Bash}'],
 )
 export const ZEN_REPORT = report(['./register.tsx hooks: ui.render{component=Spinner}'])
+/** Real calls lines, as the validator wrote them for three mods of the catalogue. */
+export const WARDROBE_REPORT = report([
+  './register.tsx calls: $.clock.after (via wear), $.clock.every, $.clock.now, $.command.register, $.config.list (via matchTheme, readAppTone, restoreTheme), $.config.set (via matchTheme, restoreTheme), $.session.root (via refresh, unpin, wear), $.session.surfaces (via elsewhere, matchTheme, say, showList), $.state.get (via refresh), $.state.set, $.store.delete (via forgetMatch, matchTheme), $.store.get, $.store.set (via matchTheme, pin, unpin, wear), $.ui.invalidate, $.ui.log (via say, showList), $.ui.open (via showList), $.ui.resolve, $.ui.toast',
+])
+export const HEADWAY_REPORT = report([
+  './register.tsx calls: $.clock.every (via syncTimer), $.clock.now, $.command.register, $.session.root (via carryOut), $.session.surfaces (via isDrawn), $.state.get, $.state.set, $.store.get (via carryOut), $.store.set (via carryOut), $.tool.list, $.tool.register, $.ui.invalidate (via tick), $.ui.log, $.ui.open, $.ui.resolve, $.ui.toast',
+])
+export const SWITCHBOARD_REPORT = report([
+  './register.tsx calls: $.clock.every, $.clock.now, $.command.register, $.env.get (via configDir), $.fs.list (via readOthers), $.fs.read (via readOthers), $.fs.write, $.process.run (via refreshTitle), $.session.id, $.session.root, $.session.surfaces (via tick, whereNow), $.session.turns, $.state.get, $.state.set, $.ui.close (via openPane), $.ui.log (via safely), $.ui.open (via openPane), $.ui.panes (via openPane), $.ui.resolve, $.ui.toast',
+])
 
 export type World = {
   clock: MockClock

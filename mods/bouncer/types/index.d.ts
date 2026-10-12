@@ -10,7 +10,32 @@ export type BouncerReach = {
   model: boolean
   sound: boolean
   env: boolean
+  /** It reads settings ($.settings.read, $.config.list). */
   settings: boolean
+  /** It changes Claude Code settings ($.config.set). */
+  changesSettings: boolean
+  /** It sets environment variables ($.env.set). */
+  setsEnv: boolean
+  /** It runs Claude's own tools, Bash and file writes among them ($.tool.call). */
+  runsTools: boolean
+  /** It calls MCP servers' tools ($.mcp.call, $.mcp.connect). */
+  mcp: boolean
+  /** It can spend your login on API calls ($.session.authorize). */
+  usesLogin: boolean
+  /** It starts subagents ($.agent.spawn). */
+  startsAgents: boolean
+  /** It adds a tool or a subagent type Claude can call ($.tool.register, $.agent.register). */
+  addsTools: boolean
+  /** It adds rows to the conversation ($.session.append). */
+  addsToConversation: boolean
+  /** It reads the conversation ($.session.messages, $.session.turns). */
+  readsConversation: boolean
+  /** It messages other sessions or agents ($.session.send). */
+  messagesSessions: boolean
+  /** It can end the running turn ($.turn.abort). */
+  stopsTurns: boolean
+  /** It writes your clipboard ($.ui.copy). */
+  clipboard: boolean
   /** It can start a turn or fill the prompt box as if you typed. */
   typesForYou: boolean
   /** It hooks tool calls with a hook that can refuse or rewrite them. */
@@ -39,7 +64,7 @@ declare module 'claude-code' {
       rows: BouncerRow[]
       /** The band's one line while a mod is new or changed this session, else null. */
       news: string | null
-      /** The row whose validator lines are unfolded, by name, else null. */
+      /** The row whose validator lines are unfolded, by plugin folder, else null. */
       open: string | null
       /** When the last check finished, ms since the epoch; 0 before the first. */
       checkedAt: number
