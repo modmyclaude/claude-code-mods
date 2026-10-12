@@ -10,17 +10,20 @@ import type { EngineInterface, Register, RenderElement, Timer } from 'claude-cod
 
 import type { WardrobeLook } from '../types'
 import { clean, diffCard, shellCard } from './content'
-import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow } from './draw'
+import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
-import { themeById } from './themes'
+import { pickVerb, themeById } from './themes'
 
 const LOOK = { plugin: 'wardrobe', key: 'look' } as const
 const TIMING = { plugin: 'wardrobe', key: 'timing' } as const
 const SWITCH = { plugin: 'wardrobe', key: 'switch' } as const
+const VERB = { plugin: 'wardrobe', key: 'verb' } as const
 
 const look = atom(LOOK, { theme: DEFAULT, choice: DEFAULT, scope: 'global', phase: null, root: '' })
 /** The last `/wear` that put a theme on, for the switch band; null before the first. */
 const switched = atom(SWITCH, null)
+/** The verb this turn wears, picked at turn start from the theme worn then; null until a turn starts. */
+const verb = atom(VERB, null)
 
 /** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
@@ -240,6 +243,34 @@ export const register: Register = (on, options) => {
     return messageRow($.ui.resolve(e), theme, 'CommandOutput', await next(e))
   }).catch(($, e, next) => next(e))
 
+  // One verb per turn for the spinner and the closing line: picked when the
+  // turn starts, from the theme worn then, and held until the next turn starts.
+  on('turn.start', async ($, e, next) => {
+    const theme = themeById((await read($, look)).theme)
+    const pick = theme ? pickVerb(theme.id, e.turnId) : null
+    await $.state.set(VERB, pick ? { turnId: e.turnId, present: pick[0], past: pick[1] } : null)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // The prompt footer: `wearing <theme>` after the engine's own mode labels, as
+  // long as a theme is worn, so the look stays named after the switch band goes.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
+    const theme = themeById((await read($, look)).theme)
+    if (!theme) return next(e)
+    return wearingLabel($.ui.resolve(e), theme, e.props.modes.length > 0, await next(e))
+  }).catch(($, e, next) => next(e))
+
+  // The hint line under the prompt, on the terminal: the engine's line and its
+  // live pills as they are, with the theme's mark and name dim at the end. Not
+  // while typing, when the line is about the draft. The desktop draws no tail.
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' || e.props.isDraft) return next(e)
+    const theme = themeById((await read($, look)).theme)
+    if (!theme) return next(e)
+    return next({ ...e, props: { ...e.props, tail: ` ${theme.mark} ${theme.id}` } })
+  }).catch(($, e, next) => next(e))
+
   // The spinner: the theme's suffix after the word; on the terminal, a chip
   // naming what the turn is doing. Elapsed time and tokens stay the engine's,
   // and so does any status message of its own ("Running tests..."): while one
@@ -248,7 +279,12 @@ export const register: Register = (on, options) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     const theme = themeById((await read($, look)).theme)
     if (!theme) return next(e)
-    const engine = await next(e.props.message === null ? { ...e, props: { ...e.props, suffix: theme.spinnerSuffix } } : e)
+    // The turn's verb replaces the engine's word on the terminal, and on the desktop
+    // only while the row says nothing of its own ("Working"); a status message of
+    // the engine's, and a desktop step ("Creating notes.md"), are left as written.
+    const worn = await read($, verb)
+    const lends = worn !== null && (e.surface === 'terminal' || e.props.word === 'Working')
+    const engine = await next(e.props.message === null ? { ...e, props: { ...e.props, word: lends ? worn.present : e.props.word, suffix: theme.spinnerSuffix } } : e)
     return e.surface === 'terminal' ? spinnerRow($.ui.resolve(e), theme, e.props.mode, engine, e.viewport?.columns) : engine
   }).catch(($, e, next) => next(e))
 
@@ -260,7 +296,8 @@ export const register: Register = (on, options) => {
     const theme = themeById((await read($, look)).theme)
     if (!theme) return next(e)
     const below = await next(e)
-    return drewOwn(below) ? below : turnRow($.ui.resolve(e), theme, word, durationMs)
+    const worn = await read($, verb)
+    return drewOwn(below) ? below : turnRow($.ui.resolve(e), theme, worn ? worn.past : word, durationMs)
   }).catch(($, e, next) => next(e))
 
   // The switch band: for a few seconds after /wear, one themed row above the

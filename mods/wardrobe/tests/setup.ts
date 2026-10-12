@@ -75,6 +75,7 @@ export function world(
   on('session.root', () => ({ value: root }))
   on('session.surfaces', () => ({ value: options.surfaces ?? ['terminal'] }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('ui.render', ($, e) => {
     drawnByEngine.push(e.props)
     return ENGINE

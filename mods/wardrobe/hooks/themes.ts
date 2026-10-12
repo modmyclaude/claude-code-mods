@@ -474,3 +474,32 @@ const TOOL_KIND: Record<string, Kind> = {
   TaskList: 'todo',
   TaskGet: 'todo',
 }
+
+/**
+ * A verb for the spinner and the turn's closing line, [present, past], per
+ * theme: one is picked when a turn starts and held for the whole turn, never
+ * cycled (a word swapped mid-turn reads as flashing on the desktop). The two
+ * accessibility themes keep the engine's own words.
+ */
+export const VERBS: Readonly<Record<string, readonly (readonly [string, string])[]>> = {
+  noir: [['Tailing', 'Tailed'], ['Sleuthing', 'Sleuthed'], ['Casing', 'Cased']],
+  paper: [['Drafting', 'Drafted'], ['Inking', 'Inked'], ['Sketching', 'Sketched']],
+  'tokyo-night': [['Cruising', 'Cruised'], ['Humming', 'Hummed'], ['Drifting', 'Drifted']],
+  dracula: [['Stalking', 'Stalked'], ['Brooding', 'Brooded'], ['Lurking', 'Lurked']],
+  catppuccin: [['Purring', 'Purred'], ['Napping', 'Napped'], ['Pouncing', 'Pounced']],
+  solarized: [['Sunning', 'Sunned'], ['Shading', 'Shaded'], ['Basking', 'Basked']],
+  nord: [['Skiing', 'Skied'], ['Trekking', 'Trekked'], ['Gliding', 'Glided']],
+  halloween: [['Brewing', 'Brewed'], ['Haunting', 'Haunted'], ['Conjuring', 'Conjured']],
+  christmas: [['Wrapping', 'Wrapped'], ['Gifting', 'Gifted'], ['Carolling', 'Carolled']],
+  spring: [['Blooming', 'Bloomed'], ['Sprouting', 'Sprouted'], ['Planting', 'Planted']],
+  summer: [['Surfing', 'Surfed'], ['Sailing', 'Sailed'], ['Paddling', 'Paddled']],
+  autumn: [['Raking', 'Raked'], ['Harvesting', 'Harvested'], ['Simmering', 'Simmered']],
+}
+
+/** The verb a theme lends a turn: the same answer for the same turn id, null for a theme with none. */
+export function pickVerb(themeId: string, turnId: string): readonly [string, string] | null {
+  const verbs = VERBS[themeId]
+  if (!verbs || verbs.length === 0) return null
+  const h = [...turnId].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7)
+  return verbs[h % verbs.length] ?? null
+}

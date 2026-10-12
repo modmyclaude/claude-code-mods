@@ -432,3 +432,19 @@ export function messageRow(t: Table, theme: Theme, row: TranscriptRow, engine: R
     </Box>
   )
 }
+
+/** The prompt footer's mode labels with `wearing <theme>` after them, quiet, in the theme's muted colour. */
+export function wearingLabel(t: Table, theme: Theme, hasModes: boolean, engine: RenderElement): RenderElement {
+  const { Box, Text } = t
+  return (
+    <Box key="look-modes" flexDirection="row">
+      {engine}
+      <Box key="wearing" flexShrink={0}>
+        <Text color={theme.palette.muted}>
+          {hasModes ? ' · ' : ''}
+          {theme.mark} wearing {theme.id}
+        </Text>
+      </Box>
+    </Box>
+  )
+}

@@ -20,6 +20,13 @@ export type WardrobeTiming = {
   ms: number | null
 }
 
+/** The verb this turn wears on the spinner and its closing line, picked once when the turn started; null between themes or for a theme with none. */
+export type WardrobeVerb = {
+  turnId: string
+  present: string
+  past: string
+}
+
 /** The last `/wear` that put a theme on: what, and when (a `$.clock.now()` reading), for the switch band. */
 export type WardrobeSwitch = {
   theme: string
@@ -32,6 +39,7 @@ declare module 'claude-code' {
       look: WardrobeLook
       timing: StateFamily<WardrobeTiming>
       switch: WardrobeSwitch | null
+      verb: WardrobeVerb | null
     }
   }
 }
