@@ -1,0 +1,31 @@
+{
+  "name": "mulligan",
+  "version": "0.1.0",
+  "description": "A do-over for shell commands: it saves your project's files before a destructive command, and /mulligan puts them back.",
+  "homepage": "https://modmyclaude.com/mods/mulligan",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["undo", "snapshot", "safety", "bash", "restore"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "always": {
+      "type": "string",
+      "title": "Always save before commands matching",
+      "description": "A pattern (a regular expression, case-insensitive; | between several) for commands that should always save the whole project first, such as 'prisma migrate|npm uninstall'. Leave empty for none.",
+      "default": ""
+    },
+    "ignore": {
+      "type": "string",
+      "title": "Never save before commands matching",
+      "description": "A pattern for commands that never take a snapshot, such as 'rm -rf (dist|build)'. Leave empty for none.",
+      "default": ""
+    },
+    "capMB": {
+      "type": "number",
+      "title": "Largest snapshot (MB)",
+      "description": "A snapshot of files larger than this is skipped, and the command runs without a net. 1 to 5000.",
+      "default": 200
+    }
+  }
+}
