@@ -26,7 +26,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm install -g @anthropic-ai/claude-code@latest
-      - name: Which release this run proves
+      - name: Which release this run tests
         run: claude --version
       - name: Validate (strict) and test every mod
         run: STRICT=1 CLAUDE_BIN=claude scripts/check.sh
