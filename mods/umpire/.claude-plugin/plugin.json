@@ -1,0 +1,31 @@
+{
+  "name": "umpire",
+  "version": "0.1.0",
+  "description": "Runs your tests after Claude edits code and makes the call: passed and failed counts above the prompt, a toast when it flips. Off by default.",
+  "homepage": "https://modmyclaude.com/mods/umpire",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["tests", "ci", "watch", "band", "status"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On from the start",
+      "description": "Run the tests after every turn that changes files, in every session, without typing /umpire on.",
+      "default": false
+    },
+    "command": {
+      "type": "string",
+      "title": "Test command",
+      "description": "The command to run, as you would type it (run through sh). Empty: found from the project (package.json's test script, pytest, go test, cargo test).",
+      "default": ""
+    },
+    "maxSeconds": {
+      "type": "number",
+      "title": "Time limit (seconds)",
+      "description": "A run longer than this is stopped and called timed out. 5 to 600.",
+      "default": 120
+    }
+  }
+}
