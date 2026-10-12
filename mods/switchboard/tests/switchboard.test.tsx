@@ -89,6 +89,16 @@ describe('this session reports itself', () => {
     expect(w.runs.map(r => r[3])).toEqual([`${HOME}/.claude/projects/-work-api-server/${MINE}.jsonl`, launched])
   })
 
+  test('a dialog in a first turn looks for the title too: it can come before any turn ends', async ($, on) => {
+    const w = world(on)
+    await start($)
+    w.tail = transcriptTail({ ai: 'NPM test run' })
+    await turnStart($)
+    await bash($)
+    await permission($)
+    expect(mine(w)).toMatchObject({ name: 'NPM test run', state: 'needs-you' })
+  })
+
   test('a title on the prompt event is taken at once', async ($, on) => {
     const w = world(on)
     await start($)
@@ -160,7 +170,7 @@ describe('the pane', () => {
       expect(await paneLines($, surface), surface).toEqual([
         '2 need you',
         'You are here: api-server (terminal)',
-        '!Fix the loginwaiting on a permission for Bash · 2mdesktop',
+        '!Fix the logindesktopwaiting on a permission for Bash · 2m',
         '✕testsstopped on an error 5m agoterminal',
         '●docsworking for 2mterminal≈$0.49',
         '○webidle for 12mterminal',
@@ -180,10 +190,29 @@ describe('the pane', () => {
     expect(open.slice(2)).toEqual([
       '○recentidle for 5mterminal',
       '○3 quiet sessions: idle, no turn in the last hourHide',
-      '○chat q1idle for 5mterminal',
-      '○chat q2idle for 5mterminal',
-      '○chat q3idle for 5mterminal',
+      '○chat q1no turn in the last hourterminal',
+      '○chat q2no turn in the last hourterminal',
+      '○chat q3no turn in the last hourterminal',
     ])
+    // A new start (or a reload) folds it again.
+    await start($)
+    expect((await paneLines($, 'desktop')).slice(3)).toEqual(['○3 quiet sessions: idle, no turn in the last hourShow'])
+  })
+
+  test('a session opened and not prompted yet is listed as new, never folded away as quiet', async ($, on) => {
+    const w = world(on)
+    other(w, 'n1', 'mod-demo', 'idle', T0 - 3 * MIN, { lastActiveAt: undefined, isNew: true, updatedAt: T0 })
+    await start($)
+    expect((await paneLines($, 'terminal')).slice(2)).toEqual(['○mod-demonew, no prompt yetterminal'])
+  })
+
+  test('this session reports itself new until its first turn', async ($, on) => {
+    const w = world(on)
+    w.turns = 0
+    await start($)
+    expect(mine(w)?.isNew).toBe(true)
+    await turnStart($)
+    expect(mine(w)?.isNew).toBeUndefined()
   })
 
   test('alone, it says how to see the rest', async ($, on) => {
@@ -201,6 +230,24 @@ describe('the pane', () => {
     await start($)
     const lines = await paneLines($, 'terminal')
     expect(lines).toEqual(['Nothing needs you · 1 other session', 'You are here: api-server (terminal)', '○evil [2J nameidle for under a minuteterminal'])
+  })
+
+  test('/switchboard opens the pane again after it was closed, or hidden without a close reaching Claude Code', async ($, on) => {
+    const w = world(on)
+    await start($)
+    const run = () => $.command.run({ command: 'switchboard', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
+    await run()
+    expect(w.panes).toEqual(['switchboard'])
+    w.panes = [] // the person closed it: Claude Code holds it open no more
+    await run()
+    expect(w.panes).toEqual(['switchboard'])
+    w.isPaneShown = false // the desktop hid it, but Claude Code still holds it open
+    await run()
+    expect(w.closes).toEqual(['switchboard']) // the stale one closed, then opened fresh
+    expect(w.panes).toEqual(['switchboard'])
+    w.isPaneShown = true // shown: opened again in place, not closed first
+    await run()
+    expect(w.closes).toHaveLength(1)
   })
 
   test('/switchboard opens the pane; where no surface can place it, the summary comes as a toast', async ($, on) => {

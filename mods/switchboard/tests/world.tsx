@@ -33,6 +33,11 @@ export type World = {
   /** What `tail` prints for this session's transcript, and every command the mod ran. */
   tail: string
   runs: string[][]
+  /** Prompts in this session's transcript, as `$.session.turns()` answers. */
+  turns: number
+  /** Whether the open pane is shown, and every close the mod asked for. */
+  isPaneShown: boolean
+  closes: string[]
 }
 
 export function world(on: On): World {
@@ -48,7 +53,17 @@ export function world(on: On): World {
     panes: [],
     tail: '',
     runs: [],
+    turns: 1,
+    isPaneShown: true,
+    closes: [],
   }
+  on('session.turns', () => ({ value: w.turns }))
+  on('ui.panes', () => ({ value: w.panes.length > 0 ? [{ id: 'switchboard', title: 'Switchboard', isShown: w.isPaneShown, isFocused: false, isPlaced: true }] : [] }))
+  on('ui.close', ($, e) => {
+    w.closes.push(e.id)
+    w.panes = w.panes.filter(id => id !== e.id)
+    return { value: undefined }
+  })
   on('process.run', ($, e) => {
     w.runs.push([...e.argv])
     return { value: { exitCode: w.tail === '' ? 1 : 0, stdout: w.tail, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }

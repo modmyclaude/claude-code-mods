@@ -23,6 +23,8 @@ export type SessionRecord = {
   waitingOn?: string
   /** When a turn last ran or a dialog last opened; absent when none has since Switchboard loaded. */
   lastActiveAt?: number
+  /** A session opened and not prompted yet (no turn in its transcript). */
+  isNew?: boolean
 }
 
 /** A live session rewrites its record at least this often. */
@@ -66,6 +68,7 @@ export function parseRecord(text: string): SessionRecord | null {
     ...(typeof r.where === 'string' && WHERES.includes(r.where) ? { where: r.where as SwitchboardWhere } : {}),
     ...(typeof r.waitingOn === 'string' && r.waitingOn !== '' ? { waitingOn: oneLine(r.waitingOn, 40) } : {}),
     ...(typeof r.lastActiveAt === 'number' ? { lastActiveAt: r.lastActiveAt } : {}),
+    ...(r.isNew === true ? { isNew: true } : {}),
   }
 }
 
@@ -105,7 +108,9 @@ export function rowsOf(records: readonly SessionRecord[], mine: string, now: num
       where: r.where ?? 'terminal',
       ...(state === 'needs-you' && r.waitingOn !== undefined ? { waitingOn: r.waitingOn } : {}),
       ...(r.costUsd === undefined ? {} : { costUsd: r.costUsd }),
-      isQuiet: !isMine && state === 'idle' && (lastActiveAt === undefined || now - lastActiveAt > QUIET_MS),
+      // A session nobody has prompted yet is new, not quiet: someone just opened it.
+      isQuiet: !isMine && state === 'idle' && r.isNew !== true && (lastActiveAt === undefined || now - lastActiveAt > QUIET_MS),
+      isNew: state === 'idle' && r.isNew === true,
       isMine,
     })
   }
@@ -179,7 +184,8 @@ export function stateWords(row: SwitchboardRow, now: number): string {
     case 'working':
       return `working for ${age}`
     case 'idle':
-      return `idle for ${age}`
+      // A quiet row's own age is only since Switchboard loaded into it: say what is known instead.
+      return row.isNew ? 'new, no prompt yet' : row.isQuiet ? 'no turn in the last hour' : `idle for ${age}`
     case 'gone':
       return age === 'under a minute' ? 'closed just now' : `closed ${age} ago`
   }

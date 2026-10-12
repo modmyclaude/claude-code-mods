@@ -24,6 +24,8 @@ export type SwitchboardRow = {
   costUsd?: number
   /** Idle with no turn in the last hour: folded into one line. */
   isQuiet: boolean
+  /** Opened and not prompted yet: listed (never folded), and said so. */
+  isNew: boolean
   /** True for the session this pane is drawn in. */
   isMine: boolean
 }

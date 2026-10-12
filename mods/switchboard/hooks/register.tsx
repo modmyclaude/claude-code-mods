@@ -44,6 +44,8 @@ type Me = {
   where: SwitchboardWhere
   waitingOn?: string
   lastActiveAt?: number
+  /** Opened and not prompted yet. */
+  isNew: boolean
   costUsd?: number
   writtenAt: number
   /** The tool the main loop last called: what a permission dialog is about. */
@@ -106,6 +108,7 @@ function recordOf(mine: Me, now: number): SessionRecord {
     where: mine.where,
     ...(mine.state === 'needs-you' && mine.waitingOn !== undefined ? { waitingOn: mine.waitingOn } : {}),
     ...(mine.lastActiveAt === undefined ? {} : { lastActiveAt: mine.lastActiveAt }),
+    ...(mine.isNew ? { isNew: true } : {}),
     ...(mine.costUsd === undefined ? {} : { costUsd: mine.costUsd }),
   }
 }
@@ -131,7 +134,10 @@ async function setState($: EngineInterface, state: SessionRecord['state'], waiti
   if (me.state !== state) me.since = now
   me.state = state
   me.waitingOn = waitingOn
-  if (state === 'working' || state === 'needs-you') me.lastActiveAt = now
+  if (state === 'working' || state === 'needs-you') {
+    me.lastActiveAt = now
+    me.isNew = false
+  }
   await writeMine($)
   await readOthers($)
 }
@@ -240,7 +246,20 @@ function noteTranscript(path: string | undefined): boolean {
   return true
 }
 
-const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Switchboard', focus: true, closeOnEscape: true })
+/**
+ * Opens the pane. One pane per id: an id Claude Code still holds open only retitles, so a pane the
+ * desktop hid (closed or squeezed away without a close reaching the engine) would stay hidden.
+ * A held but unshown one is closed first, so this open draws it fresh.
+ */
+async function openPane($: EngineInterface) {
+  try {
+    const held = (await $.ui.panes()).find(pane => pane.id === PANE)
+    if (held !== undefined && !held.isShown) await $.ui.close({ id: PANE })
+  } catch {
+    // No pane list on this host: open as asked.
+  }
+  return $.ui.open({ id: PANE, title: 'Switchboard', focus: true, closeOnEscape: true })
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -254,7 +273,10 @@ export const register: Register = on => {
       base = await configDir($)
       const cwd = await $.session.root()
       const now = await $.clock.now()
-      me = { id: await $.session.id(), folder: folderName(cwd), cwd, state: 'idle', since: now, where: await whereNow($), writtenAt: 0, transcript: transcriptHint, titleCheckedAt: 0 }
+      // Folded again on every start: the quiet list opens only when asked, in this session.
+      await update($, showQuiet, () => false)
+      const isNew = (await $.session.turns().catch(() => 1)) === 0
+      me = { id: await $.session.id(), folder: folderName(cwd), cwd, state: 'idle', since: now, where: await whereNow($), isNew, writtenAt: 0, transcript: transcriptHint, titleCheckedAt: 0 }
       await refreshTitle($, true)
       await writeMine($)
       timer ??= $.clock.every(POLL_MS, () => void safely($, () => tick($)))
@@ -303,7 +325,13 @@ export const register: Register = on => {
 
   // Claude Code's own "a dialog is waiting on you": a permission (for the tool the turn just called), a question, a plan.
   on('classic.Notification', async ($, e, next) => {
-    if (WAITING.has(e.notification_type)) await safely($, () => setState($, 'needs-you', waitingWords(e.notification_type, me?.lastTool)))
+    if (WAITING.has(e.notification_type)) {
+      await safely($, async () => {
+        await setState($, 'needs-you', waitingWords(e.notification_type, me?.lastTool))
+        // A first turn can ask before any turn has ended: look for the title now too.
+        await refreshTitle($, me?.title === undefined)
+      })
+    }
     return next(e)
   })
 
@@ -413,19 +441,25 @@ export const register: Register = on => {
     const gone = others.filter(row => row.state === 'gone')
     const active = others.filter(row => !row.isQuiet && row.state !== 'gone')
 
+    // One row per session. The name gives way first, so what it is doing and where always show;
+    // a session waiting on you says what for on a line of its own, never cut by the pane's edge.
     const rowOf = (row: SwitchboardRow, isDim = false) => {
       const mark = MARK[row.state]
-      return (
-        <Box key={`row-${row.id}`} flexDirection="row" gap={1}>
+      const isWaiting = row.state === 'needs-you'
+      const words = <Text color={mark.color === 'success' ? undefined : mark.color} dimColor={mark.dimColor}>{stateWords(row, now)}</Text>
+      const line = (
+        <Box key="line" flexDirection="row" gap={1}>
           <Box key="mark" width={1} flexShrink={0}>
             <Text color={mark.color} dimColor={mark.dimColor}>{mark.shape}</Text>
           </Box>
-          <Box key="name" flexGrow={1} flexShrink={1}>
-            <Text wrap="truncate-end" dimColor={isDim} bold={row.state === 'needs-you'}>{row.name}</Text>
+          <Box key="name" flexGrow={1} flexShrink={1} minWidth={8}>
+            <Text wrap="truncate-end" dimColor={isDim} bold={isWaiting}>{row.name}</Text>
           </Box>
-          <Box key="state" flexShrink={1}>
-            <Text wrap="truncate-end" color={mark.color === 'success' ? undefined : mark.color} dimColor={mark.dimColor}>{stateWords(row, now)}</Text>
-          </Box>
+          {isWaiting ? null : (
+            <Box key="state" flexShrink={0}>
+              {words}
+            </Box>
+          )}
           {isWide ? (
             <Box key="where" width={10} flexShrink={0} justifyContent="flex-end">
               <Text color="subtle">{WHERE_WORDS[row.where]}</Text>
@@ -434,6 +468,16 @@ export const register: Register = on => {
           {isWide ? (
             <Box key="cost" width={8} flexShrink={0} justifyContent="flex-end">
               <Text color="subtle">{costWords(row.costUsd)}</Text>
+            </Box>
+          ) : null}
+        </Box>
+      )
+      return (
+        <Box key={`row-${row.id}`} flexDirection="column">
+          {line}
+          {isWaiting ? (
+            <Box key="waiting" paddingLeft={2}>
+              <Text color="warning" wrap="wrap">{stateWords(row, now)}</Text>
             </Box>
           ) : null}
         </Box>

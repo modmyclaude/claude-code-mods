@@ -8,7 +8,8 @@ Every Claude Code session on your machine in one pane, and which one needs you.
 2 need you
 You are here: api-server (terminal)
 
-! Fix the login   waiting on a permission for Bash · 2m   desktop
+! Fix the login                                           desktop
+    waiting on a permission for Bash · 2m
 ✕ tests           stopped on an error 5m ago             terminal
 ● docs            working for 2m                          terminal   ≈$0.49
 ○ web             idle for 12m                            terminal
@@ -31,9 +32,10 @@ Install it in every session you run (a user-scope install does that): each sessi
   - `!` **waiting on** a permission (and for which tool), a subagent's permission, a question, a plan to approve, or an answer
   - `✕` **stopped on an error**
   - `●` **working**
-  - `○` **idle**
+  - `○` **idle** (or **new**, opened and not prompted yet)
   - `–` **closed** (it stopped reporting; listed for an hour)
-- **Quiet sessions** (idle, with no turn in the last hour) fold into one line. **Show** unfolds them.
+- **Quiet sessions** (idle, with no turn in the last hour) fold into one line. **Show** unfolds them; each new start of the session folds them again.
+- A session waiting on you says what for on a line of its own. On a narrow pane the names shorten first, so the state and where always show.
 - **While another session needs you**, a line above your prompt says which and where (`! Fix the login needs you (desktop)`, with **Show** to open the pane), and the footer counts them (`1 needs you`). Never for this session's own dialog, which is already in front of you.
 - **A toast** the moment another session starts needing you, once per change: `Fix the login needs you (desktop).`
 
@@ -59,7 +61,7 @@ None.
 - A brand-new session shows its folder's name until Claude Code titles it, usually after the first prompt. On a host with no `tail` (Windows), the title comes only with your next prompt.
 - Files of old sessions stay in the folder (a few hundred bytes each): Claude Code gives mods no way to delete a file. They are never read once older than an hour, and you can delete the folder at any time.
 - Two sessions with the same name get the first characters of their ids to tell them apart.
-- A session that has not had a turn since Switchboard loaded counts as quiet, so a brand-new one sits in the quiet line until its first prompt.
+- An older session that has had no turn since Switchboard loaded into it counts as quiet, since its last turn is unknown.
 - The pane, the line and the footer are checked through the engine's test kit on the terminal and desktop surfaces.
 
 ## Built from a prompt
