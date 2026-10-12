@@ -172,6 +172,45 @@ export function drawControl(c: ControlInput): RenderElement {
     const spark = Math.min(SPARK_CELLS, Math.max(SPARK_MIN, meta - 16))
     const rows = antRows(a.status, c.frame + phaseOf(a.id), lane)
     const state = stateLine(a, live, c.now, c.frame)
+    // The hover card: the full task and the subagent's last rows, drawn over the card's own art
+    // rows while the pointer rests on the card. Hidden until then, placed out of the flow so
+    // nothing moves, unkeyed so the card's own hover reveals it; the surface shows and hides it
+    // without a hook or a redraw. It paints last, over the rows it covers.
+    const hoverHeight = Math.max(rows.length, 3) + 1
+    const hoverWidth = Math.max(1, cardWidth - 4)
+    const title = `${numberOf(a)} ${taskOf(a)}`
+    const titleLines = Math.max(1, Math.ceil([...title].length / hoverWidth))
+    const recent = c.events.filter(ev => ev.agentId === a.id).slice(-Math.max(0, hoverHeight - titleLines)).reverse()
+    const hoverRow = (ev: AntFarmEvent, i: number): RenderElement => {
+      const look = eventLook(ev.kind)
+      return (
+        <Box flexDirection="row" key={`hover-${i}`}>
+          <Box width={8} flexShrink={0}><Text color="inverseText">{met(ev.at - firstStart)}</Text></Box>
+          <Box width={2} flexShrink={0}><Text color={look.color ?? 'inverseText'}>{look.glyph}</Text></Box>
+          <Box flexGrow={1} flexShrink={1} minWidth={0}>
+            <Text color="inverseText" wrap="truncate-end">{clean(ev.text)}{ev.detail !== undefined ? ` · ${clean(ev.detail)}` : ''}</Text>
+          </Box>
+        </Box>
+      )
+    }
+    const hoverCard = (
+      <Box
+        position="absolute"
+        top={1}
+        left={0}
+        right={0}
+        height={hoverHeight}
+        overflow="hidden"
+        display="none"
+        hover={{ display: 'flex' }}
+        flexDirection="column"
+        paddingX={1}
+        backgroundColor="text"
+      >
+        <Text bold color="inverseText" wrap="wrap">{title}</Text>
+        {recent.length > 0 ? recent.map(hoverRow) : titleLines < hoverHeight ? <Text color="inverseText" wrap="truncate-end">No activity recorded yet</Text> : null}
+      </Box>
+    )
     const money = [
       fmtCost(a.usage),
       ...(etaMs !== null ? [fmtEta(etaMs)] : []),
@@ -219,6 +258,7 @@ export function drawControl(c: ControlInput): RenderElement {
             <Text wrap="truncate-end" {...tone}>{money}</Text>
           </Box>
         </Box>
+        {hoverCard}
       </Box>
     )
   }

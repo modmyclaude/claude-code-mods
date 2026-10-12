@@ -34,8 +34,20 @@ const eventRows = (tree: unknown) => walk(tree, n => n.type === 'Box' && (keyOf(
 const textOf = (n: Drawn | undefined): string => {
   if (n === undefined) return ''
   let s = ''
-  for (const c of n.children ?? []) s += typeof c === 'string' ? c : textOf(c as Drawn)
+  for (const c of n.children ?? []) {
+    if (typeof c === 'string') s += c
+    else if ((c as Drawn).props?.display !== 'none') s += textOf(c as Drawn) // hidden until a hover: not what the person sees
+  }
   return s
+}
+/** Every node matching `pred` that the person can see: a subtree drawn display none is skipped. */
+function walkShown(node: unknown, pred: (n: Drawn) => boolean, out: Drawn[] = []): Drawn[] {
+  if (node === null || typeof node !== 'object') return out
+  const n = node as Drawn
+  if (n.props?.display === 'none') return out
+  if (pred(n)) out.push(n)
+  for (const c of n.children ?? []) walkShown(c, pred, out)
+  return out
 }
 /** The first colour drawn inside a node. */
 const colorIn = (n: Drawn | undefined): unknown => {
@@ -543,7 +555,7 @@ describe('a narrow desktop pane', () => {
     await w.callTool($, a, 'Bash', { command: 'npm test' })
     const b = await w.spawn($, 'Finished one')
     await w.finish($, b)
-    const wraps = (tree: unknown) => walk(tree, n => n.type === 'Text' && typeof n.props?.wrap === 'string').map(n => n.props?.wrap as string)
+    const wraps = (tree: unknown) => walkShown(tree, n => n.type === 'Text' && typeof n.props?.wrap === 'string').map(n => n.props?.wrap as string)
     const narrowDesktop = await mountAt($, 'desktop', 30, { isFocused: true })
     await narrowDesktop.press({ key: 'toggle-finished' })
     const d = wraps(await narrowDesktop.drawn())
@@ -800,3 +812,52 @@ describe('the desktop app', () => {
     await terminal.unmount()
   })
 })
+
+// ---------------------------------------------------------------- the hover card
+
+const overlaysOf = (tree: unknown) => walk(tree, n => n.type === 'Box' && n.props?.position === 'absolute')
+
+describe('the hover card', () => {
+  test('each card hides a panel the pointer reveals: the full task and the last rows, over the art, on both surfaces', async ($, on) => {
+    const w = world(on)
+    const long = 'Audit every call site of the payments client for the retry budget and report the ones that exceed it'
+    const a = await w.spawn($, long)
+    const b = await w.spawn($, 'Quiet one')
+    for (let i = 0; i < 5; i += 1) await w.callTool($, a, 'Grep', { pattern: `needle-${i}` })
+    for (const surface of SURFACES) {
+      const pane = await mountAt($, surface, 84)
+      const tree = await pane.drawn()
+      const cards = cardsOf(tree)
+      expect(cards.length, surface).toBe(2)
+      for (const card of cards) {
+        const panels = overlaysOf(card)
+        expect(panels.length, `${surface} ${keyOf(card)}`).toBe(1)
+        const panel = panels[0] as Drawn
+        expect(keyOf(panel)).toBeUndefined() // the card's own hover scope reveals it
+        expect(panel.props).toMatchObject({ display: 'none', top: 1, left: 0, right: 0, height: 4, overflow: 'hidden', backgroundColor: 'text' })
+        expect((panel as Drawn & { hover?: unknown }).hover).toEqual({ display: 'flex' })
+        expect((card.children ?? []).at(-1)).toBe(panel) // painted last, over the rows it covers
+        for (const text of walk(panel, n => n.type === 'Text')) expect(['inverseText', 'suggestion', 'success', 'error', 'warning']).toContain(text.props?.color)
+      }
+      const inside = (panel: Drawn) => textOf({ children: panel.children }) // the panel's own words, hidden or not
+      const busy = overlaysOf(cards.find(x => keyOf(x) === `ant-${a}`))[0] as Drawn
+      expect(inside(busy)).toContain(`#1 ${long}`) // the whole task, where the card's title truncates
+      expect(inside(busy)).toContain('needle-4')
+      expect(inside(busy)).not.toContain('needle-0') // only the last rows fit under the task
+      expect(textOf(cards.find(x => keyOf(x) === `ant-${a}`))).not.toContain('needle-4') // and nothing of it shows at rest
+      const quiet = overlaysOf(cards.find(x => keyOf(x) === `ant-${b}`))[0] as Drawn
+      expect(inside(quiet)).toContain('#2 Quiet one')
+      expect(inside(quiet)).toContain('⇢') // its own start is its one row so far
+      await pane.unmount()
+    }
+  })
+
+  test('a narrow pane draws lines and no panel', async ($, on) => {
+    const w = world(on)
+    await w.spawn($, 'One')
+    const pane = await mountAt($, 'desktop', 36)
+    expect(overlaysOf(await pane.drawn()).length).toBe(0)
+    await pane.unmount()
+  })
+})
+

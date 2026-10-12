@@ -31,7 +31,9 @@ Watch your subagents work, and what they cost, live.
   per request, requests and tokens, a progress bar, its estimated cost and
   ETA, and on a wide card how many tools it called, files it edited and calls
   that failed. The border takes the model's colour, green for a moment when it
-  finishes, red when it fails, then rests dim. The pointer lights a card.
+  finishes, red when it fails, then rests dim. The pointer lights a card, and
+  resting on it shows a hover card over the card's art: the full task and the
+  subagent's last rows. Nothing moves and nothing is redrawn for it.
 - **The status is read, never guessed.** `THINKING` while a thinking block
   streams in its own model request, `WORKING` while it writes or runs a tool
   (the status line names the tool and what it touches: `Bash npm test`,
@@ -156,6 +158,8 @@ Every setting has a default, so the notice at install about options not yet set 
   not when a subagent merely plans a tool.
 - Hotkeys act only while the pane holds the keyboard, as Claude Code keys every
   pane; from the prompt, click a card's `inspect` instead.
+- **The hover card draws where the surface tracks the pointer:** the desktop
+  app, and a terminal with mouse tracking. Elsewhere the cards are as before.
 - **A click on the desktop app can be dropped while the pane is live.** The app
   presses a button by the handle it was drawn with, and Claude Code hands out
   new handles on every redraw; a click that lands just after a redraw does
