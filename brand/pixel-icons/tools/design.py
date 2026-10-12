@@ -416,6 +416,25 @@ icon("swear-jar", "A jar with a coin slot in its lid: every verbal tic the model
     "................",
 ])
 
+icon("mulligan", "A dimpled golf ball on its tee: a mulligan, the shot you get to take again after a shell command goes wrong.", [
+    "................",
+    "................",
+    "......PPPP......",
+    ".....PPPPPP.....",
+    "....PPDPPDPP....",
+    "....PPPPDPPP....",
+    "....PDPPPPDG....",
+    "....PPPDPPPG....",
+    ".....PPPPPG.....",
+    "......PPGG......",
+    "......LLLL......",
+    ".......LS.......",
+    ".......LS.......",
+    "..LLLLLLLLLLLL..",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

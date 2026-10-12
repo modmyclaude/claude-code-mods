@@ -1,7 +1,7 @@
 {
   "name": "mulligan",
   "version": "0.1.0",
-  "description": "A do-over for shell commands: it saves your project's files before a destructive command, and /mulligan puts them back.",
+  "description": "A do-over for risky shell commands: it saves your files first, and /mulligan puts them back.",
   "homepage": "https://modmyclaude.com/mods/mulligan",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },

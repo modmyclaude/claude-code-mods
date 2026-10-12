@@ -1,6 +1,8 @@
+<img src="../../brand/pixel-icons/svg/mulligan.svg" width="64" height="64" alt="">
+
 # Mulligan
 
-A do-over for shell commands: it saves your project's files before a destructive command, and `/mulligan` puts them back.
+A do-over for risky shell commands: it saves your files first, and `/mulligan` puts them back.
 
 ```
 mulligan: saved a do-over before "rm -rf dist" (dist) · /mulligan restore 3

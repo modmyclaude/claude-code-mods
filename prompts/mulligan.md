@@ -1,7 +1,7 @@
 ---
 mod: mulligan
 title: Mulligan
-tagline: A do-over for shell commands - it saves your project's files before a destructive command, and /mulligan puts them back.
+tagline: A do-over for risky shell commands: it saves your files first, and /mulligan puts them back.
 category: safety
 surfaces: [terminal, desktop]
 model_calls: none
