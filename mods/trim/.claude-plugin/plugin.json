@@ -1,7 +1,7 @@
 {
   "name": "trim",
   "version": "0.1.0",
-  "description": "Long shell output, folded before Claude reads it: errors, head and tail kept, about how many tokens saved shown.",
+  "description": "Long shell output, folded before Claude reads it. Errors, the start and the end stay; you see about how many tokens that saved.",
   "homepage": "https://modmyclaude.com/mods/trim",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
