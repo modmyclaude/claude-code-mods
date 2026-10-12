@@ -28,7 +28,7 @@ Install it in every session you run (a user-scope install does that): each sessi
 
 - **`/switchboard`** opens the pane. The first line says how many sessions need you, and the next one says which session you are in and where.
 - **One row per session**, who needs you first: a mark and a colour for its state, its name (the title in the desktop sidebar, or the one Claude Code gives it, else its folder), what it is doing in words, where it runs, and its cost so far when Claude Code keeps that figure.
-  - `!` **waiting on** a permission (and for which tool), a question, a plan to approve, or an answer
+  - `!` **waiting on** a permission (and for which tool), a subagent's permission, a question, a plan to approve, or an answer
   - `✕` **stopped on an error**
   - `●` **working**
   - `○` **idle**
@@ -59,6 +59,7 @@ None.
 - A brand-new session shows its folder's name until Claude Code titles it, usually after the first prompt. On a host with no `tail` (Windows), the title comes only with your next prompt.
 - Files of old sessions stay in the folder (a few hundred bytes each): Claude Code gives mods no way to delete a file. They are never read once older than an hour, and you can delete the folder at any time.
 - Two sessions with the same name get the first characters of their ids to tell them apart.
+- A session that has not had a turn since Switchboard loaded counts as quiet, so a brand-new one sits in the quiet line until its first prompt.
 - The pane, the line and the footer are checked through the engine's test kit on the terminal and desktop surfaces.
 
 ## Built from a prompt

@@ -151,6 +151,8 @@ export const MARK: Record<SwitchboardState, { shape: string; color?: string; dim
  */
 export function waitingWords(notice: string, tool: string | undefined): string {
   if (notice === 'elicitation_dialog' || notice === 'elicitation_url_dialog' || notice === 'agent_needs_input') return 'an answer'
+  // A subagent's dialog: the tool the main loop last called is not the one it asks about.
+  if (notice === 'worker_permission_prompt') return "a subagent's permission"
   if (tool === 'AskUserQuestion') return 'a question'
   if (tool === 'ExitPlanMode') return 'a plan to approve'
   if (tool === undefined || tool === '') return 'a permission'

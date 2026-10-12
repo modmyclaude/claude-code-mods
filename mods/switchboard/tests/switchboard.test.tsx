@@ -59,19 +59,34 @@ describe('this session reports itself', () => {
     expect(w.runs).toEqual([['tail', '-c', '262144', `${HOME}/.claude/projects/-work-api-server/${MINE}.jsonl`]])
   })
 
-  test('the title Claude Code writes after the first prompt is picked up at a turn end, at most every two minutes', SLOW, async ($, on) => {
+  test('an untitled session looks at every turn end; once titled, at most every two minutes', SLOW, async ($, on) => {
     const w = world(on)
     await start($) // no title yet: the folder's name
     expect(mine(w)?.name).toBe('api-server')
-    w.tail = transcriptTail({ ai: 'NPM test run' })
-    await turnStart($)
-    await turnEnd($, 'answer')
-    expect(mine(w)?.name).toBe('api-server') // looked at start, so not again yet
-    await w.clock.advance(2 * MIN)
+    w.tail = transcriptTail({ ai: 'NPM test run' }) // Claude Code titles it after the first prompt
     await turnStart($)
     await turnEnd($, 'answer')
     expect(mine(w)?.name).toBe('NPM test run')
     expect(w.runs).toHaveLength(2)
+    w.tail = transcriptTail({ custom: 'Renamed in the sidebar' })
+    await turnStart($)
+    await turnEnd($, 'answer')
+    expect(w.runs).toHaveLength(2) // titled: not again within two minutes
+    await w.clock.advance(2 * MIN)
+    await turnStart($)
+    await turnEnd($, 'answer')
+    expect(mine(w)?.name).toBe('Renamed in the sidebar')
+    expect(w.runs).toHaveLength(3)
+  })
+
+  test('a session that left the folder it started in finds its transcript by the path Claude Code names, at once', async ($, on) => {
+    const w = world(on)
+    await start($) // the path worked out from the current folder holds no title
+    const launched = `${HOME}/.claude/projects/-Users-me-launch/${MINE}.jsonl`
+    w.tail = transcriptTail({ custom: 'Switchboard' })
+    await $.classic.UserPromptSubmit({ prompt: 'x', transcript_path: launched } as never)
+    expect(mine(w)?.name).toBe('Switchboard')
+    expect(w.runs.map(r => r[3])).toEqual([`${HOME}/.claude/projects/-work-api-server/${MINE}.jsonl`, launched])
   })
 
   test('a title on the prompt event is taken at once', async ($, on) => {

@@ -64,6 +64,12 @@ let isReading = false
 const cache = new Map<string, { mtimeMs: number; record: SessionRecord }>()
 /** The id a /clear or resume just ended: nothing is written under it again. */
 let endedId: string | null = null
+/**
+ * The transcript Claude Code names on its settings-hook events. It is keyed by the folder the
+ * session started in, which the working directory can leave (a cd, a worktree), so it beats the
+ * path worked out from the folder; kept even before this copy's record exists.
+ */
+let transcriptHint: string | undefined
 
 async function safely($: EngineInterface, work: () => Promise<unknown>): Promise<void> {
   try {
@@ -226,6 +232,14 @@ async function setTitle($: EngineInterface, title: string | undefined): Promise<
   await readOthers($)
 }
 
+/** Keeps the transcript path a settings-hook event named; true when it is news. */
+function noteTranscript(path: string | undefined): boolean {
+  if (!path || path === transcriptHint) return false
+  transcriptHint = path
+  if (me !== null) me.transcript = path
+  return true
+}
+
 const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Switchboard', focus: true, closeOnEscape: true })
 
 export const register: Register = on => {
@@ -240,7 +254,7 @@ export const register: Register = on => {
       base = await configDir($)
       const cwd = await $.session.root()
       const now = await $.clock.now()
-      me = { id: await $.session.id(), folder: folderName(cwd), cwd, state: 'idle', since: now, where: await whereNow($), writtenAt: 0, titleCheckedAt: 0 }
+      me = { id: await $.session.id(), folder: folderName(cwd), cwd, state: 'idle', since: now, where: await whereNow($), writtenAt: 0, transcript: transcriptHint, titleCheckedAt: 0 }
       await refreshTitle($, true)
       await writeMine($)
       timer ??= $.clock.every(POLL_MS, () => void safely($, () => tick($)))
@@ -253,7 +267,7 @@ export const register: Register = on => {
   on('classic.SessionStart', async ($, e, next) => {
     await safely($, async () => {
       if (e.session_id) await becomeSession($, e.session_id)
-      if (me !== null && e.transcript_path) me.transcript = e.transcript_path
+      noteTranscript(e.transcript_path)
       if (e.session_title?.trim()) await setTitle($, e.session_title)
       else await refreshTitle($, true)
     })
@@ -261,8 +275,10 @@ export const register: Register = on => {
   })
   on('classic.UserPromptSubmit', async ($, e, next) => {
     await safely($, async () => {
-      if (me !== null && e.transcript_path) me.transcript = e.transcript_path
+      const isNewPath = noteTranscript(e.transcript_path)
       if (e.session_title?.trim()) await setTitle($, e.session_title)
+      // The first sure path to an untitled session's transcript: look now, not two minutes on.
+      else if (isNewPath && me?.title === undefined) await refreshTitle($, true)
     })
     return next(e)
   })
@@ -278,7 +294,8 @@ export const register: Register = on => {
     if (e.agentId === undefined) {
       await safely($, async () => {
         await setState($, e.reason === 'error' || e.reason === 'refusal' ? 'error' : 'idle')
-        await refreshTitle($)
+        // An untitled session looks at every turn end until Claude Code has titled it.
+        await refreshTitle($, me?.title === undefined)
       })
     }
     return next(e)

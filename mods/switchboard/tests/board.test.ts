@@ -100,6 +100,7 @@ describe('words', () => {
     expect(waitingWords('permission_prompt', 'ExitPlanMode')).toBe('a plan to approve')
     expect(waitingWords('permission_prompt', undefined)).toBe('a permission')
     expect(waitingWords('elicitation_dialog', 'Bash')).toBe('an answer')
+    expect(waitingWords('worker_permission_prompt', 'Bash')).toBe("a subagent's permission") // not the main loop's last tool
   })
 
   test('each state explains itself', () => {
