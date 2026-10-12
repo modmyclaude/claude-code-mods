@@ -378,6 +378,25 @@ icon("switchboard", "A switchboard panel with one lamp lit and its cord plugged 
     "................",
 ])
 
+icon("trim", "A pair of scissors, blades open: long shell output gets trimmed before Claude reads it.", [
+    "................",
+    "................",
+    "..LLLL..........",
+    ".LL..LL.....PPP.",
+    ".LL..LL...PPPG..",
+    "..LLLLLL.PPG....",
+    ".......LPPG.....",
+    ".......PDG......",
+    ".......LPPG.....",
+    "..LLLLLL.PPG....",
+    ".LL..LL...PPPG..",
+    ".LL..LL.....PPP.",
+    "..LLLL..........",
+    "................",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

@@ -453,6 +453,29 @@
       ]
     },
     {
+      "name": "trim",
+      "kind": "mod",
+      "meaning": "A pair of scissors, blades open: long shell output gets trimmed before Claude reads it.",
+      "rows": [
+        "................",
+        "................",
+        "..LLLL..........",
+        ".LL..LL.....PPP.",
+        ".LL..LL...PPPG..",
+        "..LLLLLL.PPG....",
+        ".......LPPG.....",
+        ".......PDG......",
+        ".......LPPG.....",
+        "..LLLLLL.PPG....",
+        ".LL..LL...PPPG..",
+        ".LL..LL.....PPP.",
+        "..LLLL..........",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",
