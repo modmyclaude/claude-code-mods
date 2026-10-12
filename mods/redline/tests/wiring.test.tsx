@@ -1063,6 +1063,19 @@ describe('where the money went', () => {
     expect(w.status()).toContain('ctx') // the band and the status line are as before
   })
 
+  test('an aborted turn leaves nothing behind: a turn started again carries no tool calls from before', async ($, on) => {
+    world(on)
+    await $.turn.start({ text: 'first try', turnId: 't1' })
+    await request($, pct(10), { turnId: 't1', index: 0, tools: ['Read', 'Edit'] }) // aborted here: no request followed
+    await $.turn.start({ text: 'again', turnId: 't1' })
+    await request($, pct(11), { turnId: 't1', index: 1, tools: [] })
+    const ui = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+    expect((await ui.find({ key: 'spend-answering' }))?.text).toMatch(/1 req/)
+    expect(await ui.find({ key: 'spend-reading' })).toBeUndefined()
+    expect(await ui.find({ key: 'spend-editing' })).toBeUndefined()
+    await ui.unmount()
+  })
+
   test('nothing yet before a request; /redline spend opens the pane; every cost reads as an estimate', async ($, on) => {
     const w = world(on, { cost: undefined })
     for (const surface of SURFACES) {
