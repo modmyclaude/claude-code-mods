@@ -26,7 +26,7 @@ Claude Code mods with <!-- tests -->3,200+<!-- /tests --> behaviour tests, termi
 /plugin install redline@modmyclaude
 ```
 
-Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab. Some mods have settings: Claude Code says so at install (`N userConfig options not yet set`). That notice is expected, every option has a default, and `/config` changes them.
+Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab. Some mods have settings: Claude Code says so at install (`N userConfig options not yet set`). That notice is expected: every option has a default, and `/config` changes them.
 
 [**Browse the mods**](#the-mods) · [Website](https://modmyclaude.com) · [Build your own](#build-your-own) · [Safety](#safety) · [FAQ](#faq)
 
