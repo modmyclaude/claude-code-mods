@@ -13,7 +13,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "keywords": [
         "subagents",
         "cost",
@@ -40,7 +40,7 @@
         }
       ],
       "tests": {
-        "count": 216,
+        "count": 218,
         "surfaces": [
           "terminal",
           "desktop"
@@ -49,7 +49,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-12",
-      "commit": "9f8d49c",
+      "commit": "7ec5ca1",
       "reach": [
         "hooks tool calls"
       ],
