@@ -1,6 +1,6 @@
 {
   "name": "thermostat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shows when your prompt cache goes cold, and stops the expensive send.",
   "homepage": "https://modmyclaude.com/mods/thermostat",
   "repository": "https://github.com/modmyclaude/claude-code-mods",

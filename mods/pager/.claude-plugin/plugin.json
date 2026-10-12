@@ -1,6 +1,6 @@
 {
   "name": "pager",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Plays a sound when Claude finishes, needs you or hits an error.",
   "homepage": "https://modmyclaude.com/mods/pager",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
