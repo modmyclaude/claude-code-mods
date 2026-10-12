@@ -49,7 +49,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "c4b02c3",
+      "commit": "1fe3d9f",
       "reach": [
         "display only"
       ],
@@ -117,7 +117,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "620d9c9",
+      "commit": "1fe3d9f",
       "reach": [
         "writes files",
         "reads files",
@@ -192,8 +192,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "9a4519f",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "calls a model",
         "hooks prompts"
@@ -280,8 +280,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "d538098",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "calls a model"
       ],
@@ -339,8 +339,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "d538098",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "reads files",
         "runs commands",
@@ -406,8 +406,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "534df4b",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "hooks tool calls"
       ],
@@ -482,7 +482,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "26c373a",
+      "commit": "1fe3d9f",
       "reach": [
         "hooks tool calls"
       ],
@@ -551,7 +551,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "79c79e4",
+      "commit": "1fe3d9f",
       "reach": [
         "hooks tool calls"
       ],
@@ -623,7 +623,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "2e6805a",
+      "commit": "1fe3d9f",
       "reach": [
         "reads files",
         "runs commands",
@@ -686,8 +686,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "11f3041",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "writes files",
         "reads files",
@@ -767,8 +767,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "371ff84",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "network",
         "plays sound"
@@ -833,8 +833,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "d538098",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "runs commands",
         "hooks tool calls"
@@ -908,8 +908,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "d538098",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "reads files",
         "runs commands",
@@ -975,8 +975,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-09",
-      "commit": "25ab6bb",
+      "updated": "2026-10-11",
+      "commit": "1fe3d9f",
       "reach": [
         "display only"
       ],
@@ -1081,7 +1081,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "aa61574",
+      "commit": "1fe3d9f",
       "reach": [
         "hooks prompts"
       ],
@@ -1166,7 +1166,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "0df93bf",
+      "commit": "1fe3d9f",
       "reach": [
         "calls a model",
         "hooks prompts"
@@ -1258,7 +1258,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-11",
-      "commit": "eedfee0",
+      "commit": "1fe3d9f",
       "reach": [
         "hooks tool calls"
       ],
