@@ -7,6 +7,7 @@
 
 ### Level up Claude Code with tested mods for safer runs, smarter spending and more fun.
 
+Claude Code mods with <!-- tests -->3,200+<!-- /tests --> behaviour tests, terminal and desktop.
 
 <!-- badges:start -->
 [![check](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml/badge.svg)](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml)
@@ -37,9 +38,8 @@ This repo is a small, curated collection of <!-- count -->17<!-- /count --> of t
 
 ## Why these mods
 
-- **Original mods, built here.** Not a list of other people's repos.
-- **Make it yours.** Every mod comes with the prompt that made it: read it, change a line, and Claude builds your version.
-- **Tested where you use it.** <!-- tests -->3,200+<!-- /tests --> behaviour tests run against the real engine in the terminal and the desktop app, not only a static validate.
+- **Tested where you use it.** <!-- tests -->3,200+<!-- /tests --> behaviour tests run in Claude Code's own test kit, on the terminal and the desktop app, not only a static validate.
+- **Built here.** Not a list of other people's repos.
 - **Reviewed by a second builder.** No mod is listed on its builder's word alone.
 - **Honest badges.** What each mod can touch comes from Claude Code's own validator, not from our description.
 
