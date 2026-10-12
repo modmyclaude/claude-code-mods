@@ -69,22 +69,33 @@ export function shortHunk(h: Hunk, max = HUNK_LINES): string {
   return [`@@ -${oldStart},${old} +${h.newStart},${now} @@`, ...kept].join('\n')
 }
 
+/**
+ * A diff as read, whole files only: output cut at the read limit (4 MiB) ends mid-file, so the
+ * torn last file is dropped, never reviewed as if whole, and the cut is said.
+ */
+export function wholeFiles(stdout: string, isTruncated: boolean): { text: string; isCut: boolean } {
+  if (!isTruncated) return { text: stdout, isCut: false }
+  const at = stdout.lastIndexOf('\ndiff --git ')
+  return { text: at > 0 ? stdout.slice(0, at) : '', isCut: true }
+}
+
 /** The diff for a scope, through read-only git; an error in words when it cannot be read. */
-async function gitDiff($: EngineInterface, root: string, scope: 'changes' | 'staged' | 'branch', base: string): Promise<{ text: string; words: string } | { error: string }> {
+async function gitDiff($: EngineInterface, root: string, scope: 'changes' | 'staged' | 'branch', base: string): Promise<{ text: string; words: string; isCut: boolean } | { error: string }> {
   if (scope === 'branch') {
     const mb = await git($, ['merge-base', base, 'HEAD'], root).catch(() => undefined)
     const sha = mb?.exitCode === 0 ? mb.stdout.trim() : ''
     if (!/^[0-9a-f]{40,64}$/.test(sha)) return { error: `there is no common point with ${base} to compare with` }
     const d = await git($, ['diff-tree', '-p', '--no-color', '-r', '-M', sha, 'HEAD'], root).catch(() => undefined)
     if (d?.exitCode !== 0) return { error: 'git could not read the branch' }
-    return { text: d.stdout, words: `this branch against ${base}` }
+    return { ...wholeFiles(d.stdout, d.isStdoutTruncated), words: `this branch against ${base}` }
   }
   const head = await git($, ['rev-parse', '--verify', 'HEAD'], root).catch(() => undefined)
   const against = head?.exitCode === 0 ? 'HEAD' : EMPTY_TREE
   const args = ['diff-index', '-p', '--no-color', '-M', ...(scope === 'staged' ? ['--cached'] : []), against, '--']
   const d = await git($, args, root).catch(() => undefined)
   if (d?.exitCode !== 0) return { error: 'git could not read the changes' }
-  let text = d.stdout
+  const read = wholeFiles(d.stdout, d.isStdoutTruncated)
+  let text = read.text
   if (scope === 'changes') {
     // New files git does not track yet are part of what changed: each as a whole addition.
     const listed = await git($, ['ls-files', '--others', '--exclude-standard', '-z'], root).catch(() => undefined)
@@ -100,7 +111,7 @@ async function gitDiff($: EngineInterface, root: string, scope: 'changes' | 'sta
       text += `\n${newFileDiff(name, content)}`
     }
   }
-  return { text, words: scope === 'staged' ? 'staged changes' : 'uncommitted changes' }
+  return { text, words: scope === 'staged' ? 'staged changes' : 'uncommitted changes', isCut: read.isCut }
 }
 
 async function complete($: EngineInterface, prompt: string): Promise<ModelCompleteResult | null> {
@@ -154,6 +165,7 @@ async function build($: EngineInterface, scope: string, base: string): Promise<v
       () => false,
     )
     let words: string
+    let isCut = false
     if (scope === 'last' || !isGit) {
       if (scope !== 'last' && scope !== 'changes') return void (await fail($, 'this project is not a git repository; /chapters last reviews the last turn\'s edits'))
       files = parseDiff(lastTurnEdits.map(e => e.diff).join('\n'))
@@ -163,12 +175,15 @@ async function build($: EngineInterface, scope: string, base: string): Promise<v
       if ('error' in got) return void (await fail($, got.error))
       files = parseDiff(got.text)
       words = got.words
+      isCut = got.isCut
     }
     await update($, review, r => (r ? { ...r, scope: words } : r))
-    if (files.length === 0) return void (await fail($, `nothing to review in ${words}`))
+    if (files.length === 0) {
+      return void (await fail($, isCut ? `the diff of ${words} is too long to read: its first file alone is past 4 MB` : `nothing to review in ${words}`))
+    }
     const written = await write($, files)
     if (written === null) return void (await fail($, 'no review this time: the model did not answer in the shape asked for'))
-    await update($, review, () => ({ status: 'ready' as const, scope: words, chapters: written.chapters, at: 0, left: written.left }))
+    await update($, review, () => ({ status: 'ready' as const, scope: words, chapters: written.chapters, at: 0, left: written.left, ...(isCut ? { isCut } : {}) }))
   } finally {
     isWriting = false
   }
@@ -368,7 +383,7 @@ export const register: Register = (on, options) => {
           <Button key="ask" label="ask Claude" onPress={() => void ask($, at + 1, chapter)} />
         </Box>
         <Text key="note" dimColor wrap="wrap">
-          {`${r.left > 0 ? `${r.left} changed files were too long to send and are not in this review. ` : ''}It reads and explains only: nothing is applied or sent. ${changedLines(files)} changed lines; ${costWords()}.`}
+          {`${r.isCut ? 'The diff was too long to read in full: the files past the first 4 MB are not in this review. ' : ''}${r.left > 0 ? `${r.left} changed files were too long to send and are not in this review. ` : ''}It reads and explains only: nothing is applied or sent. ${changedLines(files)} changed lines; ${costWords()}.`}
         </Text>
       </Box>
     )

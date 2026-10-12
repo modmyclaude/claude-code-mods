@@ -125,6 +125,36 @@ describe('secrets never reach the model', () => {
   })
 })
 
+describe('a diff past the read limit', () => {
+  test('the torn last file is dropped, never reviewed as whole, and the pane says the diff was cut', async ($, on) => {
+    const w = world(on)
+    w.diff = `${DIFF}\ndiff --git a/src/torn.ts b/src/torn.ts\n@@ -1,3 +1,3 @@\n-old line\n+new li`
+    w.isDiffCut = true
+    await start($)
+    await chapters($, w)
+    expect(w.prompts[0]).not.toContain('torn.ts')
+    expect(w.prompts[0]).toContain('diff --git a/README.md b/README.md')
+    expect((await paneTexts($)).at(-1)).toMatch(/^The diff was too long to read in full: the files past the first 4 MB are not in this review\./)
+  })
+
+  test('a cut diff that held a single file says it was too long, not that there was nothing', async ($, on) => {
+    const w = world(on)
+    w.diff = 'diff --git a/data/huge.json b/data/huge.json\n@@ -1,3 +1,3 @@\n-{"a": 1'
+    w.isDiffCut = true
+    await start($)
+    await chapters($, w)
+    expect(w.prompts).toEqual([])
+    expect(await paneTexts($)).toEqual(['the diff of uncommitted changes is too long to read: its first file alone is past 4 MB'])
+  })
+
+  test('a whole diff is said to be whole', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await chapters($, w)
+    expect((await paneTexts($)).at(-1)).toMatch(/^It reads and explains only/)
+  })
+})
+
 describe('what the model is sent', () => {
   test('the diff and its paths only, in one call under the cap', async ($, on) => {
     const w = world(on)

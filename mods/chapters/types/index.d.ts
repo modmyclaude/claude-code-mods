@@ -27,6 +27,8 @@ export type ChaptersReview = {
   at: number
   /** Files of the diff not sent to the model (past the cap). */
   left: number
+  /** The diff was longer than git's output can be read (4 MiB): the files past that are not in it. */
+  isCut?: boolean
   /** Why there is no review, when status is failed. */
   reason?: string
 }

@@ -41,8 +41,9 @@ export type World = {
   clock: MockClock
   isGit: boolean
   hasHead: boolean
-  /** What `git diff-index` and `git diff-tree` answer. */
+  /** What `git diff-index` and `git diff-tree` answer, and whether that output was cut at the read limit. */
   diff: string
+  isDiffCut: boolean
   untracked: Record<string, string>
   /** Files the mod read, relative to the project. */
   reads: string[]
@@ -65,7 +66,7 @@ export type World = {
 export function world(on: On): World {
   const w: World = {
     clock: mock.clock(on, { now: Date.UTC(2026, 9, 12, 9) }),
-    isGit: true, hasHead: true, diff: DIFF, untracked: {}, reads: [], gits: [], lockingGit: [], prompts: [], models: [], replies: [TWO],
+    isGit: true, hasHead: true, diff: DIFF, isDiffCut: false, untracked: {}, reads: [], gits: [], lockingGit: [], prompts: [], models: [], replies: [TWO],
     box: '', fills: [], submits: [], toasts: [], opened: [], isPaneShown: false, surfaces: ['terminal'],
   }
   mock.env(on, {})
@@ -117,7 +118,7 @@ export function world(on: On): World {
     if (sub === 'rev-parse --is-inside-work-tree') return ok('true\n')
     if (sub === 'rev-parse --verify HEAD') return w.hasHead ? ok(`${'d'.repeat(40)}\n`) : fail()
     if (args[0] === 'merge-base') return ok(`${MB}\n`)
-    if (args[0] === 'diff-index' || args[0] === 'diff-tree') return ok(w.diff)
+    if (args[0] === 'diff-index' || args[0] === 'diff-tree') return { value: { ...ok(w.diff).value, isStdoutTruncated: w.isDiffCut } }
     if (args[0] === 'ls-files') return ok(Object.keys(w.untracked).map(n => `${n}\0`).join(''))
     return fail()
   })

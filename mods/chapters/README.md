@@ -45,7 +45,7 @@ Type `/chapters` when you want to read what changed before you commit or push. O
 | `/chapters branch [base]` | This branch against `main` (or the base you name, or the one in settings) |
 | `/chapters last` | The edits Claude made in the last turn, from its own tools |
 
-With a review on screen, `/chapters` alone opens it again. A new review runs only when you type the command yourself.
+With a review on screen, `/chapters` alone opens it again. A new review runs only when you type the command yourself: in the terminal, the desktop app or Remote Control, or a program of yours driving Claude Code through its SDK (the desktop app sends that way). Another mod, a peer session or Claude running it is refused.
 
 ## Settings
 
@@ -64,7 +64,7 @@ With a review on screen, `/chapters` alone opens it again. A new review runs onl
 
 - It reads and explains only. Accepting or reverting a hunk from the pane is not in this version.
 - The model's chapters can be wrong or miss something; the hunks beside them are the truth.
-- A diff past the cap is split in two calls, then cut; the pane names how many files were not reviewed.
+- A diff past the cap is split in two calls, then cut; the pane names how many files were not reviewed. A diff longer than git's output can be read in one go (4 MB) is read up to its last whole file, and the pane says so.
 - Outside git, an edit's place in its file is not known, so its hunk starts at line 1.
 - The review lives as long as the session (or until the mod reloads).
 - The pane and the band are checked through the engine's test kit on the terminal and desktop surfaces, with git and the model stood in for.
