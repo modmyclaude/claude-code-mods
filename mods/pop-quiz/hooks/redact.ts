@@ -10,7 +10,6 @@ const TOKEN_SHAPES: readonly RegExp[] = [
   /\b(?:AKIA|ASIA|ABIA|ACCA|AGPA|AIDA|AIPA|ANPA|ANVA|AROA|APKA)[A-Z0-9]{16}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{30,255}\b/g,
   /\bgithub_pat_[A-Za-z0-9_]{20,255}\b/g,
-  /\bsk-ant-[A-Za-z0-9_-]{16,}/g,
   /\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/g,
   /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{10,}\b/g,
   /\bwhsec_[A-Za-z0-9]{16,}\b/g,

@@ -3,7 +3,8 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import { MAX_DIFF, MAX_PROMPT, changeOf, costOf, isQuizTurn, parseReply, sanitize, summarize } from '../hooks/logic'
+import { MAX_DIFF, MAX_PROMPT, changeOf, costOf, isQuizTurn, isSecretFile, parseReply, sanitize, summarize } from '../hooks/logic'
+import { readSettings } from '../hooks/register'
 import { ROOT, SURFACES, TWO, band, bandTexts, edit, quizCmd, readFile, reply, start, turn, world, write } from './world'
 
 const ON = { options: { enabled: true, every: 1 } }
@@ -187,6 +188,22 @@ describe('the logic alone', () => {
     expect(s.diff.length).toBeLessThanOrEqual(MAX_DIFF)
     expect(s.diff).toContain('--- f0.ts')
     expect(s.files).toHaveLength(30)
+  })
+
+  test('every kind of secret file is sent by name only; look-alikes are sent', () => {
+    const secret = [
+      '.env', '.env.local', '/app/.env.production', 'server.pem', 'tls.key', 'cert.p12', 'cert.pfx', 'release.jks', 'app.keystore', 'putty.ppk', 'signing.asc', 'backup.gpg',
+      'id_rsa', 'id_ed25519.pub', 'id_ecdsa', 'credentials', 'credentials.yml.enc', '/home/me/.npmrc', '.netrc', '.pgpass', '.pypirc',
+      '.git-credentials', '.htpasswd', 'prod.tfvars', 'prod.tfvars.json', 'secrets.yaml', 'secret.json',
+    ]
+    for (const name of secret) expect(isSecretFile(name), name).toBe(true)
+    for (const name of ['env.ts', 'src/environment.ts', 'keyboard.ts', 'monkey.ts', 'README.md', 'main.tf', 'npmrc.md', 'id.ts']) expect(isSecretFile(name), name).toBe(false)
+  })
+
+  test('the pace setting is clamped from 1 to 20', () => {
+    expect([0, 1, 3, 7.4, 20, 99, Number.NaN, '5'].map(every => readSettings({ every }).every)).toEqual([1, 1, 3, 7, 20, 20, 3, 3])
+    expect(readSettings({}).enabled).toBe(false)
+    expect(readSettings({ enabled: true }).enabled).toBe(true)
   })
 
   test('the summary lists each file once, relative to the project', () => {

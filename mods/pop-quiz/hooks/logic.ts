@@ -25,10 +25,21 @@ export type Change = { path: string; kind: 'edit' | 'write' | 'notebook'; before
 
 export type Question = { q: string; a: string }
 
+/** Files whose contents are never sent, by name: env files, keys, registry and database logins, Terraform values, secrets files. */
+const SECRET_FILES: readonly RegExp[] = [
+  /^\.env(\..*)?$/i,
+  /\.(pem|key|p12|pfx|jks|keystore|ppk|asc|gpg)$/i,
+  /^id_(rsa|dsa|ecdsa|ed25519)(\..*)?$/i,
+  /^credentials(\..*)?$/i,
+  /^\.(npmrc|netrc|pgpass|pypirc|git-credentials|htpasswd)$/i,
+  /\.tfvars(\.json)?$/i,
+  /^secrets?\./i,
+]
+
 /** A file whose contents are never sent: its name stands alone. */
 export function isSecretFile(path: string): boolean {
   const name = path.split(/[\\/]/).pop() ?? path
-  return /^\.env(\..*)?$/i.test(name) || /\.(pem|key|p12|pfx)$/i.test(name) || /^(id_rsa|id_ed25519|credentials)(\..*)?$/i.test(name)
+  return SECRET_FILES.some(re => re.test(name))
 }
 
 /** What one tool call changed, from its input; null for any other tool. */
