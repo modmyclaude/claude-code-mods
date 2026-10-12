@@ -66,6 +66,7 @@ test("the plan call's terminal row shows a count, not the plan's JSON; other row
     ['terminal', 'mcp__headway__plan', plan],
     ['desktop', 'mcp__headway__plan', plan],
     ['terminal', 'Bash', { command: 'ls' }],
+    ['terminal', 'TodoWrite', plan], // the same shape, but Claude Code's own row: never Headway's to rewrite
     ['terminal', 'mcp__headway__plan', {}], // still streaming in: nothing to count yet
   ] as const
   for (const [surface, tool, input] of draws) {
@@ -76,6 +77,7 @@ test("the plan call's terminal row shows a count, not the plan's JSON; other row
     { surface: 'terminal', tool: 'mcp__headway__plan', input: { steps: 4, done: 1 } },
     { surface: 'desktop', tool: 'mcp__headway__plan', input: plan },
     { surface: 'terminal', tool: 'Bash', input: { command: 'ls' } },
+    { surface: 'terminal', tool: 'TodoWrite', input: plan },
     { surface: 'terminal', tool: 'mcp__headway__plan', input: {} },
   ])
 })

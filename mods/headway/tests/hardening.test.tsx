@@ -266,6 +266,16 @@ describe('a plan Claude stops updating', () => {
     await $.session.end({ reason: 'resume', sessionId: 'session-1', resume: { id: 'session-1' } })
     await expectBand($, undefined)
   })
+
+  test('a /clear starts the next conversation with no plan', async ($, on) => {
+    world(on)
+    beneath(on)
+    await turnStart($)
+    await todos($, list(SIX, 1))
+    await expectBand($, 'Write the migration (1/6) ▰▱▱▱▱▱')
+    await $.session.end({ reason: 'clear', sessionId: 'session-1', resume: { id: 'session-1' } })
+    await expectBand($, undefined)
+  })
 })
 
 describe('time left after one long step (STEADY_WINDOW)', () => {
