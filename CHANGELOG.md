@@ -18,6 +18,6 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 - play-by-play 0.1.1: the manifest names its homepage and repository; plain code comments. The replay is unchanged.
 - porthole 0.1.1: the manifest names its homepage and repository; plain code comments. What you see is unchanged.
 - redline 0.1.1: the detail pane reads at a glance: the context fill in colour, figures in rows with the numbers at the right edge, nothing cut off, one footnote; where no pane can open, the view goes to the transcript, never to Claude. The manifest names its homepage and repository.
-- second-wind 0.1.1: a guide drawn after an orphaned run is rebuilt from now.
+- second-wind 0.1.1: on the desktop, a breathing guide shown after one was left running (say, by a reload mid-turn) starts fresh instead of jumping back.
 - thermostat 0.1.1: the receipt reads at a glance: the cache state in colour with its countdown bar, figures in rows, zero rows folded away, one footnote; Bolt is larger and sleeps when the cache is cold. The manifest names its homepage and repository.
 - wardrobe 0.1.1: the look covers the whole session (your messages, Claude's replies, the prompt footer, the spinner) and stays named in the footer; every look ships as a Claude Code theme file; /wear <look> --match sets Claude Code's own theme to the nearest match and remembers yours; a theme you pick after a match stands. The manifest names its homepage and repository.
