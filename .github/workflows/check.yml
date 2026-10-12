@@ -54,6 +54,8 @@ jobs:
           node-version: 22
       - name: Links and images resolve
         run: node scripts/check-links.mjs
+      - name: Sound packs are in spec
+        run: node scripts/check-sounds.mjs
       - name: House style (no em or en dashes)
         run: "! git grep -nI -e $'\\u2014' -e $'\\u2013'"
         shell: bash
