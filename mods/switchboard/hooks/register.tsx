@@ -53,6 +53,10 @@ let timer: Timer | null = null
 let seen: Map<string, string> | undefined
 let lastKey = ''
 let isReading = false
+/** Each file's last parsed record by its mtime: a file that did not change is not read again. */
+const cache = new Map<string, { mtimeMs: number; record: SessionRecord }>()
+/** The id a /clear or resume just ended: never written again, even by a heartbeat before the new id arrives. */
+let endedId: string | null = null
 
 async function safely($: EngineInterface, work: () => Promise<unknown>): Promise<void> {
   try {
@@ -85,6 +89,11 @@ function recordOf(mine: Me, now: number): SessionRecord {
 /** Rewrites this session's record: on every change, and as a heartbeat. */
 async function writeMine($: EngineInterface): Promise<void> {
   if (me === null || dir === undefined) return
+  if (me.id === endedId) {
+    // Between a /clear and its new id: nothing is written under the ended one; the new one
+    // is taken as soon as Claude Code answers it (until then the id it answers is the same).
+    return becomeSession($, await $.session.id())
+  }
   const now = await $.clock.now()
   await $.fs.write(`${dir}/${me.id}.json`, JSON.stringify(recordOf(me, now)))
   me.writtenAt = now
@@ -117,13 +126,24 @@ async function readOthers($: EngineInterface): Promise<void> {
     const records: SessionRecord[] = [recordOf(me, now)]
     for (const entry of recent) {
       if (entry.name === `${me.id}.json`) continue
+      const hit = cache.get(entry.name)
+      if (hit !== undefined && hit.mtimeMs === entry.mtimeMs) {
+        records.push(hit.record)
+        continue
+      }
       try {
         const record = parseRecord(await $.fs.read(`${dir}/${entry.name}`))
-        if (record !== null) records.push(record)
+        // A half-written or unknown file is not kept: the next read tries it again.
+        if (record !== null) {
+          cache.set(entry.name, { mtimeMs: entry.mtimeMs, record })
+          records.push(record)
+        }
       } catch {
-        // Gone between the list and the read, or half written: the next read has it.
+        // Gone between the list and the read: the next read has it.
       }
     }
+    const listed = new Set(recent.map(entry => entry.name))
+    for (const name of cache.keys()) if (!listed.has(name)) cache.delete(name)
     const next = rowsOf(records, me.id, now)
     for (const row of newlyNeeding(next, seen)) $.ui.toast(toastLine(row))
     seen = seenOf(next)
@@ -230,7 +250,9 @@ export const register: Register = on => {
       // The ended conversation's record says gone, whichever id this copy has moved to.
       const ended = e.sessionId || me.id
       await $.fs.write(`${dir}/${ended}.json`, JSON.stringify({ ...recordOf(me, now), id: ended, state: 'gone', since: now }))
-      if (e.reason !== 'clear' && e.reason !== 'resume') {
+      if (e.reason === 'clear' || e.reason === 'resume') {
+        endedId = ended
+      } else {
         me.state = 'gone'
         me.since = now
         timer?.cancel()

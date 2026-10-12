@@ -36,8 +36,8 @@ None.
 
 ## What it can touch
 
-- **Writes:** one small file for this session, `~/.claude/switchboard/<session id>.json` (or under `CLAUDE_CONFIG_DIR` when that is set), rewritten when the session's state changes and once a minute. It holds the session's name, state, two times and cost figure. Never your prompts, Claude's replies, file names or any other text.
-- **Reads:** the other files in that folder, every 5 seconds while you are looking at this session (a terminal or the desktop app attached), the newest 40 at most. Its own session's events: turns starting and ending, Claude Code's own "waiting on you" notice, the session title, and the cost figure.
+- **Writes:** one small file for this session, `~/.claude/switchboard/<session id>.json` (or under `CLAUDE_CONFIG_DIR` when that is set), rewritten when the session's state changes and once a minute. It holds the session's name, state, two times and cost figure. The name is the session's title, which Claude Code writes as a short summary of your first prompt, or else the folder's name; nothing else of your prompts, Claude's replies or your files.
+- **Reads:** the other files in that folder, every 5 seconds while you are looking at this session (a terminal or the desktop app attached), the newest 40 at most, and only the ones that changed since the last read. Its own session's events: turns starting and ending, Claude Code's own "waiting on you" notice, the session title, and the cost figure.
 - **Session state:** the rows as last read. Nothing else is kept.
 - **Processes, network, model calls:** none.
 
@@ -46,7 +46,7 @@ None.
 - A session shows up only once Switchboard runs in it. Sessions started before you installed it appear after their next restart.
 - A dialog shows as `needs you` about six seconds after it opens, when Claude Code raises its own notice; after you answer it, the row says `working` again once the tool it asked about has run.
 - `gone` is inferred: a session that has not rewritten its file for three minutes is treated as gone, so a computer waking from sleep shows its sessions as gone for up to a minute.
-- Files of old sessions stay in the folder (a few hundred bytes each). They are never read once older than an hour, and are safe to delete.
+- Files of old sessions stay in the folder (a few hundred bytes each): Claude Code gives mods no way to delete a file. They are never read once older than an hour, and you can delete the folder at any time.
 - Two sessions with the same name get the first characters of their ids to tell them apart.
 - The pane and the line are checked through the engine's test kit on the terminal and desktop surfaces.
 

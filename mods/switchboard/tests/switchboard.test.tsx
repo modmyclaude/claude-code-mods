@@ -72,6 +72,18 @@ describe('this session reports itself', () => {
     expect(mine(w, 'bbbb2222')).toMatchObject({ id: 'bbbb2222', state: 'idle', name: 'api-server' })
   })
 
+  test('between a /clear and its new id, no heartbeat brings the old conversation back', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await $.session.end({ sessionId: MINE, reason: 'clear', resume: { id: MINE } } as never)
+    await w.clock.advance(2 * MIN) // heartbeats due, and no classic.SessionStart yet
+    expect(mine(w, MINE)?.state).toBe('gone')
+    w.id = 'cccc3333' // Claude Code now answers the new id
+    await w.clock.advance(MIN)
+    expect(mine(w, MINE)?.state).toBe('gone')
+    expect(mine(w, 'cccc3333')).toMatchObject({ state: 'idle', name: 'api-server' })
+  })
+
   test('closing the session marks it gone and stops its timer', SLOW, async ($, on) => {
     const w = world(on)
     await start($)
@@ -195,6 +207,22 @@ describe('the band and the toasts', () => {
 })
 
 describe('the files it touches', () => {
+  test('a record is read again only when its file changed', SLOW, async ($, on) => {
+    const w = world(on)
+    other(w, 'b1', 'docs', 'working', T0)
+    other(w, 'c1', 'site', 'idle', T0)
+    await start($)
+    const reads = () => w.touched.filter(t => t.startsWith('read ')).map(t => t.slice(DIR.length + 6))
+    expect(reads().sort()).toEqual(['b1.json', 'c1.json'])
+    await w.clock.advance(50_000) // ten reads of the folder, nothing changed
+    expect(reads()).toHaveLength(2)
+    other(w, 'c1', 'site', 'needs-you', T0 + 55_000, T0 + 55_000)
+    await w.clock.advance(5_000)
+    expect(reads().filter(r => r === 'c1.json')).toHaveLength(2)
+    expect(reads().filter(r => r === 'b1.json')).toHaveLength(1)
+  })
+
+
   test('only its own folder under ~/.claude, or under CLAUDE_CONFIG_DIR when that is set', SLOW, async ($, on) => {
     const w = world(on)
     w.env.CLAUDE_CONFIG_DIR = '/cfg/claude/'
