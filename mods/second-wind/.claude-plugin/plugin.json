@@ -2,6 +2,8 @@
   "name": "second-wind",
   "version": "0.1.0",
   "description": "A breath, an eye rest or a stretch while Claude works, sized to the wait.",
+  "homepage": "https://modmyclaude.com/mods/second-wind",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["wellness", "breathing", "eye-rest", "stretch", "band", "spinner", "focus"],

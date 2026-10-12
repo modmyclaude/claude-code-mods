@@ -2,6 +2,8 @@
   "name": "last-look",
   "version": "0.1.0",
   "description": "Holds destructive commands until you approve, and shows what they would destroy.",
+  "homepage": "https://modmyclaude.com/mods/last-look",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["safety", "bash", "rm", "git", "guard", "destructive", "review"],

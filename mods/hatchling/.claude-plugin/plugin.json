@@ -2,6 +2,8 @@
   "name": "hatchling",
   "version": "0.1.0",
   "description": "A collectible pixel pet that hatches, reacts and evolves while you code.",
+  "homepage": "https://modmyclaude.com/mods/hatchling",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["pet", "pixel-art", "collectible", "fun", "band"],

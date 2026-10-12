@@ -2,6 +2,8 @@
   "name": "porthole",
   "version": "0.1.0",
   "description": "A live preview of the app you are building, right beside the chat.",
+  "homepage": "https://modmyclaude.com/mods/porthole",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["preview", "browser", "screenshot", "dev-server", "localhost", "kitty-graphics", "pane"],

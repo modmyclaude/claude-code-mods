@@ -2,6 +2,8 @@
   "name": "wardrobe",
   "version": "0.1.0",
   "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
+  "homepage": "https://modmyclaude.com/mods/wardrobe",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["theme", "looks", "accessibility", "colorblind", "high-contrast", "diff", "display"],
