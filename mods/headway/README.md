@@ -53,9 +53,9 @@ None.
 
 ## What it can touch
 
-- **Files:** none directly. Per-project pace history goes in the mod's own store (`$.store`, a JSON file Claude Code keeps for the mod): step durations and plan counts only, never step titles. Projects are keyed by a hash of the project root, not the path. Capped at the last 40 step times for each of the 30 most recent projects.
+- **Files:** none directly. Per-project pace history goes in the mod's own store (`$.store`, a JSON file Claude Code keeps for the mod): step durations, plan counts and when each project was last updated (to keep the most recent), never step titles. Projects are keyed by a hash of the project root, not the path. Capped at the last 40 step times for each of the 30 most recent projects.
 - **Processes, network, model calls:** none. No tokens where Claude Code has its own plan tools: it adds nothing to the prompt or the system prompt. Where Headway lends its plan tool, that tool's short description sits in Claude's tool list, and Claude's calls to it cost what a todo update does. It never refuses a tool call and never holds up the end of a turn. `/headway` answers with no text for the model; the pane and toasts never reach it.
-- **Timer:** one, once a second, only while a plan is in progress and Claude (or a subagent) is working, on a surface that draws the band (the terminal or the desktop app). It stops when Claude is idle, when you hide the line, when the plan is done and when nothing draws the band.
+- **Timer:** one, once a second, only while a plan is in progress and Claude (or a subagent) is working, on a surface that draws the band (the terminal or the desktop app). It also runs for the moment a finished plan's green bar shows (3 seconds) or "plan revised" shows (4 seconds), even while Claude is idle. It stops when Claude is idle, when you hide the line, when the plan is done and when nothing draws the band.
 - **Sounds:** none.
 
 ## Limits
