@@ -23,6 +23,17 @@ body:
       description: A link helps most (a Claude Code issue, a thread, a post). Leave it empty if it is your own wish.
       placeholder: https://
   - type: dropdown
+    id: surface
+    attributes:
+      label: Where would it show?
+      description: A mod can draw a line above the prompt, a pane beside the chat, the status line, a toast, or nothing at all.
+      options: [Terminal, Desktop app (Code tab), Both, Nothing to show, Not sure]
+  - type: textarea
+    id: sketch
+    attributes:
+      label: A sketch, a screenshot or a link
+      description: Anything that shows what you mean. A rough text sketch of the line or pane is enough; drag an image in if you have one.
+  - type: dropdown
     id: reach
     attributes:
       label: What would it need to reach?
