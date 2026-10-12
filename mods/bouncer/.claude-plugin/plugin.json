@@ -1,7 +1,7 @@
 {
   "name": "bouncer",
   "version": "0.1.0",
-  "description": "Checks every installed mod at the door: what each can reach, from Claude Code's own validator, with a line when a mod is new or changed and a /bouncer pane.",
+  "description": "Checks each mod at the door and lists what it can reach, from Claude Code's own validator.",
   "homepage": "https://modmyclaude.com/mods/bouncer",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },

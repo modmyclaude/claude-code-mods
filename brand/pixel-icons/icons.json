@@ -545,6 +545,29 @@
       ]
     },
     {
+      "name": "bouncer",
+      "kind": "mod",
+      "meaning": "A post and its velvet rope: every installed mod gets checked at the door.",
+      "rows": [
+        "................",
+        "................",
+        "...GG...........",
+        "..GGGG..........",
+        "...GG...........",
+        "...GGL..........",
+        "...GGSL......LL.",
+        "...GG.SL...LLSS.",
+        "...GG..SLLLSS...",
+        "...GG...SSS.....",
+        "...GG...........",
+        "...GG...........",
+        "..GGGG..........",
+        ".GGGGGG.........",
+        "................",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",

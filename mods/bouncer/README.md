@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/bouncer.svg" width="64" height="64" alt="">
+
 # Bouncer
 
 Checks every installed mod at the door. When a session starts, Bouncer runs Claude Code's own plugin validator on each plugin folder it can name and reads what the report says the mod can reach: files, programs, the network, the model, your prompts, tool calls. One line above the prompt when a mod is new to you or its report changed; a `/bouncer` pane with a row per mod. Facts from the validator, never a verdict.

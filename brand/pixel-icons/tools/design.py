@@ -454,6 +454,25 @@ icon("pop-quiz", "A speech bubble holding a question mark: two short questions a
     "................",
 ])
 
+icon("bouncer", "A post and its velvet rope: every installed mod gets checked at the door.", [
+    "................",
+    "................",
+    "...GG...........",
+    "..GGGG..........",
+    "...GG...........",
+    "...GGL..........",
+    "...GGSL......LL.",
+    "...GG.SL...LLSS.",
+    "...GG..SLLLSS...",
+    "...GG...SSS.....",
+    "...GG...........",
+    "...GG...........",
+    "..GGGG..........",
+    ".GGGGGG.........",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

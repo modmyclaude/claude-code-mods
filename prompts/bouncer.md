@@ -1,7 +1,7 @@
 ---
 mod: bouncer
 title: Bouncer
-tagline: Checks every installed mod at the door, what each can reach, from Claude Code's own validator.
+tagline: Checks each mod at the door and lists what it can reach, from Claude Code's own validator.
 category: safety
 surfaces: [terminal, desktop]
 model_calls: none
