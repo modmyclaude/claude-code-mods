@@ -4,7 +4,7 @@ Thanks for helping. This collection stays small on purpose, so a mod is listed o
 
 ## The bar
 
-1. **It ships its prompt.** `prompts/<mod>.md` holds the prompt that builds the mod, with the frontmatter the catalogue reads (`mod`, `title`, `tagline`, `category`, `surfaces`, `model_calls`). The code in `mods/<mod>/` does what that prompt says.
+1. **It comes with its prompt.** `prompts/<mod>.md` holds the prompt that builds the mod, with the frontmatter the catalogue reads (`mod`, `title`, `tagline`, `category`, `surfaces`, `model_calls`). The code in `mods/<mod>/` does what that prompt says.
 2. **It passes the gate.** `scripts/check.sh mods/<mod>` is green: `claude plugin validate --strict`, strict `tsc`, and `claude plugin test`.
 3. **The tests prove the behaviour.** Tests raise the real events (tool calls, prompts, turns, commands), mount any UI on both the `terminal` and `desktop` surfaces, and would fail if the core logic broke.
 4. **It is safe by default.** Guards fail closed, model calls are capped and use the smallest model that works, and nothing touches the network, files or processes unless the prompt says why.
