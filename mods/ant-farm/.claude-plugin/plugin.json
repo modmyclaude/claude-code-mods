@@ -1,7 +1,7 @@
 {
   "name": "ant-farm",
-  "version": "0.1.1",
-  "description": "Watch your subagents work, and what they cost, live.",
+  "version": "0.2.0",
+  "description": "Mission control for your subagents: what each one is doing, its activity and its cost, live.",
   "homepage": "https://modmyclaude.com/mods/ant-farm",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },

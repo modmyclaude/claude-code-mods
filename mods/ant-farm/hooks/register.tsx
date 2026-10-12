@@ -8,32 +8,38 @@
 // table's estimate as the fallback where the engine gives none. While
 // anything runs, one clock ticks to walk the ants and the timers; when
 // everything is idle it stops.
+//
+// The pane is a mission control: what each subagent is doing right now comes
+// from the chunks of its model requests (thinking, text, a tool named), its
+// tool calls and the permission verdicts on them; the activity timeline keeps
+// the last eighty of those. Nothing shown is inferred.
 
 import { atom, read, update } from 'claude-code'
-import type { AgentStatus, EngineInterface, Register, TextProps, Timer, TurnStepResult } from 'claude-code'
+import type { AgentStatus, EngineInterface, Register, Timer, ToolCallResult, TurnStepResult } from 'claude-code'
 
-import type { AntFarmAnt, AntFarmLoops, AntFarmStatus, AntFarmUsage } from '../types'
+import type { AntFarmAnt, AntFarmEvent, AntFarmLoops, AntFarmStatus, AntFarmUsage } from '../types'
 import { addRequest, budgetLevel, NO_USAGE, sumUsage } from './prices'
-import { boltSprite } from './bolt-draw'
 import { glyphRow } from './cells'
+import { drawControl } from './control'
 import {
-  alarmText, ANT_WIDTH, antRows, bar, clean, fmtCost, fmtDuration, fmtEta, fmtTokens, fmtUsd, miniAnt,
-  modelColors, nextAlarm, phaseOf, progressOf, shortModel, spendLabel, spendOf, statusText, trimAnts,
-  viewAfterClose,
+  FRESH_MS, moveSelection, nextN, ordered, pushEvent, pushHistory, SETTLE_MS, stopWarning, toolSummary,
+} from './mission'
+import type { AntFarmPhase, LivePhase } from './mission'
+import {
+  alarmText, clean, fmtCost, fmtDuration, fmtEta, fmtTokens, miniAnt, modelColors, nextAlarm, phaseOf,
+  progressOf, spendLabel, spendOf, statusText, trimAnts, viewAfterClose,
 } from './show'
 import type { Spend } from './show'
 
 const PANE = 'ant-farm'
 const TITLE = 'Ant farm'
+/** The body columns /antfarm asks the dock for: two cards side by side. */
+const PANE_COLUMNS = 84
 /** One frame of the ants, and of every elapsed time shown. */
 const TICK_MS = 500
-/** Narrower than this, the pane keeps every column for the farm and Bolt steps out. */
-const BOLT_MIN_COLUMNS = 40
 /** Every this many ticks, running ants are checked against the engine's agent list. */
 const RECONCILE_TICKS = 20
 const MAX_ANTS = 200
-/** The finished subagents the pane lists one by one; the rest are counted. */
-const MAX_FINISHED_SHOWN = 50
 /** A running ant silent this long (no request) no longer keeps the clock ticking on its own. */
 const STALL_MS = 10 * 60_000
 
@@ -42,6 +48,7 @@ const loops = atom({ plugin: 'ant-farm', key: 'loops' } as const, { main: NO_USA
 const turn = atom({ plugin: 'ant-farm', key: 'turn' } as const, { isRunning: false, startedAt: 0 })
 const alarm = atom({ plugin: 'ant-farm', key: 'alarm' } as const, { level: 0, budgetUsd: -1 })
 const engineUsd = atom({ plugin: 'ant-farm', key: 'engineUsd' } as const, null)
+const events = atom({ plugin: 'ant-farm', key: 'events' } as const, [])
 const view = atom({ plugin: 'ant-farm', key: 'view' } as const, {
   isListInBand: false,
   isFinishedExpanded: false,
@@ -52,19 +59,11 @@ const view = atom({ plugin: 'ant-farm', key: 'view' } as const, {
 const isRunning = (a: AntFarmAnt) => a.status === 'running'
 // The untrusted texts of an ant, cleaned for drawing.
 const taskOf = (a: AntFarmAnt) => clean(a.task)
-const modelOf = (a: AntFarmAnt) => clean(shortModel(a.model) || a.type)
+const modelOf = (a: AntFarmAnt) => clean(shortModelOf(a))
+const shortModelOf = (a: AntFarmAnt) => a.model.replace(/^.*?claude-/, '') || a.type
 
 function sessionTotal(list: readonly AntFarmAnt[], l: AntFarmLoops): AntFarmUsage {
   return sumUsage([...list.map(a => a.usage), l.main, l.other])
-}
-
-/** Running first (oldest on top), then finished (latest on top). */
-function ordered(list: readonly AntFarmAnt[]) {
-  const running = list.filter(isRunning).sort((a, b) => a.startedAt - b.startedAt)
-  const finished = list
-    .filter(a => !isRunning(a))
-    .sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt))
-  return { running, finished }
 }
 
 function endStatus(s: AgentStatus | undefined): AntFarmStatus | undefined {
@@ -74,15 +73,28 @@ function endStatus(s: AgentStatus | undefined): AntFarmStatus | undefined {
 }
 
 // Module variables hold only what a reload may lose: the options, the timer
-// (a reload cancels it anyway), the last status text and a cache of loop ids.
-// Helpers that take `$` live here at the top of the file, where the engine
-// can follow `$` into them.
+// (a reload cancels it anyway), the last status text, a cache of loop ids and
+// the live phase of each running subagent (seconds old at most; a reload
+// starts it over at "working"). Helpers that take `$` live here at the top of
+// the file, where the engine can follow `$` into them.
 let budgetUsd = 0
 let ticker: Timer | undefined
 let ticks = 0
 let docksPanes: boolean | undefined
 let lastStatus: string | undefined
 const notAgents = new Set<string>()
+const live = new Map<string, LivePhase>()
+
+/** Notes what a subagent was last seen doing; the clock stamps when, off the hook's path. */
+function setPhase($: EngineInterface, id: string, phase: AntFarmPhase, detail?: string) {
+  const was = live.get(id)
+  if (was !== undefined && was.phase === phase && was.detail === detail) return
+  const next: LivePhase = detail !== undefined ? { phase, detail } : { phase }
+  live.set(id, next)
+  $.clock.now().then(now => {
+    if (live.get(id) === next) next.since = now
+  }).catch(() => undefined)
+}
 
 function stopTicker() {
   ticker?.cancel()
@@ -98,9 +110,15 @@ async function tick($: EngineInterface) {
   try {
     if (ticks % RECONCILE_TICKS === 0) await reconcile($)
     const now = await $.clock.now()
+    const list = await read($, ants)
+    const newest = (await read($, events)).at(-1)
+    // Busy while anything runs, and for the moment a finished card keeps its
+    // colour and the newest row its weight, so those transitions complete.
     const busy =
       (await read($, turn)).isRunning ||
-      (await read($, ants)).some(a => isRunning(a) && now - (a.lastActiveAt ?? a.startedAt) < STALL_MS)
+      list.some(a => isRunning(a) && now - (a.lastActiveAt ?? a.startedAt) < STALL_MS) ||
+      list.some(a => a.endedAt !== undefined && now - a.endedAt < SETTLE_MS) ||
+      (newest !== undefined && now - newest.at < FRESH_MS)
     if (!busy) stopTicker()
     $.ui.invalidate('ui.render')
   } catch {
@@ -110,6 +128,7 @@ async function tick($: EngineInterface) {
 
 // A background subagent stopped from outside may never raise its
 // turn.complete: the engine's own list settles it, so no ant runs forever.
+// The same list says which running agents the engine holds (waiting).
 async function reconcile($: EngineInterface) {
   const now = await $.clock.now()
   const suspects = (await read($, ants)).filter(a => isRunning(a) && !a.isWorkflow && now - a.startedAt > 5000)
@@ -119,10 +138,20 @@ async function reconcile($: EngineInterface) {
   for (const a of suspects) {
     const status = endStatus(listed.get(a.id))
     if (status !== undefined) ended.set(a.id, status)
+    else if (listed.get(a.id) === 'waiting') setPhase($, a.id, 'waiting', 'held by the engine')
+    else if (live.get(a.id)?.detail === 'held by the engine') setPhase($, a.id, 'working')
   }
   if (ended.size === 0) return
   await update($, ants, list =>
     list.map(a => (isRunning(a) && ended.has(a.id) ? { ...a, status: ended.get(a.id) ?? 'done', endedAt: now } : a)),
+  )
+  const settled = suspects.filter(a => ended.has(a.id))
+  for (const a of settled) live.delete(a.id)
+  await update($, events, list =>
+    settled.reduce(
+      (acc, a) => pushEvent(acc, { at: now, kind: ended.get(a.id) === 'failed' ? 'failed' : 'done', agentId: a.id, text: a.task, detail: 'settled from the agent list' }),
+      list,
+    ),
   )
 }
 
@@ -166,7 +195,13 @@ async function announce($: EngineInterface) {
     toast = next.toast
     return next.alarm
   })
-  if (toast !== 0) $.ui.toast(clean(alarmText(spend, budgetUsd, toast)), { timeoutMs: 8000 })
+  if (toast !== 0) {
+    const text = alarmText(spend, budgetUsd, toast)
+    $.ui.toast(clean(text), { timeoutMs: 8000 })
+    const now = await $.clock.now()
+    await update($, events, list => pushEvent(list, { at: now, kind: 'warning', text }))
+    startTicker($) // the row is bold for a moment, even with nothing running
+  }
 }
 
 // Is this loop one of the session's agents? One the mod did not see start
@@ -181,11 +216,15 @@ async function knowAnt($: EngineInterface, id: string): Promise<boolean> {
     return false
   }
   const now = await $.clock.now()
-  const ant: AntFarmAnt = {
-    id, task: info.description || info.type, type: info.type, model: '', status: 'running',
-    startedAt: now, lastActiveAt: now, usage: NO_USAGE,
-  }
-  await update($, ants, list => (list.some(a => a.id === id) ? list : trimAnts([...list, ant], MAX_ANTS)))
+  await update($, ants, list => {
+    if (list.some(a => a.id === id)) return list
+    const ant: AntFarmAnt = {
+      id, task: info.description || info.type, type: info.type, model: '', status: 'running',
+      startedAt: now, lastActiveAt: now, usage: NO_USAGE, n: nextN(list),
+      ...(info.parentId !== undefined ? { parentId: info.parentId } : {}),
+    }
+    return trimAnts([...list, ant], MAX_ANTS)
+  })
   return true
 }
 
@@ -196,26 +235,64 @@ async function knowAnt($: EngineInterface, id: string): Promise<boolean> {
 async function recordStep(
   $: EngineInterface, agentId: string | undefined, requested: string, r: TurnStepResult, at: number,
 ) {
-  if (r.usage === null && r.stopReason === null) return // no response arrived
+  const hasResponse = !(r.usage === null && r.stopReason === null)
+  if (!hasResponse && agentId === undefined) return // no response arrived
   const model = r.usage?.model ?? requested
   if (agentId === undefined) {
     await update($, loops, l => ({ ...l, main: addRequest(l.main, model, r.usage) }))
   } else if (await knowAnt($, agentId)) {
-    await update($, ants, list =>
-      list.map(a => {
-        if (a.id !== agentId) return a
-        const usage = addRequest(a.usage, model, r.usage)
-        const lastActiveAt = Math.max(a.lastActiveAt ?? a.startedAt, at)
-        if (a.endedAt !== undefined && at <= a.endedAt) return { ...a, model, lastActiveAt, usage }
-        const { endedAt: _, ...rest } = a
-        return { ...rest, model, status: 'running' as const, lastActiveAt, usage }
-      }),
-    )
-    if ((await read($, ants)).some(a => a.id === agentId && isRunning(a))) startTicker($)
-  } else {
+    const warning = stopWarning(r.stopReason, hasResponse)
+    if (hasResponse) {
+      await update($, ants, list =>
+        list.map(a => {
+          if (a.id !== agentId) return a
+          const usage = addRequest(a.usage, model, r.usage)
+          const history = pushHistory(a.history, usage.tokens - a.usage.tokens)
+          const lastActiveAt = Math.max(a.lastActiveAt ?? a.startedAt, at)
+          if (a.endedAt !== undefined && at <= a.endedAt) return { ...a, model, lastActiveAt, usage, history }
+          const { endedAt: _, ...rest } = a
+          return { ...rest, model, status: 'running' as const, lastActiveAt, usage, history }
+        }),
+      )
+      if ((await read($, ants)).some(a => a.id === agentId && isRunning(a))) startTicker($)
+    }
+    if (warning !== undefined) await update($, events, list => pushEvent(list, { at, kind: 'warning', agentId, text: warning }))
+  } else if (hasResponse) {
     await update($, loops, l => ({ ...l, other: addRequest(l.other, model, r.usage) }))
   }
-  await announce($)
+  if (hasResponse) await announce($)
+}
+
+// Notes one finished tool call of a subagent on its ant and the timeline:
+// after the result went back, off the tool's path.
+async function recordTool($: EngineInterface, agentId: string, tool: string, summary: { kind: 'tool' | 'file'; text: string }, result: ToolCallResult) {
+  if (!(await knowAnt($, agentId))) return
+  const now = await $.clock.now()
+  const deny = typeof result.deny === 'string' ? result.deny : undefined
+  const isError = deny === undefined && result.isError === true
+  const failed = deny !== undefined || isError
+  await update($, ants, list =>
+    list.map(a =>
+      a.id !== agentId ? a : {
+        ...a,
+        tools: (a.tools ?? 0) + 1,
+        ...(summary.kind === 'file' ? { edits: (a.edits ?? 0) + 1 } : {}),
+        ...(failed ? { errors: (a.errors ?? 0) + 1 } : {}),
+      },
+    ),
+  )
+  const detail = deny !== undefined ? `refused: ${firstWords(deny)}` : isError ? firstWords(typeof result.text === 'string' ? result.text : 'failed') : undefined
+  await update($, events, list =>
+    pushEvent(list, {
+      at: now, kind: failed ? 'error' : summary.kind, agentId, text: summary.text, ...(detail !== undefined ? { detail } : {}),
+    }),
+  )
+}
+
+/** The first line of a text, at most 60 characters. */
+function firstWords(text: string): string {
+  const line = text.split(/\r?\n/, 1)[0] ?? ''
+  return line.length > 60 ? `${line.slice(0, 59)}…` : line
 }
 
 // Unasked, the pane opens at most once a session, only where it would be a
@@ -252,7 +329,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'antfarm',
-      description: 'Open the ant farm: every subagent this session, its progress and estimated cost',
+      description: 'Open the ant farm: mission control for every subagent this session, its activity and estimated cost',
       immediate: true,
     })
     return next(e)
@@ -264,11 +341,17 @@ export const register: Register = (on, options) => {
     if (e.reason === 'clear' || e.reason === 'resume') {
       stopTicker()
       notAgents.clear()
+      live.clear()
       await update($, ants, () => [])
       await update($, loops, () => ({ main: NO_USAGE, other: NO_USAGE }))
       await update($, turn, () => ({ isRunning: false, startedAt: 0 }))
       await update($, alarm, () => ({ level: 0, budgetUsd: -1 }))
       await update($, engineUsd, () => null)
+      await update($, events, () => [])
+      await update($, view, v => {
+        const { selectedId: _, ...rest } = v
+        return rest
+      })
       lastStatus = undefined
       $.ui.status(undefined)
     }
@@ -278,7 +361,7 @@ export const register: Register = (on, options) => {
   // No transcript text: the model would read it. The pane is the answer; a
   // pane that cannot be placed is explained in a toast.
   on('command.run', { command: 'antfarm' }, async $ => {
-    const opened = await $.ui.open({ id: PANE, title: TITLE })
+    const opened = await $.ui.open({ id: PANE, title: TITLE, columns: PANE_COLUMNS })
     if (opened.isPlaced) {
       await update($, view, v => ({ ...v, isListInBand: false, isClosedByHand: false }))
       return {}
@@ -294,19 +377,33 @@ export const register: Register = (on, options) => {
   on('agent.spawn', async ($, e, next) => {
     const result = await next(e)
     if (result.deny !== undefined || result.agentId === undefined) return result
+    const agentId = result.agentId
     const now = await $.clock.now()
-    const ant: AntFarmAnt = {
-      id: result.agentId,
-      task: e.description || e.subagentType,
-      type: e.subagentType,
-      model: result.model,
-      status: 'running',
-      startedAt: now,
-      lastActiveAt: now,
-      usage: NO_USAGE,
-      ...(e.workflow !== undefined ? { isWorkflow: true } : {}),
-    }
-    await update($, ants, list => trimAnts([...list.filter(a => a.id !== ant.id), ant], MAX_ANTS))
+    let parentN: number | undefined
+    await update($, ants, list => {
+      parentN = e.parentAgentId !== undefined ? list.find(a => a.id === e.parentAgentId)?.n : undefined
+      const ant: AntFarmAnt = {
+        id: agentId,
+        task: e.description || e.subagentType,
+        type: e.subagentType,
+        model: result.model,
+        status: 'running',
+        startedAt: now,
+        lastActiveAt: now,
+        usage: NO_USAGE,
+        n: nextN(list.filter(a => a.id !== agentId)),
+        ...(e.parentAgentId !== undefined ? { parentId: e.parentAgentId } : {}),
+        ...(e.workflow !== undefined ? { isWorkflow: true } : {}),
+      }
+      return trimAnts([...list.filter(a => a.id !== agentId), ant], MAX_ANTS)
+    })
+    setPhase($, agentId, 'starting')
+    await update($, events, list =>
+      pushEvent(list, {
+        at: now, kind: e.parentAgentId !== undefined ? 'handoff' : 'spawn', agentId, text: e.description || e.subagentType,
+        ...(e.parentAgentId !== undefined ? { detail: parentN !== undefined ? `from #${parentN}` : 'from another agent' } : {}),
+      }),
+    )
     startTicker($)
     await openUnasked($)
     return result
@@ -320,25 +417,74 @@ export const register: Register = (on, options) => {
     return started
   })
 
-  // The stream passes through untouched. The response goes back at once; its
-  // usage is counted just after, on the clock, so counting (a dozen host
-  // calls) never delays a model request, and a count that fails is only
-  // missing from the estimate.
+  // The stream passes through untouched, each chunk yielded as it came; a
+  // subagent's chunks say what it is doing (thinking, writing, naming a tool).
+  // The response goes back at once; its usage is counted just after, on the
+  // clock, so counting (a dozen host calls) never delays a model request, and
+  // a count that fails is only missing from the estimate.
   on('turn.step', async function* ($, e, next) {
-    const response = yield* next(e)
+    const stream = next(e)
+    let item = await stream.next()
+    while (item.done !== true) {
+      const chunk = item.value
+      if (e.agentId !== undefined) {
+        if (chunk.kind === 'thinking') setPhase($, e.agentId, 'thinking')
+        else if (chunk.kind === 'text') setPhase($, e.agentId, 'writing')
+        else if (chunk.kind === 'tool') setPhase($, e.agentId, 'tool', clean(chunk.name))
+      }
+      yield chunk
+      item = await stream.next()
+    }
+    const response = item.value
     const at = await $.clock.now()
     $.clock.after(0, () => void recordStep($, e.agentId, e.model, response, at).catch(() => undefined))
     return response
   })
+
+  // A subagent's tool call: what it runs now, then what came of it. The
+  // call itself is untouched: its result goes back as the engine made it.
+  on('tool.call', async ($, e, next) => {
+    if (e.agentId === undefined) return next(e)
+    const agentId = e.agentId
+    const summary = toolSummary(e.tool, e as unknown as Record<string, unknown>)
+    setPhase($, agentId, 'tool', clean(summary.text))
+    const result = await next(e)
+    setPhase($, agentId, 'working')
+    $.clock.after(0, () => void recordTool($, agentId, e.tool, summary, result).catch(() => undefined))
+    return result
+  }).catch(($, e, next) => next(e))
+
+  // The permission verdict on a subagent's tool call: `ask` means the person
+  // is being asked, and the subagent waits on them.
+  on('tool.check', async ($, e, next) => {
+    const verdict = await next(e)
+    if (e.agentId !== undefined && verdict.decision === 'ask') setPhase($, e.agentId, 'waiting', `permission for ${clean(e.tool)}`)
+    return verdict
+  }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
       await update($, turn, t => ({ ...t, isRunning: false }))
     } else {
+      const agentId = e.agentId
       const now = await $.clock.now()
       const status: AntFarmStatus = e.reason === 'answer' ? 'done' : 'failed'
-      await update($, ants, list => list.map(a => (a.id === e.agentId ? { ...a, status, endedAt: now } : a)))
+      live.delete(agentId)
+      let task: string | undefined
+      let startedAt: number | undefined
+      await update($, ants, list =>
+        list.map(a => {
+          if (a.id !== agentId) return a
+          task = a.task
+          startedAt = a.startedAt
+          return { ...a, status, endedAt: now }
+        }),
+      )
+      if (task !== undefined) {
+        const detail = status === 'done' ? fmtDuration(now - (startedAt ?? now)) : e.reason
+        await update($, events, list => pushEvent(list, { at: now, kind: status, agentId, text: task ?? '', detail }))
+      }
     }
     // The engine's total may have moved since the last request was counted.
     await announce($)
@@ -432,142 +578,42 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     if (e.viewport?.isFullscreen !== undefined) docksPanes = e.viewport.isFullscreen
-    const { Box, Text, Button } = $.ui.resolve(e)
     const list = await read($, ants)
     const v = await read($, view)
     const now = await $.clock.now()
-    const { running, finished } = ordered(list)
-    const subagents = sumUsage(list.map(a => a.usage))
     const spend = await sessionSpend($)
-    const level = budgetLevel(spend.usd, budgetUsd)
-    const colors = modelColors(list)
-    const frame = Math.floor(now / TICK_MS)
-    const lane = e.props.bodyColumns >= 40 ? ANT_WIDTH + 3 : ANT_WIDTH
-    const failed = finished.filter(a => a.status === 'failed').length
-
-    const firstStart = list.length > 0 ? Math.min(...list.map(a => a.startedAt)) : now
-    const lastEnd = running.length > 0 ? now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
-    // Two totals that can differ: the subagents alone (price table) and the whole
-    // session (Claude Code's own estimate where it keeps one), each named as such.
-    // Short enough for the default pane width.
-    const source = spend.isEngine ? ' (Claude Code)' : ' (price table)'
-    const budgetLine =
-      budgetUsd > 0
-        ? `Session ${spend.text} of ${fmtUsd(budgetUsd)} budget${source}${level === 2 ? ' - past 2x' : level === 1 ? ' - over' : ''}`
-        : `Session ${spend.text}${source}`
-
-    // A finished ant rests dim, a failed one in the error colour, a running one in its model's.
-    const antPaint = (a: AntFarmAnt): TextProps =>
-      a.status === 'failed' ? { color: 'error' } : isRunning(a) ? { color: colors.get(a.model) ?? 'subtle' } : { color: 'subtle', dimColor: true }
-    const ui = $.ui.resolve(e)
-
-    const card = (a: AntFarmAnt) => {
-      const p = progressOf(a, list, now)
-      const tone: TextProps = a.status === 'failed' ? { color: 'error' } : { dimColor: !isRunning(a) }
-      const rows = antRows(a.status, frame + phaseOf(a.id), lane)
-      const meta = [
-        modelOf(a),
-        a.status,
-        fmtDuration((a.endedAt ?? now) - a.startedAt),
-        ...(p.etaMs !== null ? [fmtEta(p.etaMs)] : []),
-      ].join(' · ')
-      return (
-        <Box flexDirection="row" key={`ant-${a.id}`} marginBottom={1}>
-          <Box key={`art-${a.id}`} flexDirection="column" width={lane} flexShrink={0}>
-            {rows.map(row => glyphRow(ui, e.surface, row, antPaint(a)))}
-          </Box>
-          <Box flexDirection="column" flexGrow={1} marginLeft={1}>
-            <Text bold={isRunning(a)} wrap="truncate-end">{taskOf(a)}</Text>
-            <Text dimColor wrap="truncate-end">{meta}</Text>
-            <Box flexDirection="row">
-              {glyphRow(ui, e.surface, bar(p.fraction, 12), tone)}
-              <Text wrap="truncate-end" {...tone}>
-                {' '}{a.usage.requests} req · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
-              </Text>
-            </Box>
-          </Box>
-        </Box>
-      )
-    }
-
-    const line = (a: AntFarmAnt) => (
-      <Box flexDirection="row" key={`line-${a.id}`}>
-        {glyphRow(ui, e.surface, miniAnt(a.status, 0), antPaint(a))}
-        <Text dimColor wrap="truncate-end">
-          {' '}{a.status} · {taskOf(a)} · {modelOf(a)} · {fmtDuration((a.endedAt ?? now) - a.startedAt)} · {fmtTokens(a.usage.tokens)} tok · {fmtCost(a.usage)}
-        </Text>
-      </Box>
-    )
-
-    // Bolt keeps the farm: a static sprite beside the totals, and asleep
-    // while the farm is empty; only where the pane has room for it.
-    const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
-    const totals = (
-      <Box key="totals">
-        <Text bold wrap="truncate-end">
-          Subagents {fmtCost(subagents)} (price table) · {fmtTokens(subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
-        </Text>
-      </Box>
-    )
-    const budgetRow = (
-      <Box key="budget">
-        <Text wrap="truncate-end" {...(level === 2 ? { color: 'error' } : level === 1 ? { color: 'warning' } : { dimColor: true })}>
-          {budgetLine}
-        </Text>
-      </Box>
-    )
-    // The alarm is off until a budget is set (the default): say where to set one.
-    const noBudgetRow =
-      budgetUsd > 0 ? null : (
-        <Box key="no-budget">
-          <Text dimColor wrap="truncate-end">No budget set - add one in /config</Text>
-        </Box>
-      )
-
-    return (
-      <Box flexDirection="column" width={e.props.bodyColumns}>
-        {roomy ? (
-          <Box key="head" flexDirection="row" gap={1}>
-            {list.length > 0 ? boltSprite($.ui.resolve(e), e.surface, { size: 'tiny', pose: 'idle' }) : null}
-            <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-              {totals}
-              {budgetRow}
-              {noBudgetRow}
-            </Box>
-          </Box>
-        ) : (
-          [totals, budgetRow, noBudgetRow]
-        )}
-        <Box key="counts" marginBottom={1}>
-          <Text dimColor wrap="truncate-end">
-            {running.length} running · {finished.length - failed} done · {failed} failed
-          </Text>
-        </Box>
-        {list.length === 0 ? (
-          <Box key="empty" flexDirection="row" gap={2} alignItems="center">
-            {roomy ? boltSprite($.ui.resolve(e), e.surface, { size: 'small', pose: 'sleep' }) : null}
-            <Text dimColor>No subagents yet this session. Each one gets an ant here when it starts.</Text>
-          </Box>
-        ) : null}
-        {running.map(card)}
-        {finished.length > 0 ? (
-          <Box flexDirection="row" key="finished-head">
-            <Text dimColor>Finished · {finished.length} </Text>
-            <Button
-              key="toggle-finished"
-              label={v.isFinishedExpanded ? 'Collapse' : 'Expand'}
-              onPress={() => update($, view, x => ({ ...x, isFinishedExpanded: !x.isFinishedExpanded }))}
-            />
-          </Box>
-        ) : null}
-        {finished.slice(0, MAX_FINISHED_SHOWN).map(a => (v.isFinishedExpanded ? card(a) : line(a)))}
-        {finished.length > MAX_FINISHED_SHOWN ? (
-          <Box key="more-finished">
-            <Text dimColor>+{finished.length - MAX_FINISHED_SHOWN} more finished</Text>
-          </Box>
-        ) : null}
-      </Box>
-    )
+    const select = (id: string | undefined) =>
+      void update($, view, x => {
+        const { selectedId: _, ...rest } = x
+        return id === undefined ? rest : { ...rest, selectedId: id }
+      })
+    return drawControl({
+      ui: $.ui.resolve(e),
+      surface: e.surface,
+      columns: e.props.bodyColumns,
+      isFocused: e.props.isFocused,
+      now,
+      frame: Math.floor(now / TICK_MS),
+      list,
+      events: await read($, events),
+      view: v,
+      live,
+      colors: modelColors(list),
+      spend,
+      budgetUsd,
+      level: budgetLevel(spend.usd, budgetUsd),
+      subagents: sumUsage(list.map(a => a.usage)),
+      on: {
+        select,
+        move: by => {
+          const { running, finished } = ordered(list)
+          select(moveSelection([...running, ...finished].map(a => a.id), v.selectedId, by))
+        },
+        toggleFinished: () => void update($, view, x => ({ ...x, isFinishedExpanded: !x.isFinishedExpanded })),
+        toggleTimeline: () => void update($, view, x => ({ ...x, isTimelineHidden: x.isTimelineHidden !== true })),
+        growTimeline: () => void update($, view, x => ({ ...x, isTimelineExpanded: true })),
+      },
+    })
   })
 
   // $.ui.status takes text alone, so the colour of the budget alarm is drawn

@@ -53,8 +53,10 @@ describe('counting', () => {
       const pane = await mountPane($, surface)
       const all = (await texts(pane)).join('\n')
       expect(all).toContain('Map the auth flow')
-      expect(all).toContain('opus-5-5 · running')
-      expect(all).toContain('2 req · 1.60M tok · ≈$6.10')
+      expect(all).toContain('opus-5-5 · 0s')
+      expect(all).toContain('● WORKING')
+      expect(all).toContain('2 req · 1.60M tok')
+      expect(all).toContain('≈$6.10')
       expect((await pane.find({ key: 'totals' }))?.text).toBe('Subagents ≈$6.10 (price table) · 1.60M tokens · 0s wall')
       await pane.unmount()
     }
@@ -81,8 +83,10 @@ describe('counting', () => {
     const pane = await mountPane($, 'desktop')
     const all = (await texts(pane)).join('\n')
     expect(all).toContain('Review the diff')
-    expect(all).toContain('sonnet-5-5 · running')
-    expect(all).toContain('1 req · 110k tok · ≈$0.30')
+    expect(all).toContain('sonnet-5-5 · 0s')
+    expect(all).toContain('● WORKING')
+    expect(all).toContain('1 req · 110k tok')
+    expect(all).toContain('≈$0.30')
   })
 
   test('a model the price table lacks shows its tokens and a cost of ?', async ($, on) => {
@@ -90,7 +94,9 @@ describe('counting', () => {
     const id = await w.spawn($, 'Odd one', { model: 'mystery-9' })
     await w.step($, id, usage('mystery-9', 4000, 1000), 'mystery-9')
     const pane = await mountPane($, 'terminal')
-    expect((await texts(pane)).join('\n')).toContain('1 req · 5k tok · ?')
+    const all = (await texts(pane)).join('\n')
+    expect(all).toContain('1 req · 5k tok')
+    expect(all).toContain('\n?')
     expect((await pane.find({ key: 'totals' }))?.text).toStartWith('Subagents ? (price table) · 5k tokens')
   })
 
@@ -129,7 +135,7 @@ describe('status and order', () => {
       expect((await pane.find({ key: `line-${c}` }))?.text).toContain('failed · Third task')
       await pane.press({ key: 'toggle-finished' })
       expect(await pane.find({ key: `ant-${a}` })).toBeDefined()
-      expect((await pane.find({ key: 'toggle-finished' }))?.props.label).toBe('Collapse')
+      expect((await pane.find({ key: 'toggle-finished' }))?.props.label).toBe('collapse')
       await pane.press({ key: 'toggle-finished' })
       expect(await pane.find({ key: `ant-${a}` })).toBeUndefined()
       await pane.unmount()
@@ -203,7 +209,7 @@ describe('the ants and the clock', () => {
     const w = world(on)
     const id = await w.spawn($, 'Paced')
     const pane = await mountPane($, 'terminal')
-    const meta = async () => (await texts(pane)).find(t => t.includes(' · running · ')) ?? ''
+    const meta = async () => (await texts(pane)).find(t => t.startsWith('haiku-5-5 · ')) ?? ''
     for (let i = 0; i < 2; i += 1) {
       await w.clock.advance(10_000)
       await w.step($, id, usage('claude-haiku-5-5', 100, 100))
@@ -280,7 +286,9 @@ describe('budget alarm', () => {
       expect((await pane.find({ key: 'budget' }))?.text).toBe('Session ≈$2.50 of $2.00 budget (Claude Code) - over')
       expect(await colorIn(pane, 'budget')).toBe('warning')
       // The subagent's own figure stays the table's estimate.
-      expect((await texts(pane)).join('\n')).toContain('2 req · 2.2k tok · ≈$0.0003')
+      const shown = (await texts(pane)).join('\n')
+      expect(shown).toContain('2 req · 2.2k tok')
+      expect(shown).toContain('≈$0.0003')
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
       expect((await band.find({ key: 'summary' }))?.text).toContain('· Claude Code\'s estimate ≈$2.50')
       await pane.unmount()
@@ -448,11 +456,18 @@ describe('pane and the narrow fallback', () => {
     for (const surface of SURFACES) {
       const pane = await mountPane($, surface)
       const tree = await pane.drawn()
-      expect(boltSize(under(under(tree, 'head'), 'bolt'))).toEqual([3, 2])
-      if (surface === 'terminal') expect(under(under(tree, 'head'), 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'tiny', pose: 'idle' })))
-      expect(under(tree, 'empty')).toBeUndefined()
-      expect((await pane.find({ key: 'totals' }))?.text).toContain('Subagents')
+      // Small, and thinking while the farm works; tiny between 40 and 55 columns.
+      expect(boltSize(under(under(tree, 'head'), 'bolt'))).toEqual([10, 5])
+      if (surface === 'terminal') expect(under(under(tree, 'head'), 'bolt')?.props?.cells).toBe(rasterCells(boltOf({ size: 'small', pose: 'think' })))
       await pane.unmount()
+      const mid = await mountPane($, surface, 48)
+      expect(boltSize(under(under(await mid.drawn(), 'head'), 'bolt'))).toEqual([3, 2])
+      await mid.unmount()
+      const pane2 = await mountPane($, surface)
+      const tree2 = await pane2.drawn()
+      expect(under(tree2, 'empty')).toBeUndefined()
+      expect((await pane2.find({ key: 'totals' }))?.text).toContain('Subagents')
+      await pane2.unmount()
     }
   })
 
@@ -480,6 +495,7 @@ describe('pane and the narrow fallback', () => {
     const b = await w.spawn($, 'Done one')
     await w.step($, b, usage('claude-opus-5-5', 50_000, 0), 'claude-opus-5-5')
     await w.finish($, b)
+    await w.clock.advance(3000) // past the moment a finished ant keeps its colour
     for (const expanded of [false, true]) {
       if (expanded) {
         const pane = await mountPane($, 'desktop')

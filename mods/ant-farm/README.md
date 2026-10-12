@@ -17,14 +17,38 @@ Watch your subagents work, and what they cost, live.
   spend so far. It stays while background subagents still run. Other mods'
   band lines keep drawing, above it, so a long ant list never pushes their
   buttons out of view.
-- **The pane.** `/antfarm` opens the Ant farm pane (it also works mid-turn,
-  and adds nothing to the conversation).
-  At the top: the subagents' total (price-table estimate), tokens and wall time,
-  then the whole session's spend against your budget (Claude Code's estimate
-  where it keeps one). With no subagents yet, Bolt naps here. Below, one card per running
-  subagent: its task, model, status, elapsed time, a progress bar, requests,
-  tokens and estimated cost. Finished subagents fold into one line each under
-  **Finished**; **Expand** shows them as full cards again.
+- **The pane is a mission control.** `/antfarm` opens it (mid-turn too, and it
+  adds nothing to the conversation). At the top: Bolt, the mission's state in
+  one line (`Working · 3 running`, `Waiting · 1 held`, `All done · 4 agents`,
+  `2 failed · 1 done`), the mission clock (`T+12:04`), the counts, the
+  subagents' total (price-table estimate), the session's spend against your
+  budget (Claude Code's estimate where it keeps one) and a budget bar. With no
+  subagents yet, Bolt naps here.
+- **The cards.** One bordered card per running subagent, one to three across
+  depending on the pane's width. Each shows its number and task, a status
+  pill, its ant, model, elapsed time and ETA, what it is doing right now, a
+  sparkline of tokens per request, requests and tokens, a progress bar, its
+  estimated cost and how many tools it called, files it edited and calls that
+  failed. The border takes the model's colour, green for a moment when it
+  finishes, red when it fails, then rests dim. The pointer lights a card.
+- **The status is read, never guessed.** `THINKING` while a thinking block
+  streams in its own model request, `WORKING` while it writes or runs a tool
+  (the activity line names the tool and what it touches: `Bash npm test`,
+  `Edit auth.ts`), `WAITING` while Claude Code asks you for a permission on
+  its tool, or its agent list says it is held, `DONE` and `FAILED` at its end.
+- **The activity timeline.** Under the cards, the last 80 things the subagents
+  did, newest first on the mission clock: starts and handoffs (`from #1`),
+  tool calls, edits, endings with their duration, tools that failed or were
+  refused, responses that hit a limit, the budget alarm. 12 rows by default,
+  `+N more` shows 40, `hide` folds it.
+- **The inspector.** `inspect` on a card (or its digit) opens a panel with the
+  subagent's task, type, model, start, where it came from, its live state, its
+  numbers, a longer sparkline and its own last rows; `previous`, `next` and
+  `close` move between subagents.
+- **Keys.** While the pane holds the keyboard (ctrl+x tab, or a click into it)
+  the digits 1-9 inspect the first nine cards, `n` and `p` move, `x` closes
+  the inspector, `f` expands or collapses the finished list, `t` folds the
+  timeline; a `Keys` line shows then. Esc hands the keyboard back.
 - **The ants.** Every subagent gets a small pixel-art ant, one colour per
   model. It walks while its subagent works, stands still and dims when it is
   done, and lies on its back in the error colour if it failed.
@@ -38,7 +62,10 @@ Watch your subagents work, and what they cost, live.
   desktop app), the pane opens on its own, at most once a session and never
   after you closed it by hand. Under 144 columns the engine holds such a pane
   back, so the band lists the subagents instead (one line each, with a
-  **Hide** button). `/antfarm` opens it any time.
+  **Hide** button). `/antfarm` opens it any time, and asks the dock for room
+  for two cards across.
+- **Narrow panes.** Under 40 columns the pane draws one line per subagent, no
+  borders or art, and a shorter timeline, so nothing is lost.
 - **Two estimates.** The session's spend (the band, the pane's budget line,
   the footer mark, the status line and the alarm) is Claude Code's own
   estimate, the figure `/cost` shows, labelled "Claude Code's estimate". It is
@@ -49,7 +76,8 @@ Watch your subagents work, and what they cost, live.
 - **Budget alarm.** Off until you set `budgetUsd` in `/config`. Then the
   mod's status line under the prompt shows the session's spend against it. When it reaches the budget you get a
   toast and the budget mark beside the prompt footer turns amber; at twice the
-  budget, another toast and red. Each crossing toasts once.
+  budget, another toast and red. Each crossing toasts once, and lands on the
+  timeline.
 - `/clear` (or another session taking this one's place) starts the farm over,
   as it does `/cost`.
 
@@ -68,9 +96,15 @@ Every setting has a default, so the notice at install about options not yet set 
   reports for each model request; nothing is sent anywhere.
 - **Engine calls:** reads Claude Code's cost estimate for the session (after each
   model request and turn end), reads the session's agent list (to pick up a
-  subagent that started before the mod loaded, and to settle one that ended
-  without saying so), opens and lists its own pane, sets its status line,
-  shows toasts.
+  subagent that started before the mod loaded, to settle one that ended
+  without saying so, and to see one the engine holds), opens and lists its own
+  pane, sets its status line, shows toasts.
+- **What it watches, without changing it:** the chunks of each subagent's
+  model requests (which kind streams: thinking, text, a tool named), each
+  subagent's tool calls (the tool and what it names: a file's name, a
+  command's first line, a pattern) and the permission verdict on them. The
+  stream, the call and the verdict pass through as the engine made them; the
+  main loop's own tool calls are not recorded.
 - **Memory:** its counts live in session state and are gone when the session
   ends. Nothing is written to disk.
 
@@ -111,7 +145,13 @@ Every setting has a default, so the notice at install about options not yet set 
 - Caps: the pane lists 50 finished subagents one by one and counts the rest;
   past 200 subagents in a session the oldest finished ones leave the farm,
   and with them the subagents' header totals (Claude Code's session estimate is
-  unaffected).
+  unaffected). The timeline keeps the last 80 rows; the long form shows 40.
+- The live status is what the engine said last. A subagent the mod only found
+  mid-run reads `WORKING` until its next request says more; after a code reload
+  every running one does. A permission ask is seen when Claude Code asks you,
+  not when a subagent merely plans a tool.
+- Hotkeys act only while the pane holds the keyboard, as Claude Code keys every
+  pane; from the prompt, click a card's `inspect` instead.
 - Task descriptions, agent types and model names are drawn with escape
   sequences removed and other control characters shown as U+FFFD.
 - Whether the pane may open on its own follows the surface that drew last;
