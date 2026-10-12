@@ -21,7 +21,7 @@ Look away while Claude works. Pager plays one short sound, with a toast naming t
 | Command | What it does |
 |---|---|
 | `/pager` | Shows the pack, whether sounds are on, and your settings. |
-| `/pager pack <classic\|arcade\|zen>` | Switches the sound pack. `/pager pack` alone lists them. |
+| `/pager pack <classic\|arcade\|zen\|butler\|coach>` | Switches the sound pack. `/pager pack` alone lists them. |
 | `/pager test` | Plays all three sounds of the current pack, one after another (even while muted). |
 | `/pager mute <duration>` | Silences sounds and phone pushes for `30m`, `2h`, `1h 30m`, `45s` or `1d` (up to 7 days; a bare number is minutes; no duration means 1 hour). |
 | `/pager unmute` | Ends a mute early. |
@@ -30,11 +30,16 @@ Look away while Claude works. Pager plays one short sound, with a toast naming t
 
 Session titles and folder names are cleaned before a toast shows them: terminal escape codes are removed and other control characters become a replacement mark.
 
-The three packs, all synthesized for this mod:
+The five packs, all made for this mod. Three are synthesized tones:
 
 - **classic** - soft bell tones
 - **arcade** - 8-bit blips
 - **zen** - gentle chimes
+
+Two are spoken, one short original line per event in a generated voice (no game lines, no imitation of anyone), under a second and a half each, at the same loudness as the tones:
+
+- **butler** - dry and formal: "Done." / "It needs you." / "Something went wrong."
+- **coach** - upbeat: "That one's done." / "Your turn." / "We hit a snag."
 
 Guardrails: one sound per event at most, and never more than one sound every 5 seconds in a session. Alerts inside that gap, while muted, or in quiet hours still show their toast; only the sound and the phone push are skipped.
 

@@ -414,8 +414,50 @@ describe('commands', () => {
     await endTurn($, w, 30_000)
     expect(w.plays).toEqual(['sounds/arcade/done.wav'])
 
-    expect(await pager($, w, 'pack disco')).toBe('No pack called "disco". Packs: classic, arcade, zen.')
-    expect(await pager($, w, 'pack')).toBe('Pack: arcade. Packs: classic, arcade, zen.')
+    expect(await pager($, w, 'pack disco')).toBe('No pack called "disco". Packs: classic, arcade, zen, butler, coach.')
+    expect(await pager($, w, 'pack')).toBe('Pack: arcade. Packs: classic, arcade, zen, butler, coach.')
+  })
+
+  test('the spoken packs join the list: butler and coach switch every clip', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    expect(await pager($, w, 'pack butler')).toBe('Pack set to butler. Run /pager test to hear it.')
+    await endTurn($, w, 30_000)
+    expect(w.plays).toEqual(['sounds/butler/done.wav'])
+    await w.clock.advance(6_000)
+    await notify($, w)
+    expect(w.plays).toEqual(['sounds/butler/done.wav', 'sounds/butler/needs-you.wav'])
+    expect(await pager($, w, 'pack coach')).toBe('Pack set to coach. Run /pager test to hear it.')
+    await w.clock.advance(6_000)
+    await endTurn($, w, 1_000, 'error')
+    expect(w.plays.at(-1)).toBe('sounds/coach/error.wav')
+  })
+
+  test('a spoken pack obeys the gap and the mute like any other', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    await pager($, w, 'pack coach')
+    await endTurn($, w, 30_000)
+    await endTurn($, w, 1_000, 'error') // inside the 5 s gap: no second sound
+    expect(w.plays).toEqual(['sounds/coach/done.wav'])
+    await w.clock.advance(6_000)
+    await pager($, w, 'mute 1h')
+    await endTurn($, w, 30_000)
+    expect(w.plays).toEqual(['sounds/coach/done.wav'])
+  })
+
+  test('test plays the three spoken clips of each new pack in order', async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    for (const pack of ['butler', 'coach']) {
+      await pager($, w, `pack ${pack}`)
+      w.plays.length = 0
+      const text = await pager($, w, 'test')
+      expect(w.plays).toEqual([`sounds/${pack}/done.wav`, `sounds/${pack}/needs-you.wav`, `sounds/${pack}/error.wav`])
+      expect(text).toContain(`Played the ${pack} pack: done, needs you, error.`)
+      await w.clock.advance(6_000)
+    }
+    expect(w.overlapped(), 'clips played on top of each other').toBe(false)
   })
 
   test('test plays the three clips of the current pack in order, even while muted', async ($, on) => {
@@ -467,7 +509,7 @@ describe('commands', () => {
   test('echoed arguments are cleaned', async ($, on) => {
     const w = world(on)
     await start($, w)
-    expect(await pager($, w, 'pack \u001b[31mzen\u0007')).toBe('No pack called "zen\ufffd". Packs: classic, arcade, zen.')
+    expect(await pager($, w, 'pack \u001b[31mzen\u0007')).toBe('No pack called "zen\ufffd". Packs: classic, arcade, zen, butler, coach.')
   })
 
   test('status and an unknown subcommand', async ($, on) => {

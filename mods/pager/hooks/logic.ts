@@ -3,7 +3,8 @@
 
 import type { TurnCompleteInput } from 'claude-code'
 
-export const PACKS = ['classic', 'arcade', 'zen'] as const
+/** Three synthesized tone packs, then two spoken packs: original lines in generated voices. */
+export const PACKS = ['classic', 'arcade', 'zen', 'butler', 'coach'] as const
 export type Pack = (typeof PACKS)[number]
 export const DEFAULT_PACK: Pack = 'classic'
 

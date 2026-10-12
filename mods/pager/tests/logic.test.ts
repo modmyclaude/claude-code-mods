@@ -154,6 +154,8 @@ describe('formatting', () => {
 
   test('clip paths stay inside the plugin', () => {
     expect(assetFor('zen', 'needs-you')).toBe('sounds/zen/needs-you.wav')
+    expect(assetFor('butler', 'done')).toBe('sounds/butler/done.wav')
+    expect(assetFor('coach', 'error')).toBe('sounds/coach/error.wav')
   })
 })
 

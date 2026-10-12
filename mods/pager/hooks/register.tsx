@@ -39,7 +39,7 @@ import {
 const PACK_KEY = 'pack'
 const MUTED_KEY = 'mutedUntil'
 
-const COMMANDS = '/pager pack <classic|arcade|zen>, /pager test, /pager mute <30m>, /pager unmute'
+const COMMANDS = '/pager pack <classic|arcade|zen|butler|coach>, /pager test, /pager mute <30m>, /pager unmute'
 const NO_PLAYER =
   'Heard nothing? Sounds play through macOS afplay; on Linux and Windows Claude Code has no player, so Pager shows toasts (and pushes) only.'
 

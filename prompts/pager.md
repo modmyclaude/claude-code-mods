@@ -25,6 +25,7 @@ What it does
 
 Sounds
 - Ship three original sound packs, synthesized by you as small audio files (no samples from games, films or other products): "classic" (soft bell tones), "arcade" (8-bit blips) and "zen" (gentle chimes). /pager pack <name> switches; /pager test plays all three sounds of the current pack.
+- Add two spoken packs, "butler" and "coach", each with one short original line for done, needs you and error, in a generated voice, under two seconds, at the same loudness as the other packs. They switch with the same /pager pack command and obey every existing rule: one sound per event, the gap between sounds, mute and quiet hours.
 - /pager mute <duration> (e.g. /pager mute 30m) and /pager unmute. Respect a quietHours setting (e.g. "22:00-07:00").
 
 Optional phone push
