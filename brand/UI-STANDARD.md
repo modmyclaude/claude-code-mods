@@ -51,7 +51,7 @@ Red is never decoration. If nothing is wrong, nothing is red.
 ## Numbers
 | Kind | Format |
 | --- | --- |
-| Estimates | `≈` before the number, never `~` (#35: Claude Code's cost is an estimate, not a bill) |
+| Estimates | `≈` before the number, never `~` (Claude Code's cost is an estimate, not a bill) |
 | Money | 2 decimals under $100 (`≈$0.49`, `≈$4.12`), whole dollars from $100 (`≈$123`) |
 | Tokens | `98k`, `1.2M`. Under 1,000 as is. |
 | Time | `45s`, `1m left`, `2h 5m`. Never "0m". |
@@ -106,7 +106,7 @@ Dollars are API list prices. On a subscription they measure plan usage.   <- sub
 ```
 When cold, the hero reads `Cold · 98k to re-read` in `subtle`, and Bolt sleeps.
 
-## Live check (Bot 4 adds this to every test)
+## Live check (QA adds this to every test)
 1. Is the state clear in one second, from the hero line or the band?
 2. Are the values in right-aligned rows, with no sentence holding a number?
 3. Are zero rows hidden or folded?
