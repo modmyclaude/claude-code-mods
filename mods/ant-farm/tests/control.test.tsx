@@ -510,6 +510,32 @@ describe('colours, estimates and numbers after the live look', () => {
   })
 })
 
+describe('after a reload of the code', () => {
+  test('a session start with running ants in the kept state starts the clock again', async ($, on) => {
+    const w = world(on)
+    await w.spawn($, 'Still running')
+    // Silent long enough that the clock stopped on its own, as it would be after a reload.
+    await w.clock.advance(11 * 60_000)
+    const stopped = w.rec.invalidates
+    await w.clock.advance(2000)
+    expect(w.rec.invalidates).toBe(stopped)
+    await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+    await w.clock.advance(600)
+    expect(w.rec.invalidates).toBeGreaterThan(stopped)
+  })
+
+  test('a session start with nothing running leaves the clock alone', async ($, on) => {
+    const w = world(on)
+    const id = await w.spawn($, 'Done')
+    await w.finish($, id)
+    await w.clock.advance(5000)
+    const stopped = w.rec.invalidates
+    await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+    await w.clock.advance(2000)
+    expect(w.rec.invalidates).toBe(stopped)
+  })
+})
+
 describe('the inspector', () => {
   test('inspect opens the panel: task, where it came from, numbers, sparkline, its recent rows; n, p and x move and close', async ($, on) => {
     const w = world(on)

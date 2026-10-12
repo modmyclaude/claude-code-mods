@@ -347,6 +347,11 @@ export const register: Register = (on, options) => {
       description: 'Open the ant farm: mission control for every subagent this session, its activity and estimated cost',
       immediate: true,
     })
+    // A reload of the code (session.start fires again) loses the module's
+    // clock while the kept state may still say something runs: start it again,
+    // so the pane keeps moving instead of waiting for the next event.
+    const kept = await read($, ants)
+    if ((await read($, turn)).isRunning || kept.some(isRunning)) startTicker($)
     return next(e)
   })
 
