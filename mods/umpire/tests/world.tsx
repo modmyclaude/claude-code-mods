@@ -24,8 +24,8 @@ export type World = {
   clock: MockClock
   /** The project's files: name to text ('' for a folder or an empty file). */
   files: Record<string, string>
-  /** What the next runs answer, in order; the last repeats. `hang` sleeps past any limit. */
-  results: ({ stdout: string; exitCode: number; ms?: number } | 'hang' | 'missing')[]
+  /** What the next runs answer, in order; the last repeats. `hang` sleeps past any limit; `cut` names the stream past 4 MB. */
+  results: ({ stdout: string; exitCode: number; ms?: number; cut?: 'stdout' | 'stderr' } | 'hang' | 'missing')[]
   runs: { argv: string[]; cwd: string | undefined; env: Record<string, string> | undefined; timeoutMs: number | undefined }[]
   store: Map<string, unknown>
   box: string
@@ -77,7 +77,7 @@ export function world(on: On): World {
     }
     if (r === 'missing') return { deny: 'spawn jest ENOENT' }
     if (r.ms) await w.clock.sleep(r.ms)
-    return { value: { exitCode: r.exitCode, stdout: r.stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    return { value: { exitCode: r.exitCode, stdout: r.stdout, stderr: '', isStdoutTruncated: r.cut === 'stdout', isStderrTruncated: r.cut === 'stderr' } }
   })
   on('prompt.read', () => ({ value: { text: w.box, cursor: w.box.length } }))
   on('prompt.fill', ($, e) => {
@@ -103,11 +103,11 @@ export async function start($: Engine): Promise<void> {
   await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
 }
 
-/** One main turn with these tool calls, then the clock lets a run start (not finish). */
-export async function turn($: Engine, w: World, tools: string[] = ['Edit']): Promise<void> {
+/** One main turn with these tool calls on this file, then the clock lets a run start (not finish). */
+export async function turn($: Engine, w: World, tools: string[] = ['Edit'], path = `${ROOT}/src/a.ts`): Promise<void> {
   const id = `t${Math.random()}`
   await $.turn.start({ turnId: id, prompt: 'go', origin: { kind: 'composer' } } as never)
-  for (const tool of tools) await $.tool.call({ tool, file_path: `${ROOT}/src/a.ts`, old_string: 'a', new_string: 'b', content: 'x', command: 'ls' } as never)
+  for (const tool of tools) await $.tool.call({ tool, file_path: path, old_string: 'a', new_string: 'b', content: 'x', command: 'ls' } as never)
   await $.turn.complete({ answer: 'done', durationMs: 1, isAborted: false, turnId: id, reason: 'answer' })
   await w.clock.advance(1)
 }

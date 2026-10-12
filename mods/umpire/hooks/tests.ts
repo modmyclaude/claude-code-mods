@@ -115,8 +115,8 @@ export function namesWords(names: readonly string[]): string {
   return short.length <= 3 ? short.join(', ') : `${short.slice(0, 3).join(', ')} +${short.length - 3} more`
 }
 
-/** The band's line for an outcome. */
-export function bandWords(o: Outcome, ms: number, maxSeconds: number): string {
+/** The band's line for an outcome; `isCut` when the engine stopped keeping the output at 4 MB. */
+export function bandWords(o: Outcome & { isCut?: boolean }, ms: number, maxSeconds: number): string {
   if (o.status === 'timed-out') return `umpire: tests timed out after ${maxSeconds} s`
   const parts = ['umpire:']
   const counts: string[] = []
@@ -124,7 +124,7 @@ export function bandWords(o: Outcome, ms: number, maxSeconds: number): string {
   if (o.failed !== undefined && (o.failed > 0 || o.passed !== undefined)) counts.push(`${o.failed} failed`)
   if (counts.length === 0) counts.push(o.status === 'passed' ? 'tests passed' : 'tests failed')
   parts.push(counts.join(' · '))
-  const line = [parts.join(' '), ...(o.names.length > 0 && o.status === 'failed' ? [namesWords(o.names)] : []), seconds(ms)]
+  const line = [parts.join(' '), ...(o.names.length > 0 && o.status === 'failed' ? [namesWords(o.names)] : []), seconds(ms), ...(o.isCut ? ['output cut at 4 MB'] : [])]
   return line.join(' · ')
 }
 
@@ -136,9 +136,29 @@ export function statusWords(o: Outcome): string {
 }
 
 /** What "tell Claude" puts in the prompt box: the failing names and the output's last lines. */
-export function tellText(o: Outcome, output: string): string {
+export function tellText(o: Outcome & { isCut?: boolean }, output: string): string {
   const names = o.names.length > 0 ? `The tests are failing: ${o.names.slice(0, 20).join(', ')}.` : 'The tests are failing.'
-  return `${names} The last lines of the run:\n\n\`\`\`\n${tail(output, 30)}\n\`\`\``
+  const which = o.isCut ? 'The run printed more than 4 MB; the last lines kept:' : 'The last lines of the run:'
+  return `${names} ${which}\n\n\`\`\`\n${tail(output, 30)}\n\`\`\``
+}
+
+/** Files that say what a test command runs. A change to one holds the runs that start on their own. */
+export const HOLD_FILES = ['package.json', 'pyproject.toml', 'pytest.ini', 'go.mod', 'Cargo.toml'] as const
+
+/** The hold file a path names, in its usual spelling, or null; any case, since macOS's disks ignore it. */
+export function holdFile(path: string): string | null {
+  const name = (path.split(/[\\/]/).pop() ?? '').toLowerCase()
+  return HOLD_FILES.find(f => f.toLowerCase() === name) ?? null
+}
+
+/** The first hold file whose text is not what it was at the last run the person started; null when none. */
+export function changedFile(before: Readonly<Record<string, string | null>>, now: Readonly<Record<string, string | null>>): string | null {
+  return HOLD_FILES.find(f => before[f] !== now[f]) ?? null
+}
+
+/** The band's line while the runs that start on their own wait for the person. */
+export function heldWords(name: string): string {
+  return `umpire: held, ${name} changed · /umpire run to go on`
 }
 
 /** FNV-1a over the project root: a key for its stored command that does not spell the path. */

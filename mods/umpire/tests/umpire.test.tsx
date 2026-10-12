@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { KEEP_CHARS, KEEP_RUNS, keepOutput } from '../hooks/register'
-import { bandWords, detect, namesWords, parseRun, statusWords } from '../hooks/tests'
+import { bandWords, changedFile, detect, heldWords, holdFile, namesWords, parseRun, statusWords, tellText } from '../hooks/tests'
 import type { Project } from '../hooks/tests'
 import { JEST_FAIL, JEST_PASS, ROOT, SURFACES, band, pane, start, turn, umpire, world } from './world'
 
@@ -83,6 +83,97 @@ describe('when it runs', () => {
   })
 })
 
+describe('the hold', () => {
+  const HELD = heldWords('package.json')
+
+  test('a Claude edit to package.json holds the runs that start on their own, across turns, until the person runs them', ON, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await turn($, w, ['Edit'], `${ROOT}/package.json`)
+    expect(w.runs).toEqual([])
+    for (const surface of SURFACES) expect(await band($, surface)).toEqual({ text: HELD, color: 'warning' })
+    const ui = await pane($)
+    expect((await ui.findAll({ type: 'Text' })).map(t => t.text)).toEqual([HELD, 'No run yet. /umpire run runs the tests now.'])
+    await ui.unmount()
+    await turn($, w)
+    expect(w.runs).toEqual([])
+    await umpire($, 'run')
+    await w.clock.advance(1)
+    expect(w.runs).toHaveLength(1)
+    await w.clock.advance(8_300)
+    expect((await band($))?.color).toBe('success')
+    await turn($, w)
+    expect(w.runs).toHaveLength(2)
+  })
+
+  test('a hold file changed by anything else (a shell command, the person) holds them too: its text at the root is checked', ON, async ($, on) => {
+    const w = world(on)
+    await start($)
+    w.files['package.json'] = JSON.stringify({ scripts: { test: 'jest && echo more' } })
+    await turn($, w)
+    expect(w.runs).toEqual([])
+    expect((await band($))?.text).toBe(HELD)
+  })
+
+  test('turning it on takes the files as they are, Claude\'s edits while it was off too; a change after that holds', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await turn($, w, ['Edit'], `${ROOT}/package.json`)
+    await umpire($, 'on')
+    await turn($, w)
+    expect(w.runs).toHaveLength(1)
+    await w.clock.advance(8_300)
+    w.files['pytest.ini'] = '[pytest]'
+    await turn($, w)
+    expect(w.runs).toHaveLength(1)
+    expect((await band($))?.text).toBe(heldWords('pytest.ini'))
+  })
+
+  test('a Claude edit to a package.json deeper in the project holds them, named by its path, cleaned, in the pane too; run again there runs', ON, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await turn($, w)
+    await w.clock.advance(8_300)
+    await turn($, w, ['Write'], `${ROOT}/packages/api/package.json`)
+    expect(w.runs).toHaveLength(1)
+    expect((await band($))?.text).toBe(heldWords('packages/api/package.json'))
+    await turn($, w, ['Write'], `${ROOT}/x\x1b[31m/package.json`)
+    const ui = await pane($)
+    expect((await ui.findAll({ type: 'Text' })).map(t => t.text)).toContain(heldWords('x/package.json'))
+    await ui.press({ key: 'again' })
+    await w.clock.advance(1)
+    expect(w.runs).toHaveLength(2)
+  })
+
+  test('a run queued before the hold does not run past it', ON, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await turn($, w)
+    await turn($, w)
+    await turn($, w, ['Edit'], `${ROOT}/Cargo.toml`)
+    await w.clock.advance(8_300)
+    await w.clock.advance(1)
+    expect(w.runs).toHaveLength(1)
+    expect((await band($))?.text).toBe(heldWords('Cargo.toml'))
+  })
+
+  test('the person\'s run finds the command again: a test script Claude just added runs then', ON, async ($, on) => {
+    const w = world(on)
+    w.files = { 'README.md': '# hi' }
+    await start($)
+    await turn($, w)
+    w.files['package.json'] = JSON.stringify({ scripts: { test: 'vitest run' } })
+    await turn($, w, ['Write'], `${ROOT}/package.json`)
+    expect(w.runs).toEqual([])
+    await umpire($, 'run')
+    await w.clock.advance(1)
+    expect(w.runs[0]!.argv).toEqual(['npm', 'test'])
+    await w.clock.advance(8_300)
+    await turn($, w)
+    expect(w.runs).toHaveLength(2)
+  })
+})
+
 describe('the call', () => {
   for (const surface of SURFACES) {
     test(`the band says the counts, the failing names and the time, in the error colour when failing, on ${surface}`, ON, async ($, on) => {
@@ -140,6 +231,21 @@ describe('the call', () => {
     }
   })
 
+  test('a run whose output passed 4 MB, on either stream, says so in the band and in what tell Claude fills', ON, async ($, on) => {
+    const w = world(on)
+    w.results = [{ stdout: 'FAIL src/a.test.ts\nmore', exitCode: 1, cut: 'stdout' }, { stdout: 'FAIL src/a.test.ts', exitCode: 1, cut: 'stderr' }]
+    await start($)
+    await turn($, w)
+    expect((await band($))?.text).toBe('umpire: tests failed · 0.0 s · output cut at 4 MB')
+    const ui = await pane($)
+    await ui.press({ key: 'tell' })
+    expect(w.box).toContain('The run printed more than 4 MB; the last lines kept:')
+    await ui.unmount()
+    await turn($, w)
+    expect(w.runs).toHaveLength(2)
+    expect((await band($))?.text).toBe('umpire: tests failed · 0.0 s · output cut at 4 MB')
+  })
+
   test('on, run, command and tell run only for the person; another plugin is told so', async ($, on) => {
     const w = world(on)
     await start($)
@@ -191,6 +297,21 @@ describe('the parsers and the words', () => {
     expect(bandWords({ status: 'failed', names: ['TestLogin'], failed: 1 }, 900, 120)).toBe('umpire: 1 failed · TestLogin · 0.9 s')
     expect(statusWords({ status: 'failed', names: [] })).toBe('tests fail')
     expect(statusWords({ status: 'passed', passed: 10, total: 10, names: [] })).toBe('tests 10/10')
+  })
+
+  test('the hold files by name in any case, at any depth; the first whose text changed; the held line fits 80 columns', () => {
+    expect(heldWords('package.json')).toBe('umpire: held, package.json changed · /umpire run to go on')
+    expect(heldWords('pyproject.toml').length).toBeLessThanOrEqual(80)
+    expect(holdFile('/w/app/package.json')).toBe('package.json')
+    expect(holdFile('/w/app/packages/x/PACKAGE.JSON')).toBe('package.json')
+    expect(holdFile('C:\\w\\cargo.toml')).toBe('Cargo.toml')
+    expect(['pyproject.toml', 'pytest.ini', 'go.mod'].map(n => holdFile(`/w/${n}`))).toEqual(['pyproject.toml', 'pytest.ini', 'go.mod'])
+    expect(holdFile('/w/app/package-lock.json')).toBeNull()
+    expect(holdFile('/w/app/src/package.json.ts')).toBeNull()
+    expect(changedFile({ 'package.json': 'a', 'go.mod': null }, { 'package.json': 'a', 'go.mod': null })).toBeNull()
+    expect(changedFile({ 'package.json': 'a', 'go.mod': null }, { 'package.json': 'a', 'go.mod': 'module x' })).toBe('go.mod')
+    expect(changedFile({ 'package.json': 'a' }, { 'package.json': 'b' })).toBe('package.json')
+    expect(tellText({ status: 'failed', names: [] }, 'x')).toContain('The last lines of the run:')
   })
 
   test('output is kept for the last ten runs and a million characters at most', () => {

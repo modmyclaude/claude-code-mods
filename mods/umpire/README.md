@@ -22,6 +22,7 @@ Type `/umpire on`. From then on, at the end of every turn in which Claude change
 - **A toast** only when the call flips: the tests started failing, or they pass again. Never on every run.
 - **The status line** keeps the count: `tests 142/144`.
 - **`/umpire show`** opens the last run: the call, a mark per run for the last ten, the failing names, and the end of the output. **tell Claude** puts the failing names and the output's last 30 lines in your prompt box, after anything you typed, with anything that looks like a secret redacted. You decide whether to send it.
+- **A hold** when a file that says what the tests run changes: `package.json`, `pyproject.toml`, `pytest.ini`, `go.mod` or `Cargo.toml`. Claude editing one anywhere in the project, or anything changing one at the project root (a shell command, you), stops the runs that start on their own, and the line says which file. They wait until you start a run with `/umpire run` or **run again**, so a test command Claude just changed waits for you to start it.
 
 It finds the test command once per session: your setting, else the one you set for this project with `/umpire command`, else `package.json`'s test script (through pnpm, yarn, bun or npm, by lockfile), pytest, `go test ./...` or `cargo test`. It understands the summaries of Jest, Vitest, pytest, go test and cargo test; for anything else, the exit code makes the call.
 
@@ -45,9 +46,9 @@ It finds the test command once per session: your setting, else the one you set f
 ## What it can touch
 
 - **Runs:** the one test command, in the project root, with `CI=1` and colour off so test runners do not wait in watch mode, stopped at the time limit. A command you typed (the setting or `/umpire command`) runs through `sh` as you wrote it. Nothing else.
-- **Reads:** the project's `package.json` and `pyproject.toml`, and whether a lockfile, `pytest.ini`, `tests/`, `go.mod` or `Cargo.toml` exists, to find the command.
+- **Reads:** the project's `package.json`, `pyproject.toml`, `pytest.ini`, `go.mod` and `Cargo.toml`, and whether a lockfile or `tests/` exists, to find the command and to see when one of those files changes. The paths of the files Claude's tools edit, to hold the runs when one of them is such a file.
 - **Keeps:** the last ten runs' output, a million characters at most, in the mod's memory only. The command you set per project in its own store, keyed by a hash of the project's path.
-- **Writes:** its session state (on or off, the runs' calls), the line, the status line, toasts, and your prompt box when you press tell Claude, never sent.
+- **Writes:** its session state (on or off, the runs' calls, the hold), the line, the status line, toasts, and your prompt box when you press tell Claude, never sent.
 - **Network, model calls:** none of its own. Your tests may do anything your tests do.
 
 ## Limits
@@ -55,7 +56,8 @@ It finds the test command once per session: your setting, else the one you set f
 - Changes a shell command made (a formatter, a codegen script) do not trigger a run; only Claude's own file tools do. `/umpire run` covers the rest.
 - One run at a time: a turn that ends during a run queues exactly one more, run when the first is done.
 - Counts come from the test runner's summary line; go test without `-v` names failing tests but counts no passes.
-- The run's output is shown as the runner printed it, without colour. Long output keeps its end.
+- The run's output is shown as the runner printed it, without colour. Long output keeps its end. Past 4 MB the engine stops keeping it: the call then says `output cut at 4 MB` and may have no counts.
+- The hold covers the files that say what the command runs. The tests themselves are code, and Claude may have written them: umpire runs them as your test runner would, so turn it on only where you would run the tests yourself. A command you set that reads another file (a Makefile) is not held when that file changes.
 - The line, the pane and the presses are checked through the engine's test kit on the terminal and desktop surfaces, with the test runner stood in for.
 
 ## Built from a prompt

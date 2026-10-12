@@ -4,20 +4,24 @@
 // with a time limit, and shows passed and failed counts with the first failing
 // names above the prompt; a toast only when the result flips. One run at a
 // time: a turn that ends mid-run queues exactly one more. The run starts off
-// the turn's clock, never inside a hook's wait. It changes no file and sends
-// nothing: "tell Claude" fills your prompt box, redacted, for you to send.
+// the turn's clock, never inside a hook's wait. When a file that says what the
+// tests run (package.json and the like) changes, by Claude's tools at any depth
+// or by anything at the root, the runs that start on their own wait until you
+// start one. It changes no file and sends nothing: "tell Claude" fills your
+// prompt box, redacted, for you to send.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { UmpireRun } from '../types'
 import { redact } from './redact'
-import { bandWords, clean, detect, namesWords, parseRun, projectKey, shellArgv, statusWords, tail, tellText } from './tests'
+import { HOLD_FILES, bandWords, changedFile, clean, detect, heldWords, holdFile, namesWords, parseRun, projectKey, shellArgv, statusWords, tail, tellText } from './tests'
 import type { Project } from './tests'
 
 const isOnSet = atom({ plugin: 'umpire', key: 'isOn' } as const, null as boolean | null)
 const isRunningNow = atom({ plugin: 'umpire', key: 'isRunning' } as const, false)
 const runs = atom({ plugin: 'umpire', key: 'runs' } as const, [] as UmpireRun[])
+const heldBy = atom({ plugin: 'umpire', key: 'heldBy' } as const, null as string | null)
 
 const PANE = 'umpire'
 /** Origins that are the person: typed, the phone bridge, the desktop app's box. */
@@ -37,11 +41,13 @@ export function readSettings(options: Record<string, unknown>): Settings {
 }
 
 // What lives only as long as this copy of the module: the settings, whether this turn changed a
-// file, the run in flight and the one queued behind it, the detected command, the runs' output.
+// file, the run in flight and the one queued behind it, the detected command, the runs' output,
+// and the hold files' text when the person last started a run (or turned umpire on).
 let settings: Settings = readSettings({})
 let isTurnChanged = false
 let isRunning = false
 let isQueued = false
+let baseline: Record<string, string | null> | null = null
 let detected: { root: string; argv: string[] | null } | null = null
 const outputs = new Map<number, string>()
 let isNoCommandSaid = false
@@ -95,8 +101,20 @@ async function commandFor($: EngineInterface, root: string): Promise<string[] | 
   return detected.argv
 }
 
-/** One run of the tests, start to call; a run asked for while one goes is queued, once. */
-async function runTests($: EngineInterface): Promise<void> {
+/** The text of each hold file at the root, null where there is none. */
+async function holdTexts($: EngineInterface, root: string): Promise<Record<string, string | null>> {
+  const texts: Record<string, string | null> = {}
+  for (const name of HOLD_FILES) texts[name] = await $.fs.read(`${root.replace(/\/+$/, '')}/${name}`).catch(() => null)
+  return texts
+}
+
+/**
+ * One run of the tests, start to call; a run asked for while one goes is queued, once, as a run
+ * that starts on its own. A run the person starts clears the hold and finds the command again; one
+ * that starts on its own does not run while held, or when a hold file at the root is not what it
+ * was at the person's last run.
+ */
+async function runTests($: EngineInterface, isByPerson: boolean): Promise<void> {
   if (isRunning) {
     isQueued = true
     return
@@ -104,6 +122,16 @@ async function runTests($: EngineInterface): Promise<void> {
   isRunning = true
   try {
     const root = await $.session.root()
+    const texts = await holdTexts($, root)
+    if (isByPerson) {
+      baseline = texts
+      detected = null
+      await update($, heldBy, () => null)
+    } else {
+      const changed = baseline === null ? null : changedFile(baseline, texts)
+      if (changed !== null) await update($, heldBy, () => changed)
+      if ((await read($, heldBy)) !== null) return
+    }
     const argv = await commandFor($, root)
     if (argv === null) {
       if (!isNoCommandSaid) $.ui.toast('umpire: no test command found here. /umpire command <cmd> sets one for this project.')
@@ -118,7 +146,9 @@ async function runTests($: EngineInterface): Promise<void> {
       const done = await $.process.run(argv, { cwd: root, env: RUN_ENV, timeoutMs: settings.maxSeconds * 1000 })
       output = `${done.stdout}${done.stderr ? `\n${done.stderr}` : ''}`
       const o = parseRun(output, done.exitCode)
-      run = { at: await $.clock.now(), ms: (await $.clock.now()) - started, ...o }
+      // The engine keeps the first 4 MB of each stream: past that the summary line may be gone.
+      const isCut = done.isStdoutTruncated || done.isStderrTruncated
+      run = { at: await $.clock.now(), ms: (await $.clock.now()) - started, ...o, ...(isCut ? { isCut: true } : {}) }
     } catch (error) {
       const ms = (await $.clock.now()) - started
       const isTimeout = ms >= settings.maxSeconds * 1000 * 0.9
@@ -145,7 +175,7 @@ async function runTests($: EngineInterface): Promise<void> {
     await update($, isRunningNow, () => false).catch(() => undefined)
     if (isQueued) {
       isQueued = false
-      $.clock.after(0, () => void runTests($))
+      $.clock.after(0, () => void runTests($, false))
     }
   }
 }
@@ -202,11 +232,14 @@ async function command($: EngineInterface, args: string, origin: string): Promis
   if (!PERSON.has(origin)) return $.ui.toast(`umpire: /umpire ${verb} runs only when you type it yourself.`)
   if (verb === 'on') {
     await update($, isOnSet, () => true)
+    // Turning it on takes the hold files as they are now, Claude's edits while it was off too: later changes hold the runs.
+    baseline = await holdTexts($, await $.session.root())
+    await update($, heldBy, () => null)
     const argv = await commandFor($, await $.session.root())
     return $.ui.toast(argv ? `umpire is on: \`${clean(shown(argv)).slice(0, 80)}\` after each turn that changes files.` : 'umpire is on, but no test command was found. /umpire command <cmd> sets one.')
   }
   if (verb === 'run') {
-    $.clock.after(0, () => void runTests($))
+    $.clock.after(0, () => void runTests($, true))
     return $.ui.toast('umpire: running the tests.')
   }
   if (verb === 'command') {
@@ -231,16 +264,26 @@ export const register: Register = (on, options) => {
         argumentHint: '[on | off | run | show | command <cmd> | tell]',
         immediate: true,
       })
+      if (await isOn($)) baseline = await holdTexts($, await $.session.root())
     } catch (error) {
       debug($, String(error))
     }
     return next(e)
   })
 
-  // Claude's own file tools, once they ran: this turn changed a file.
+  // Claude's own file tools, once they ran: this turn changed a file, and a hold file anywhere holds the runs.
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
-    if (ran.deny === undefined && !ran.isError && FILE_TOOLS.has(String(e.tool))) isTurnChanged = true
+    if (ran.deny === undefined && !ran.isError && FILE_TOOLS.has(String(e.tool))) {
+      isTurnChanged = true
+      const input = (e as unknown as { file_path?: unknown }).file_path
+      const path = typeof input === 'string' ? input : ''
+      const name = holdFile(path)
+      if (name !== null) {
+        const root = (await $.session.root().catch(() => '')).replace(/\/+$/, '')
+        await update($, heldBy, () => clean(path.startsWith(`${root}/`) ? path.slice(root.length + 1) : name))
+      }
+    }
     return ran
   })
 
@@ -254,7 +297,7 @@ export const register: Register = (on, options) => {
     const done = await next(e)
     if (e.agentId === undefined && e.reason === 'answer' && !e.isAborted && isTurnChanged) {
       isTurnChanged = false
-      if (await isOn($)) $.clock.after(0, () => void runTests($))
+      if (await isOn($)) $.clock.after(0, () => void runTests($, false))
     }
     return done
   })
@@ -266,10 +309,11 @@ export const register: Register = (on, options) => {
     if (!(await isOn($))) return below
     const last = (await read($, runs)).at(-1)
     const going = await read($, isRunningNow)
-    if (last === undefined && !going) return below
+    const held = await read($, heldBy)
+    if (last === undefined && !going && held === null) return below
     const { Box, Text } = $.ui.resolve(e)
-    const words = going ? 'umpire: running the tests...' : bandWords(last!, last!.ms, settings.maxSeconds)
-    const color = going ? undefined : last!.status === 'passed' ? 'success' : 'error'
+    const words = going ? 'umpire: running the tests...' : held !== null ? heldWords(held) : bandWords(last!, last!.ms, settings.maxSeconds)
+    const color = going ? undefined : held !== null ? 'warning' : last!.status === 'passed' ? 'success' : 'error'
     return (
       <Box flexDirection="column">
         {below}
@@ -285,9 +329,12 @@ export const register: Register = (on, options) => {
     const { Box, Button, Code, Text } = $.ui.resolve(e)
     const list = await read($, runs)
     const last = list.at(-1)
+    const held = await read($, heldBy)
+    const heldLine = held === null ? null : <Text key="held" color="warning">{heldWords(held)}</Text>
     if (last === undefined) {
       return (
         <Box flexDirection="column" paddingX={1}>
+          {heldLine}
           <Text key="none" dimColor>
             No run yet. /umpire run runs the tests now.
           </Text>
@@ -300,6 +347,7 @@ export const register: Register = (on, options) => {
         <Text key="call" bold color={last.status === 'passed' ? 'success' : 'error'}>
           {bandWords(last, last.ms, settings.maxSeconds)}
         </Text>
+        {heldLine}
         <Box key="history" flexDirection="row">
           <Text key="label" dimColor>
             {'history '}
@@ -316,7 +364,7 @@ export const register: Register = (on, options) => {
         ))}
         {output ? <Code key="output" source={tail(output, 60)} /> : <Text key="gone" dimColor>The output is no longer kept: only the last ten runs are.</Text>}
         <Box key="buttons" flexDirection="row" gap={2}>
-          <Button key="again" label="run again" onPress={() => $.clock.after(0, () => void runTests($))} />
+          <Button key="again" label="run again" onPress={() => $.clock.after(0, () => void runTests($, true))} />
           {last.status === 'passed' ? null : <Button key="tell" label="tell Claude" onPress={() => void tell($)} />}
         </Box>
       </Box>
