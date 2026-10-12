@@ -147,7 +147,7 @@ export const MARK: Record<SwitchboardState, { shape: string; color?: string; dim
   error: { shape: '✕', color: 'error' },
   working: { shape: '●', color: 'success' },
   idle: { shape: '○', dimColor: true },
-  gone: { shape: '–', dimColor: true },
+  gone: { shape: '-', dimColor: true },
 }
 
 /**

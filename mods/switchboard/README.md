@@ -14,7 +14,7 @@ You are here: api-server (terminal)
 ● docs            working for 2m                          terminal   ≈$0.49
 ○ web             idle for 12m                            terminal
 ○ 26 quiet sessions: idle, no turn in the last hour       [Show]
-– old             closed 2m ago                           terminal
+- old             closed 2m ago                           terminal
 ```
 
 ## Install
@@ -33,7 +33,7 @@ Install it in every session you run (a user-scope install does that): each sessi
   - `✕` **stopped on an error**
   - `●` **working**
   - `○` **idle** (or **new**, opened and not prompted yet)
-  - `–` **closed** (it stopped reporting; listed for an hour)
+  - `-` **closed** (it stopped reporting; listed for an hour)
 - **Quiet sessions** (idle, with no turn in the last hour) fold into one line. **Show** unfolds them; each new start of the session folds them again.
 - A session waiting on you says what for on a line of its own. On a narrow pane the names shorten first, so the state and where always show.
 - **While another session needs you**, a line above your prompt says which and where (`! Fix the login needs you (desktop)`, with **Show** to open the pane), and the footer counts them (`1 needs you`). Never for this session's own dialog, which is already in front of you.

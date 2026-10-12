@@ -191,7 +191,7 @@ describe('the pane', () => {
         '✕testsstopped on an error 5m agoterminal',
         '●docsworking for 2mterminal≈$0.49',
         '○webidle for 12mterminal',
-        '–oldclosed 2m agoterminal',
+        '-oldclosed 2m agoterminal',
       ])
     }
   })
