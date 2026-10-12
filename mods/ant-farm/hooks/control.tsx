@@ -118,6 +118,10 @@ export function drawControl(c: ControlInput): RenderElement {
   // edge instead of cutting it with an ellipsis, so a narrow desktop pane wraps
   // its lines; the terminal, where cells are exact, cuts them at the end.
   const cut: TextProps['wrap'] = c.surface === 'desktop' && compact ? 'wrap' : 'truncate-end'
+  // The terminal draws a plain Button as `1: open`, the key hint in the accent colour. The
+  // desktop app draws its own native button; its view toggles did not answer a click as
+  // plain Buttons, so there every Button is the ordinary kind, hotkeys kept.
+  const plain = c.surface === 'desktop' ? {} : { plain: true as const }
   const firstStart = c.list.length > 0 ? Math.min(...c.list.map(a => a.startedAt)) : c.now
   const lastEnd = running.length > 0 ? c.now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
   const selected = c.view.selectedId !== undefined ? c.list.find(a => a.id === c.view.selectedId) : undefined
@@ -137,7 +141,7 @@ export function drawControl(c: ControlInput): RenderElement {
     return (
       <Button
         key={`inspect-${a.id}`}
-        plain
+        {...plain}
         {...(hotkey !== undefined ? { hotkey } : {})}
         dimColor={!isRunning(a) && !isSelected}
         label={isSelected ? 'close' : 'open'}
@@ -178,6 +182,7 @@ export function drawControl(c: ControlInput): RenderElement {
         flexDirection="column"
         width={cardWidth}
         flexShrink={0}
+        minWidth={0}
         borderStyle="round"
         borderColor={border}
         borderDimColor={rested}
@@ -185,7 +190,7 @@ export function drawControl(c: ControlInput): RenderElement {
         hover={{ borderColor: 'suggestion' }}
       >
         <Box flexDirection="row">
-          <Box flexGrow={1} flexShrink={1}>
+          <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text bold={isRunning(a) || isSelected} dimColor={rested} wrap="truncate-end">{numberOf(a)} {taskOf(a)}</Text>
           </Box>
           <Box flexShrink={0} marginLeft={1}>{openButton(a, isSelected)}</Box>
@@ -194,12 +199,12 @@ export function drawControl(c: ControlInput): RenderElement {
           <Box key={`art-${a.id}`} flexDirection="column" width={lane} flexShrink={0}>
             {rows.map(row => glyphRow(c.ui, c.surface, row, antPaint(a)))}
           </Box>
-          <Box flexDirection="column" width={meta} flexShrink={0} marginLeft={1}>
+          <Box flexDirection="column" width={meta} flexShrink={0} minWidth={0} marginLeft={1}>
             <Text dimColor wrap="truncate-end">{modelOf(a)} · {fmtDuration((a.endedAt ?? c.now) - a.startedAt)}</Text>
             <Text bold wrap="truncate-end" color={state.color} dimColor={rested}>{state.text}</Text>
             <Box flexDirection="row">
               {glyphRow(c.ui, c.surface, sparkline(a.history ?? [], spark), antPaint(a))}
-              <Box marginLeft={1} flexShrink={1}>
+              <Box marginLeft={1} flexShrink={1} minWidth={0}>
                 <Text dimColor wrap="truncate-end">{a.usage.requests} req · {fmtTokens(a.usage.tokens)} tok</Text>
               </Box>
             </Box>
@@ -207,7 +212,7 @@ export function drawControl(c: ControlInput): RenderElement {
         </Box>
         <Box flexDirection="row">
           {glyphRow(c.ui, c.surface, bar(p.fraction, BAR_CELLS), tone)}
-          <Box marginLeft={1} flexGrow={1} flexShrink={1}>
+          <Box marginLeft={1} flexGrow={1} flexShrink={1} minWidth={0}>
             <Text wrap="truncate-end" {...tone}>{money}</Text>
           </Box>
         </Box>
@@ -229,7 +234,7 @@ export function drawControl(c: ControlInput): RenderElement {
       return (
         <Box flexDirection="row" key={`line-${a.id}`}>
           {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), paint)}
-          <Box marginLeft={1} flexGrow={1} flexShrink={1}>
+          <Box marginLeft={1} flexGrow={1} flexShrink={1} minWidth={0}>
             <Text dimColor={!isRunning(a)} wrap={cut}>{numberOf(a)} {a.status} · {taskOf(a)} · {numbers}</Text>
           </Box>
         </Box>
@@ -240,10 +245,10 @@ export function drawControl(c: ControlInput): RenderElement {
     return (
       <Box flexDirection="row" key={`line-${a.id}`}>
         {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), paint)}
-        <Box marginLeft={1} flexGrow={1} flexShrink={1}>
+        <Box marginLeft={1} flexGrow={1} flexShrink={1} minWidth={0}>
           <Text dimColor={!isRunning(a)} wrap="truncate-end">{numberOf(a)} {a.status} · {taskOf(a)}</Text>
         </Box>
-        <Box flexShrink={numbersFit ? 0 : 1}>
+        <Box flexShrink={numbersFit ? 0 : 1} minWidth={0}>
           <Text dimColor={!isRunning(a)} wrap="truncate-end"> · {numbers}</Text>
         </Box>
         <Box flexShrink={0} marginLeft={1}><Text color={look.color}>{look.glyph}</Text></Box>
@@ -266,9 +271,9 @@ export function drawControl(c: ControlInput): RenderElement {
   const boltSize = compact || c.columns < BOLT_MIN_COLUMNS ? undefined : c.columns >= BOLT_SMALL_COLUMNS ? 'small' : 'tiny'
 
   const headColumn = (
-    <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+    <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
       <Box key="hero" flexDirection="row">
-        <Box flexGrow={1} flexShrink={1}>
+        <Box flexGrow={1} flexShrink={1} minWidth={0}>
           <Text bold color={head.color} wrap={cut}>{head.text}</Text>
         </Box>
         {clock !== '' ? <Box flexShrink={0} marginLeft={1}><Text dimColor>{clock}</Text></Box> : null}
@@ -279,10 +284,10 @@ export function drawControl(c: ControlInput): RenderElement {
         <Text bold {...(failed > 0 ? { color: 'error' } : {})}>{failed}</Text><Text dimColor> failed</Text>
         {waiting > 0 ? <Text color="warning"> · {waiting} waiting</Text> : null}
       </Box>
-      <Box key="budget">
+      <Box key="budget" minWidth={0}>
         <Text wrap={cut} {...budgetTone}>{budgetLine}</Text>
       </Box>
-      <Box key="totals">
+      <Box key="totals" minWidth={0}>
         <Text dimColor wrap={cut}>
           Subagents {fmtCost(c.subagents)} (price table) · {fmtTokens(c.subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
         </Text>
@@ -290,10 +295,10 @@ export function drawControl(c: ControlInput): RenderElement {
       {budgetFraction !== null ? (
         <Box key="budget-bar" flexDirection="row">
           {glyphRow(c.ui, c.surface, bar(budgetFraction, BUDGET_BAR_CELLS), budgetTone)}
-          <Box marginLeft={1}><Text wrap={cut} {...budgetTone}>{Math.round(budgetFraction * 100)}%</Text></Box>
+          <Box marginLeft={1} minWidth={0}><Text wrap={cut} {...budgetTone}>{Math.round(budgetFraction * 100)}%</Text></Box>
         </Box>
       ) : (
-        <Box key="no-budget">
+        <Box key="no-budget" minWidth={0}>
           <Text dimColor wrap={cut}>No budget set - add one in /config</Text>
         </Box>
       )}
@@ -322,7 +327,7 @@ export function drawControl(c: ControlInput): RenderElement {
         <Box width={4} flexShrink={0}><Text dimColor>{who}</Text></Box>
         <Box width={2} flexShrink={0}><Text {...(look.color !== undefined ? { color: look.color } : {})}>{look.glyph}</Text></Box>
         <Box width={8} flexShrink={0}><Text {...(look.color !== undefined ? { color: look.color } : { dimColor: true })}>{look.word}</Text></Box>
-        <Box flexGrow={1} flexShrink={1}>
+        <Box flexGrow={1} flexShrink={1} minWidth={0}>
           <Text wrap={cut} bold={fresh} dimColor={ev.kind === 'tool' && !fresh}>{words}</Text>
         </Box>
       </Box>
@@ -349,9 +354,9 @@ export function drawControl(c: ControlInput): RenderElement {
       ...(etaMs !== null ? [fmtEta(etaMs)] : []),
     ].join(' · ')
     return (
-      <Box key="inspector" flexDirection="column" borderStyle="round" borderColor="suggestion" paddingX={1} marginBottom={1}>
+      <Box key="inspector" flexDirection="column" borderStyle="round" borderColor="suggestion" paddingX={1} marginBottom={1} minWidth={0}>
         <Box flexDirection="row">
-          <Box flexGrow={1} flexShrink={1}>
+          <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text bold wrap={cut}>{numberOf(a)} {taskOf(a)}</Text>
           </Box>
           <Box flexShrink={0} marginLeft={1}>
@@ -363,15 +368,15 @@ export function drawControl(c: ControlInput): RenderElement {
         <Text dimColor wrap={cut}>{tally}</Text>
         <Box flexDirection="row">
           {glyphRow(c.ui, c.surface, sparkline(a.history ?? [], Math.min(24, Math.max(SPARK_CELLS, c.columns - 24))), antPaint(a))}
-          <Box marginLeft={1}><Text dimColor wrap={cut}>tokens per request</Text></Box>
+          <Box marginLeft={1} minWidth={0}><Text dimColor wrap={cut}>tokens per request</Text></Box>
         </Box>
         {own.length > 0 ? own.map((ev, i) => eventRow(ev, i + 1, !compact)) : <Text dimColor>No activity recorded yet</Text>}
         <Box flexDirection="row" gap={2} marginTop={1}>
-          <Button key="inspector-prev" plain hotkey="p" label="previous" onPress={() => c.on.move(-1)} />
-          <Button key="inspector-next" plain hotkey="n" label="next" onPress={() => c.on.move(1)} />
-          <Button key="inspector-close" plain hotkey="x" label="close" onPress={() => c.on.select(undefined)} />
+          <Button key="inspector-prev" {...plain} hotkey="p" label="previous" onPress={() => c.on.move(-1)} />
+          <Button key="inspector-next" {...plain} hotkey="n" label="next" onPress={() => c.on.move(1)} />
+          <Button key="inspector-close" {...plain} hotkey="x" label="close" onPress={() => c.on.select(undefined)} />
           <Box flexGrow={1} />
-          <Text dimColor wrap={cut}>id {clean(a.id)}</Text>
+          <Box flexShrink={1} minWidth={0}><Text dimColor wrap={cut}>id {clean(a.id)}</Text></Box>
         </Box>
       </Box>
     )
@@ -394,9 +399,9 @@ export function drawControl(c: ControlInput): RenderElement {
           <Text dimColor> {c.events.length} {c.events.length === 1 ? 'row' : 'rows'}</Text>
           <Box flexGrow={1} />
           {!hidden && left > 0 && c.view.isTimelineExpanded !== true ? (
-            <Box marginRight={2}><Button key="more-events" plain label={`+${left} more`} onPress={c.on.growTimeline} /></Box>
+            <Box marginRight={2}><Button key="more-events" {...plain} label={`+${left} more`} onPress={() => c.on.growTimeline()} /></Box>
           ) : null}
-          <Button key="toggle-timeline" plain hotkey="t" label={hidden ? 'show' : 'hide'} onPress={c.on.toggleTimeline} />
+          <Button key="toggle-timeline" {...plain} hotkey="t" label={hidden ? 'show' : 'hide'} onPress={() => c.on.toggleTimeline()} />
         </Box>
         {shown.map((ev, i) => eventRow(ev, i, !compact))}
         {!hidden && shown.length === 0 ? <Text dimColor>Nothing yet. Tool calls, edits, handoffs and endings land here.</Text> : null}
@@ -429,10 +434,10 @@ export function drawControl(c: ControlInput): RenderElement {
           <Text dimColor>Finished · {finished.length} </Text>
           <Button
             key="toggle-finished"
-            plain
+            {...plain}
             hotkey="f"
             label={c.view.isFinishedExpanded ? 'collapse' : 'expand'}
-            onPress={c.on.toggleFinished}
+            onPress={() => c.on.toggleFinished()}
           />
         </Box>
       ) : null}
@@ -444,7 +449,7 @@ export function drawControl(c: ControlInput): RenderElement {
       ) : null}
       {timeline()}
       {c.isFocused ? (
-        <Box key="keys" marginTop={1}>
+        <Box key="keys" marginTop={1} minWidth={0}>
           <Text dimColor wrap={cut}>Keys · 1-9 open · n next · p previous · x close · f finished · t activity</Text>
         </Box>
       ) : null}

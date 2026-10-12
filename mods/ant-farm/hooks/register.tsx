@@ -629,7 +629,12 @@ export const register: Register = (on, options) => {
         select,
         move: by => {
           const { running, finished } = ordered(list)
-          select(moveSelection([...running, ...finished].map(a => a.id), v.selectedId, by))
+          const ids = [...running, ...finished].map(a => a.id)
+          void update($, view, x => {
+            const next = moveSelection(ids, x.selectedId, by)
+            const { selectedId: _, ...rest } = x
+            return next === undefined ? rest : { ...rest, selectedId: next }
+          })
         },
         toggleFinished: () => void update($, view, x => ({ ...x, isFinishedExpanded: !x.isFinishedExpanded })),
         toggleTimeline: () => void update($, view, x => ({ ...x, isTimelineHidden: x.isTimelineHidden !== true })),
