@@ -1,0 +1,11 @@
+{
+  "name": "rain-check",
+  "version": "0.1.0",
+  "description": "Hit your usage limit? Send your prompt anyway: it goes out when the limit resets.",
+  "homepage": "https://modmyclaude.com/mods/rain-check",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["rate-limit", "usage-limit", "queue", "resume", "band"],
+  "types": "./types/index.d.ts"
+}
