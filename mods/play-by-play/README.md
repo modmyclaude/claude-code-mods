@@ -46,8 +46,9 @@ None.
 
 ## What it can touch
 
-- **Reads**: the records the Edit, Write and NotebookEdit tools return (the text before and after).
-  It never opens a file itself.
+- **Reads**: the records the Edit, Write and NotebookEdit tools return (the text before and after), and
+  the first 80 characters of each prompt you send, kept in the session's memory for the turn's header in
+  the pane. It never opens a file itself.
 - **Runs**: around every Bash command, read-only or not, read-only git plumbing in the session's folder,
   each with `--no-optional-locks`: `git rev-parse`, `git diff-index -p`, `git ls-files --others`,
   `git hash-object` (without `-w`), and for changed files `git show <HEAD>:<path>`,
@@ -56,7 +57,8 @@ None.
   never touched.
 - **Cost**: 3 or 4 git calls before each command and 2 or 3 after it (none after one Claude Code marks
   read-only, such as `ls`), plus one or two per changed file. Each diffs the whole uncommitted tree against
-  HEAD, and `hash-object` reads every untracked, unignored file. In a 100,000-file repository that is about
+  HEAD, and `hash-object` reads every untracked, unignored file, up to 500 of them (past that, untracked
+  files are listed by name and their contents are not read). In a 100,000-file repository that is about
   half a second per command, and slower after many files were touched (a checkout, a formatter) until
   your own `git status` refreshes the index; see the pause below.
 - **Writes**: nothing. It never reverts or edits a file. What it records lives in the session's memory
