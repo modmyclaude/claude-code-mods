@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { mask } from '../hooks/audit'
-import { classifyName, labelOf } from '../hooks/detect'
+import { classifyName, detect, labelOf } from '../hooks/detect'
 import { isSecretName, isWorthHiding, parseDotenv } from '../hooks/dotenv'
 import { classifyEgress, commandOf } from '../hooks/egress'
 import { encodedForms, Vault } from '../hooks/vault'
@@ -213,6 +213,13 @@ describe('previews', () => {
   })
 })
 
+describe('the AWS key rule', () => {
+  test('a temporary (STS) key ID, ASIA..., is found on its own, with no telling name beside it', () => {
+    const key = ['AS', 'IA', alnum(16, 777).toUpperCase()].join('')
+    expect(detect(`creds ${key} expire soon`).map(hit => hit.name)).toContain('AWS_ACCESS_KEY_ID')
+  })
+})
+
 describe('encoded forms and tickets', () => {
   test('cover base64, base64 at an offset, URL and JSON spellings', () => {
     const value = 'p@ss "w0rd"/9!\nnext-line'
@@ -242,6 +249,23 @@ describe('encoded forms and tickets', () => {
       expect(s.text.includes(value), text).toBe(false)
     }
     expect(vault.scrub(`echo ${value}`, 't').text).toBe(`echo ${ticket}`)
+  })
+
+  test('a known value is hidden at each base64 alignment, and in JSON nested twice', () => {
+    const vault = new Vault()
+    // A quote and a backslash, so each level of JSON spells the value anew.
+    const value = 'pa"ss\\w0rd-Strong9'
+    vault.seed(value, 'DB_PASSWORD', '.env')
+    const texts = [
+      `blob ${btoa(`a${value} tail`)}`, // one byte in: the second alignment
+      `blob ${btoa(`ab${value} tail`)}`, // two bytes in: the third
+      JSON.stringify({ note: JSON.stringify({ note: value }) }), // a transcript row holding a JSON string
+    ]
+    for (const text of texts) {
+      const s = vault.scrub(text, 'test')
+      expect(s.changed, text).toBe(true)
+      expect(s.text, text).toMatch(/\[secret:DB_PASSWORD#[a-z2-7]{6}\]/)
+    }
   })
 
   test('the same value keeps its ticket; another vault draws a new one', () => {
