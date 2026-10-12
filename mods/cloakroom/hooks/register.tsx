@@ -197,9 +197,10 @@ async function holdIfLeaving($: Dollar, room: Room, sent: string, restored: stri
     // Here proof.ok is false (a proven, non-leaving command returned above); the fallback only narrows the type.
     const word = proof.ok ? 'a program' : proof.program
     const program = leaksValue(word, values) ? 'a program in the command' : clean(word)
-    reason = `${count === 1 ? 'is' : 'are'} in a command cloakroom cannot vouch for: ${program} is not on its local-only list`
+    const feature = proof.ok || proof.feature === undefined ? undefined : clean(proof.feature)
+    reason = `${count === 1 ? 'is' : 'are'} in a command cloakroom cannot vouch for: ${feature ?? `${program} is not on its local-only list`}`
     toClaude =
-      `${names} ${count === 1 ? 'is' : 'are'} in it and ${program} is not on cloakroom's local-only list ` +
+      `${names} ${count === 1 ? 'is' : 'are'} in it and ${feature ?? `${program} is not on cloakroom's local-only list`} ` +
       '(a real value goes only into echo, printf, cat and other local file tools). ' +
       'Prefer the environment variable instead of the value.'
   }

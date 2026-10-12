@@ -10,7 +10,7 @@ Read this first. Cloakroom lowers the chance that a secret ends up somewhere it 
 
 **It CAN:**
 
-- Keep secrets out of the model request, the saved transcript, screen shares and exports, at every door it hooks: tool results (every tool, MCP included), your prompt and pastes, `@`-mentioned files, CLAUDE.md and the first message's context, the system prompt's sections, reminders and settings-hook output, skill text, every row the conversation stores, messages to and from other agents and sessions, and records sent to your own OpenTelemetry collector. A secret becomes a ticket such as `[secret:STRIPE_SECRET_KEY#k3x9qa]`.
+- Keep secrets out of the model request, the saved transcript, screen shares and exports (all but Claude Code's own permission box, see the CANNOT list), at every door it hooks: tool results (every tool, MCP included), your prompt and pastes, `@`-mentioned files, CLAUDE.md and the first message's context, the system prompt's sections, reminders and settings-hook output, skill text, every row the conversation stores, messages to and from other agents and sessions, and records sent to your own OpenTelemetry collector. A secret becomes a ticket such as `[secret:STRIPE_SECRET_KEY#k3x9qa]`.
 - Learn the secret-named values in your project's `.env` files when the session starts (those long and varied enough to be a real secret, see Limits), then hide them wherever they show up later, including their base64, URL-encoded and JSON-escaped forms. That catches an `echo` or `printenv` that no pattern would.
 - Turn tickets back into real values only inside Write, Edit and NotebookEdit, and inside a Bash command made only of local file tools (see "Which Bash commands get the real value"), so Claude can still write your `.env`. Web fetches, MCP tools, subagent prompts, messages to other sessions and questions shown to you keep the ticket.
 - Hold any other Bash command that carries a known secret until you press **Allow once**: one that names a network program (curl, wget, nc, ssh, scp, rsync to a remote, git push, bash's /dev/tcp, a remote URL beside the value), and one it cannot vouch for at all (`sh -c`, `bash -c`, `eval`, `source`, `node`, `python`, `npm`, `make`, `find`, `xargs` to a shell, a script, a variable used as the program). A hold needs a positive reason to pass, never the absence of a known threat.
@@ -78,6 +78,8 @@ or, for a command that is not made of local file tools:
 ```
 held: STRIPE_SECRET_KEY#k3x9qa is in a command cloakroom cannot vouch for: sh is not on its local-only list
 ```
+
+Shell syntax it cannot follow is named as the feature it is, such as `process substitution <( ) can run a program`.
 
 The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and the focus starts on **Deny** (`d` also denies). **Allow once** has no key, so a stray keystroke cannot press it; click it or move to it on purpose. Allow once lets that exact command run one time within 10 minutes and tells Claude it may run it again. Deny leaves it refused. While a hold waits for you, it is drawn on its own (other mods' bands come back once you answer), so nothing another mod draws can hide Deny.
 

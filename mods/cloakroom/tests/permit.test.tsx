@@ -70,6 +70,17 @@ describe('a command cloakroom cannot vouch for is held', () => {
     })
   }
 
+  test('process substitution is named as the shell feature, on the band, the toast and in what Claude reads', async ($, on) => {
+    const { w, ticket, label } = await setUp($, on)
+    const held = await runBash($, `diff <(echo ${ticket}) <(echo b)`)
+    expect(held.deny).toContain(`${label} is in it and process substitution <( ) can run a program (a real value goes only into echo`)
+    expect(w.toasts.at(-1)).toBe(`cloakroom held a command: ${label} is in a command cloakroom cannot vouch for: process substitution <( ) can run a program`)
+    const ui = await $.ui.mount({ plugin: 'cloakroom', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+    expect((await ui.find({ type: 'Text', text: /^held: / }))?.text).toBe(`held: ${label} is in a command cloakroom cannot vouch for: process substitution <( ) can run a program`)
+    expect(w.ran).toEqual([])
+    nothingLeaks(w, held)
+  })
+
   for (const surface of SURFACES) {
     test(`the red band says why, Deny is the default, Allow once runs it exactly once, on ${surface}`, async ($, on) => {
       const { w, ticket, label } = await setUp($, on)

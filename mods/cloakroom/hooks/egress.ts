@@ -190,7 +190,25 @@ export const LOCAL = new Set([
 /** Shell words that structure a line and run nothing themselves; their bodies are checked as their own segments. */
 const KEYWORDS = new Set(['if', 'then', 'elif', 'else', 'fi', 'for', 'while', 'until', 'do', 'done', 'case', 'esac', 'in', 'select', 'function'])
 
-export type LocalProof = { ok: true } | { ok: false; program: string }
+/** `feature`, when the word in the program's place is shell syntax, says which, in words a person knows. */
+export type LocalProof = { ok: true } | { ok: false; program: string; feature?: string }
+
+/**
+ * Shell syntax standing where a program would (a `<` or `>` that a segment
+ * starts with): named as the feature it is, since `<` is no program anyone
+ * recognises. `<(` and `>(` are process substitution; any other is a redirect
+ * the segmenting cannot follow, such as one after a `( )` group.
+ */
+function featureOf(command: string, seg: Span, name: string): string | undefined {
+  const symbol = /^(?:\d*|&)[<>]+/.exec(name)?.[0]
+  if (symbol === undefined) return undefined
+  // `<(` / `>(`: the segment ends at the parenthesis, right after the arrow (`> >(cat)` writes into one).
+  const arrow = command[seg.end - 1]
+  if (command[seg.end] === '(' && (arrow === '<' || arrow === '>')) {
+    return `process substitution ${arrow}( ) can run a program`
+  }
+  return `a redirect (${symbol}) there is past what cloakroom can check`
+}
 
 /**
  * Whether every program `command` runs is on the local-only list, so a real
@@ -214,7 +232,10 @@ export function localProof(command: string): LocalProof {
       }
       continue
     }
-    if (!LOCAL.has(cmd.name)) return { ok: false, program: cmd.name }
+    if (!LOCAL.has(cmd.name)) {
+      const feature = featureOf(command, seg, cmd.name)
+      return feature === undefined ? { ok: false, program: cmd.name } : { ok: false, program: cmd.name, feature }
+    }
   }
   return { ok: true }
 }

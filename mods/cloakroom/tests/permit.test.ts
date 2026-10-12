@@ -101,6 +101,15 @@ describe('the local-only list', () => {
   test('names the first program that is not proven, left to right', () => {
     expect(localProof(`echo ${V} | node x.js | python y.py`)).toEqual({ ok: false, program: 'node' })
   })
+
+  test('shell syntax where a program would stand is named as the feature it is, never a bare < or >', () => {
+    expect(localProof(`diff <(echo ${V}) <(echo b)`)).toEqual({ ok: false, program: '<', feature: 'process substitution <( ) can run a program' })
+    expect(localProof(`echo ${V} | tee x >(cat) > >(cat)`)).toEqual({ ok: false, program: '>', feature: 'process substitution >( ) can run a program' })
+    expect(localProof(`(echo ${V}) > out.txt`)).toEqual({ ok: false, program: '>', feature: 'a redirect (>) there is past what cloakroom can check' })
+    expect(localProof(`{ echo ${V}; } 2>&1`)).toEqual({ ok: false, program: '2>', feature: 'a redirect (2>) there is past what cloakroom can check' })
+    // A program's name is never taken for syntax.
+    expect(localProof(`node <(echo ${V})`)).toEqual({ ok: false, program: 'node' })
+  })
 })
 
 describe('the egress gate still runs beside the local list (defence in depth)', () => {
