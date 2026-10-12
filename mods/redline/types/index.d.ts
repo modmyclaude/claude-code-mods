@@ -32,6 +32,14 @@ export type RedlineTurn = {
   usd: number | null
 }
 
+/** What the requests charged to one kind of work, or to one model, used. */
+export type RedlineSpend = {
+  requests: number
+  tokens: RedlineTokens
+  /** USD by the built-in price table; null once a request charged here had no price. */
+  usd: number | null
+}
+
 export type RedlineGauge = {
   /** When the session began (Claude Code's own figure), epoch ms. */
   sessionStartedAt: number | null
@@ -62,6 +70,16 @@ export type RedlineGauge = {
   /** Each plan window's readings of the last 15 minutes, by kind (run-out). */
   limitHistory: Record<string, RedlineSample[]>
   turns: RedlineTurn[]
+  /**
+   * This session's requests by the kind of work each carried (the results of the
+   * previous response's tool calls: reading, editing, shell, search, planning; a
+   * subagent's requests as subagents; a turn's first request as prompt; one with no
+   * results as answering; an MCP server's tools as mcp:<server>), a request carrying
+   * several kinds split evenly across them.
+   */
+  spend: Record<string, RedlineSpend>
+  /** The same requests by the model that answered. */
+  byModel: Record<string, RedlineSpend>
   /** The model of the main loop's last request. */
   model: string | null
   /** The 80% toast may fire; false until context drops under 75%. */

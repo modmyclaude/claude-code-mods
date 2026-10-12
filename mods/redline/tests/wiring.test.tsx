@@ -67,14 +67,15 @@ function world(on: On, usage: Partial<SessionUsage> = {}, store: Record<string, 
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   // The model: each request answers with the usage the test queued for it.
   on('turn.step', async function* ($, e) {
-    const usage = replies.shift() ?? null
-    yield { kind: 'stop', stopReason: 'end_turn', usage }
-    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage }
+    const { usage, tools } = replies.shift() ?? { usage: null, tools: [] }
+    yield { kind: 'stop', stopReason: tools.length > 0 ? 'tool_use' : 'end_turn', usage }
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: tools.map(name => ({ name, input: {} })), stopReason: tools.length > 0 ? 'tool_use' : 'end_turn', usage }
   })
   return w
 }
 
-const replies: (TurnUsage | null)[] = []
+/** What the model answers next: its usage, and the tools it calls (what the next request will carry). */
+const replies: { usage: TurnUsage | null; tools: string[] }[] = []
 
 /** A usage whose input side (uncached + cache read + cache write) is `ctx`. */
 const usageOf = (ctx: number, model = 'claude-opus-5-5', output = 800): TurnUsage => ({
@@ -86,9 +87,9 @@ const usageOf = (ctx: number, model = 'claude-opus-5-5', output = 800): TurnUsag
 })
 
 /** Raises one model request through every plugin and reads it to its end. */
-async function request($: Engine, ctx: number, opts: { turnId?: string; agentId?: string; model?: string } = {}) {
-  replies.push(usageOf(ctx, opts.model))
-  const stream = $.turn.step({ turnId: opts.turnId ?? 't1', index: 0, model: opts.model ?? 'claude-opus-5-5', messageCount: 3, agentId: opts.agentId })
+async function request($: Engine, ctx: number, opts: { turnId?: string; agentId?: string; model?: string; index?: number; tools?: string[] } = {}) {
+  replies.push({ usage: usageOf(ctx, opts.model), tools: opts.tools ?? [] })
+  const stream = $.turn.step({ turnId: opts.turnId ?? 't1', index: opts.index ?? 0, model: opts.model ?? 'claude-opus-5-5', messageCount: 3, agentId: opts.agentId })
   for await (const chunk of stream) void chunk
 }
 
@@ -235,7 +236,7 @@ describe('never in the way', () => {
   test('every chunk and the response pass through untouched, even when usage cannot be read', async ($, on) => {
     const w = world(on)
     w.isUsageDenied = true
-    replies.push(usageOf(pct(50)))
+    replies.push({ usage: usageOf(pct(50)), tools: [] })
     const stream = $.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5-5', messageCount: 3 })
     const chunks = []
     let step = await stream.next()
@@ -249,7 +250,7 @@ describe('never in the way', () => {
 
   test('a request with no usage (interrupted) changes nothing', async ($, on) => {
     const w = world(on)
-    replies.push(null)
+    replies.push({ usage: null, tools: [] })
     const stream = $.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5-5', messageCount: 3 })
     for await (const chunk of stream) void chunk
     expect(w.statuses).toHaveLength(0)
@@ -1026,5 +1027,59 @@ describe('the pane follows the UI standard', () => {
       expect(await ui.find({ key: 'rate-note' })).toBeUndefined()
       await ui.unmount()
     }
+  })
+})
+
+describe('where the money went', () => {
+  test('each request is charged to the kinds its tool results carried, split evenly; the first is the prompt; a subagent is one kind; MCP by server; by model', async ($, on) => {
+    const w = world(on)
+    await $.turn.start({ text: 'refactor the auth module', turnId: 't1' })
+    await request($, pct(10), { turnId: 't1', index: 0, tools: ['Read', 'Edit', 'Read'] })
+    await request($, pct(12), { turnId: 't1', index: 1, tools: ['Bash'] })
+    await request($, pct(14), { turnId: 't1', index: 2, tools: ['mcp__github__search_issues'] })
+    await request($, pct(16), { turnId: 't1', index: 3, tools: [] })
+    await request($, 20_000, { turnId: 'sub', agentId: 'agent-1', index: 0, tools: ['Read'], model: 'claude-haiku-4-5' })
+    await request($, 22_000, { turnId: 'sub', agentId: 'agent-1', index: 1, tools: [], model: 'claude-haiku-4-5' })
+    await request($, pct(18), { turnId: 't1', index: 4, tools: [] }) // nothing carried: the model answered
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+      const text = async (key: string) => (await ui.find({ key }))?.text ?? `(no ${key})`
+      expect(await text('spend-prompt')).toMatch(/^prompt.*≈\$\d\.\d\d · \d+% · 1 req · cache 80%$/)
+      expect(await text('spend-reading')).toMatch(/^reading.*≈\$.* · 1 req · cache/)
+      expect(await text('spend-editing')).toMatch(/^editing.*≈\$.* · 1 req · cache/)
+      expect(await text('spend-shell')).toMatch(/^shell.*≈\$.* · 1 req/)
+      expect(await text('spend-mcp:github')).toMatch(/^github.*MCP · ≈\$.* · 1 req/)
+      expect(await text('spend-subagents')).toMatch(/^subagents.*≈\$.* · 2 req/)
+      expect(await text('spend-answering')).toMatch(/^answering.*≈\$.* · 1 req/)
+      expect(await ui.find({ key: 'spend-none' })).toBeUndefined()
+      // Reading and editing split one request evenly: the same cost, the same tokens.
+      const half = (t: string) => /≈\$([\d.]+) · (\d+)%/.exec(t)?.slice(1)
+      expect(half(await text('spend-reading'))).toEqual(half(await text('spend-editing')))
+      expect(await text('model-claude-opus-5-5')).toMatch(/^Opus 5\.5.*≈\$.* · \d+% · 5 req/)
+      expect(await text('model-claude-haiku-4-5')).toMatch(/^Haiku 4\.5.*≈\$.* · \d+% · 2 req/)
+      expect(await text('spend-rule')).toContain('split evenly')
+      await ui.unmount()
+    }
+    expect(w.status()).toContain('ctx') // the band and the status line are as before
+  })
+
+  test('nothing yet before a request; /redline spend opens the pane; every cost reads as an estimate', async ($, on) => {
+    const w = world(on, { cost: undefined })
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+      expect((await ui.find({ key: 'spend-none' }))?.text).toBe('nothing yet')
+      await ui.unmount()
+    }
+    expect(await runCommand($, 'spend')).toEqual({})
+    expect(w.opened).toEqual(['redline'])
+    await request($, pct(20), { index: 0, tools: ['Read'] })
+    await request($, pct(22), { index: 1, tools: [] })
+    const ui = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+    for (const key of ['spend-prompt', 'spend-reading', 'model-claude-opus-5-5']) {
+      const t = (await ui.find({ key }))?.text ?? ''
+      expect(t, key).toMatch(/≈\$/)
+      expect(t, key).not.toMatch(/[^≈]\$/)
+    }
+    await ui.unmount()
   })
 })

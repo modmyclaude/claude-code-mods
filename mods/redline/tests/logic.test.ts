@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 import type { TurnUsage } from 'claude-code'
 import type { RedlineGauge } from '../types'
+import { kindOf, kindsCarried, modelLabel, spendLabel } from '../hooks/spend'
 
 import {
   alarm,
@@ -404,5 +405,61 @@ describe('the detail lines by kind', () => {
     expect(used?.value).toBe('170k of 200k tokens · claude-opus-5-5')
     expect(used?.bar).toHaveLength(10)
     for (const l of lines) expect(l.text, l.key).not.toContain('\u001b')
+  })
+})
+
+describe('where the money went', () => {
+  const OPUS: TurnUsage = { model: 'claude-opus-5-5', input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 9000, cache_creation_input_tokens: 0 }
+  const HAIKU: TurnUsage = { model: 'claude-haiku-4-5', input_tokens: 2000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+  const NOVA: TurnUsage = { model: 'claude-nova-1', input_tokens: 100, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+  const fold = (g: RedlineGauge, usage: TurnUsage, kinds: string[], agentId?: string) =>
+    reduce(g, { now: NOW, request: { turnId: agentId ?? 't1', agentId, usage, kinds } }).gauge
+
+  test('a request splits evenly across the kinds it carried; cache share is cache reads over the input side; models sum to the total', () => {
+    let g = fold(EMPTY_GAUGE, OPUS, ['prompt'])
+    g = fold(g, OPUS, ['reading', 'editing'])
+    g = fold(g, HAIKU, ['subagents'], 'agent-1')
+    // Opus 5.5: 1000 x $4 + 100 x $20 + 9000 x $0.20 per million = $0.0078; Haiku 4.5: 2000 x $1 + 200 x $5 = $0.003.
+    // Dollars compared in millionths: the kit has no closeTo.
+    const micro = (e: { usd: number | null } | undefined) => (e === undefined || e.usd === null ? e?.usd : Math.round(e.usd * 1e6))
+    const shaped = (e: { requests: number; tokens: unknown; usd: number | null } | undefined) => (e === undefined ? undefined : { requests: e.requests, tokens: e.tokens, usd: micro(e) })
+    expect(shaped(g.spend.prompt)).toEqual({ requests: 1, tokens: { input: 1000, output: 100, cacheRead: 9000, cacheWrite: 0 }, usd: 7800 })
+    expect(shaped(g.spend.reading)).toEqual({ requests: 1, tokens: { input: 500, output: 50, cacheRead: 4500, cacheWrite: 0 }, usd: 3900 })
+    expect(g.spend.editing).toEqual(g.spend.reading)
+    expect(shaped(g.spend.subagents)).toEqual({ requests: 1, tokens: { input: 2000, output: 200, cacheRead: 0, cacheWrite: 0 }, usd: 3000 })
+    const cacheShare = (k: string) => g.spend[k]!.tokens.cacheRead / (g.spend[k]!.tokens.input + g.spend[k]!.tokens.cacheRead + g.spend[k]!.tokens.cacheWrite)
+    expect(Math.round(cacheShare('reading') * 100)).toBe(90)
+    expect(cacheShare('subagents')).toBe(0)
+    const models = Object.values(g.byModel).reduce((s, e) => s + (e.usd ?? 0), 0)
+    expect(Math.round(models * 1e6)).toBe(7800 * 2 + 3000)
+    expect(Math.round(models * 1e6)).toBe(Math.round((g.tableUsd.input + g.tableUsd.output + g.tableUsd.cacheRead + g.tableUsd.cacheWrite) * 1e6))
+    expect(g.byModel['claude-opus-5-5']?.requests).toBe(2)
+    expect(g.byModel['claude-haiku-4-5']?.requests).toBe(1)
+    // A model with no price makes its kind and its model row priceless, never a guess.
+    g = fold(g, NOVA, ['shell'])
+    expect(g.spend.shell?.usd).toBeNull()
+    expect(g.byModel['claude-nova-1']?.usd).toBeNull()
+    expect(micro(g.spend.prompt)).toBe(7800)
+  })
+
+  test('kinds: a subagent is one kind whatever it carried; the first request is the prompt; nothing carried is answering; tools by name, MCP by server, a lent plan tool is planning', () => {
+    expect(kindsCarried(0, undefined, [])).toEqual(['prompt'])
+    expect(kindsCarried(0, undefined, ['Read'])).toEqual(['prompt'])
+    expect(kindsCarried(1, undefined, ['Read', 'Edit', 'Read'])).toEqual(['reading', 'editing'])
+    expect(kindsCarried(1, undefined, [])).toEqual(['answering'])
+    expect(kindsCarried(0, 'agent-1', ['Bash'])).toEqual(['subagents'])
+    expect(kindsCarried(3, 'agent-1', [])).toEqual(['subagents'])
+    const table: [string, string][] = [
+      ['Read', 'reading'], ['Grep', 'reading'], ['Glob', 'reading'],
+      ['Edit', 'editing'], ['Write', 'editing'], ['MultiEdit', 'editing'], ['NotebookEdit', 'editing'],
+      ['Bash', 'shell'], ['WebSearch', 'search'], ['WebFetch', 'search'], ['ToolSearch', 'search'],
+      ['TodoWrite', 'planning'], ['Task', 'planning'], ['Agent', 'planning'], ['ExitPlanMode', 'planning'],
+      ['mcp__github__search_issues', 'mcp:github'], ['mcp__headway__plan', 'planning'], ['Mystery', 'other'],
+    ]
+    for (const [tool, kind] of table) expect(kindOf(tool), tool).toBe(kind)
+    expect(spendLabel('mcp:github')).toEqual({ label: 'github', prefix: 'MCP · ' })
+    expect(spendLabel('subagents')).toEqual({ label: 'subagents', prefix: '' })
+    expect(modelLabel('claude-opus-5-5')).toBe('Opus 5.5')
+    expect(modelLabel('claude-nova-1-20270101')).toBe('nova-1-20270')
   })
 })

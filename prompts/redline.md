@@ -34,6 +34,8 @@ How it works
 - Deterministic, no model calls, no files, no network.
 
 Build rules
+Add a "Where the money went" section to the detail pane: this session's cost split by the kind of work each model request carried, read from the tool results in the request (reading, editing, shell, search, planning, subagents, answering, the prompt itself, other tools by name), split evenly when a request carried several kinds, with a share bar, the request count and the cache share per kind, then the same by model. Mark every cost as an estimate at list prices and say the rule in the footer. /redline spend opens it. Nothing new is stored and the band does not change.
+
 - Mods are new (Claude Code 2.1.287+). Use your plugin-authoring skill and read the types it points to before writing anything.
 - Only do what is described here: no network calls and no reading files the mod does not need, unless this prompt says so.
 - Write at least one test for the main behaviour and run `claude plugin validate` and `claude plugin test` until both pass.

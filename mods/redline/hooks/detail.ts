@@ -3,7 +3,7 @@
 // The pane draws them by kind; where no surface places the pane, each line's
 // plain `text` prints as the command's answer, so the two can never disagree.
 
-import type { RedlineGauge, RedlineLimit } from '../types'
+import type { RedlineGauge, RedlineLimit, RedlineSpend } from '../types'
 import {
   bar,
   busiest,
@@ -24,6 +24,7 @@ import {
   tokensPerMinute,
 } from './gauge'
 import { priceRow, sumTokens } from './prices'
+import { modelLabel, spendLabel } from './spend'
 import type { Level } from './gauge'
 
 export type Tone = Level | 'dim' | 'title' | 'plain'
@@ -144,6 +145,34 @@ export function detailLines(g: RedlineGauge, now: number, barCells = 10): Detail
     const usd = turn.usd === null ? 'no price' : fmtUsd(turn.usd)
     add(`busiest-${i + 1}`, 'item', 'plain', { value: `${i + 1}. ${fmtTokens(sumTokens(turn.tokens))} tok · ${turn.requests} req · ${usd} · ${turn.label}` })
   })
+
+  // Where the money went: each kind of work the requests carried, by cost; then by model.
+  add('spend-title', 'title', 'title', { value: 'Where the money went' })
+  const kinds = Object.entries(g.spend)
+  if (kinds.length === 0) add('spend-none', 'sub', 'dim', { value: 'nothing yet' })
+  else {
+    const byCost = (a: RedlineSpend, b: RedlineSpend) => (b.usd ?? -1) - (a.usd ?? -1) || sumTokens(b.tokens) - sumTokens(a.tokens)
+    const priced = kinds.reduce((sum, [, e]) => sum + (e.usd ?? 0), 0)
+    const row = (e: RedlineSpend) => {
+      const share = e.usd !== null && priced > 0 ? Math.round((100 * e.usd) / priced) : 0
+      const inputSide = e.tokens.input + e.tokens.cacheRead + e.tokens.cacheWrite
+      const cache = inputSide > 0 ? `cache ${Math.round((100 * e.tokens.cacheRead) / inputSide)}%` : 'no input'
+      return { share, words: `${e.usd === null ? 'no price' : `${fmtUsd(e.usd)} · ${share}%`} · ${e.requests} req · ${cache}` }
+    }
+    for (const [kind, e] of kinds.sort(([, a], [, b]) => byCost(a, b))) {
+      const { label, prefix } = spendLabel(kind)
+      const { share, words } = row(e)
+      add(`spend-${kind}`, 'bar', 'plain', { label, bar: bar(e.usd === null ? 0 : share, 10), value: `${prefix}${words}` })
+    }
+    add('spend-rule', 'sub', 'dim', {
+      value: "each request is charged to the kinds of tool results it carried, split evenly when it carried several; a turn's first request is the prompt, a subagent's requests are subagents; list-price estimates",
+    })
+    add('models-title', 'title', 'title', { value: 'By model' })
+    for (const [model, e] of Object.entries(g.byModel).sort(([, a], [, b]) => byCost(a, b))) {
+      const { share, words } = row(e)
+      add(`model-${model}`, 'bar', 'plain', { label: modelLabel(model), bar: bar(e.usd === null ? 0 : share, 10), value: words })
+    }
+  }
 
   // The one footnote: what the figures count, and over what span.
   const since = g.trackingSince === null ? '' : ` Counting since redline started, ${fmtDuration(now - g.trackingSince)} ago.`

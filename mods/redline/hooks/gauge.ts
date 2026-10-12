@@ -4,7 +4,7 @@
 // the pace and the cost math are table-tested on their own.
 
 import type { TurnUsage } from 'claude-code'
-import type { RedlineGauge, RedlineLimit, RedlineSample, RedlineTokens, RedlineTurn } from '../types'
+import type { RedlineGauge, RedlineLimit, RedlineSample, RedlineSpend, RedlineTokens, RedlineTurn } from '../types'
 import { priceRequest, sumTokens } from './prices'
 
 export const AMBER_AT = 60
@@ -26,6 +26,8 @@ export type Level = 'unknown' | 'normal' | 'amber' | 'red'
 export const ZERO: RedlineTokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 
 export const EMPTY_GAUGE: RedlineGauge = {
+  spend: {},
+  byModel: {},
   sessionStartedAt: null,
   trackingSince: null,
   window: null,
@@ -203,8 +205,8 @@ export type Reading = {
   limits?: readonly RedlineLimit[]
   /** A main-loop turn began with this prompt. */
   turnStart?: { turnId: string; text: string }
-  /** One model request finished, in the main loop or a subagent's. */
-  request?: { turnId: string; agentId?: string; usage: TurnUsage }
+  /** One model request finished, in the main loop or a subagent's, and the kinds of work it carried. */
+  request?: { turnId: string; agentId?: string; usage: TurnUsage; kinds?: readonly string[] }
 }
 
 const addTokens = (a: RedlineTokens, b: RedlineTokens): RedlineTokens => ({
@@ -258,7 +260,7 @@ export function reduce(g: RedlineGauge, r: Reading): { gauge: RedlineGauge; fire
     next.turns = withTurn(next.turns, turnId, make, t => ({ ...t, label: labelOf(text) }))
   }
   if (r.request) {
-    const { turnId, agentId, usage } = r.request
+    const { turnId, agentId, usage, kinds = [] } = r.request
     const tokens = tokensOf(usage)
     const usd = priceRequest(usage.model, tokens)
     next.totals = addTokens(next.totals, tokens)
@@ -280,6 +282,19 @@ export function reduce(g: RedlineGauge, r: Reading): { gauge: RedlineGauge; fire
       tokens: addTokens(t.tokens, tokens),
       usd: t.usd === null || !usd ? null : t.usd + sumTokens(usd),
     }))
+    // Where the money went: the request's tokens and price split evenly across the kinds it carried, and by model.
+    const cost = usd ? sumTokens(usd) : undefined
+    const charge = (entry: RedlineSpend | undefined, t: RedlineTokens, c: number | undefined): RedlineSpend => ({
+      requests: (entry?.requests ?? 0) + 1,
+      tokens: addTokens(entry?.tokens ?? ZERO, t),
+      usd: entry?.usd === null || c === undefined ? null : (entry?.usd ?? 0) + c,
+    })
+    const share = kinds.length > 0 ? 1 / kinds.length : 1
+    const part: RedlineTokens = { input: tokens.input * share, output: tokens.output * share, cacheRead: tokens.cacheRead * share, cacheWrite: tokens.cacheWrite * share }
+    const spend = { ...next.spend }
+    for (const kind of kinds) spend[kind] = charge(spend[kind], part, cost === undefined ? undefined : cost * share)
+    next.spend = spend
+    next.byModel = { ...next.byModel, [usage.model]: charge(next.byModel[usage.model], tokens, cost) }
     // Only the main loop's requests are the session's context; a subagent
     // has a window of its own.
     if (agentId === undefined) {

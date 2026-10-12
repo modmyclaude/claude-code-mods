@@ -19,6 +19,7 @@ import { glyphRow } from './cells'
 import { boltPose, detailChunks, detailLines } from './detail'
 import type { DetailLine, Tone } from './detail'
 import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
+import { kindsCarried } from './spend'
 import type { Level, Reading } from './gauge'
 import type { RedlineGauge } from '../types'
 
@@ -26,10 +27,12 @@ const PANE = 'redline'
 /** Narrower than this, the detail pane keeps every column for the figures and Bolt steps out. */
 const BOLT_MIN_COLUMNS = 40
 /** The label column of a plan window's bar row. */
-const LIMIT_LABEL_CELLS = 8
+const LIMIT_LABEL_CELLS = 12
 const BAND_STORE_KEY = 'isBandOn'
 const gauge = atom({ plugin: 'redline', key: 'gauge' } as const, EMPTY_GAUGE)
 const isBandOn = atom({ plugin: 'redline', key: 'isBandOn' } as const, false)
+/** The tools the last response called, per loop (main or a subagent, per turn): what the next request carries. */
+const carried = new Map<string, string[]>()
 
 const LEVEL_COLOR: Record<Level, ThemeKey> = { unknown: 'inactive', normal: 'success', amber: 'warning', red: 'error' }
 
@@ -147,6 +150,12 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     const response = yield* next(e)
     const usage = response.usage
+    // What this request carried: the results of the previous response's tool calls in this loop.
+    const loop = `${e.agentId ?? 'main'}:${e.turnId}`
+    const kinds = kindsCarried(e.index, e.agentId, carried.get(loop) ?? [])
+    const tools = (response.toolUses ?? []).map(use => use.name)
+    if (tools.length > 0) carried.set(loop, tools)
+    else carried.delete(loop)
     if (usage) {
       await safely($, 'request', async () => {
         const totals = await $.session.usage().catch(() => undefined)
@@ -157,7 +166,7 @@ export const register: Register = on => {
           ...(totals && e.agentId === undefined
             ? { contextTokens: totals.context.tokens, contextPercent: totals.context.percent }
             : {}),
-          request: { turnId: e.turnId, agentId: e.agentId, usage },
+          request: { turnId: e.turnId, agentId: e.agentId, usage, kinds },
         })
       })
     }
@@ -220,8 +229,8 @@ export const register: Register = on => {
       $.ui.toast(isOn ? 'Band is on, above the prompt. /redline band hides it.' : 'Band is off. /redline band shows it.')
       return {}
     }
-    if (arg !== '') {
-      $.ui.toast('/redline opens the detail view; /redline band toggles the gauge above the prompt.')
+    if (arg !== '' && arg !== 'spend') {
+      $.ui.toast('/redline opens the detail view (with where the money went); /redline band toggles the gauge above the prompt.')
       return {}
     }
     const opened = await $.ui.open({ id: PANE, title: 'Redline', closeOnEscape: true })

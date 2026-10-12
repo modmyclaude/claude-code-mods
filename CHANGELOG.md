@@ -17,6 +17,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 - pager 0.1.1: two spoken sound packs, butler and coach, behind the pack setting. The manifest names its homepage and repository.
 - play-by-play 0.1.1: the manifest names its homepage and repository; plain code comments. The replay is unchanged.
 - porthole 0.1.1: the manifest names its homepage and repository; plain code comments. What you see is unchanged.
+- redline 0.1.2: the pane gains Where the money went: this session's cost split by the kind of work each request carried (prompt, reading, editing, shell, search, planning, subagents, answering, MCP servers by name) with a share bar, the request count and the cache share, then by model; /redline spend opens it. Estimates at list prices; nothing new stored; the band is unchanged.
 - redline 0.1.1: the detail pane reads at a glance: the context fill in colour, figures in rows with the numbers at the right edge, nothing cut off, one footnote; where no pane can open, the view goes to the transcript, never to Claude. The manifest names its homepage and repository.
 - second-wind 0.1.1: on the desktop, a breathing guide shown after one was left running (say, by a reload mid-turn) starts fresh instead of jumping back.
 - thermostat 0.1.1: the receipt reads at a glance: the cache state in colour with its countdown bar, figures in rows, zero rows folded away, one footnote; Bolt is larger and sleeps when the cache is cold. The manifest names its homepage and repository.
