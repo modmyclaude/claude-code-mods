@@ -209,12 +209,19 @@ describe('heatGrid', () => {
     expect(at(72_000)).toBe(at(79_999)) // the same drawing all through one window
     expect(at(72_000)).not.toBe(at(80_000)) // and a step at its edge
   })
-  test('a running subagent always has a column: running first, then the latest finished', () => {
+  test('a running subagent always has a column: the running and the latest finished are kept, laid out in mission order', () => {
     const list: Ant[] = [...Array.from({ length: 12 }, (_, i) => ({ ...ant(`f${i}`, i + 1), status: 'done' as const, endedAt: 1_000 + i })), ant('r', 13)]
     const { ids } = heatGrid(list, [], 60_000)
-    expect(ids[0]).toBe('r')
     expect(ids.length).toBe(12)
+    expect(ids).toContain('r')
     expect(ids).not.toContain('f0') // the earliest finished one gives way
+    expect(ids).toEqual([...ids].sort((a, b) => (a === 'r' ? 13 : Number(a.slice(1)) + 1) - (b === 'r' ? 13 : Number(b.slice(1)) + 1))) // mission order, not running first
+  })
+  test('when every subagent fits, a finish moves no column', () => {
+    const list: Ant[] = [ant('a', 1), ant('b', 2), ant('c', 3)]
+    const before = heatGrid(list, [], 60_000).ids
+    const after = heatGrid([{ ...list[0]!, status: 'done' as const, endedAt: 5 }, list[1]!, list[2]!], [], 60_000).ids
+    expect(after).toEqual(before)
   })
   test('a window boundary lands in the later window, and columns stop at the cap', () => {
     const now = 60_000

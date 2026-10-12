@@ -277,10 +277,11 @@ export function heatGlyph(count: number): string {
 }
 
 /**
- * The heat strip's cells: one column per subagent (running ones first in
- * mission order, then the finished, latest first, at most `maxColumns`), one
- * row per window with the oldest on top, each cell how many timeline rows
- * that subagent produced in that window.
+ * The heat strip's cells: one column per subagent in mission order (when
+ * more than `maxColumns`, the running ones and then the latest finished are
+ * the ones kept, still laid out in mission order, so no column jumps when one
+ * finishes), one row per window with the oldest on top, each cell how many
+ * timeline rows that subagent produced in that window.
  *
  * The windows are anchored to the clock (each starts on a multiple of the
  * window), so the strip steps once per window instead of sliding with every
@@ -296,7 +297,7 @@ export function heatGrid(
   const byMission = (a: AntFarmAnt, b: AntFarmAnt) => (a.n ?? Number.MAX_SAFE_INTEGER) - (b.n ?? Number.MAX_SAFE_INTEGER) || a.startedAt - b.startedAt
   const running = list.filter(a => a.status === 'running').sort(byMission)
   const finished = list.filter(a => a.status !== 'running').sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt) || byMission(a, b))
-  const ids = [...running, ...finished].slice(0, maxColumns).map(a => a.id)
+  const ids = [...running, ...finished].slice(0, maxColumns).sort(byMission).map(a => a.id)
   const column = new Map(ids.map((id, i) => [id, i] as const))
   const grid = Array.from({ length: rows }, () => ids.map(() => 0))
   const end = Math.floor(now / HEAT_WINDOW_MS) * HEAT_WINDOW_MS + HEAT_WINDOW_MS

@@ -24,7 +24,8 @@ Watch your subagents work, and what they cost, live.
   subagents' total (price-table estimate), the session's spend against your
   budget (Claude Code's estimate where it keeps one) and a budget bar. With no
   subagents yet, Bolt naps here. From 84 columns a heat strip sits beside the
-  hero line: one column per subagent (running ones first, twelve at most), one
+  hero line: one column per subagent in mission order (twelve at most, the
+  running ones always among them), one
   row per ten seconds of the last minute, each cell shaded by how much that
   subagent did in that window, in its colour, with the mission numbers
   underneath. It steps once every ten seconds.
@@ -36,8 +37,9 @@ Watch your subagents work, and what they cost, live.
   ETA, and on a wide card how many tools it called, files it edited and calls
   that failed. The border takes the model's colour, green for a moment when it
   finishes, red when it fails, then rests dim. The pointer lights a card, and
-  resting on it shows a hover card over the card's art: the full task and the
-  subagent's last rows. Nothing moves and nothing is redrawn for it.
+  resting on it grows the card by a few dim rows: the task in full where the
+  title had to cut it, and the subagent's last three rows. Nothing is redrawn
+  for it; the surface shows and hides the rows by itself.
 - **The status is read, never guessed.** `THINKING` while a thinking block
   streams in its own model request, `WORKING` while it writes or runs a tool
   (the status line names the tool and what it touches: `Bash npm test`,
@@ -162,7 +164,7 @@ Every setting has a default, so the notice at install about options not yet set 
   not when a subagent merely plans a tool.
 - Hotkeys act only while the pane holds the keyboard, as Claude Code keys every
   pane; from the prompt, click a card's `inspect` instead.
-- **The hover card draws where the surface tracks the pointer:** the desktop
+- **The hover reveal draws where the surface tracks the pointer:** the desktop
   app, and a terminal with mouse tracking. Elsewhere the cards are as before.
 - **A click on the desktop app can be dropped while the pane is live.** The app
   presses a button by the handle it was drawn with, and Claude Code hands out
