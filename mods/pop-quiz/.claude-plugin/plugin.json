@@ -1,0 +1,25 @@
+{
+  "name": "pop-quiz",
+  "version": "0.1.0",
+  "description": "A learning mode, off by default: after a turn that changed code, two short questions about the change, each answer one press away.",
+  "homepage": "https://modmyclaude.com/mods/pop-quiz",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["learning", "quiz", "understanding", "band", "small-model"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On from the start",
+      "description": "Quiz in every session without typing /pop-quiz on. Each quiz is one small-model call (about $0.0004 at list prices).",
+      "default": false
+    },
+    "every": {
+      "type": "number",
+      "title": "Quiz every n changed turns",
+      "description": "1 quizzes every turn that changed files; 3 (the default) every third. 1 to 20.",
+      "default": 3
+    }
+  }
+}
