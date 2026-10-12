@@ -51,7 +51,7 @@ The same commands last-look holds take a snapshot, and nothing else: a listing, 
 
 ## What it can touch
 
-- **Writes:** archives and a small index under `~/.claude/mulligan/<project key>/` (or under `CLAUDE_CONFIG_DIR` when set): ten slots per project, reused in turn, never more. The key is a hash of the project's path. Each archive holds copies of your project's files, so anything in them (a `.env` among them) sits there too, in your home folder only.
+- **Writes:** archives and a small index (each snapshot's command text, time and size) under `~/.claude/mulligan/<project key>/` (or under `CLAUDE_CONFIG_DIR` when set): ten slots per project, reused in turn, never more. The key is a hash of the project's path. Each archive holds copies of your project's files, so anything in them (a `.env` among them) sits there too, in your home folder only.
 - **Runs:** `git rev-parse`, `git stash create`, `git ls-files`, `git diff` and, on a restore you confirmed, `git restore --overlay`, all with git's optional locks off, so it never takes the index lock under Claude. `tar` to make, list and unpack archives, and `mkdir` and `mv` inside its own folder. It never runs `rm`, never moves a branch, never touches `.git` beyond the objects `git stash create` adds.
 - **Reads:** each Bash command's text (to see whether it destroys files), the shell's current folder, your project's files when it saves them.
 - **Tells Claude:** after a restore, one note that the files changed and to re-read before editing. Nothing else: `/mulligan` answers in a pane and toasts.
@@ -61,7 +61,7 @@ The same commands last-look holds take a snapshot, and nothing else: a listing, 
 
 - **Files in this project only.** A database, a remote, a package registry or anything outside the project folder is not covered, and it says so when a command reaches outside.
 - Ignored files are not saved by `git clean -x`; the line says so.
-- A command that fails still keeps its snapshot: a failing `rm -rf` can delete most of what it named before it stops.
+- A command that fails, or one git refused, still keeps its snapshot: a failing `rm -rf` can delete most of what it named before it stops.
 - A restore puts back what the snapshot holds. A file the command created is not removed, and edits made since to a restored file are written over (Diff shows them first).
 - Restoring tracked changes needs git 2.23 or newer (`git restore`).
 - Saving reads the files it copies before the command runs; a large tree can add up to 20 seconds to that command, and a tree over the size limit is skipped.
