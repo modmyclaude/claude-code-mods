@@ -60,7 +60,10 @@ describe('redact', () => {
     ['AWS access key', 'aws key AKIAIOSFODNN7EXAMPLE here'],
     ['GitHub token', 'token ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789 ok'],
     ['GitHub fine-grained', 'github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz'],
-    ['Anthropic key', 'use sk-ant-api03-AbCdEfGhIjKlMnOpQrStUv-wxyz'],
+    ['Anthropic key', 'use sk-ant-api03-AbCdEfGhIjKlMnOpQrStUv-wxyz'], // through the general sk- rule
+    // Built at run time so no line here looks like a live credential to a scanner.
+    ['Slack token', `slack ${['xo', 'xb-', '1234567890-', 'AbCdEfGhIjKl'].join('')} ok`],
+    ['Google API key', `maps ${['AI', 'za', 'SyB', 'x7Kq'.repeat(8)].join('')} ok`],
     ['OpenAI key', 'OPENAI sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz012345'],
     ['Stripe live key', 'stripe sk_live_51HAbCdEfGhIjKlMn0'],
     ['Stripe webhook secret', 'whsec_AbCdEfGhIjKlMnOpQrSt'],
