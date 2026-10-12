@@ -1,0 +1,31 @@
+{
+  "name": "trim",
+  "version": "0.1.0",
+  "description": "Long shell output, folded before Claude reads it: errors, head and tail kept, about how many tokens saved shown.",
+  "homepage": "https://modmyclaude.com/mods/trim",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["tokens", "cost", "bash", "output", "context"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "lines": {
+      "type": "number",
+      "title": "Fold past this many lines",
+      "description": "Output this long or longer (or past the character limit) is folded. 40 to 100000.",
+      "default": 120
+    },
+    "chars": {
+      "type": "number",
+      "title": "Fold past this many characters",
+      "description": "Output this long or longer (or past the line limit) is folded. 1000 to 10000000.",
+      "default": 6000
+    },
+    "keep": {
+      "type": "string",
+      "title": "Always keep lines matching",
+      "description": "A pattern (a regular expression, case-insensitive; use | between several) whose lines are never folded. Leave empty for none.",
+      "default": ""
+    }
+  }
+}
