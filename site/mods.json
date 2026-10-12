@@ -108,7 +108,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 308,
+        "count": 315,
         "surfaces": [
           "terminal",
           "desktop",
@@ -185,7 +185,7 @@
       "commands": [],
       "settings": [],
       "tests": {
-        "count": 315,
+        "count": 317,
         "surfaces": [
           "terminal",
           "desktop",
@@ -334,7 +334,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 82,
+        "count": 86,
         "surfaces": [
           "terminal",
           "desktop"
@@ -543,7 +543,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 247,
+        "count": 250,
         "surfaces": [
           "terminal",
           "desktop",
@@ -763,7 +763,7 @@
         }
       ],
       "tests": {
-        "count": 59,
+        "count": 62,
         "surfaces": [
           "terminal",
           "desktop"
@@ -971,7 +971,7 @@
       ],
       "settings": [],
       "tests": {
-        "count": 142,
+        "count": 151,
         "surfaces": [
           "terminal",
           "desktop"
@@ -980,7 +980,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-12",
-      "commit": "b045bb4",
+      "commit": "50b8ef9",
       "reach": [
         "display only"
       ],
@@ -1074,7 +1074,7 @@
         }
       ],
       "tests": {
-        "count": 181,
+        "count": 186,
         "surfaces": [
           "terminal",
           "desktop",
@@ -1159,7 +1159,7 @@
         }
       ],
       "tests": {
-        "count": 194,
+        "count": 197,
         "surfaces": [
           "terminal",
           "desktop",
@@ -1251,7 +1251,7 @@
         }
       ],
       "tests": {
-        "count": 500,
+        "count": 534,
         "surfaces": [
           "terminal",
           "desktop",

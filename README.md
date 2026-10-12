@@ -7,12 +7,13 @@
 
 ### Level up Claude Code with tested mods for safer runs, smarter spending and more fun.
 
-Claude Code mods with <!-- tests -->3,200+<!-- /tests --> behaviour tests, terminal and desktop.
+Claude Code mods with <!-- tests -->3,300+<!-- /tests --> behaviour tests, terminal and desktop.
 
 <!-- badges:start -->
-[![check](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml/badge.svg)](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml)
+[![check on Claude Code 2.1.293](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml/badge.svg)](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml)
+[![latest Claude Code](https://github.com/modmyclaude/claude-code-mods/actions/workflows/compat.yml/badge.svg)](https://github.com/modmyclaude/claude-code-mods/actions/workflows/compat.yml)
 [![mods](https://img.shields.io/badge/mods-17-C8F53C?labelColor=101114)](#the-mods)
-[![tests](https://img.shields.io/badge/tests-3%2C200%2B-C8F53C?labelColor=101114)](CONTRIBUTING.md#the-bar)
+[![tests](https://img.shields.io/badge/tests-3%2C300%2B-C8F53C?labelColor=101114)](CONTRIBUTING.md#the-bar)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.287%2B-3A3F4A?labelColor=101114)](#install)
 [![license](https://img.shields.io/badge/license-MIT-3A3F4A?labelColor=101114)](LICENSE)
 <!-- badges:end -->
@@ -38,7 +39,7 @@ This repo is a small, curated collection of <!-- count -->17<!-- /count --> of t
 
 ## Why these mods
 
-- **Tested where you use it.** <!-- tests -->3,200+<!-- /tests --> behaviour tests run in Claude Code's own test kit, on the terminal and the desktop app, not only a static validate.
+- **Tested where you use it.** <!-- tests -->3,300+<!-- /tests --> behaviour tests run in Claude Code's own test kit, on the terminal and the desktop app, not only a static validate.
 - **Built here.** Not a list of other people's repos.
 - **Reviewed by a second builder.** No mod is listed on its builder's word alone.
 - **Honest badges.** What each mod can touch comes from Claude Code's own validator, not from our description.
