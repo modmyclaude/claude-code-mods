@@ -24,16 +24,33 @@ const allTime = atom({ plugin: 'swear-jar', key: 'allTime' } as const, {} as Swe
 const last = atom({ plugin: 'swear-jar', key: 'last' } as const, [] as SwearJarHit[])
 const nudge = atom({ plugin: 'swear-jar', key: 'nudge' } as const, false)
 
-/** The buttons a safety hold draws; while one is beneath, the band is left to it alone. */
-const HOLD_LABELS = new Set(['Proceed', 'Cancel', 'Allow once', 'Deny'])
+/**
+ * The button pairs a safety hold draws (Proceed with Cancel, Allow once with Deny). While a
+ * pair is beneath, the band is left to the hold alone. One button alone is not a hold: a mod
+ * that waits with Send now and Cancel keeps the jar's line.
+ */
+const HOLD_PAIRS: readonly (readonly [string, string])[] = [
+  ['Proceed', 'Cancel'],
+  ['Allow once', 'Deny'],
+]
 
-function holdsBeneath(node: unknown): boolean {
-  if (Array.isArray(node)) return node.some(holdsBeneath)
-  if (typeof node !== 'object' || node === null) return false
+function buttonLabels(node: unknown, found: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(node)) {
+    for (const child of node) buttonLabels(child, found)
+    return found
+  }
+  if (typeof node !== 'object' || node === null) return found
   const el = node as { type?: unknown; props?: Record<string, unknown>; children?: unknown }
   const type = typeof el.type === 'string' ? el.type : (el.type as { name?: string } | undefined)?.name
-  if (type === 'Button' && typeof el.props?.label === 'string' && HOLD_LABELS.has(el.props.label)) return true
-  return holdsBeneath(el.props?.children) || holdsBeneath(el.children)
+  if (type === 'Button' && typeof el.props?.label === 'string') found.add(el.props.label)
+  buttonLabels(el.props?.children, found)
+  buttonLabels(el.children, found)
+  return found
+}
+
+function holdsBeneath(node: unknown): boolean {
+  const labels = buttonLabels(node)
+  return HOLD_PAIRS.some(([yes, no]) => labels.has(yes) && labels.has(no))
 }
 
 /** The status line's count while that view is on; cleared when the jar is empty. */
@@ -55,13 +72,15 @@ export const register: Register = (on, options) => {
   const show = showOf(settings.show)
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({
-      name: 'swear-jar',
-      description: "The jar for the model's verbal tics: scoreboard, reset, nudge on|off",
-      argumentHint: '[reset [all] | nudge on|off]',
-      immediate: true,
-    })
     const started = await next(e)
+    await safely($, async () => {
+      await $.command.register({
+        name: 'swear-jar',
+        description: "The jar for the model's verbal tics: scoreboard, reset, nudge on|off",
+        argumentHint: '[reset [all] | nudge on|off]',
+        immediate: true,
+      })
+    })
     await safely($, async () => {
       const stored = countsOf(await $.store.get(ALL_TIME))
       await update($, allTime, () => stored)

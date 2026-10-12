@@ -21,11 +21,15 @@ export type World = {
   isPanePlaced: boolean
   /** Another mod's safety hold is drawn beneath the band. */
   holdBeneath: boolean
+  /** Another mod waits beneath with Send now and Cancel: not a hold. */
+  waitBeneath: boolean
+  /** Registering the command fails, as a refusing host would. */
+  refuseCommand: boolean
 }
 
 const replies: string[] = []
 
-export function world(on: On, options: { store?: Record<string, unknown>; isPanePlaced?: boolean; holdBeneath?: boolean } = {}): World {
+export function world(on: On, options: { store?: Record<string, unknown>; isPanePlaced?: boolean; holdBeneath?: boolean; waitBeneath?: boolean; refuseCommand?: boolean } = {}): World {
   const w: World = {
     toasts: [],
     logs: [],
@@ -34,6 +38,8 @@ export function world(on: On, options: { store?: Record<string, unknown>; isPane
     store: new Map(Object.entries(options.store ?? {})),
     isPanePlaced: options.isPanePlaced ?? true,
     holdBeneath: options.holdBeneath ?? false,
+    waitBeneath: options.waitBeneath ?? false,
+    refuseCommand: options.refuseCommand ?? false,
   }
   replies.length = 0
   on('store.get', ($, e) => ({ value: w.store.get(e.key) }))
@@ -53,7 +59,7 @@ export function world(on: On, options: { store?: Record<string, unknown>; isPane
     w.panes.push(e.id)
     return { value: w.isPanePlaced ? { isPlaced: true } : { isPlaced: false, reason: 'no room' } }
   })
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('command.register', ($, e) => (w.refuseCommand ? { deny: 'no commands here' } : { value: { command: e.name } }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('prompt.compose', () => ({ sections: [{ id: 'system', text: 'the base prompt', scope: 'shared' as const }] }))
@@ -76,6 +82,15 @@ export function world(on: On, options: { store?: Record<string, unknown>; isPane
           </Text>
           <Button key="hold-cancel" label="Cancel" onPress={() => undefined} />
           <Button key="hold-proceed" label="Proceed" onPress={() => undefined} />
+        </Box>
+      )
+    }
+    if (w.waitBeneath) {
+      return (
+        <Box key="wait" flexDirection="row" gap={1}>
+          <Text key="wait-text">held until the limit resets</Text>
+          <Button key="wait-send" label="Send now" onPress={() => undefined} />
+          <Button key="wait-cancel" label="Cancel" onPress={() => undefined} />
         </Box>
       )
     }

@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { EM_DASH } from '../hooks/jar'
-import { COMPOSE, SURFACES, band, pane, reply, run, start, world } from './world'
+import { BAND_PROPS, COMPOSE, SURFACES, band, pane, reply, run, start, world } from './world'
 
 const THREE = "You're absolutely right, great question. I apologize for the mess; let me know if it helps. You are absolutely right."
 
@@ -65,6 +65,32 @@ describe('counting', () => {
       expect(drawn.line).toBeUndefined()
       expect(drawn.texts.join('\n')).not.toContain('swear-jar')
     }
+  })
+
+  test('a mod waiting beneath with Send now and Cancel is not a hold: the jar line stays', async ($, on) => {
+    world(on, { waitBeneath: true })
+    await start($)
+    await reply($, THREE)
+    const drawn = await band($, 'terminal')
+    expect(drawn.texts.join('\n')).toContain('held until the limit resets')
+    expect(drawn.line).toBe('swear-jar: absolutely right 2 · great question 1 · i apologize 1')
+  })
+
+  test('while a survey holds the band, the jar draws nothing and passes through', async ($, on) => {
+    world(on)
+    await start($)
+    await reply($, THREE)
+    const ui = await $.ui.mount({ plugin: 'swear-jar', surface: 'terminal', component: 'AbovePrompt', props: { ...BAND_PROPS, hasSurvey: true } })
+    expect(await ui.find({ key: 'swear-jar' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: "another mod's line" })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a host that refuses the command still gets the counts and the nudge loaded', async ($, on) => {
+    world(on, { store: { allTime: { delve: 2 }, nudge: true }, refuseCommand: true })
+    await start($)
+    expect((await pane($, 'terminal')).whole).toContain('All time: 2')
+    expect((await $.prompt.compose(COMPOSE)).sections.map(s => s.id)).toEqual(['system', 'swear-jar:plain-words'])
   })
 
   test('with show set to status the count goes to the status line and no band is drawn', { options: { show: 'status' } }, async ($, on) => {
