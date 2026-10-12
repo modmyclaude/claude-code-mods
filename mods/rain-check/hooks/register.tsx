@@ -116,6 +116,7 @@ async function giveBack($: EngineInterface, waiting: RainCheckQueued, lead: stri
   } catch {
     isFilled = false
   }
+  if (!isFilled) $.ui.log(`rain-check: your words, in full: ${words}`) // the toast shows 60 characters
   $.ui.toast(isFilled ? `${lead} Your words are back in the prompt box.` : `${lead} "${oneLine(words, 60)}"`)
 }
 

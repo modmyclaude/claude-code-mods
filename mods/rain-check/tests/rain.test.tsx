@@ -209,6 +209,7 @@ describe('never losing the person\'s words', () => {
     w.canFill = false
     await press($, 'desktop', 'rain-cancel')
     expect(w.toasts.pop()).toBe('Cancelled. "and run the tests"')
+    expect(w.logs).toEqual(['rain-check: your words, in full: and run the tests'])
   })
 
   test('a send another hook drops comes back to the person, and is not sent later behind their back', SLOW, async ($, on) => {

@@ -42,13 +42,15 @@ export type World = {
   canFill: boolean
   /** Another hook beneath that drops prompts plugins send. */
   dropsPlugins: boolean
+  /** Lines the mod put in the transcript (not the debug log). */
+  logs: string[]
 }
 
 export function world(on: On): World {
   on('state.set', ($, e, next) => (w.isStateBroken ? { deny: 'state unavailable' } : next(e)))
   const w: World = {
     clock: mock.clock(on, { now: T0 }), toasts: [], sent: [], surfaces: ['terminal'], usage: [], isStateBroken: false,
-    box: '', fills: [], canFill: true, dropsPlugins: false,
+    box: '', fills: [], canFill: true, dropsPlugins: false, logs: [],
   }
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
@@ -58,7 +60,10 @@ export function world(on: On): World {
     w.toasts.push(e.text)
     return { value: undefined }
   })
-  on('ui.log', () => ({ value: undefined }))
+  on('ui.log', ($, e) => {
+    if (e.to !== 'debug') w.logs.push(e.text)
+    return { value: undefined }
+  })
   on('prompt.submit', ($, e) => {
     if (w.dropsPlugins && e.origin.kind === 'plugin') return { drop: 'a policy hook blocked it' }
     w.sent.push({ text: e.text, origin: e.origin })
