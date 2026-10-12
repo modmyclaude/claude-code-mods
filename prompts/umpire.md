@@ -1,7 +1,7 @@
 ---
 mod: umpire
 title: Umpire
-tagline: Runs your tests after Claude edits code and makes the call - counts above the prompt, a toast when it flips. Off by default.
+tagline: Runs your tests after Claude edits code and makes the call. Off by default.
 category: workflow
 surfaces: [terminal, desktop]
 model_calls: none

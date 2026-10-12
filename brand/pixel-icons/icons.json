@@ -591,6 +591,29 @@
       ]
     },
     {
+      "name": "umpire",
+      "kind": "mod",
+      "meaning": "A tennis umpire's tall chair: from up there it makes the call on your tests.",
+      "rows": [
+        "................",
+        "....LL..........",
+        "....LL..........",
+        "....LL..........",
+        "....LLLLLLLS....",
+        "....SSSSSSSS....",
+        ".....G....G.....",
+        ".....GGGGGG.....",
+        ".....G....G.....",
+        "....G......G....",
+        "....GGGGGGGG....",
+        "....G......G....",
+        "...G........G...",
+        "...GGGGGGGGGG...",
+        "..GG........GG..",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",

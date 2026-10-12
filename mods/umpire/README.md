@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/umpire.svg" width="64" height="64" alt="">
+
 # Umpire
 
 Runs your tests after Claude edits code and makes the call: passed and failed counts above the prompt, a toast when it flips. Off by default.

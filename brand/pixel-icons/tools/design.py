@@ -492,6 +492,25 @@ icon("chapters", "An open book: a diff read as ordered chapters, one at a time."
     "................",
 ])
 
+icon("umpire", "A tennis umpire's tall chair: from up there it makes the call on your tests.", [
+    "................",
+    "....LL..........",
+    "....LL..........",
+    "....LL..........",
+    "....LLLLLLLS....",
+    "....SSSSSSSS....",
+    ".....G....G.....",
+    ".....GGGGGG.....",
+    ".....G....G.....",
+    "....G......G....",
+    "....GGGGGGGG....",
+    "....G......G....",
+    "...G........G...",
+    "...GGGGGGGGGG...",
+    "..GG........GG..",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

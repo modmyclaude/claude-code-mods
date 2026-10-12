@@ -1,7 +1,7 @@
 {
   "name": "umpire",
   "version": "0.1.0",
-  "description": "Runs your tests after Claude edits code and makes the call: passed and failed counts above the prompt, a toast when it flips. Off by default.",
+  "description": "Runs your tests after Claude edits code and makes the call. Off by default.",
   "homepage": "https://modmyclaude.com/mods/umpire",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
