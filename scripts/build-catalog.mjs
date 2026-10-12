@@ -233,7 +233,7 @@ function marketplace(mods) {
   return {
     name: ORG,
     owner: { name: ORG, url: `https://github.com/${ORG}` },
-    metadata: { description: 'Curated, tested Claude Code mods. Every mod ships with the prompt that built it.' },
+    metadata: { description: 'Curated, tested Claude Code mods.' },
     plugins: mods.map(m => ({
       name: m.name,
       source: `./mods/${m.name}`,

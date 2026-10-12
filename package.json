@@ -1,7 +1,7 @@
 {
   "name": "claude-code-mods",
   "private": true,
-  "description": "Curated, tested Claude Code mods. Every mod ships with the prompt that built it.",
+  "description": "Curated, tested Claude Code mods.",
   "license": "MIT",
   "repository": "github:modmyclaude/claude-code-mods",
   "homepage": "https://modmyclaude.com",

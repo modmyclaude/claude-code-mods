@@ -7,7 +7,6 @@
 
 ### Level up Claude Code with tested mods for safer runs, smarter spending and more fun.
 
-Every mod ships with the prompt that built it, so you can remix it.
 
 <!-- badges:start -->
 [![check](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml/badge.svg)](https://github.com/modmyclaude/claude-code-mods/actions/workflows/check.yml)
