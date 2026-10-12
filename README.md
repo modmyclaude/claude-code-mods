@@ -26,7 +26,7 @@ Claude Code mods with <!-- tests -->3,200+<!-- /tests --> behaviour tests, termi
 /plugin install redline@modmyclaude
 ```
 
-Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab. Some mods have settings: Claude Code says so at install (`N userConfig options not yet set`). That notice is expected: every option has a default, and `/config` changes them.
+Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab. Every push is proven on Claude Code 2.1.293, and the newest release is tried every day: the two badges above say how that went. Some mods have settings: Claude Code says so at install (`N userConfig options not yet set`). That notice is expected: every option has a default, and `/config` changes them.
 
 [**Browse the mods**](#the-mods) · [Website](https://modmyclaude.com) · [Build your own](#build-your-own) · [Safety](#safety) · [FAQ](#faq)
 
@@ -135,6 +135,38 @@ A mod is active as soon as it installs, with no restart. Installs at user scope 
 |---|---|---|---|
 | <img src="brand/pixel-icons/svg/second-wind.svg" width="32" height="32" alt=""> | [**Second Wind**](mods/second-wind)<br>`second-wind@modmyclaude` | A breath, an eye rest or a stretch while Claude works, sized to the wait. [Prompt](prompts/second-wind.md) | `hooks prompts` |
 <!-- catalogue:end -->
+
+## Packs
+
+Four sets that go together. Add the marketplace once, then paste one loop into your shell; each line installs one mod, and `/plugin uninstall <mod>` takes any back out.
+
+```bash
+claude plugin marketplace add modmyclaude/claude-code-mods
+```
+
+**Safety net** (holds and redactions before anything leaves): last-look, cloakroom, fine-print
+
+```bash
+for m in last-look cloakroom fine-print; do claude plugin install "$m@modmyclaude"; done
+```
+
+**Spend less** (see the cost, the cache and the limits as they move): redline, thermostat, ant-farm
+
+```bash
+for m in redline thermostat ant-farm; do claude plugin install "$m@modmyclaude"; done
+```
+
+**Stay in flow** (progress, pings, notes, your next move): headway, pager, noted, footprints, crossroads
+
+```bash
+for m in headway pager noted footprints crossroads; do claude plugin install "$m@modmyclaude"; done
+```
+
+**Play** (the waits, the looks, the replays): halftime, hatchling, second-wind, wardrobe, play-by-play, porthole
+
+```bash
+for m in halftime hatchling second-wind wardrobe play-by-play porthole; do claude plugin install "$m@modmyclaude"; done
+```
 
 ## Build your own
 

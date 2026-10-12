@@ -298,7 +298,8 @@ function badges() {
     `https://img.shields.io/badge/${encodeURIComponent(label)}-${encodeURIComponent(value.replaceAll('-', '--'))}-${color}?labelColor=101114`
   const actions = `https://github.com/${ORG}/${REPO}/actions/workflows/check.yml`
   return [
-    `[![check](${actions}/badge.svg)](${actions})`,
+    `[![check on Claude Code 2.1.293](${actions}/badge.svg)](${actions})`,
+    `[![latest Claude Code](${actions.replace('check.yml', 'compat.yml')}/badge.svg)](${actions.replace('check.yml', 'compat.yml')})`,
     `[![mods](${shield('mods', String(mods.length), 'C8F53C')})](#the-mods)`,
     `[![tests](${shield('tests', testsStat, 'C8F53C')})](CONTRIBUTING.md#the-bar)`,
     `[![Claude Code](${shield('Claude Code', '2.1.287+', '3A3F4A')})](#install)`,

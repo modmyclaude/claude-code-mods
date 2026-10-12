@@ -1,0 +1,34 @@
+name: latest Claude Code
+
+# The whole gate on the newest Claude Code release, every day: a failure here is red, not
+# advisory, so the badge tells the truth about compatibility. The check workflow proves the
+# pinned version on every push.
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest:
+    name: validate, test and install every mod on the latest release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Which release this run proves
+        run: claude --version
+      - name: Validate (strict) and test every mod
+        run: STRICT=1 CLAUDE_BIN=claude scripts/check.sh
+      - name: Every mod installs from the marketplace
+        run: CLAUDE_BIN=claude scripts/smoke-install.sh
