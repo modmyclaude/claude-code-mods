@@ -62,6 +62,16 @@ describe('the check', () => {
     expect(Object.keys(w.store.get('seen') as object).sort()).toEqual(['bouncer', 'netty'])
   })
 
+  test('a validator that cannot start at all is reported as such, never taken as clean', async ($, on) => {
+    const w = world(on, { reports: { [NETTY]: 'missing', [ZEN]: 'missing', [GATEKEEPER]: 'missing' } })
+    await start($, w)
+    const { rows } = await pane($, 'terminal')
+    expect(rows.netty).toContain('could not check: spawn claude ENOENT')
+    expect(rows.netty).not.toContain('nothing declared')
+    expect((await band($, 'terminal')).line ?? '').not.toContain('netty')
+    expect(Object.keys(w.store.get('seen') as object)).toEqual(['bouncer'])
+  })
+
   test('the store holds mod names and reach hashes, nothing else', async ($, on) => {
     const w = world(on)
     await start($, w)

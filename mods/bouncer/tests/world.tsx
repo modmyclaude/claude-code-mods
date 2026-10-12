@@ -42,7 +42,7 @@ export const ZEN_REPORT = report(['./register.tsx hooks: ui.render{component=Spi
 export type World = {
   clock: MockClock
   files: Record<string, string>
-  /** What the validator answers per folder: a report, or 'fail' for a non-zero exit, or 'junk' for text that is no report. */
+  /** What the validator answers per folder: a report, 'fail' for a non-zero exit, 'junk' for text that is no report, or 'missing' when the binary cannot start. */
   reports: Record<string, string>
   reads: string[]
   runs: string[][]
@@ -91,6 +91,7 @@ export function world(on: On, options: { store?: Record<string, unknown>; isPane
     w.runs.push([...e.argv])
     const root = e.argv[4] ?? ''
     const answer = w.reports[root] ?? CLEAN
+    if (answer === 'missing') return { deny: 'spawn claude ENOENT' }
     if (answer === 'fail') return { value: { exitCode: 1, stdout: '', stderr: 'boom', isStdoutTruncated: false, isStderrTruncated: false } }
     if (answer === 'junk') return { value: { exitCode: 0, stdout: 'not a report', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     return { value: { exitCode: 0, stdout: answer, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
