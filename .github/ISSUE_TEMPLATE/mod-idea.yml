@@ -16,6 +16,12 @@ body:
     id: why
     attributes:
       label: Why would people want it?
+  - type: input
+    id: seen
+    attributes:
+      label: Where did you see people ask for this?
+      description: A link helps most (a Claude Code issue, a thread, a post). Leave it empty if it is your own wish.
+      placeholder: https://
   - type: dropdown
     id: reach
     attributes:

@@ -15,6 +15,10 @@ Thanks for helping. This collection stays small on purpose, so a mod is listed o
 
 Open an issue with the **[Mod idea](https://github.com/modmyclaude/claude-code-mods/issues/new?template=mod-idea.yml)** form first, so we can check it is not already covered and agree on what it may reach.
 
+## Remix a prompt, no pull request needed
+
+Every mod here was built from a prompt in `prompts/`, and the prompts are the easiest thing to change. Paste one into Claude Code, change what you want (a different sound, a stricter hold, another surface), and if what comes out is worth sharing, open a [mod idea](https://github.com/modmyclaude/claude-code-mods/issues/new?template=mod-idea.yml) with your prompt and what it built. No fork, no pull request: a prompt that works is a contribution, and the maintainers can take it from there.
+
 ## Build it
 
 The fastest start is the [Mod Maker](prompts/starters/mod-maker.md) prompt: paste it into Claude Code and describe your mod to get a working, tested first version. Then put it in this layout, with the prompt you used:
