@@ -156,6 +156,12 @@ Every setting has a default, so the notice at install about options not yet set 
   not when a subagent merely plans a tool.
 - Hotkeys act only while the pane holds the keyboard, as Claude Code keys every
   pane; from the prompt, click a card's `inspect` instead.
+- **A click on the desktop app can be dropped while the pane is live.** The app
+  presses a button by the handle it was drawn with, and Claude Code hands out
+  new handles on every redraw; a click that lands just after a redraw does
+  nothing. The pane's own buttons are redrawn on every tick so this is rare
+  (about one click in a minute of a busy run); click again, or use the keys.
+  The terminal is not affected.
 - Task descriptions, agent types and model names are drawn with escape
   sequences removed and other control characters shown as U+FFFD.
 - Whether the pane may open on its own follows the surface that drew last;

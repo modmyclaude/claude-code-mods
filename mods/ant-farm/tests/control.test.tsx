@@ -736,3 +736,67 @@ describe('size and speed', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------- the desktop app
+
+const STATIC = ['inspector-prev', 'inspector-next', 'inspector-close', 'more-events', 'toggle-timeline', 'toggle-finished']
+
+/** The Box each static Button sits in, by the Button's key. */
+function wrappers(tree: unknown): Map<string, Drawn> {
+  const out = new Map<string, Drawn>()
+  for (const box of walk(tree, n => n.type === 'Box')) {
+    for (const c of box.children ?? []) {
+      const k = (c as Drawn).type === 'Button' ? keyOf(c as Drawn) : undefined
+      if (k !== undefined && STATIC.includes(k)) out.set(k, box)
+    }
+  }
+  return out
+}
+
+describe('the desktop app', () => {
+  test('every button is plain on both surfaces, and every box of truncating words may shrink', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'One')
+    const b = await w.spawn($, 'Two')
+    await w.finish($, b)
+    for (let i = 0; i < 14; i += 1) await w.callTool($, a, 'Read', { file_path: `f${i}.ts` })
+    for (const surface of SURFACES) {
+      const pane = await mountAt($, surface, 84)
+      if ((await pane.find({ key: 'inspector' })) === undefined) await pane.press({ key: `inspect-${a}` }) // the selection carries across surfaces
+      const buttons = await pane.findAll({ type: 'Button' })
+      expect(buttons.length).toBeGreaterThanOrEqual(7)
+      for (const button of buttons) expect(button.props.plain, `${surface} ${button.key}`).toBe(true)
+      // Every box that holds truncating words may shrink to nothing: the desktop's flex items otherwise refuse to, and the app cuts the line mid-word.
+      const shrinking = walk(await pane.drawn(), n => n.type === 'Box' && (n.props?.flexShrink === undefined || Number(n.props.flexShrink) > 0) && n.props?.width === undefined
+        && (n.children ?? []).some(c => (c as Drawn).type === 'Text' && (c as Drawn).props?.wrap === 'truncate-end'))
+      expect(shrinking.length).toBeGreaterThan(6)
+      for (const box of shrinking) expect(box.props?.minWidth, `${surface} ${textOf(box).slice(0, 30)}`).toBe(0)
+      await pane.unmount()
+    }
+  })
+
+  test('each static button sits in a wrapper the desktop remounts every drawing; the terminal keeps them bare', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'One')
+    const b = await w.spawn($, 'Two')
+    await w.finish($, b)
+    for (let i = 0; i < 14; i += 1) await w.callTool($, a, 'Read', { file_path: `f${i}.ts` })
+    const desktop = await mountAt($, 'desktop', 84)
+    await desktop.press({ key: `inspect-${a}` })
+    const before = wrappers(await desktop.drawn())
+    expect([...before.keys()].sort()).toEqual([...STATIC].sort())
+    for (const [k, box] of before) expect(keyOf(box), k).toMatch(/^press-[a-z]+-\d+$/)
+    await w.clock.advance(500) // one tick: the frame moves, so every wrapper key moves with it
+    const after = wrappers(await desktop.drawn())
+    for (const [k, box] of before) {
+      const moved = after.get(k)
+      expect(moved, k).toBeDefined()
+      expect(keyOf(moved as Drawn), k).toMatch(/^press-[a-z]+-\d+$/)
+      expect(keyOf(moved as Drawn), `${k} after a tick`).not.toBe(keyOf(box))
+    }
+    await desktop.unmount()
+    const terminal = await mountAt($, 'terminal', 84)
+    for (const [k, box] of wrappers(await terminal.drawn())) expect(keyOf(box) ?? '', k).not.toMatch(/^press-/)
+    await terminal.unmount()
+  })
+})
