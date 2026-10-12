@@ -12,7 +12,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register } from 'claude-code'
 
 import type { ChaptersChapter, ChaptersReview } from '../types'
-import { batches, changedLines, editDiff, hunksFor, newFileDiff, parseDiff } from './diff'
+import { batches, changedLines, editDiff, hunksFor, isSecretFile, newFileDiff, parseDiff } from './diff'
 import type { FileDiff, Hunk } from './diff'
 import { MAX_INPUT, MAX_TOKENS, MODEL, RISK_MARK, SYSTEM, TIMEOUT_MS, askText, bandWords, buildPrompt, costWords, parseReply, progressWords, sanitize } from './review'
 
@@ -90,6 +90,11 @@ async function gitDiff($: EngineInterface, root: string, scope: 'changes' | 'sta
     const listed = await git($, ['ls-files', '--others', '--exclude-standard', '-z'], root).catch(() => undefined)
     const names = listed?.exitCode === 0 ? listed.stdout.split('\0').filter(Boolean).slice(0, MAX_NEW_FILES) : []
     for (const name of names) {
+      // A secrets file is never read: its name is all the review gets.
+      if (isSecretFile(name)) {
+        text += `\ndiff --git a/${name} b/${name}\nnew file`
+        continue
+      }
       const content = await $.fs.read(`${root.replace(/\/+$/, '')}/${name}`).catch(() => undefined)
       if (content === undefined || content.includes('\0') || content.length > MAX_NEW_FILE_CHARS) continue
       text += `\n${newFileDiff(name, content)}`

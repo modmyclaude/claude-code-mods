@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import { batches, editDiff, hunksFor, newFileDiff, parseDiff } from '../hooks/diff'
+import { batches, editDiff, hunksFor, isSecretFile, newFileDiff, parseDiff } from '../hooks/diff'
 import { MAX_INPUT, costWords, parseReply } from '../hooks/review'
 import { shortHunk } from '../hooks/register'
 import { DIFF, MB, ROOT, SURFACES, TWO, bandTexts, chapters, pane, paneTexts, reply, start, world } from './world'
@@ -74,6 +74,54 @@ describe('the diff, read-only', () => {
     const ui = await pane($, 'desktop')
     const code = await ui.findAll({ type: 'Code' })
     expect(code.map(c => [c.props.path, c.props.format])).toEqual([['src/a.ts', 'diff'], ['src/b.ts', 'diff']])
+  })
+})
+
+describe('secrets never reach the model', () => {
+  test('an untracked secrets file is never read, and goes by its name alone; other new files go whole', async ($, on) => {
+    const w = world(on)
+    const token = ['np', 'm_', 'Q'.repeat(36)].join('')
+    w.untracked = { '.env.local': 'API_TOKEN=abc123', '.npmrc': `//registry/:_authToken=${token}`, 'src/new.ts': 'export const n = 1\n' }
+    await start($)
+    await chapters($, w)
+    const prompt = w.prompts[0]!
+    expect(prompt).toContain('diff --git a/.env.local b/.env.local\n(a secrets file changed: its contents are not sent)')
+    expect(prompt).toContain('diff --git a/.npmrc b/.npmrc\n(a secrets file changed: its contents are not sent)')
+    expect(prompt).not.toContain('abc123')
+    expect(prompt).not.toContain(token)
+    expect(w.reads).toEqual(['src/new.ts'])
+  })
+
+  test('a tracked secrets file in a staged or branch diff is named, its lines neither sent nor drawn', async ($, on) => {
+    const w = world(on)
+    w.diff = `${DIFF}\ndiff --git a/config/prod.tfvars b/config/prod.tfvars\n@@ -1 +1 @@\n-db_password = "old"\n+db_password = "new-secret-value"`
+    w.replies = [reply([{ title: 'Config', files: [{ path: 'config/prod.tfvars' }], what: 'the prod values changed', risk: 'high' }])]
+    await start($)
+    await chapters($, w, 'staged')
+    expect(w.prompts[0]).toContain('diff --git a/config/prod.tfvars b/config/prod.tfvars\n(a secrets file changed: its contents are not sent)')
+    expect(w.prompts[0]).not.toContain('new-secret-value')
+    const ui = await pane($)
+    expect(await ui.findAll({ type: 'Code' })).toEqual([])
+  })
+
+  test('every kind of secrets file is known by its name; look-alikes are not', () => {
+    const secret = [
+      '.env', '.env.local', 'app/.env.production', 'server.pem', 'tls.key', 'cert.p12', 'cert.pfx', 'release.jks', 'app.keystore', 'putty.ppk', 'signing.asc',
+      'backup.gpg', 'id_rsa', 'id_ed25519.pub', 'id_ecdsa', 'credentials', 'credentials.yml.enc', '.npmrc', '.netrc', '.pgpass', '.pypirc', '.git-credentials',
+      '.htpasswd', 'prod.tfvars', 'prod.tfvars.json', 'secrets.yaml', 'secret.json',
+    ]
+    for (const name of secret) expect(isSecretFile(name), name).toBe(true)
+    for (const name of ['env.ts', 'src/environment.ts', 'keyboard.ts', 'monkey.ts', 'README.md', 'main.tf', 'npmrc.md', 'id.ts']) expect(isSecretFile(name), name).toBe(false)
+  })
+
+  test('anything that looks like a secret in an ordinary file is redacted before it is sent', async ($, on) => {
+    const w = world(on)
+    const key = ['sk', '_live_', 'A1b2'.repeat(6)].join('')
+    w.diff = `${DIFF}\ndiff --git a/src/pay.ts b/src/pay.ts\n@@ -1 +1 @@\n-const k = ''\n+const STRIPE_KEY = "${key}"`
+    await start($)
+    await chapters($, w, 'branch')
+    expect(w.prompts[0]).not.toContain(key)
+    expect(w.prompts[0]).toContain('[REDACTED]')
   })
 })
 
@@ -215,7 +263,7 @@ describe('the logic alone', () => {
   })
 
   test('two batches at most; a file bigger than a batch is cut and marked', () => {
-    const f = (path: string, n: number) => ({ path, hunks: [{ header: '@@', newStart: 1, newLines: n, text: `@@ -0,0 +1,${n} @@\n${'+x\n'.repeat(n)}` }], isBinary: false })
+    const f = (path: string, n: number) => ({ path, hunks: [{ header: '@@', newStart: 1, newLines: n, text: `@@ -0,0 +1,${n} @@\n${'+x\n'.repeat(n)}` }], isBinary: false, isSecret: false })
     const { texts, left } = batches([f('a', 10), f('b', 10), f('c', 10)], 120)
     expect(texts).toHaveLength(2)
     expect(left).toBe(1)

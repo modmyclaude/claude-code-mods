@@ -1,9 +1,29 @@
 // Diffs for chapters: a unified diff read into files and hunks, a diff made
 // from Claude's own edits where there is no git, new files as whole additions,
 // cleaning for drawing, and the split that keeps what the model is sent capped.
+// What is sent is redacted, and a secrets file goes by its name alone.
+
+import { redact } from './redact'
 
 export type Hunk = { header: string; newStart: number; newLines: number; text: string }
-export type FileDiff = { path: string; hunks: Hunk[]; isBinary: boolean }
+/** `isSecret`: a secrets file by its name; its hunks are never kept, sent or drawn. */
+export type FileDiff = { path: string; hunks: Hunk[]; isBinary: boolean; isSecret: boolean }
+
+/** Files whose contents are never sent or drawn, by name: the same list as pop-quiz's. */
+const SECRET_FILES: readonly RegExp[] = [
+  /^\.env(\..*)?$/i,
+  /\.(pem|key|p12|pfx|jks|keystore|ppk|asc|gpg)$/i,
+  /^id_(rsa|dsa|ecdsa|ed25519)(\..*)?$/i,
+  /^credentials(\..*)?$/i,
+  /^\.(npmrc|netrc|pgpass|pypirc|git-credentials|htpasswd)$/i,
+  /\.tfvars(\.json)?$/i,
+  /^secrets?\./i,
+]
+
+export function isSecretFile(path: string): boolean {
+  const name = path.split(/[\\/]/).pop() ?? path
+  return SECRET_FILES.some(re => re.test(name))
+}
 
 /** Escape sequences and every control character but tab and newline: what a Code element may hold. */
 export function cleanDiff(text: string): string {
@@ -32,11 +52,12 @@ export function parseDiff(text: string): FileDiff[] {
   for (const line of cleanDiff(text).split('\n')) {
     if (line.startsWith('diff --git ')) {
       closeHunk()
-      file = { path: pathOf(line), hunks: [], isBinary: false }
+      const path = pathOf(line)
+      file = { path, hunks: [], isBinary: false, isSecret: isSecretFile(path) }
       files.push(file)
       continue
     }
-    if (!file) continue
+    if (!file || file.isSecret) continue // a secrets file's lines are never kept
     if (line.startsWith('Binary files ') || line.startsWith('GIT binary patch')) {
       file.isBinary = true
       continue
@@ -73,10 +94,11 @@ export function editDiff(path: string, before: string, after: string): string {
   ].join('\n')
 }
 
-/** A file's diff as text again, for the model. */
+/** A file's diff as text again, for the model: redacted, and a secrets file by name only. */
 export function fileText(file: FileDiff): string {
+  if (file.isSecret) return `diff --git a/${file.path} b/${file.path}\n(a secrets file changed: its contents are not sent)`
   if (file.isBinary) return `diff --git a/${file.path} b/${file.path}\n(binary file changed)`
-  return [`diff --git a/${file.path} b/${file.path}`, ...file.hunks.map(h => h.text)].join('\n')
+  return redact([`diff --git a/${file.path} b/${file.path}`, ...file.hunks.map(h => h.text)].join('\n'))
 }
 
 /**

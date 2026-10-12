@@ -44,6 +44,8 @@ export type World = {
   /** What `git diff-index` and `git diff-tree` answer. */
   diff: string
   untracked: Record<string, string>
+  /** Files the mod read, relative to the project. */
+  reads: string[]
   /** Every git command, its arguments joined, and whether optional locks were off. */
   gits: string[]
   lockingGit: string[]
@@ -63,7 +65,7 @@ export type World = {
 export function world(on: On): World {
   const w: World = {
     clock: mock.clock(on, { now: Date.UTC(2026, 9, 12, 9) }),
-    isGit: true, hasHead: true, diff: DIFF, untracked: {}, gits: [], lockingGit: [], prompts: [], models: [], replies: [TWO],
+    isGit: true, hasHead: true, diff: DIFF, untracked: {}, reads: [], gits: [], lockingGit: [], prompts: [], models: [], replies: [TWO],
     box: '', fills: [], submits: [], toasts: [], opened: [], isPaneShown: false, surfaces: ['terminal'],
   }
   mock.env(on, {})
@@ -82,6 +84,7 @@ export function world(on: On): World {
   on('ui.panes', () => ({ value: w.isPaneShown ? [{ id: 'chapters', title: 'chapters', isShown: true, isFocused: true, isPlaced: true }] : [] }))
   on('fs.read', ($, e) => {
     const name = e.path.slice(ROOT.length + 1)
+    w.reads.push(name)
     return name in w.untracked ? { value: w.untracked[name]! } : { deny: `ENOENT ${e.path}` }
   })
   on('prompt.read', () => ({ value: { text: w.box, cursor: w.box.length } }))
