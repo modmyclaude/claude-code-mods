@@ -114,6 +114,10 @@ export function drawControl(c: ControlInput): RenderElement {
   const failed = finished.filter(a => a.status === 'failed').length
   const waiting = running.filter(a => c.live.get(a.id)?.phase === 'waiting').length
   const compact = c.columns < COMPACT_BELOW
+  // The desktop draws words in a proportional font and clips a row at the pane's
+  // edge instead of cutting it with an ellipsis, so a narrow desktop pane wraps
+  // its lines; the terminal, where cells are exact, cuts them at the end.
+  const cut: TextProps['wrap'] = c.surface === 'desktop' && compact ? 'wrap' : 'truncate-end'
   const firstStart = c.list.length > 0 ? Math.min(...c.list.map(a => a.startedAt)) : c.now
   const lastEnd = running.length > 0 ? c.now : Math.max(firstStart, ...finished.map(a => a.endedAt ?? a.startedAt))
   const selected = c.view.selectedId !== undefined ? c.list.find(a => a.id === c.view.selectedId) : undefined
@@ -226,7 +230,7 @@ export function drawControl(c: ControlInput): RenderElement {
         <Box flexDirection="row" key={`line-${a.id}`}>
           {glyphRow(c.ui, c.surface, miniAnt(a.status, isRunning(a) ? c.frame + phaseOf(a.id) : 0), paint)}
           <Box marginLeft={1} flexGrow={1} flexShrink={1}>
-            <Text dimColor={!isRunning(a)} wrap="truncate-end">{numberOf(a)} {a.status} · {taskOf(a)} · {numbers}</Text>
+            <Text dimColor={!isRunning(a)} wrap={cut}>{numberOf(a)} {a.status} · {taskOf(a)} · {numbers}</Text>
           </Box>
         </Box>
       )
@@ -265,32 +269,32 @@ export function drawControl(c: ControlInput): RenderElement {
     <Box flexDirection="column" flexGrow={1} flexShrink={1}>
       <Box key="hero" flexDirection="row">
         <Box flexGrow={1} flexShrink={1}>
-          <Text bold color={head.color} wrap="truncate-end">{head.text}</Text>
+          <Text bold color={head.color} wrap={cut}>{head.text}</Text>
         </Box>
         {clock !== '' ? <Box flexShrink={0} marginLeft={1}><Text dimColor>{clock}</Text></Box> : null}
       </Box>
-      <Box key="counts" flexDirection="row">
+      <Box key="counts" flexDirection="row" {...(compact ? { flexWrap: 'wrap' as const } : {})}>
         <Text bold>{running.length - waiting}</Text><Text dimColor> running · </Text>
         <Text bold>{finished.length - failed}</Text><Text dimColor> done · </Text>
         <Text bold {...(failed > 0 ? { color: 'error' } : {})}>{failed}</Text><Text dimColor> failed</Text>
         {waiting > 0 ? <Text color="warning"> · {waiting} waiting</Text> : null}
       </Box>
       <Box key="budget">
-        <Text wrap="truncate-end" {...budgetTone}>{budgetLine}</Text>
+        <Text wrap={cut} {...budgetTone}>{budgetLine}</Text>
       </Box>
       <Box key="totals">
-        <Text dimColor wrap="truncate-end">
+        <Text dimColor wrap={cut}>
           Subagents {fmtCost(c.subagents)} (price table) · {fmtTokens(c.subagents.tokens)} tokens · {fmtDuration(lastEnd - firstStart)} wall
         </Text>
       </Box>
       {budgetFraction !== null ? (
         <Box key="budget-bar" flexDirection="row">
           {glyphRow(c.ui, c.surface, bar(budgetFraction, BUDGET_BAR_CELLS), budgetTone)}
-          <Box marginLeft={1}><Text wrap="truncate-end" {...budgetTone}>{Math.round(budgetFraction * 100)}%</Text></Box>
+          <Box marginLeft={1}><Text wrap={cut} {...budgetTone}>{Math.round(budgetFraction * 100)}%</Text></Box>
         </Box>
       ) : (
         <Box key="no-budget">
-          <Text dimColor wrap="truncate-end">No budget set - add one in /config</Text>
+          <Text dimColor wrap={cut}>No budget set - add one in /config</Text>
         </Box>
       )}
     </Box>
@@ -319,7 +323,7 @@ export function drawControl(c: ControlInput): RenderElement {
         <Box width={2} flexShrink={0}><Text {...(look.color !== undefined ? { color: look.color } : {})}>{look.glyph}</Text></Box>
         <Box width={8} flexShrink={0}><Text {...(look.color !== undefined ? { color: look.color } : { dimColor: true })}>{look.word}</Text></Box>
         <Box flexGrow={1} flexShrink={1}>
-          <Text wrap="truncate-end" bold={fresh} dimColor={ev.kind === 'tool' && !fresh}>{words}</Text>
+          <Text wrap={cut} bold={fresh} dimColor={ev.kind === 'tool' && !fresh}>{words}</Text>
         </Box>
       </Box>
     )
@@ -348,18 +352,18 @@ export function drawControl(c: ControlInput): RenderElement {
       <Box key="inspector" flexDirection="column" borderStyle="round" borderColor="suggestion" paddingX={1} marginBottom={1}>
         <Box flexDirection="row">
           <Box flexGrow={1} flexShrink={1}>
-            <Text bold wrap="truncate-end">{numberOf(a)} {taskOf(a)}</Text>
+            <Text bold wrap={cut}>{numberOf(a)} {taskOf(a)}</Text>
           </Box>
           <Box flexShrink={0} marginLeft={1}>
             <Text bold color={look.color}>{look.glyph} {look.word}</Text>
           </Box>
         </Box>
-        <Text dimColor wrap="truncate-end">{clean(a.type)} · {modelOf(a)} · started {met(a.startedAt - firstStart)} · {elapsed} · {from}</Text>
-        <Text bold wrap="truncate-end" color={state.color}>{state.text}</Text>
-        <Text dimColor wrap="truncate-end">{tally}</Text>
+        <Text dimColor wrap={cut}>{clean(a.type)} · {modelOf(a)} · started {met(a.startedAt - firstStart)} · {elapsed} · {from}</Text>
+        <Text bold wrap={cut} color={state.color}>{state.text}</Text>
+        <Text dimColor wrap={cut}>{tally}</Text>
         <Box flexDirection="row">
           {glyphRow(c.ui, c.surface, sparkline(a.history ?? [], Math.min(24, Math.max(SPARK_CELLS, c.columns - 24))), antPaint(a))}
-          <Box marginLeft={1}><Text dimColor wrap="truncate-end">tokens per request</Text></Box>
+          <Box marginLeft={1}><Text dimColor wrap={cut}>tokens per request</Text></Box>
         </Box>
         {own.length > 0 ? own.map((ev, i) => eventRow(ev, i + 1, !compact)) : <Text dimColor>No activity recorded yet</Text>}
         <Box flexDirection="row" gap={2} marginTop={1}>
@@ -367,7 +371,7 @@ export function drawControl(c: ControlInput): RenderElement {
           <Button key="inspector-next" plain hotkey="n" label="next" onPress={() => c.on.move(1)} />
           <Button key="inspector-close" plain hotkey="x" label="close" onPress={() => c.on.select(undefined)} />
           <Box flexGrow={1} />
-          <Text dimColor wrap="truncate-end">id {clean(a.id)}</Text>
+          <Text dimColor wrap={cut}>id {clean(a.id)}</Text>
         </Box>
       </Box>
     )
@@ -441,7 +445,7 @@ export function drawControl(c: ControlInput): RenderElement {
       {timeline()}
       {c.isFocused ? (
         <Box key="keys" marginTop={1}>
-          <Text dimColor wrap="truncate-end">Keys · 1-9 open · n next · p previous · x close · f finished · t activity</Text>
+          <Text dimColor wrap={cut}>Keys · 1-9 open · n next · p previous · x close · f finished · t activity</Text>
         </Box>
       ) : null}
     </Box>

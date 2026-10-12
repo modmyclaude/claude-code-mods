@@ -1,6 +1,6 @@
 {
   "name": "ant-farm",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Mission control for your subagents: what each one is doing, its activity and its cost, live.",
   "homepage": "https://modmyclaude.com/mods/ant-farm",
   "repository": "https://github.com/modmyclaude/claude-code-mods",

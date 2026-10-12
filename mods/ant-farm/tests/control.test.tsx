@@ -536,6 +536,32 @@ describe('after a reload of the code', () => {
   })
 })
 
+describe('a narrow desktop pane', () => {
+  test('wraps its lines instead of cutting them, where the terminal cuts; a wide one cuts on both', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'A task with a long description that a narrow pane cannot hold on one line')
+    await w.callTool($, a, 'Bash', { command: 'npm test' })
+    const b = await w.spawn($, 'Finished one')
+    await w.finish($, b)
+    const wraps = (tree: unknown) => walk(tree, n => n.type === 'Text' && typeof n.props?.wrap === 'string').map(n => n.props?.wrap as string)
+    const narrowDesktop = await mountAt($, 'desktop', 30, { isFocused: true })
+    await narrowDesktop.press({ key: 'toggle-finished' })
+    const d = wraps(await narrowDesktop.drawn())
+    expect(d.length).toBeGreaterThan(5)
+    expect(d.every(k => k === 'wrap')).toBe(true)
+    expect((await narrowDesktop.find({ key: 'counts' }))?.props.flexWrap).toBe('wrap')
+    await narrowDesktop.unmount()
+    const narrowTerminal = await mountAt($, 'terminal', 30)
+    const t = wraps(await narrowTerminal.drawn())
+    expect(t.length).toBeGreaterThan(5)
+    expect(t.every(k => k === 'truncate-end')).toBe(true)
+    await narrowTerminal.unmount()
+    const wideDesktop = await mountAt($, 'desktop', 84)
+    expect(wraps(await wideDesktop.drawn()).every(k => k === 'truncate-end')).toBe(true)
+    expect((await wideDesktop.find({ key: 'counts' }))?.props.flexWrap).toBeUndefined()
+  })
+})
+
 describe('the inspector', () => {
   test('inspect opens the panel: task, where it came from, numbers, sparkline, its recent rows; n, p and x move and close', async ($, on) => {
     const w = world(on)
