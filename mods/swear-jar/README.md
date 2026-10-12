@@ -41,7 +41,7 @@ Counting is per response: every time Claude Code receives a reply from the model
 
 ## Settings
 
-Change them in `/config` (or on the install screen).
+Every setting has a default, so the notice at install about options not yet set is expected. Change them in `/config` (or on the install screen).
 
 | Setting | Default | What it does |
 | --- | --- | --- |

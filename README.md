@@ -23,10 +23,10 @@ Claude Code mods with <!-- tests -->3,200+<!-- /tests --> behaviour tests, termi
 
 ```
 /plugin marketplace add modmyclaude/claude-code-mods
-/plugin install thermostat@modmyclaude
+/plugin install redline@modmyclaude
 ```
 
-Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab.
+Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab. Some mods have settings: Claude Code says so at install (`N userConfig options not yet set`). That notice is expected, every option has a default, and `/config` changes them.
 
 [**Browse the mods**](#the-mods) · [Website](https://modmyclaude.com) · [Build your own](#build-your-own) · [Safety](#safety) · [FAQ](#faq)
 
@@ -34,7 +34,7 @@ Needs Claude Code 2.1.287+. Terminal or the desktop app's Code tab.
 
 Mods are Claude Code plugins written in TypeScript, new in Claude Code 2.1.287. A mod can draw inside Claude Code (a band above the prompt, a pane beside the chat, the status line), react to your prompts and Claude's tool calls, and add slash commands. You install one with a single command, and it runs in the terminal and in the desktop app's Code tab.
 
-This repo is a small, curated collection of <!-- count -->17<!-- /count --> of them, plus the prompts that built each one.
+This repo is a small, curated collection of <!-- count -->17<!-- /count --> of them.
 
 ## Why these mods
 

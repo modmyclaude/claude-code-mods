@@ -65,6 +65,10 @@ Never hand-edit `.claude-plugin/marketplace.json`, `site/mods.json` or the READM
 
 CI runs all of the above on every pull request, on a pinned Claude Code and on the latest release.
 
+## Versions
+
+A mod reaches installed copies through `/plugin update` only when its version moves. So every change to what a mod ships (its `hooks/`, `types/`, sounds and other assets, or `plugin.json` itself) bumps the `version` in `mods/<mod>/.claude-plugin/plugin.json` and adds one line to [CHANGELOG.md](CHANGELOG.md). A change to a mod's README or tests alone needs no bump, and neither does a draft (`draft: true` in its prompt), which is not in the marketplace yet. CI checks it on every push and pull request; run it yourself with `npm run versions -- origin/main` before pushing.
+
 ## Pull requests
 
 One mod per pull request, titled `mod(<name>): <what>`. Fill in the checklist in the template. Each listed mod gets a second maintainer's review against its prompt before it is merged.

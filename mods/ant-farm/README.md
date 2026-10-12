@@ -55,6 +55,8 @@ Watch your subagents work, and what they cost, live.
 
 ## Settings
 
+Every setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.
+
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `budgetUsd` | `0` (off) | Session budget in US dollars for the alarm, compared against Claude Code's own cost estimate (else the price-table estimate). Off until you set one; the pane says so. It only warns, it never stops Claude. |

@@ -45,7 +45,7 @@ Guardrails: one sound per event at most, and never more than one sound every 5 s
 
 ## Settings
 
-Set them in `/config` (or when you enable the plugin).
+Every setting has a default, so the notice at install about options not yet set is expected. Set them in `/config` (or when you enable the plugin).
 
 | Field | Default | Meaning |
 |---|---|---|

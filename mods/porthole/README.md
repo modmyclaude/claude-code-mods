@@ -37,6 +37,8 @@ not open, Chrome missing) stays visible as the command's output.
 
 ## Settings
 
+Every setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.
+
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `chromePath` | empty | Full path to a Chrome or Chromium executable. Empty: porthole looks in `/Applications` (Google Chrome, Chromium) and then on `PATH` (`google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser`). |

@@ -42,6 +42,8 @@ Every one of these is held even when nothing is found to destroy (`rm -rf build`
 
 ## Settings
 
+Every setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.
+
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `alwaysAllow` | `dist,build,.next,coverage,node_modules/.cache` | Folders that are fine to delete with `rm -r` without asking. It never covers `find` (with `-L`, `-H` or `-follow` it reaches through links), redirects or git. A relative entry matches that run of folder names anywhere beneath the project root (`dist` matches `packages/web/dist`, not `distro`, and never the root itself); an absolute entry matches by prefix. A command passes only when **every** path it touches is a plain literal path (no glob, braces, `$VAR`, `~`, `..` or `$(...)`) that exists, and both its spelling and where its links lead are inside an allowed folder. Leave it empty to hold everything. |

@@ -75,7 +75,7 @@ For six seconds after `/wear <theme>` (and after `/wear auto` or `/wear season` 
 
 ## Settings
 
-Set these in `/config`. A time wardrobe cannot read falls back to its default, and `/wear` names it.
+Every setting has a default, so the notice at install about options not yet set is expected. Set these in `/config`. A time wardrobe cannot read falls back to its default, and `/wear` names it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

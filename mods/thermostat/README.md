@@ -38,6 +38,8 @@ How a ping works: it re-sends the conversation's last request (same model, syste
 
 ## Settings
 
+Every setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.
+
 | Field | Default | What it does |
 | --- | --- | --- |
 | `guard` | `hold` | `hold` stops the first cold send once and shows the cost. `warn` shows the cost in a toast and sends. `off` does nothing. |

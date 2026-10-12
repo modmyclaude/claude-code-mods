@@ -29,7 +29,7 @@ The letter keys (`g`, `d`) work once the band has focus (a click, or ctrl+x tab)
 
 ## Settings
 
-Change them in `/config` (or on the install screen).
+Every setting has a default, so the notice at install about options not yet set is expected. Change them in `/config` (or on the install screen).
 
 | Setting | Default | What it does |
 | --- | --- | --- |

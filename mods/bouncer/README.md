@@ -37,6 +37,8 @@ What the words mean, each read off the validator's list of what the mod calls an
 
 ## Settings
 
+Every setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.
+
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `claudeBin` | `claude` | The command the validator runs through: a name on your PATH or an absolute path. |
