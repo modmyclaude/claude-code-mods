@@ -1,36 +1,39 @@
-// Switchboard through the real chains: this session reporting itself, the pane
-// and band drawn from other sessions' records, a toast per new "needs you", and
-// the files it touches.
+// Switchboard through the real chains: this session reporting itself, the pane,
+// band and footer drawn from other sessions' records, a toast per new "needs
+// you", and the files and commands it touches.
 
 import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { DIR, HOME, MIN, MINE, SLOW, SURFACES, T0, band, mine, other, paneLines, start, world } from './world'
+import { DIR, HOME, MIN, MINE, SLOW, SURFACES, T0, band, footer, mine, other, paneLines, start, transcriptTail, world } from './world'
 
 const turnStart = ($: Engine) => $.turn.start({ turnId: 't1', prompt: 'go', origin: { kind: 'composer' } } as never)
 const turnEnd = ($: Engine, reason: 'answer' | 'error' | 'aborted') =>
   $.turn.complete({ answer: '', durationMs: 1000, isAborted: reason === 'aborted', turnId: 't1', reason })
+const bash = ($: Engine) => $.tool.call({ tool: 'Bash', tool_use_id: 'u1', command: 'ls' } as never)
+const permission = ($: Engine) => $.classic.Notification({ message: 'Claude needs your permission to use Bash', notification_type: 'permission_prompt' })
 
 describe('this session reports itself', () => {
-  test('on start it writes one small record: a name, a state, two times; never message text', async ($, on) => {
+  test('on start it writes one small record: a name, a state, where it runs, two times; never message text', async ($, on) => {
     const w = world(on)
     await start($)
     const record = mine(w)
-    expect(record).toEqual({ v: 1, id: MINE, name: 'api-server', state: 'idle', since: T0, updatedAt: T0 })
-    expect(Object.keys(record ?? {}).sort()).toEqual(['id', 'name', 'since', 'state', 'updatedAt', 'v'])
+    expect(record).toEqual({ v: 1, id: MINE, name: 'api-server', state: 'idle', since: T0, updatedAt: T0, where: 'terminal' })
   })
 
-  test('its state follows its own turns and Claude Code’s "waiting on you" notice', async ($, on) => {
+  test('its state follows its own turns, and a dialog says what it waits on', async ($, on) => {
     const w = world(on)
     await start($)
     await turnStart($)
-    expect(mine(w)?.state).toBe('working')
-    await $.classic.Notification({ message: 'Claude needs your permission', notification_type: 'permission_prompt' })
-    expect(mine(w)?.state).toBe('needs-you')
+    expect(mine(w)).toMatchObject({ state: 'working', lastActiveAt: T0 })
+    await bash($) // the turn calls Bash, which asks for permission
+    await permission($)
+    expect(mine(w)).toMatchObject({ state: 'needs-you', waitingOn: 'a permission for Bash' })
     await $.classic.Notification({ message: 'idle', notification_type: 'idle_prompt' }) // not a dialog: no change
     expect(mine(w)?.state).toBe('needs-you')
-    await $.tool.call({ tool: 'Bash', tool_use_id: 'u1', command: 'ls' } as never) // the dialog was answered and the tool ran
+    await bash($) // answered: the tool ran
     expect(mine(w)?.state).toBe('working')
+    expect(mine(w)?.waitingOn).toBeUndefined()
     await turnEnd($, 'error')
     expect(mine(w)?.state).toBe('error')
     await turnStart($)
@@ -38,7 +41,40 @@ describe('this session reports itself', () => {
     expect(mine(w)?.state).toBe('idle')
   })
 
-  test('its name is the session title once Claude Code has one, else the folder', async ($, on) => {
+  test('where it runs: the desktop app, a terminal, or nothing attached', async ($, on) => {
+    const w = world(on)
+    w.surfaces = ['desktop']
+    await start($)
+    expect(mine(w)?.where).toBe('desktop')
+    w.surfaces = []
+    await $.session.attach({ surface: 'desktop' } as never)
+    expect(mine(w)?.where).toBe('background')
+  })
+
+  test('its name is the sidebar title from the end of its own transcript, read with tail', async ($, on) => {
+    const w = world(on)
+    w.tail = transcriptTail({ custom: 'Switchboard', ai: 'NPM test run' })
+    await start($)
+    expect(mine(w)?.name).toBe('Switchboard')
+    expect(w.runs).toEqual([['tail', '-c', '262144', `${HOME}/.claude/projects/-work-api-server/${MINE}.jsonl`]])
+  })
+
+  test('the title Claude Code writes after the first prompt is picked up at a turn end, at most every two minutes', SLOW, async ($, on) => {
+    const w = world(on)
+    await start($) // no title yet: the folder's name
+    expect(mine(w)?.name).toBe('api-server')
+    w.tail = transcriptTail({ ai: 'NPM test run' })
+    await turnStart($)
+    await turnEnd($, 'answer')
+    expect(mine(w)?.name).toBe('api-server') // looked at start, so not again yet
+    await w.clock.advance(2 * MIN)
+    await turnStart($)
+    await turnEnd($, 'answer')
+    expect(mine(w)?.name).toBe('NPM test run')
+    expect(w.runs).toHaveLength(2)
+  })
+
+  test('a title on the prompt event is taken at once', async ($, on) => {
     const w = world(on)
     await start($)
     await $.classic.UserPromptSubmit({ prompt: 'x', session_title: 'Fix the login bug' } as never)
@@ -49,11 +85,11 @@ describe('this session reports itself', () => {
     const w = world(on)
     await start($)
     await $.session.measure({ context: { window: 200_000 }, rateLimits: [], cost: { usd: 1.24 }, changed: ['cost'] } as never)
-    await w.clock.advance(MIN) // the heartbeat carries it
+    await w.clock.advance(MIN)
     expect(mine(w)?.costUsd).toBe(1.24)
   })
 
-  test('a heartbeat rewrites it every minute, with or without anyone looking', SLOW, async ($, on) => {
+  test('a heartbeat every 30 seconds, with or without anyone looking', SLOW, async ($, on) => {
     const w = world(on)
     w.surfaces = []
     await start($)
@@ -76,9 +112,9 @@ describe('this session reports itself', () => {
     const w = world(on)
     await start($)
     await $.session.end({ sessionId: MINE, reason: 'clear', resume: { id: MINE } } as never)
-    await w.clock.advance(2 * MIN) // heartbeats due, and no classic.SessionStart yet
+    await w.clock.advance(2 * MIN)
     expect(mine(w, MINE)?.state).toBe('gone')
-    w.id = 'cccc3333' // Claude Code now answers the new id
+    w.id = 'cccc3333'
     await w.clock.advance(MIN)
     expect(mine(w, MINE)?.state).toBe('gone')
     expect(mine(w, 'cccc3333')).toMatchObject({ state: 'idle', name: 'api-server' })
@@ -96,47 +132,60 @@ describe('this session reports itself', () => {
 })
 
 describe('the pane', () => {
-  test('lists every session, who needs you first, this one marked, on both surfaces', async ($, on) => {
+  test('who needs you first, saying on what and where; then working, idle, and closed at the bottom; this one pinned', async ($, on) => {
     const w = world(on)
-    other(w, 'b1', 'docs', 'working', T0 - 2 * MIN, T0, 0.49)
-    other(w, 'c1', 'site', 'needs-you', T0 - 30_000, T0)
-    other(w, 'd1', 'web', 'idle', T0 - 12 * MIN, T0, 4.1)
-    other(w, 'e1', 'tests', 'error', T0 - 5 * MIN, T0)
-    other(w, 'f1', 'old', 'idle', T0 - 20 * MIN, T0 - 10 * MIN) // stopped writing: gone
-    other(w, 'g1', 'ancient', 'idle', T0 - 3 * 3_600_000, T0 - 3 * 3_600_000) // gone over an hour ago: not listed
+    other(w, 'b1', 'docs', 'working', T0 - 2 * MIN, { updatedAt: T0, costUsd: 0.49 })
+    other(w, 'c1', 'Fix the login', 'needs-you', T0 - 2 * MIN, { updatedAt: T0, where: 'desktop', waitingOn: 'a permission for Bash' })
+    other(w, 'd1', 'web', 'idle', T0 - 12 * MIN, { updatedAt: T0, costUsd: 0.004 })
+    other(w, 'e1', 'tests', 'error', T0 - 5 * MIN, { updatedAt: T0 })
+    other(w, 'f1', 'old', 'idle', T0 - 4 * MIN, { updatedAt: T0 - 2 * MIN }) // stopped writing: closed
+    other(w, 'g1', 'ancient', 'idle', T0 - 3 * 3_600_000) // closed over an hour ago: not listed
     await start($)
     for (const surface of SURFACES) {
-      const lines = await paneLines($, surface)
-      expect(lines, surface).toEqual([
-        '2 of 5 need you',
-        'siteneeds younow',
-        'testserror5m',
-        'docsworking2m≈$0.49',
-        'api-server (this one)idlenow',
-        'webidle12m≈$4.10',
-        'oldgone10m',
+      expect(await paneLines($, surface), surface).toEqual([
+        '2 need you',
+        'You are here: api-server (terminal)',
+        '!Fix the loginwaiting on a permission for Bash · 2mdesktop',
+        '✕testsstopped on an error 5m agoterminal',
+        '●docsworking for 2mterminal≈$0.49',
+        '○webidle for 12mterminal',
+        '–oldclosed 2m agoterminal',
       ])
     }
   })
 
-  test('alone, it says so, with Bolt beside the line where there is room', async ($, on) => {
+  test('idle sessions with no turn in the last hour fold into one line, unfolded with Show', async ($, on) => {
+    const w = world(on)
+    for (const id of ['q1', 'q2', 'q3']) other(w, id, `chat ${id}`, 'idle', T0 - 5 * MIN, { lastActiveAt: undefined, updatedAt: T0 })
+    other(w, 'r1', 'recent', 'idle', T0 - 5 * MIN, { updatedAt: T0 })
+    await start($)
+    const folded = await paneLines($, 'desktop')
+    expect(folded.slice(2)).toEqual(['○recentidle for 5mterminal', '○3 quiet sessions: idle, no turn in the last hourShow'])
+    const open = await paneLines($, 'desktop', 'quiet-toggle')
+    expect(open.slice(2)).toEqual([
+      '○recentidle for 5mterminal',
+      '○3 quiet sessions: idle, no turn in the last hourHide',
+      '○chat q1idle for 5mterminal',
+      '○chat q2idle for 5mterminal',
+      '○chat q3idle for 5mterminal',
+    ])
+  })
+
+  test('alone, it says how to see the rest', async ($, on) => {
     world(on)
     await start($)
     const lines = await paneLines($, 'desktop')
-    expect(lines[0]).toBe('Only this session')
-    expect(lines.some(l => l.includes('No other sessions yet. Each one running Switchboard shows up here.'))).toBe(true)
+    expect(lines).toEqual(['Only this session', 'You are here: api-server (terminal)', 'Only this session runs Switchboard. Install it for all sessions to see the rest.'])
   })
 
-  test('a record that is half written or of another version is skipped, not drawn', async ($, on) => {
+  test('a record that is half written or of another version is skipped, not drawn; names are cleaned', async ($, on) => {
     const w = world(on)
     w.files[`${DIR}/broken.json`] = { text: '{"v":1,"id":"x","na', mtimeMs: T0 }
     w.files[`${DIR}/future.json`] = { text: JSON.stringify({ v: 2, id: 'y' }), mtimeMs: T0 }
     other(w, 'z1', 'evil\u001b[2J\u0007name', 'idle', T0)
     await start($)
     const lines = await paneLines($, 'terminal')
-    expect(lines).toHaveLength(3) // the hero, this session and the one whole record
-    expect(lines.some(l => l.startsWith('evil [2J name'))).toBe(true)
-    expect(lines.join(' ')).not.toContain('\u001b')
+    expect(lines).toEqual(['Nothing needs you · 1 other session', 'You are here: api-server (terminal)', '○evil [2J nameidle for under a minuteterminal'])
   })
 
   test('/switchboard opens the pane; where no surface can place it, the summary comes as a toast', async ($, on) => {
@@ -148,12 +197,12 @@ describe('the pane', () => {
     expect(w.panes).toEqual(['switchboard'])
     w.isPanePlaced = false
     await run()
-    expect(w.toasts.pop()).toBe('site needs you')
+    expect(w.toasts.pop()).toBe('site needs you (terminal)')
   })
 })
 
-describe('the band and the toasts', () => {
-  test('one line while another session needs you, beneath other mods; none otherwise', SLOW, async ($, on) => {
+describe('the band, the footer and the toasts', () => {
+  test('one line and a footer count while another session needs you, beneath other mods; none otherwise', SLOW, async ($, on) => {
     const w = world(on)
     other(w, 'b1', 'docs', 'working', T0)
     await start($)
@@ -161,34 +210,37 @@ describe('the band and the toasts', () => {
       const { line, beneath } = await band($, surface)
       expect(line, surface).toBeUndefined()
       expect(beneath, surface).toBe("another mod's line")
+      expect(await footer($, surface), surface).toBeUndefined()
     }
-    other(w, 'b1', 'docs', 'needs-you', T0 + 10_000, T0 + 10_000)
+    other(w, 'b1', 'docs', 'needs-you', T0 + 10_000, { where: 'desktop' })
     await w.clock.advance(10_000)
     for (const surface of SURFACES) {
       const { line, beneath } = await band($, surface)
-      expect(line, surface).toBe('docs needs youShow')
+      expect(line, surface).toBe('! docs needs you (desktop)Show')
       expect(beneath, surface).toBe("another mod's line")
+      expect(await footer($, surface), surface).toBe('1 needs you')
     }
   })
 
-  test('this session’s own dialog raises no band and no toast: it is in front of you', async ($, on) => {
+  test('this session’s own dialog raises no band, no footer count and no toast: it is in front of you', async ($, on) => {
     const w = world(on)
     await start($)
-    await $.classic.Notification({ message: 'x', notification_type: 'permission_prompt' })
+    await permission($)
     expect((await band($, 'terminal')).line).toBeUndefined()
+    expect(await footer($, 'terminal')).toBeUndefined()
     expect(w.toasts).toEqual([])
   })
 
-  test('a session that starts needing you raises exactly one toast, and none on later reads', SLOW, async ($, on) => {
+  test('a session that starts needing you raises exactly one toast, saying where; none on later reads', SLOW, async ($, on) => {
     const w = world(on)
-    other(w, 'b1', 'docs', 'needs-you', T0) // already waiting at start: the band shows it, no toast
+    other(w, 'b1', 'docs', 'needs-you', T0)
     other(w, 'c1', 'site', 'working', T0)
     await start($)
     await w.clock.advance(10_000)
     expect(w.toasts).toEqual([])
-    other(w, 'c1', 'site', 'needs-you', T0 + 12_000, T0 + 12_000)
+    other(w, 'c1', 'site', 'needs-you', T0 + 12_000, { where: 'desktop' })
     await w.clock.advance(MIN)
-    expect(w.toasts).toEqual(['site needs you.'])
+    expect(w.toasts).toEqual(['site needs you (desktop).'])
   })
 
   test('reads that change nothing on screen write nothing, so nothing redraws', SLOW, async ($, on) => {
@@ -206,7 +258,7 @@ describe('the band and the toasts', () => {
   })
 })
 
-describe('the files it touches', () => {
+describe('the files and commands it touches', () => {
   test('a record is read again only when its file changed', SLOW, async ($, on) => {
     const w = world(on)
     other(w, 'b1', 'docs', 'working', T0)
@@ -214,23 +266,22 @@ describe('the files it touches', () => {
     await start($)
     const reads = () => w.touched.filter(t => t.startsWith('read ')).map(t => t.slice(DIR.length + 6))
     expect(reads().sort()).toEqual(['b1.json', 'c1.json'])
-    await w.clock.advance(50_000) // ten reads of the folder, nothing changed
+    await w.clock.advance(50_000)
     expect(reads()).toHaveLength(2)
-    other(w, 'c1', 'site', 'needs-you', T0 + 55_000, T0 + 55_000)
+    other(w, 'c1', 'site', 'needs-you', T0 + 55_000)
     await w.clock.advance(5_000)
     expect(reads().filter(r => r === 'c1.json')).toHaveLength(2)
     expect(reads().filter(r => r === 'b1.json')).toHaveLength(1)
   })
 
-
-  test('only its own folder under ~/.claude, or under CLAUDE_CONFIG_DIR when that is set', SLOW, async ($, on) => {
+  test('only its own folder under ~/.claude (or CLAUDE_CONFIG_DIR), and tail of its own transcript there', SLOW, async ($, on) => {
     const w = world(on)
     w.env.CLAUDE_CONFIG_DIR = '/cfg/claude/'
-    other(w, 'b1', 'docs', 'idle', T0)
     await start($)
     await w.clock.advance(2 * MIN)
     expect(w.touched.length).toBeGreaterThan(0)
     for (const t of w.touched) expect(t, t).toMatch(/^(write|read|list) \/cfg\/claude\/switchboard(\/|$)/)
+    expect(w.runs).toEqual([['tail', '-c', '262144', `/cfg/claude/projects/-work-api-server/${MINE}.jsonl`]])
     expect(w.touched.some(t => t.includes(HOME))).toBe(false)
   })
 })

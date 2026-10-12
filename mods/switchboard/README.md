@@ -5,12 +5,15 @@
 Every Claude Code session on your machine in one pane, and which one needs you.
 
 ```
-2 of 5 need you
-site                    needs you   now
-tests                   error        5m
-docs                    working      2m    ≈$0.49
-api-server (this one)   idle        now
-web                     idle        12m    ≈$4.10
+2 need you
+You are here: api-server (terminal)
+
+! Fix the login   waiting on a permission for Bash · 2m   desktop
+✕ tests           stopped on an error 5m ago             terminal
+● docs            working for 2m                          terminal   ≈$0.49
+○ web             idle for 12m                            terminal
+○ 26 quiet sessions: idle, no turn in the last hour       [Show]
+– old             closed 2m ago                           terminal
 ```
 
 ## Install
@@ -23,12 +26,18 @@ Install it in every session you run (a user-scope install does that): each sessi
 
 ## Use it
 
-- **`/switchboard`** opens the pane: one row per session, with its name (the session's title, else its folder), its state, how long it has been in that state, and what it has cost so far when Claude Code keeps that figure. This session is marked "(this one)".
-- **States:** `needs you` (Claude Code is waiting on a permission, a question or a plan to approve), `error` (the turn ended on an error), `working`, `idle`, and `gone` (the session closed, crashed or the computer slept; gone sessions drop off after an hour).
-- **A line above your prompt** while another session needs you: `docs needs you`, with **Show** to open the pane. Nothing is drawn when nothing needs you, and never for this session's own dialog, which is already in front of you.
-- **A toast** the moment another session starts needing you, once per change: `docs needs you.`
+- **`/switchboard`** opens the pane. The first line says how many sessions need you, and the next one says which session you are in and where.
+- **One row per session**, who needs you first: a mark and a colour for its state, its name (the title in the desktop sidebar, or the one Claude Code gives it, else its folder), what it is doing in words, where it runs, and its cost so far when Claude Code keeps that figure.
+  - `!` **waiting on** a permission (and for which tool), a question, a plan to approve, or an answer
+  - `✕` **stopped on an error**
+  - `●` **working**
+  - `○` **idle**
+  - `–` **closed** (it stopped reporting; listed for an hour)
+- **Quiet sessions** (idle, with no turn in the last hour) fold into one line. **Show** unfolds them.
+- **While another session needs you**, a line above your prompt says which and where (`! Fix the login needs you (desktop)`, with **Show** to open the pane), and the footer counts them (`1 needs you`). Never for this session's own dialog, which is already in front of you.
+- **A toast** the moment another session starts needing you, once per change: `Fix the login needs you (desktop).`
 
-It only watches. It never switches to, answers or types into another session.
+It only watches. It never switches to, answers or types into another session: go to that session to answer it.
 
 ## Settings
 
@@ -36,19 +45,21 @@ None.
 
 ## What it can touch
 
-- **Writes:** one small file for this session, `~/.claude/switchboard/<session id>.json` (or under `CLAUDE_CONFIG_DIR` when that is set), rewritten when the session's state changes and once a minute. It holds the session's name, state, two times and cost figure. The name is the session's title, which Claude Code writes as a short summary of your first prompt, or else the folder's name; nothing else of your prompts, Claude's replies or your files.
-- **Reads:** the other files in that folder, every 5 seconds while you are looking at this session (a terminal or the desktop app attached), the newest 40 at most, and only the ones that changed since the last read. Its own session's events: turns starting and ending, Claude Code's own "waiting on you" notice, the session title, and the cost figure.
-- **Session state:** the rows as last read. Nothing else is kept.
-- **Processes, network, model calls:** none.
+- **Writes:** one small file for this session, `~/.claude/switchboard/<session id>.json` (or under `CLAUDE_CONFIG_DIR` when that is set), rewritten when its state changes and every 30 seconds. It holds the session's name, state, where it runs, what a dialog waits on (a tool's name, such as `Bash`), two times and its cost figure. The name is the session's title, which Claude Code writes as a short summary of your first prompt (or you set in the desktop sidebar), else the folder's name. Nothing else of your prompts, Claude's replies or your files.
+- **Reads:** the other files in that folder, every 5 seconds while you are looking at this session (a terminal or the desktop app attached), only the ones that changed since the last read. Its own session's events: turns starting and ending, the tool a turn calls, Claude Code's own "waiting on you" notice, the session title, and the cost figure.
+- **Runs:** `tail` on this session's own transcript (its last 256 KB), when it starts and at most every two minutes at a turn's end, to find the session's title. Only the title lines are kept; the rest is never stored or shown.
+- **Session state:** the rows as last read, and whether the quiet ones are unfolded.
+- **Network, model calls:** none.
 
 ## Limits
 
-- A session shows up only once Switchboard runs in it. Sessions started before you installed it appear after their next restart.
-- A dialog shows as `needs you` about six seconds after it opens, when Claude Code raises its own notice; after you answer it, the row says `working` again once the tool it asked about has run.
-- `gone` is inferred: a session that has not rewritten its file for three minutes is treated as gone, so a computer waking from sleep shows its sessions as gone for up to a minute.
+- A session shows up only once Switchboard runs in it. Sessions started before you installed it appear after their next restart, or at once where Claude Code hot-loads the mod into them.
+- A dialog shows as waiting about six seconds after it opens, when Claude Code raises its own notice; once you answer it, the row says working again after the tool it asked about has run.
+- A closed session is inferred: one that has not rewritten its file for 90 seconds is shown as closed. A computer waking from sleep shows its sessions as closed for up to half a minute.
+- A brand-new session shows its folder's name until Claude Code titles it, usually after the first prompt. On a host with no `tail` (Windows), the title comes only with your next prompt.
 - Files of old sessions stay in the folder (a few hundred bytes each): Claude Code gives mods no way to delete a file. They are never read once older than an hour, and you can delete the folder at any time.
 - Two sessions with the same name get the first characters of their ids to tell them apart.
-- The pane and the line are checked through the engine's test kit on the terminal and desktop surfaces.
+- The pane, the line and the footer are checked through the engine's test kit on the terminal and desktop surfaces.
 
 ## Built from a prompt
 

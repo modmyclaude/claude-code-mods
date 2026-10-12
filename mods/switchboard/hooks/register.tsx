@@ -1,20 +1,22 @@
 // Switchboard: every Claude Code session on this machine in one pane, and which
 // one needs you. Each session running Switchboard writes a small record about
-// itself (a name, a state, two times and a cost; never message text) to
-// ~/.claude/switchboard/<session id>.json, from its own events: a turn starting
-// or ending, and Claude Code's own "a dialog is waiting on you" notification.
-// A session someone is looking at reads the others every few seconds. A record
-// that stops being rewritten is a session that is gone.
+// itself (its title or folder, its state, where it runs, what a dialog waits
+// on, times and cost; never message text) to ~/.claude/switchboard/<id>.json,
+// from its own events: turns starting and ending, the tool a turn calls, and
+// Claude Code's own "a dialog is waiting on you" notice. A session someone is
+// looking at reads the others every few seconds; a record that stops being
+// rewritten is a session that is gone.
 //
 // Watch only: it never focuses, answers or types into another session.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderNode, Timer } from 'claude-code'
 
-import type { SwitchboardState } from '../types'
+import type { SwitchboardRow, SwitchboardWhere } from '../types'
 import {
-  HEARTBEAT_MS, MAX_SESSIONS, POLL_MS, SHOWN_GONE_MS, STALE_MS, STATE_WORDS, ageWords, bandLine, costWords, drawnKey,
-  folderName, heroLine, newlyNeeding, oneLine, parseRecord, rowsOf, seenOf, toastLine,
+  EMPTY_LINE, HEARTBEAT_MS, MARK, MAX_SESSIONS, POLL_MS, SHOWN_GONE_MS, STALE_MS, WHERE_WORDS, bandLine, costWords, drawnKey,
+  folderName, footerLabel, hereLine, heroLine, newlyNeeding, oneLine, parseRecord, quietLine, rowsOf, seenOf, stateWords,
+  titleFromTail, toastLine, transcriptPath, waitingWords,
 } from './board'
 import type { SessionRecord } from './board'
 import { BOLT_COLUMNS, boltSprite } from './bolt-draw'
@@ -22,40 +24,45 @@ import { BOLT_COLUMNS, boltSprite } from './bolt-draw'
 const PANE = 'switchboard'
 const rows = atom({ plugin: 'switchboard', key: 'rows' } as const, [])
 const readAt = atom({ plugin: 'switchboard', key: 'readAt' } as const, 0)
+const showQuiet = atom({ plugin: 'switchboard', key: 'showQuiet' } as const, false)
 
 /** Claude Code's own notifications that a dialog is waiting on the person (as pager reads them). */
 const WAITING = new Set(['permission_prompt', 'worker_permission_prompt', 'elicitation_dialog', 'elicitation_url_dialog', 'agent_needs_input'])
-
-const TONE: Record<SwitchboardState, { color?: string; dimColor?: boolean }> = {
-  'needs-you': { color: 'warning' },
-  error: { color: 'error' },
-  working: {},
-  idle: { dimColor: true },
-  gone: { dimColor: true },
-}
+/** How much of the end of its own transcript a session reads for its title. */
+const TITLE_TAIL_BYTES = 262_144
+/** The title is looked up again at most this often (at a turn's end). */
+const TITLE_EVERY_MS = 2 * 60_000
 
 /** This session as it reports itself. */
 type Me = {
   id: string
   folder: string
+  cwd: string
   title?: string
   state: SessionRecord['state']
   since: number
+  where: SwitchboardWhere
+  waitingOn?: string
+  lastActiveAt?: number
   costUsd?: number
   writtenAt: number
+  /** The tool the main loop last called: what a permission dialog is about. */
+  lastTool?: string
+  transcript?: string
+  titleCheckedAt: number
 }
 
 // This copy of the module: this session's own record, where records live, the
 // timer, and what the last read saw (so each toast fires once per change).
 let me: Me | null = null
-let dir: string | undefined
+let base: string | undefined
 let timer: Timer | null = null
 let seen: Map<string, string> | undefined
 let lastKey = ''
 let isReading = false
 /** Each file's last parsed record by its mtime: a file that did not change is not read again. */
 const cache = new Map<string, { mtimeMs: number; record: SessionRecord }>()
-/** The id a /clear or resume just ended: never written again, even by a heartbeat before the new id arrives. */
+/** The id a /clear or resume just ended: nothing is written under it again. */
 let endedId: string | null = null
 
 async function safely($: EngineInterface, work: () => Promise<unknown>): Promise<void> {
@@ -66,28 +73,40 @@ async function safely($: EngineInterface, work: () => Promise<unknown>): Promise
   }
 }
 
-/** ~/.claude/switchboard, or CLAUDE_CONFIG_DIR's, as Claude Code finds its own folder. */
-async function folderFor($: EngineInterface): Promise<string | undefined> {
+const folderOf = () => (base === undefined ? undefined : `${base}/switchboard`)
+
+/** ~/.claude, or CLAUDE_CONFIG_DIR, as Claude Code finds its own folder. */
+async function configDir($: EngineInterface): Promise<string | undefined> {
   const config = await $.env.get('CLAUDE_CONFIG_DIR')
+  if (config) return config.replace(/[\\/]+$/, '')
   const home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME'))
-  const base = config ? config.replace(/[\\/]+$/, '') : home ? `${home.replace(/[\\/]+$/, '')}/.claude` : undefined
-  return base === undefined ? undefined : `${base}/switchboard`
+  return home ? `${home.replace(/[\\/]+$/, '')}/.claude` : undefined
+}
+
+/** Where the session can be found: the desktop app, a terminal, or nothing attached. */
+async function whereNow($: EngineInterface): Promise<SwitchboardWhere> {
+  const surfaces = await $.session.surfaces()
+  return surfaces.includes('desktop') ? 'desktop' : surfaces.includes('terminal') ? 'terminal' : 'background'
 }
 
 function recordOf(mine: Me, now: number): SessionRecord {
   return {
     v: 1,
     id: mine.id,
-    name: oneLine(mine.title ?? mine.folder, 40) || 'session',
+    name: oneLine(mine.title ?? mine.folder, 48) || 'session',
     state: mine.state,
     since: mine.since,
     updatedAt: now,
+    where: mine.where,
+    ...(mine.state === 'needs-you' && mine.waitingOn !== undefined ? { waitingOn: mine.waitingOn } : {}),
+    ...(mine.lastActiveAt === undefined ? {} : { lastActiveAt: mine.lastActiveAt }),
     ...(mine.costUsd === undefined ? {} : { costUsd: mine.costUsd }),
   }
 }
 
 /** Rewrites this session's record: on every change, and as a heartbeat. */
 async function writeMine($: EngineInterface): Promise<void> {
+  const dir = folderOf()
   if (me === null || dir === undefined) return
   if (me.id === endedId) {
     // Between a /clear and its new id: nothing is written under the ended one; the new one
@@ -95,20 +114,45 @@ async function writeMine($: EngineInterface): Promise<void> {
     return becomeSession($, await $.session.id())
   }
   const now = await $.clock.now()
+  me.where = await whereNow($)
   await $.fs.write(`${dir}/${me.id}.json`, JSON.stringify(recordOf(me, now)))
   me.writtenAt = now
 }
 
-async function setState($: EngineInterface, state: SessionRecord['state']): Promise<void> {
-  if (me === null || me.state === state) return
+async function setState($: EngineInterface, state: SessionRecord['state'], waitingOn?: string): Promise<void> {
+  if (me === null || (me.state === state && me.waitingOn === waitingOn)) return
+  const now = await $.clock.now()
+  if (me.state !== state) me.since = now
   me.state = state
-  me.since = await $.clock.now()
+  me.waitingOn = waitingOn
+  if (state === 'working' || state === 'needs-you') me.lastActiveAt = now
   await writeMine($)
   await readOthers($)
 }
 
+/**
+ * This session's title from the end of its own transcript (the sidebar's, else
+ * Claude Code's own), at most every two minutes. Only the title lines are read;
+ * a host without `tail`, or a transcript not there yet, leaves the name as it is.
+ */
+async function refreshTitle($: EngineInterface, isDue = false): Promise<void> {
+  if (me === null || base === undefined) return
+  const now = await $.clock.now()
+  if (!isDue && now - me.titleCheckedAt < TITLE_EVERY_MS) return
+  me.titleCheckedAt = now
+  const path = me.transcript ?? transcriptPath(base, me.cwd, me.id)
+  try {
+    const { exitCode, stdout } = await $.process.run(['tail', '-c', String(TITLE_TAIL_BYTES), path], { timeoutMs: 5_000 })
+    const title = exitCode === 0 ? titleFromTail(stdout) : undefined
+    if (title !== undefined) await setTitle($, title)
+  } catch {
+    // No tail on this host: the title comes from the prompt events instead.
+  }
+}
+
 /** Reads every recent record (this session's from memory), raises a toast per new "needs you", and redraws only on a change. */
 async function readOthers($: EngineInterface): Promise<void> {
+  const dir = folderOf()
   if (me === null || dir === undefined || isReading) return
   isReading = true
   try {
@@ -169,18 +213,20 @@ async function tick($: EngineInterface): Promise<void> {
 /** This session under a new id (a /clear or a resume): it starts idle, with no title yet. */
 async function becomeSession($: EngineInterface, id: string): Promise<void> {
   if (me === null || me.id === id) return
-  me = { ...me, id, title: undefined, state: 'idle', since: await $.clock.now(), writtenAt: 0 }
+  me = { ...me, id, title: undefined, state: 'idle', since: await $.clock.now(), waitingOn: undefined, writtenAt: 0, transcript: undefined, titleCheckedAt: 0 }
   await writeMine($)
   await readOthers($)
 }
 
 async function setTitle($: EngineInterface, title: string | undefined): Promise<void> {
-  const clean = title?.trim() ? title.trim() : undefined
-  if (me === null || me.title === clean) return
+  const clean = title?.trim() ? oneLine(title, 48) : undefined
+  if (me === null || clean === undefined || me.title === clean) return
   me.title = clean
   await writeMine($)
   await readOthers($)
 }
+
+const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Switchboard', focus: true, closeOnEscape: true })
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -191,8 +237,11 @@ export const register: Register = on => {
     })
     const started = await next(e)
     await safely($, async () => {
-      dir = await folderFor($)
-      me = { id: await $.session.id(), folder: folderName(await $.session.root()), state: 'idle', since: await $.clock.now(), writtenAt: 0 }
+      base = await configDir($)
+      const cwd = await $.session.root()
+      const now = await $.clock.now()
+      me = { id: await $.session.id(), folder: folderName(cwd), cwd, state: 'idle', since: now, where: await whereNow($), writtenAt: 0, titleCheckedAt: 0 }
+      await refreshTitle($, true)
       await writeMine($)
       timer ??= $.clock.every(POLL_MS, () => void safely($, () => tick($)))
       await readOthers($)
@@ -200,16 +249,21 @@ export const register: Register = on => {
     return started
   })
 
-  // The session's title and id ride on these settings-hook events; read them, change nothing.
+  // The session's title, id and transcript ride on these settings-hook events; read them, change nothing.
   on('classic.SessionStart', async ($, e, next) => {
     await safely($, async () => {
       if (e.session_id) await becomeSession($, e.session_id)
-      await setTitle($, e.session_title)
+      if (me !== null && e.transcript_path) me.transcript = e.transcript_path
+      if (e.session_title?.trim()) await setTitle($, e.session_title)
+      else await refreshTitle($, true)
     })
     return next(e)
   })
   on('classic.UserPromptSubmit', async ($, e, next) => {
-    if (e.session_title?.trim()) await safely($, () => setTitle($, e.session_title))
+    await safely($, async () => {
+      if (me !== null && e.transcript_path) me.transcript = e.transcript_path
+      if (e.session_title?.trim()) await setTitle($, e.session_title)
+    })
     return next(e)
   })
 
@@ -218,19 +272,27 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A main turn's end: idle, or an error that wants the person; and the title, which Claude Code
+  // writes after the first prompt, is looked up again (at most every two minutes).
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) await safely($, () => setState($, e.reason === 'error' || e.reason === 'refusal' ? 'error' : 'idle'))
+    if (e.agentId === undefined) {
+      await safely($, async () => {
+        await setState($, e.reason === 'error' || e.reason === 'refusal' ? 'error' : 'idle')
+        await refreshTitle($)
+      })
+    }
     return next(e)
   })
 
-  // Claude Code's own "a dialog is waiting on you": a permission, a question, a plan to approve.
+  // Claude Code's own "a dialog is waiting on you": a permission (for the tool the turn just called), a question, a plan.
   on('classic.Notification', async ($, e, next) => {
-    if (WAITING.has(e.notification_type)) await safely($, () => setState($, 'needs-you'))
+    if (WAITING.has(e.notification_type)) await safely($, () => setState($, 'needs-you', waitingWords(e.notification_type, me?.lastTool)))
     return next(e)
   })
 
-  // A dialog answered: the tool it asked about ran, so the session is working again.
+  // The tool a dialog asks about; and once it ran, the dialog was answered and the session works again.
   on('tool.call', async ($, e, next) => {
+    if (me !== null && e.agentId === undefined) me.lastTool = String(e.tool)
     const ran = await next(e)
     if (me?.state === 'needs-you') await safely($, () => setState($, 'working'))
     return ran
@@ -245,6 +307,7 @@ export const register: Register = on => {
   // (classic.SessionStart brings it); any other end is this session closing.
   on('session.end', async ($, e, next) => {
     await safely($, async () => {
+      const dir = folderOf()
       if (me === null || dir === undefined) return
       const now = await $.clock.now()
       // The ended conversation's record says gone, whichever id this copy has moved to.
@@ -262,15 +325,18 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // A surface came to look: read at once rather than at the next tick.
+  // A surface came to look (or left): say where this session is now, and read at once.
   on('session.attach', async ($, e, next) => {
     const attached = await next(e)
-    await safely($, () => readOthers($))
+    await safely($, async () => {
+      await writeMine($)
+      await readOthers($)
+    })
     return attached
   })
 
-  on('command.run', { command: 'switchboard' }, async ($, e) => {
-    const opened = await $.ui.open({ id: PANE, title: 'Switchboard', focus: true, closeOnEscape: true })
+  on('command.run', { command: 'switchboard' }, async $ => {
+    const opened = await openPane($)
     if (!opened.isPlaced) {
       const list = await read($, rows)
       $.ui.toast(bandLine(list) ?? heroLine(list).text)
@@ -279,6 +345,23 @@ export const register: Register = on => {
   }).catch($ => {
     $.ui.toast('/switchboard could not open.')
     return {}
+  })
+
+  // The footer: a count beside the engine's own labels while another session needs you.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    const engine = await next(e)
+    const label = footerLabel(await read($, rows))
+    if (label === null) return engine
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="row">
+        {engine}
+        {e.props.modes.length > 0 ? <Text dimColor> & </Text> : null}
+        <Box key="switchboard">
+          <Text color="warning">{label}</Text>
+        </Box>
+      </Box>
+    )
   })
 
   // The band: one line, beneath other mods' lines, only while another session needs you.
@@ -292,56 +375,97 @@ export const register: Register = on => {
       <Box key="switchboard-wrap" flexDirection="column">
         {rest}
         <Box key="switchboard" flexDirection="row" gap={1}>
-          <Text color="warning" wrap="truncate-end">{line}</Text>
-          <Button key="switchboard-show" label="Show" onPress={() => $.ui.open({ id: PANE, title: 'Switchboard', focus: true, closeOnEscape: true })} />
+          <Text color="warning" wrap="truncate-end">{`! ${line}`}</Text>
+          <Button key="switchboard-show" label="Show" onPress={() => openPane($)} />
         </Box>
       </Box>
     )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const elements = $.ui.resolve(e)
+    const { Box, Button, Text } = elements
     const list = await read($, rows)
+    const isQuietShown = await read($, showQuiet)
     const now = (await read($, readAt)) || (await $.clock.now())
     const columns = e.props.bodyColumns
+    const isWide = columns >= 72
     const hero = heroLine(list)
     const others = list.filter(row => !row.isMine)
-    const body: RenderNode[] = [
-      <Box key="hero">
-        <Text bold color={hero.tone === 'subtle' ? 'subtle' : hero.tone}>{hero.text}</Text>
-      </Box>,
-    ]
-    if (others.length === 0) {
-      body.push(
-        <Box key="empty" flexDirection="row" gap={2} alignItems="center">
-          {columns >= BOLT_COLUMNS.small + 24 ? boltSprite($.ui.resolve(e), e.surface, { size: 'small', pose: 'idle' }) : null}
-          <Text dimColor>No other sessions yet. Each one running Switchboard shows up here.</Text>
-        </Box>,
-      )
-    }
-    for (const row of list) {
-      body.push(
-        <Box key={`row-${row.id}`} flexDirection="row">
+    const quiet = others.filter(row => row.isQuiet)
+    const gone = others.filter(row => row.state === 'gone')
+    const active = others.filter(row => !row.isQuiet && row.state !== 'gone')
+
+    const rowOf = (row: SwitchboardRow, isDim = false) => {
+      const mark = MARK[row.state]
+      return (
+        <Box key={`row-${row.id}`} flexDirection="row" gap={1}>
+          <Box key="mark" width={1} flexShrink={0}>
+            <Text color={mark.color} dimColor={mark.dimColor}>{mark.shape}</Text>
+          </Box>
           <Box key="name" flexGrow={1} flexShrink={1}>
-            <Text wrap="truncate-end" bold={row.isMine}>{row.isMine ? `${row.name} (this one)` : row.name}</Text>
+            <Text wrap="truncate-end" dimColor={isDim} bold={row.state === 'needs-you'}>{row.name}</Text>
           </Box>
-          <Box key="state" width={10} flexShrink={0}>
-            <Text {...TONE[row.state]}>{STATE_WORDS[row.state]}</Text>
+          <Box key="state" flexShrink={1}>
+            <Text wrap="truncate-end" color={mark.color === 'success' ? undefined : mark.color} dimColor={mark.dimColor}>{stateWords(row, now)}</Text>
           </Box>
-          <Box key="age" width={5} flexShrink={0} justifyContent="flex-end">
-            <Text color="subtle">{ageWords(now - row.since)}</Text>
-          </Box>
-          {columns >= 50 ? (
-            <Box key="cost" width={9} flexShrink={0} justifyContent="flex-end">
+          {isWide ? (
+            <Box key="where" width={10} flexShrink={0} justifyContent="flex-end">
+              <Text color="subtle">{WHERE_WORDS[row.where]}</Text>
+            </Box>
+          ) : null}
+          {isWide ? (
+            <Box key="cost" width={8} flexShrink={0} justifyContent="flex-end">
               <Text color="subtle">{costWords(row.costUsd)}</Text>
             </Box>
           ) : null}
+        </Box>
+      )
+    }
+
+    const isRoomy = columns >= BOLT_COLUMNS.tiny + 30
+    const body: RenderNode[] = [
+      <Box key="hero" flexDirection="row" gap={1} alignItems="center">
+        {isRoomy ? boltSprite(elements, e.surface, { size: 'tiny', pose: hero.tone === 'warning' ? 'jump' : 'sleep' }, 'hero-bolt') : null}
+        <Box key="hero-text">
+          <Text bold color={hero.tone}>{hero.text}</Text>
+        </Box>
+      </Box>,
+    ]
+    const here = hereLine(list)
+    if (here !== null) {
+      body.push(
+        <Box key="here">
+          <Text color="subtle" wrap="truncate-end">{here}</Text>
         </Box>,
       )
     }
+    if (others.length === 0) {
+      body.push(
+        <Box key="empty" marginTop={1}>
+          <Text dimColor wrap="wrap">{EMPTY_LINE}</Text>
+        </Box>,
+      )
+    } else {
+      body.push(<Box key="gap" height={1} />)
+      for (const row of active) body.push(rowOf(row))
+      if (quiet.length > 0) {
+        body.push(
+          <Box key="quiet" flexDirection="row" gap={1}>
+            <Box key="mark" width={1} flexShrink={0}>
+              <Text dimColor>{MARK.idle.shape}</Text>
+            </Box>
+            <Text dimColor wrap="truncate-end">{quietLine(quiet.length)}</Text>
+            <Button key="quiet-toggle" label={isQuietShown ? 'Hide' : 'Show'} onPress={() => update($, showQuiet, shown => !shown)} />
+          </Box>,
+        )
+        if (isQuietShown) for (const row of quiet) body.push(rowOf(row, true))
+      }
+      for (const row of gone) body.push(rowOf(row, true))
+    }
     body.push(
       <Box key="foot" marginTop={1}>
-        <Text color="subtle" wrap="wrap">Sessions show up once Switchboard runs in them. Times are since the last change.</Text>
+        <Text color="subtle" wrap="wrap">It only watches: go to a session to answer it. Sessions show up once Switchboard runs in them.</Text>
       </Box>,
     )
     return (
