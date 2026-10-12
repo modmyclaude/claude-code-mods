@@ -560,34 +560,6 @@ describe('a narrow desktop pane', () => {
     expect(wraps(await wideDesktop.drawn()).every(k => k === 'truncate-end')).toBe(true)
     expect((await wideDesktop.find({ key: 'counts' }))?.props.flexWrap).toBeUndefined()
   })
-})
-
-describe('buttons and boxes as each surface needs them', () => {
-  test('the terminal draws plain buttons with key hints; the desktop its native buttons, hotkeys kept; words boxes may shrink', async ($, on) => {
-    const w = world(on)
-    const a = await w.spawn($, 'One')
-    const b = await w.spawn($, 'Two')
-    await w.finish($, b)
-    for (let i = 0; i < 14; i += 1) await w.callTool($, a, 'Read', { file_path: `f${i}.ts` })
-    for (const surface of SURFACES) {
-      const pane = await mountAt($, surface, 84)
-      if ((await pane.find({ key: 'inspector' })) === undefined) await pane.press({ key: `inspect-${a}` }) // the selection carries across surfaces
-      const buttons = await pane.findAll({ type: 'Button' })
-      expect(buttons.length).toBeGreaterThanOrEqual(7)
-      for (const button of buttons) expect(button.props.plain, `${surface} ${button.key}`).toBe(surface === 'desktop' ? undefined : true)
-      const hot = new Map(buttons.map(x => [x.key, x.props.hotkey]))
-      expect(hot.get('inspector-next')).toBe('n')
-      expect(hot.get('toggle-timeline')).toBe('t')
-      expect(hot.get('toggle-finished')).toBe('f')
-      expect(hot.get('more-events')).toBeUndefined()
-      // Every box that holds truncating words may shrink to nothing: the desktop's flex items otherwise refuse to.
-      const shrinking = walk(await pane.drawn(), n => n.type === 'Box' && (n.props?.flexShrink === undefined || Number(n.props.flexShrink) > 0) && n.props?.width === undefined
-        && (n.children ?? []).some(c => (c as Drawn).type === 'Text' && (c as Drawn).props?.wrap === 'truncate-end'))
-      expect(shrinking.length).toBeGreaterThan(6)
-      for (const box of shrinking) expect(box.props?.minWidth, `${surface} ${textOf(box).slice(0, 30)}`).toBe(0)
-      await pane.unmount()
-    }
-  })
 
   test('next and previous move from the selection as it stands at the press', async ($, on) => {
     const w = world(on)

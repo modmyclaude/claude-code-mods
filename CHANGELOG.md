@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-12
 
+- ant-farm 0.2.9: the pane draws as 0.2.7 did on every surface again (plain buttons with key hints, and long lines on the desktop app may clip at the edge instead of ending with an ellipsis), after the desktop app showed nothing at all with 0.2.8's native buttons and shrinkable boxes; the inspector's next and previous still move from the selection as it stands at the press.
 - ant-farm 0.2.8: on the desktop app every button is the app's own kind (the view toggles, next, previous and more did not answer a click as plain buttons there; the terminal keeps its plain buttons with key hints); every box of words may now shrink, so long lines in the header, the cards, the timeline and the inspector end with an ellipsis instead of running past the pane's edge; next and previous move from the selection as it stands when pressed.
 - ant-farm 0.2.7: a narrow pane on the desktop app (under 40 columns) wraps its lines instead of cutting them, since the app draws words in a proportional font and clipped them mid-word at the edge; the terminal still cuts a line at its end.
 - ant-farm 0.2.6: after a reload of the mod's code mid-session, the pane keeps moving: the clock that walks the ants and the timers starts again when the kept state says something still runs, instead of waiting for the next event.
