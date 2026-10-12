@@ -20,9 +20,9 @@ Restyle Claude Code live, including colourblind-safe and high-contrast themes.
 | `/wear season` | The seasonal pack the calendar calls for, re-checked daily (see Seasonal packs). |
 | `/wear pin` | This project keeps what it wears now; other projects keep the global choice. While pinned, `/wear <theme>` changes this project's pin. |
 | `/wear unpin` | This project follows the global choice again. |
-| `/wear <theme> --match` | Wears the theme and sets Claude Code's own `theme` setting (the `/theme` menu) to the built-in nearest it: a light look on a dark theme turns the theme light, keeping a daltonized or ansi variant. Your own theme is remembered. |
+| `/wear <theme> --match` | Wears the theme and sets Claude Code's own `theme` setting (the `/theme` menu) to the built-in nearest it: a light look on a dark theme turns the theme light, keeping a daltonized or ansi variant. Your own theme is remembered. From the desktop app this changes the terminal's theme; the app keeps its own look. |
 | `/wear match` | The same for the theme worn now. The gallery's `match theme` button does both at once. |
-| `/wear default` | Back to Claude Code's own drawing. After a match, Claude Code's theme goes back to the one you had. |
+| `/wear default` | Back to Claude Code's own drawing. After a match, Claude Code's theme goes back to the one you had, unless you changed it yourself since the match: then your choice stands. |
 
 Each command answers in a toast (an unknown theme's message stays longer). Nothing `/wear` says is added to the conversation, so it costs no tokens and never reaches the model.
 
@@ -86,9 +86,9 @@ Set these in `/config`. A time wardrobe cannot read falls back to its default, a
 
 ## What it can touch
 
-- Its own store: the global choice, the per-project pins (keyed by the path of the folder the session started in), and, once you have matched a theme, the Claude Code theme you had before, so `/wear default` can put it back.
+- Its own store: the global choice, the per-project pins (keyed by the path of the folder the session started in), and, once you have matched a theme, the Claude Code theme you had before and the one it set, so `/wear default` can put yours back and can tell when you changed it since.
 - For the session, in memory: each tool call's start and end time, for its row.
-- Reads the project root, the attached surfaces, the clock, and Claude Code's own theme setting (the `/config` theme row) at session start and before a match; it also notices when you change that setting.
+- Reads the project root, the attached surfaces, the clock, and Claude Code's own theme setting (the `/config` theme row) at session start, before a match and before a restore; it also notices when you change that setting.
 - Writes Claude Code's theme setting only when you ask: `/wear <look> --match`, `/wear match` and the `match theme` button set it, and `/wear default` sets it back to the one you had. No files, no processes, no network, no model calls. It never refuses or changes a tool call: its tool hook only notes when a call starts and ends.
 
 ### What a look changes, and what it cannot

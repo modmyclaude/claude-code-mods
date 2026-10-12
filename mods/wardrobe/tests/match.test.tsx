@@ -68,6 +68,43 @@ describe('matching the theme', () => {
     expect(w.config.sets).toEqual([])
   })
 
+  test('a theme the person picks after a match stands: /wear default leaves it and forgets the match', async ($, on) => {
+    const w = world(on, { surfaces: ['terminal'] })
+    await start($)
+    await wear($, 'paper --match')
+    expect(w.store.get('ownTheme')).toBe('dark')
+    // The person, in /config, after the match.
+    await $.config.set({ key: 'theme', value: 'dark-daltonized', previous: 'light', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } } as never)
+    expect(w.store.get('ownTheme')).toBeUndefined()
+    expect(w.store.get('matchedTheme')).toBeUndefined()
+    const sets = w.config.sets.length
+    const back = await wear($, 'default')
+    expect(back).not.toContain("Claude Code's theme")
+    expect(w.config.theme).toBe('dark-daltonized')
+    expect(w.config.sets).toHaveLength(sets)
+  })
+
+  test('a theme changed outside this session since the match (another session, a hand edit) stands too, and says so', async ($, on) => {
+    const w = world(on, { surfaces: ['terminal'] })
+    await start($)
+    await wear($, 'paper --match')
+    expect(w.store.get('matchedTheme')).toBe('light')
+    w.config.theme = 'dark-ansi' // written elsewhere: no config.set reaches this session
+    const sets = w.config.sets.length
+    const back = await wear($, 'default')
+    expect(back).toContain("Claude Code's theme was changed since the match, so it stays dark-ansi.")
+    expect(w.config.theme).toBe('dark-ansi')
+    expect(w.config.sets).toHaveLength(sets)
+    expect(w.store.get('ownTheme')).toBeUndefined()
+    expect(w.store.get('matchedTheme')).toBeUndefined()
+  })
+
+  test('on the desktop app a match says it changes the terminal\'s theme, since the app keeps its own look', async ($, on) => {
+    world(on, { surfaces: ['desktop'] })
+    await start($)
+    expect(await wear($, 'paper --match')).toContain("The desktop app keeps its own look; this changes the terminal's theme.")
+  })
+
   test('a second match keeps the first remembered theme, so default returns to what the person had', async ($, on) => {
     const w = world(on, { surfaces: ['terminal'] })
     await start($)

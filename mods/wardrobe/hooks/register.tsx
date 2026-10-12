@@ -124,6 +124,8 @@ function lightNote(theme: Theme, tone: WardrobeApp['tone']): string {
 
 /** The store key holding the theme Claude Code had before a match, so `/wear default` can put it back. */
 const OWN_THEME = 'ownTheme'
+/** The store key holding the theme wardrobe last set, so a restore can tell when the person changed it since. */
+const MATCHED_THEME = 'matchedTheme'
 
 /** The built-in theme nearest a look: its tone, keeping the person's variant (daltonized, ansi) where that option exists. */
 function nearestTheme(tone: 'dark' | 'light', current: string, options: readonly string[]): string {
@@ -158,19 +160,40 @@ async function matchTheme($: Dollar, settings: Settings): Promise<string> {
     if (typeof own !== 'string') await $.store.delete(OWN_THEME)
     return `Claude Code's theme stays ${current}: ${clean(out.deny)}`
   }
+  await $.store.set(MATCHED_THEME, target)
   await $.state.set(APP, { tone: toneOf(target) })
-  return `Claude Code's theme set to ${target} to match ${theme.id} (was ${current}). /wear default puts it back.`
+  // On the desktop app the setting changes the terminal's theme; the app keeps its own look.
+  const attached: readonly string[] = await $.session.surfaces().catch(() => [])
+  const desktopNote = attached.includes('desktop') ? " The desktop app keeps its own look; this changes the terminal's theme." : ''
+  return `Claude Code's theme set to ${target} to match ${theme.id} (was ${current}). /wear default puts it back.${desktopNote}`
 }
 
-/** `/wear default` after a match: Claude Code's theme goes back to the one the person had. */
+/**
+ * `/wear default` after a match: Claude Code's theme goes back to the one the
+ * person had, unless the theme was changed since the match (by them in another
+ * session, or by hand): then their later choice stands and the memory is dropped.
+ */
 async function restoreTheme($: Dollar): Promise<string> {
   const own = await $.store.get(OWN_THEME)
   if (typeof own !== 'string') return ''
+  const matched = await $.store.get(MATCHED_THEME)
+  const row = (await $.config.list().catch(() => [])).find(r => r.key === 'theme')
+  const current = typeof row?.value === 'string' ? row.value : undefined
+  if (typeof matched === 'string' && current !== undefined && current !== matched) {
+    await forgetMatch($)
+    return ` Claude Code's theme was changed since the match, so it stays ${clean(current)}.`
+  }
   const out = await $.config.set({ key: 'theme', value: own })
   if (out.deny !== undefined) return ` Claude Code's theme stays as it is: ${clean(out.deny)} Run /wear default again to retry.`
-  await $.store.delete(OWN_THEME)
+  await forgetMatch($)
   await $.state.set(APP, { tone: toneOf(own) })
   return ` Claude Code's theme is back to ${own}.`
+}
+
+/** Forgets the matched theme and the one before it: nothing is left for `/wear default` to restore. */
+async function forgetMatch($: Pick<EngineInterface, 'store'>): Promise<void> {
+  await $.store.delete(OWN_THEME)
+  await $.store.delete(MATCHED_THEME)
 }
 
 /** Names the attached surfaces wardrobe does not restyle, so a theme never seems to fail there. */
@@ -347,7 +370,14 @@ export const register: Register = (on, options) => {
   // own calls skip its hooks and update the tone themselves): re-read the tone once it is written.
   on('config.set', { key: 'theme' }, async ($, e, next) => {
     const out = await next(e)
-    if (out.deny === undefined) await $.state.set(APP, { tone: toneOf(out.value) })
+    if (out.deny === undefined) {
+      await $.state.set(APP, { tone: toneOf(out.value) })
+      // A theme the person (or another plugin) chose after a match stands: /wear default will not
+      // undo it. Wardrobe's own writes are not that (the engine keeps them from its hooks; the test
+      // kit hands them over, so the origin is checked too).
+      const isOwn = e.origin.kind === 'plugin' && e.origin.name === 'wardrobe'
+      if (!isOwn && typeof (await $.store.get(OWN_THEME)) === 'string') await forgetMatch($)
+    }
     return out
   }).catch(($, e, next) => next(e))
 

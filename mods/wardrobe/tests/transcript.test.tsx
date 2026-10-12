@@ -139,6 +139,12 @@ describe('a light look paints only where the app is light', () => {
     const ui = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'AssistantMessage', props: ROWS.AssistantMessage })
     expect(tintsAbove(await ui.drawn())).toEqual([[paper.palette.bg]])
     await ui.unmount()
+    // The desktop app keeps its own (dark) look whatever the setting says: stripe only there.
+    const desktop = await $.ui.mount({ plugin: 'wardrobe', surface: 'desktop', component: 'AssistantMessage', props: ROWS.AssistantMessage })
+    const drawn = await desktop.drawn()
+    expect(tintsAbove(drawn)).toEqual([[]])
+    expect(await desktop.find({ key: 'stripe' })).toBeDefined()
+    await desktop.unmount()
   })
 
   test('on a dark Claude Code theme, and on the desktop whatever the theme, the stripe stands and nothing is filled', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
