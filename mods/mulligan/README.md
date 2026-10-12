@@ -61,6 +61,7 @@ The same commands last-look holds take a snapshot, and nothing else: a listing, 
 
 - **Files in this project only.** A database, a remote, a package registry or anything outside the project folder is not covered, and it says so when a command reaches outside.
 - Ignored files are not saved by `git clean -x`; the line says so.
+- A command that fails still keeps its snapshot: a failing `rm -rf` can delete most of what it named before it stops.
 - A restore puts back what the snapshot holds. A file the command created is not removed, and edits made since to a restored file are written over (Diff shows them first).
 - Restoring tracked changes needs git 2.23 or newer (`git restore`).
 - Saving reads the files it copies before the command runs; a large tree can add up to 20 seconds to that command, and a tree over the size limit is skipped.
