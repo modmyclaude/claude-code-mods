@@ -3,6 +3,8 @@
 // locally on every mod (or the mods named) before one is submitted:
 //   SECRET     a string shaped like a real key in a shipped file     (blocking)
 //   INVISIBLE  a zero-width or bidi character in a shipped file       (blocking)
+//   H_SHADOW   a function that receives `$` sharing its name with a parameter
+//              or variable in the same file (MOD_CAPABILITY_USE_NOT_PLAIN) (blocking)
 //   H_NAME     a .tsx file using the name `h` (or `Fragment`) for anything
 //              but calling it: JSX compiles to h(...), so the directory's
 //              read of the drawing breaks (MOD_CAPABILITY_USE_NOT_PLAIN) (blocking)
@@ -92,6 +94,21 @@ function scanModule(path, out) {
   const paramName = (fn, i) => fn.parameters[i] && ts.isIdentifier(fn.parameters[i].name) ? fn.parameters[i].name.text : undefined
   const report = (kind, node, why, blocking = true) => out.push({ kind, at: `${rel}:${lineOf(node)}`, text: why, blocking })
 
+  // A function that receives $ must not share its name with any parameter or variable in the
+  // file: the directory cannot then tell which binding the call names (last-look's `hold`).
+  const declared = new Map()
+  const countDecl = node => {
+    if ((ts.isParameter(node) || ts.isVariableDeclaration(node) || ts.isBindingElement(node) || ts.isFunctionDeclaration(node)) && node.name && ts.isIdentifier(node.name)) declared.set(node.name.text, (declared.get(node.name.text) ?? 0) + 1)
+    node.forEachChild(countDecl)
+  }
+  countDecl(sf)
+  const shadowReported = new Set()
+  function checkShadow(callee, node) {
+    if (sameFile.has(callee) && (declared.get(callee) ?? 0) > 1 && !shadowReported.has(callee)) {
+      shadowReported.add(callee)
+      report('H_SHADOW', node, `${callee} receives $ but the name is also a parameter or variable elsewhere in this file; the directory cannot tell which one the call names (rename the others)`)
+    }
+  }
   function checkUses(fn, dollar, onName, label) {
     const walk = node => {
       if (ts.isIdentifier(node) && (node.text === dollar || node.text === onName) && isReference(node)) {
@@ -100,6 +117,7 @@ function scanModule(path, out) {
         if (node.text === dollar) {
           ok = (ts.isPropertyAccessExpression(p) && p.expression === node && isCapabilityCall(p))
             || (ts.isCallExpression(p) && p.arguments.includes(node) && ts.isIdentifier(p.expression) && followed(p.expression.text))
+          if (ts.isCallExpression(p) && p.arguments.includes(node) && ts.isIdentifier(p.expression)) checkShadow(p.expression.text, p)
         } else {
           ok = (ts.isCallExpression(p) && p.expression === node)
             || (ts.isCallExpression(p) && p.arguments.includes(node) && ts.isIdentifier(p.expression) && followed(p.expression.text))
