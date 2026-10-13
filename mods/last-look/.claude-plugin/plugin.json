@@ -1,6 +1,6 @@
 {
   "name": "last-look",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Holds destructive commands until you approve, and shows what they would destroy.",
   "homepage": "https://modmyclaude.com/mods/last-look",
   "repository": "https://github.com/modmyclaude/claude-code-mods",

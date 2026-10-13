@@ -97,7 +97,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const list = await read($, holds)
-    const first = list.find(h => h.mode === 'band')
+    const first = list.find(hold => hold.mode === 'band')
     if (!first) return next(e)
     return drawHold($.ui.resolve(e), first, {
       rows: e.props.maxRows,
@@ -167,7 +167,7 @@ async function hold($: EngineInterface, entry: Omit<LastLookHold, 'mode'>, surfa
   const decision = new Promise<Choice>(resolve => waiting.set(entry.id, resolve))
   try {
     // State first, so the pane's first drawing already has the report.
-    await update($, holds, list => [...list.filter(h => h.id !== entry.id), { ...entry, mode: 'pane' as const }])
+    await update($, holds, list => [...list.filter(hold => hold.id !== entry.id), { ...entry, mode: 'pane' as const }])
     // No `focus`: the pane never takes the keyboard on its own. With it, a
     // person typing their next prompt as the hold appears would be typing into
     // the pane (Tab then Enter could reach Proceed). They click or ctrl+x tab
@@ -178,13 +178,13 @@ async function hold($: EngineInterface, entry: Omit<LastLookHold, 'mode'>, surfa
     if (!opened.isPlaced) {
       // A pane opened unasked waits on narrow terminals: use the band.
       if (!surfaces.some(s => s === 'terminal' || s === 'desktop')) return 'nowhere'
-      await update($, holds, list => list.map(h => (h.id === entry.id ? { ...h, mode: 'band' as const } : h)))
+      await update($, holds, list => list.map(hold => (hold.id === entry.id ? { ...hold, mode: 'band' as const } : hold)))
     }
     $.ui.status(STATUS)
     return await waitFor($, decision, signal)
   } finally {
     waiting.delete(entry.id)
-    const left = await update($, holds, list => list.filter(h => h.id !== entry.id)).catch(() => [])
+    const left = await update($, holds, list => list.filter(hold => hold.id !== entry.id)).catch(() => [])
     if (left.length === 0) {
       $.ui.status(undefined)
       await $.ui.close({ id: PANE }).catch(() => undefined)
@@ -215,7 +215,7 @@ async function decide($: EngineInterface, id: string, choice: Choice): Promise<v
   const resolve = waiting.get(id)
   if (resolve) return resolve(choice)
   // Nothing waits on it (an earlier load of this module): clear it away.
-  const left = await update($, holds, list => list.filter(h => h.id !== id))
+  const left = await update($, holds, list => list.filter(hold => hold.id !== id))
   if (left.length === 0) await $.ui.close({ id: PANE })
 }
 
