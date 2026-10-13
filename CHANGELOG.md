@@ -2,6 +2,10 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-10-13
+
+- headway 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live; off, Headway draws nothing, lends no plan tool, keeps no timer and toasts nothing, and still follows the plan, so switched on again it shows where things stand.
+
 ## 2026-10-12
 
 - ant-farm 0.3.3: the hover card is redrawn as a reveal inside the card: resting the pointer on a card grows it by a few dim rows below its bar, the task in full only where the title had to cut it and the subagent's last three rows, inside its own border, nothing drawn over anything, only that card growing (the first design laid a panel over the card by cell offsets, which the desktop app draws on half rows, and filled it in inverted colours). The heat strip keeps its columns in mission order even when it has to choose which twelve to show, so no column jumps when a subagent finishes.

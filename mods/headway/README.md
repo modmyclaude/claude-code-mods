@@ -49,7 +49,7 @@ on('state.set', { plugin: 'headway', key: 'done' }, async ($, e, next) => {
 
 ## Settings
 
-None.
+- **On:** on by default. Off, Headway draws nothing, watches nothing and lends no plan tool; `/headway` says it is off. `/config` or the modmyclaude hub flips it, live.
 
 ## What it can touch
 

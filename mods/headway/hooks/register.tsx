@@ -18,6 +18,14 @@ const RECEIPT_MS = 10_000
 const run = atom({ plugin: 'headway', key: 'run' } as const, EMPTY_RUN)
 const done = atom({ plugin: 'headway', key: 'done' } as const, null)
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Headway draws
+// nothing, lends no tool, keeps no timer and carries out no effect (no receipt, no "plan
+// done", no pace history); it still follows the plan, so switched on it shows where things
+// stand. The engine reloads the mod with the new value; the config.set hook below is the
+// same switch at once.
+let isOn = true
+const OFF_TEXT = 'Headway is off. /mods or /config turns it on.'
+
 // The one timer. Module state on purpose: a reload drops the timer with the
 // old environment, and the next event starts a fresh one.
 let timer: Timer | null = null
@@ -74,7 +82,7 @@ async function dispatch($: EngineInterface, event: HeadwayEvent): Promise<Headwa
     return out.run
   })
   // One effect failing (say the store) must not skip the others or leave the timer wrong.
-  for (const effect of effects) await safely($, () => carryOut($, effect, wall))
+  if (isOn) for (const effect of effects) await safely($, () => carryOut($, effect, wall))
   await syncTimer($, next, wall)
   return next
 }
@@ -110,7 +118,7 @@ async function isDrawn($: EngineInterface): Promise<boolean> {
 /** Starts or stops the one timer: a plan to keep current, on a surface that draws it. */
 async function syncTimer($: EngineInterface, value: HeadwayRun, wall: number): Promise<void> {
   const seq = ++timerSeq
-  const wants = wantsTimer(value, wall) && (await isDrawn($))
+  const wants = isOn && wantsTimer(value, wall) && (await isDrawn($))
   if (seq !== timerSeq) return // a newer call decides
   if (wants && timer === null) {
     timer = $.clock.every(TICK_MS, () => void tick($))
@@ -159,7 +167,19 @@ const PLAN_TOOL = {
   isDeferred: false,
 } as const
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  isOn = options.enabled !== false
+
+  on('config.set', { key: 'headway.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      isOn = set.value
+      // The next tick stops the timer; the redraw clears the line now.
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'headway',
@@ -169,17 +189,22 @@ export const register: Register = on => {
     })
     // The desktop app gives Claude no todo tool. There Headway lends one shaped like
     // TodoWrite, so Claude can share its plan and the line can follow it; never beside a native one.
-    try {
-      const names = (await $.tool.list()).map(tool => tool.name)
-      if (!names.some(name => NATIVE_PLAN_TOOLS.has(name))) await $.tool.register(PLAN_TOOL)
-    } catch (error) {
-      $.ui.log(`headway: no plan tool lent (${String(error)})`, { to: 'debug' })
+    // Off, it lends nothing.
+    if (isOn) {
+      try {
+        const names = (await $.tool.list()).map(tool => tool.name)
+        if (!names.some(name => NATIVE_PLAN_TOOLS.has(name))) await $.tool.register(PLAN_TOOL)
+      } catch (error) {
+        $.ui.log(`headway: no plan tool lent (${String(error)})`, { to: 'debug' })
+      }
     }
     return next(e)
   })
 
   // Headway's own plan tool, where Claude has no todo tool: answered here, read as TodoWrite is.
   on('tool.call', { tool: PLAN_TOOL_NAME }, async ($, e) => {
+    // Lent before the switch went off: still answered, so Claude's call does not fail.
+    if (!isOn) return { result: OFF_TEXT, text: OFF_TEXT }
     const event = eventFromTool('TodoWrite', e, null, e.agentId === undefined)
     if (event !== null) await safely($, () => dispatch($, event))
     // A lent (MCP) tool's result is text: Claude Code refuses an object there (seen live).
@@ -190,7 +215,7 @@ export const register: Register = on => {
   // The plan call's row in the terminal: Claude Code prints a lent tool's whole input there, so the
   // row would carry the plan's JSON. It shows the count instead; the band already shows the steps.
   on('ui.render', { component: 'ToolUse' }, ($, e, next) => {
-    if (e.surface !== 'terminal' || e.props.tool !== PLAN_TOOL_NAME) return next(e)
+    if (!isOn || e.surface !== 'terminal' || e.props.tool !== PLAN_TOOL_NAME) return next(e)
     const count = planCount(e.props.input)
     return next(count === null ? e : { ...e, props: { ...e.props, input: count } })
   }).catch(($, e, next) => next(e))
@@ -240,6 +265,10 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'headway' }, async ($, e) => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     const word = e.args.trim().toLowerCase()
     if (word === 'hide' || word === 'show') {
       await dispatch($, { kind: 'hidden', hidden: word === 'hide' })
@@ -261,7 +290,7 @@ export const register: Register = on => {
   // The band: one line above the prompt, beneath whatever other mods draw there. Theirs comes
   // first, so when the band overflows its rows the scroll cuts Headway's line, never their buttons.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+    if (!isOn || e.props.hasSurvey) return next(e)
     const value = await read($, run)
     const view = value.hidden ? null : bandView(value, await $.clock.now())
     if (view === null) return next(e)
@@ -286,6 +315,16 @@ export const register: Register = on => {
 
   // The /headway pane: every step with its status and time.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    if (!isOn) {
+      const { Box, Text } = $.ui.resolve(e)
+      return (
+        <Box flexDirection="column">
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+        </Box>
+      )
+    }
     const value = await read($, run)
     const last = await read($, done)
     const rows = paneRows(value, last, await $.clock.now())
