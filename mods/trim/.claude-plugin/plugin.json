@@ -9,6 +9,12 @@
   "keywords": ["tokens", "cost", "bash", "output", "context"],
   "types": "./types/index.d.ts",
   "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Switch trim off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    },
     "lines": {
       "type": "number",
       "title": "Fold past this many lines",

@@ -62,6 +62,16 @@ type Pending = { command: string; plan: Plan; sha?: string; archive?: string; by
 type Prepared = { pending?: Pending; skip?: { text: string; tone: 'subtle' | 'warning' } }
 
 let settings: Settings = readSettings({})
+
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Mulligan saves
+// nothing before any command and draws no band. The do-overs it already saved stay, and
+// /mulligan restore still puts one back: they are the person's files, and turning the
+// switch on just to reach them would start saving again, which can reuse the oldest slot.
+// The engine reloads the mod with the new value; the config.set hook below is the same
+// switch at once.
+let isOn = true
+const OFF_TEXT = 'Mulligan is off. /mods or /config turns it on.'
+
 /** Index writes one at a time: Claude can run two commands at once. */
 let chain: Promise<unknown> = Promise.resolve()
 
@@ -315,6 +325,8 @@ async function command($: EngineInterface, args: string, origin: string): Promis
   const [verb = '', arg = ''] = args.trim().split(/\s+/)
   const action = verb.toLowerCase()
   const n = Number(arg)
+  // Off, a restore is the one word that still runs.
+  if (!isOn && action !== 'restore') return $.ui.toast(OFF_TEXT)
   await syncList($)
   if (action === '' || action === 'list') {
     await update($, view, () => ({ kind: 'list' as const, confirm: 0 }))
@@ -322,7 +334,7 @@ async function command($: EngineInterface, args: string, origin: string): Promis
     return
   }
   if (!Number.isInteger(n) || n < 1 || !(await read($, snapshots)).some(s => s.n === n)) {
-    return $.ui.toast(`mulligan: there is no snapshot ${oneLine(clean(arg), 12) || '(none given)'} for this project. /mulligan lists them.`)
+    return $.ui.toast(`mulligan: there is no snapshot ${oneLine(clean(arg), 12) || '(none given)'} for this project.${isOn ? ' /mulligan lists them.' : ''}`)
   }
   if (action === 'restore') {
     await update($, view, () => ({ kind: 'list' as const, confirm: n }))
@@ -354,6 +366,17 @@ async function command($: EngineInterface, args: string, origin: string): Promis
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
+  isOn = options.enabled !== false
+
+  // Never touches a snapshot: the switch only stops new ones and the band.
+  on('config.set', { key: 'mulligan.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      isOn = set.value
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     try {
@@ -370,8 +393,10 @@ export const register: Register = (on, options) => {
   })
 
   // Saved before the tool runs; kept once it ran. The tool runs exactly once whatever happens here.
+  // Off, no snapshot: the call passes as it came. One taken before a switch mid-command is still
+  // kept (its files are already saved), without a band.
   on('tool.call', async ($, e, next) => {
-    if (e.tool !== 'Bash') return next(e)
+    if (!isOn || e.tool !== 'Bash') return next(e)
     let prepared: Prepared = {}
     try {
       prepared = await prepare($, e.command)
@@ -400,6 +425,7 @@ export const register: Register = (on, options) => {
 
   // One line under the other bands, for a few seconds after a snapshot or a skip.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!isOn) return next(e)
     const below = await next(e)
     const b = await read($, band)
     if (b === null || (await $.clock.now()) >= b.until || (e.surface !== 'terminal' && e.surface !== 'desktop')) return below
@@ -419,6 +445,35 @@ export const register: Register = (on, options) => {
     const list = await read($, snapshots)
     const v = await read($, view)
     const now = await $.clock.now()
+    // A restore waits on this press, on or off.
+    const confirm = (s: MulliganSnapshot) => (
+      <Box key="confirm" flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1}>
+        <Text key="ask">{`Put back ${clean(s.scope)} as it was before #${s.n}? Files it holds are written over what is there now; nothing newer is deleted.`}</Text>
+        <Box key="choices" flexDirection="row" gap={2}>
+          <Button
+            key="yes"
+            label="Yes, restore"
+            onPress={async () => {
+              const said = await restore($, s.n)
+              await update($, view, () => ({ kind: 'list' as const, confirm: 0 }))
+              $.ui.toast(said)
+            }}
+          />
+          <Button key="cancel" label="Cancel" autoFocus onPress={() => void update($, view, () => ({ kind: 'list' as const, confirm: 0 }))} />
+        </Box>
+      </Box>
+    )
+    if (!isOn) {
+      const asked = v.kind === 'list' ? list.find(s => s.n === v.confirm) : undefined
+      return (
+        <Box flexDirection="column" paddingX={1}>
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+          {asked === undefined ? null : confirm(asked)}
+        </Box>
+      )
+    }
     if (v.kind === 'diff') {
       return (
         <Box flexDirection="column" paddingX={1}>
@@ -457,23 +512,7 @@ export const register: Register = (on, options) => {
               </Box>
             </Box>
             <Text key="about" dimColor>{`    ${clean(s.scope)}${s.bytes > 0 ? ` · ${sizeWords(s.bytes)}` : ''} · ${agoWords(now - s.at)}`}</Text>
-            {v.confirm === s.n ? (
-              <Box key="confirm" flexDirection="column" borderStyle="round" borderColor="warning" paddingX={1}>
-                <Text key="ask">{`Put back ${clean(s.scope)} as it was before #${s.n}? Files it holds are written over what is there now; nothing newer is deleted.`}</Text>
-                <Box key="choices" flexDirection="row" gap={2}>
-                  <Button
-                    key="yes"
-                    label="Yes, restore"
-                    onPress={async () => {
-                      const said = await restore($, s.n)
-                      await update($, view, () => ({ kind: 'list' as const, confirm: 0 }))
-                      $.ui.toast(said)
-                    }}
-                  />
-                  <Button key="cancel" label="Cancel" autoFocus onPress={() => void update($, view, () => ({ kind: 'list' as const, confirm: 0 }))} />
-                </Box>
-              </Box>
-            ) : null}
+            {v.confirm === s.n ? confirm(s) : null}
           </Box>
         ))}
         <Text key="note" dimColor>

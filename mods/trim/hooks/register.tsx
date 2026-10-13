@@ -53,6 +53,13 @@ let settings: Settings = readSettings({})
 const fulls = new Map<string, string>()
 const expanded = new Set<string>()
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, trim folds
+// nothing, keeps nothing and draws nothing; Claude reads every output as Bash made it.
+// The engine reloads the mod with the new value; the config.set hook below is the same
+// switch at once. /trim off is another thing: a pause for this session only.
+let isOn = true
+const OFF_TEXT = 'Trim is off. /mods or /config turns it on.'
+
 /** Keeps one full output, dropping the oldest past the call or size cap. */
 export function remember(store: Map<string, string>, id: string, full: string): void {
   store.delete(id)
@@ -135,6 +142,23 @@ async function command($: EngineInterface, args: string, origin: string): Promis
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
+  isOn = options.enabled !== false
+
+  on('config.set', { key: 'trim.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      isOn = set.value
+      // The status line is trim's too: gone while off, the session's total again when on.
+      try {
+        const l = await read($, log)
+        $.ui.status(isOn && l.saved > 0 ? statusLine(l.saved) : undefined)
+      } catch (error) {
+        debug($, error)
+      }
+      redraw($)
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     try {
@@ -145,7 +169,7 @@ export const register: Register = (on, options) => {
         immediate: true,
       })
       const l = await read($, log)
-      if (l.saved > 0) $.ui.status(statusLine(l.saved))
+      if (isOn && l.saved > 0) $.ui.status(statusLine(l.saved))
     } catch (error) {
       debug($, error)
     }
@@ -156,7 +180,7 @@ export const register: Register = (on, options) => {
   // again: any failure answers with what the tool gave, untouched.
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
-    if (e.tool !== 'Bash' || ran.deny !== undefined) return ran
+    if (!isOn || e.tool !== 'Bash' || ran.deny !== undefined) return ran
     try {
       if (await read($, isOff)) return ran
       const out = foldable(ran.result)
@@ -186,7 +210,7 @@ export const register: Register = (on, options) => {
 
   // Under a folded call's row: what was saved, and expand (the drawing only; Claude's read stays folded).
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
-    if (e.props.tool !== 'Bash' || (e.surface !== 'terminal' && e.surface !== 'desktop')) return next(e)
+    if (!isOn || e.props.tool !== 'Bash' || (e.surface !== 'terminal' && e.surface !== 'desktop')) return next(e)
     const id = e.props.tool_use_id
     const call = (await read($, log)).calls.find(c => c.id === id)
     if (call === undefined) return next(e)
@@ -221,6 +245,15 @@ export const register: Register = (on, options) => {
   // /trim: one row per folded call, with Show for each one still kept in full.
   on('ui.render', { component: 'Pane', requestId: LIST_PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
+    if (!isOn) {
+      return (
+        <Box flexDirection="column" paddingX={1}>
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+        </Box>
+      )
+    }
     const l = await read($, log)
     const paused = await read($, isOff)
     return (
@@ -267,6 +300,15 @@ export const register: Register = (on, options) => {
   // /trim show <n>: one call's full output, on the person's screen only.
   on('ui.render', { component: 'Pane', requestId: OUTPUT_PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
+    if (!isOn) {
+      return (
+        <Box flexDirection="column" paddingX={1}>
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+        </Box>
+      )
+    }
     const n = await read($, shown)
     const call = (await read($, log)).calls.find(c => c.n === n)
     const full = call ? fulls.get(call.id) : undefined
@@ -286,6 +328,10 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'trim' }, async ($, e) => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     try {
       await command($, e.args, e.origin.kind)
     } catch (error) {

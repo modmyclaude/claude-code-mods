@@ -9,6 +9,12 @@
   "keywords": ["review", "diff", "git", "pane", "small-model"],
   "types": "./types/index.d.ts",
   "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Switch chapters off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    },
     "model": {
       "type": "string",
       "title": "Model",

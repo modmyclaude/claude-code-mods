@@ -45,6 +45,17 @@ let turnEdits: Edit[] = []
 let lastTurnEdits: Edit[] = []
 let isWriting = false
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Chapters calls no
+// model and draws no line or pane; it still notes Claude's edits, so a review of the last turn
+// is whole once it is on. A review being written when it goes off never asks the model again
+// and never draws. The engine reloads the mod with
+// the new value; the config.set hook below is the same switch at once.
+let isOn = true
+/** How often the switch went off: a review begun before the latest time is dropped. */
+let offs = 0
+const OFF_TEXT = 'Chapters is off. /mods or /config turns it on.'
+const STOPPED = 'the review stopped when Chapters was switched off; /chapters writes a new one'
+
 function debug($: EngineInterface, text: string): void {
   $.ui.log(`chapters: ${text}`, { to: 'debug' })
 }
@@ -135,7 +146,7 @@ async function complete($: EngineInterface, prompt: string): Promise<ModelComple
 }
 
 /** One or two calls, each retried once on a reply that does not read; the chapters in order. */
-async function write($: EngineInterface, diff: FileDiff[]): Promise<{ chapters: ChaptersChapter[]; left: number } | null> {
+async function write($: EngineInterface, diff: FileDiff[], isLive: () => boolean): Promise<{ chapters: ChaptersChapter[]; left: number } | null> {
   const { texts, left } = batches(diff, MAX_INPUT)
   const all: ChaptersChapter[] = []
   for (let i = 0; i < texts.length; i++) {
@@ -145,6 +156,7 @@ async function write($: EngineInterface, diff: FileDiff[]): Promise<{ chapters: 
     const prompt = buildPrompt(texts[i]!, notes.length ? notes.join(' ') : null)
     let chapters: ChaptersChapter[] | null = null
     for (let attempt = 0; attempt < 2 && chapters === null; attempt++) {
+      if (!isLive()) return null
       const result = await complete($, prompt)
       if (result === null) return all.length > 0 ? { chapters: all, left } : null
       chapters = result.isAnswered ? parseReply(result.text) : null
@@ -156,8 +168,11 @@ async function write($: EngineInterface, diff: FileDiff[]): Promise<{ chapters: 
 
 /** Builds the review for `scope` and draws it as it goes: loading, then the chapters or why there are none. */
 async function build($: EngineInterface, scope: string, base: string): Promise<void> {
-  if (isWriting) return
+  if (isWriting || !isOn) return
   isWriting = true
+  const at = offs
+  // Switched off since it began: it asks the model nothing more and draws nothing.
+  const isLive = () => offs === at
   try {
     const root = await $.session.root()
     const isGit = await git($, ['rev-parse', '--is-inside-work-tree'], root).then(
@@ -181,11 +196,13 @@ async function build($: EngineInterface, scope: string, base: string): Promise<v
     if (files.length === 0) {
       return void (await fail($, isCut ? `the diff of ${words} is too long to read: its first file alone is past 4 MB` : `nothing to review in ${words}`))
     }
-    const written = await write($, files)
+    const written = await write($, files, isLive)
+    if (!isLive()) return
     if (written === null) return void (await fail($, 'no review this time: the model did not answer in the shape asked for'))
     await update($, review, () => ({ status: 'ready' as const, scope: words, chapters: written.chapters, at: 0, left: written.left, ...(isCut ? { isCut } : {}) }))
   } finally {
-    isWriting = false
+    // A review dropped by the switch gave up its lock then: a newer one may hold it now.
+    if (offs === at) isWriting = false
   }
 }
 
@@ -228,6 +245,22 @@ async function ask($: EngineInterface, n: number, chapter: ChaptersChapter): Pro
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
+  isOn = options.enabled !== false
+
+  on('config.set', { key: 'chapters.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      if (isOn && !set.value) {
+        // The review under way is dropped with its lock; its loading line says why.
+        offs += 1
+        isWriting = false
+        await update($, review, r => (r?.status === 'loading' ? { status: 'failed' as const, scope: r.scope, chapters: [], at: 0, left: 0, reason: STOPPED } : r)).catch(error => debug($, String(error)))
+      }
+      isOn = set.value
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     try {
@@ -279,6 +312,10 @@ export const register: Register = (on, options) => {
 
   // /chapters [staged | branch [base] | last]: a model call is the person's to start.
   on('command.run', { command: 'chapters' }, async ($, e) => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     try {
       const [verb = '', arg = ''] = e.args.trim().split(/\s+/)
       const word = verb.toLowerCase()
@@ -308,6 +345,7 @@ export const register: Register = (on, options) => {
 
   // One dim line while a review waits unread and its pane is not on screen.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!isOn) return next(e)
     const below = await next(e)
     const r = await read($, review)
     const words = r?.status === 'ready' ? bandWords(r.chapters) : null
@@ -325,6 +363,15 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Code, Text } = $.ui.resolve(e)
+    if (!isOn) {
+      return (
+        <Box flexDirection="column" paddingX={1}>
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+        </Box>
+      )
+    }
     const r = await read($, review)
     if (r === null || r.status !== 'ready') {
       return (

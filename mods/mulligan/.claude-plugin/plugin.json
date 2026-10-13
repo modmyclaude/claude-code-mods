@@ -9,6 +9,12 @@
   "keywords": ["undo", "snapshot", "safety", "bash", "restore"],
   "types": "./types/index.d.ts",
   "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Switch mulligan off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    },
     "always": {
       "type": "string",
       "title": "Always save before commands matching",

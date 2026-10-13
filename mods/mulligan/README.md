@@ -47,6 +47,7 @@ The same commands last-look holds take a snapshot, and nothing else: a listing, 
 
 ## Settings
 
+- **On:** on by default. Off, Mulligan saves nothing before any command (no git, no tar, no file written) and draws no line; `/mulligan` says it is off. `/mulligan restore <n>` still puts back a do-over saved while it was on, after the same confirm: those are your files, and turning it on just to reach them would start saving again, which can reuse the oldest slot. A flip never deletes a do-over. `/config` or the modmyclaude hub flips it, live.
 - **Always save before commands matching:** a pattern (a regular expression, case-insensitive; `|` between several) for commands that should save the whole project first, such as `prisma migrate|npm uninstall`.
 - **Never save before commands matching:** a pattern for commands that never take a snapshot, such as `rm -rf (dist|build)`.
 - **Largest snapshot (MB):** default 200. A bigger one is skipped, and the line says the command ran without a do-over.

@@ -50,6 +50,7 @@ Every token figure is an estimate (about four characters per token) and says "ab
 
 ## Settings
 
+- **On:** on by default. Off, Trim folds nothing and keeps nothing: every Bash output reaches Claude whole, as Claude Code made it, and no line under a call, status line or pane is drawn; `/trim` says it is off. `/config` or the modmyclaude hub flips it, live. (`/trim off` only pauses it for this session.)
 - **Fold past this many lines** (default 120, from 40 to 100,000) and **Fold past this many characters** (default 6,000): output past either is folded.
 - **Always keep lines matching:** a pattern (a regular expression, case-insensitive; `|` between several, such as `deploy id|migrated`) whose lines never fold. A pattern that does not compile is ignored.
 
