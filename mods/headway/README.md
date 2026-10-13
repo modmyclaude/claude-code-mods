@@ -49,7 +49,7 @@ on('state.set', { plugin: 'headway', key: 'done' }, async ($, e, next) => {
 
 ## Settings
 
-- **On:** on by default. Off, Headway draws nothing, watches nothing and lends no plan tool; `/headway` says it is off. `/config` or the modmyclaude hub flips it, live.
+- **On:** on by default. Off, Headway draws nothing, lends no plan tool and carries out nothing (no receipt, no "plan done", no pace history); it still follows the plan in memory, so switched on again it shows where things stand. `/headway` says it is off. `/config` or the modmyclaude hub flips it, live.
 
 ## What it can touch
 

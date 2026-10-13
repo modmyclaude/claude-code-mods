@@ -297,7 +297,7 @@ async function show($: Dollar, room: Room, arg: string): Promise<string> {
   room.revealTimer?.cancel()
   room.revealTimer = $.clock.after(REVEAL_MS, () => {
     if (room.reveal === entry) room.reveal = undefined
-    if (isOn) redraw($) // off, nothing of it is drawn
+    redraw($)
   })
   redraw($)
   return `cloakroom: showing ${entry.label} in the band above the prompt for ${REVEAL_MS / 1000} seconds. It is drawn on your screen only; Claude is not sent the value.`
@@ -459,7 +459,7 @@ export const register: Register = (on, options) => {
     // over Remote Control, which the engine says is not attestably the person's hand.
     const isPersons = e.origin.kind === 'composer' || (e.origin.kind === 'plugin' && e.origin.name === 'modmyclaude-hub')
     if (e.value === false && !isPersons) {
-      return { deny: 'cloakroom stays on: you switch it off in /config or the modmyclaude hub' }
+      return { deny: 'cloakroom stays on: you switch it off in the /config menu on this machine, or in the modmyclaude hub' }
     }
     const set = await next(e)
     if (set.deny === undefined && typeof set.value === 'boolean') {
@@ -532,7 +532,8 @@ export const register: Register = (on, options) => {
     rescanCached($, room)
     return out
   }).catch(($, e, next) =>
-    next.called ? { deny: WITHHELD } : { deny: 'cloakroom: the secret check failed, so this call did not run.' },
+    // Off, a failure beneath is the engine's, passed on as if cloakroom were not here.
+    !isOn ? next(e) : next.called ? { deny: WITHHELD } : { deny: 'cloakroom: the secret check failed, so this call did not run.' },
   )
 
   on('prompt.submit', async ($, e, next) => {
@@ -581,7 +582,7 @@ export const register: Register = (on, options) => {
     if (r.text === null) return r
     const s = vault.scrub(r.text, `${e.type} attachment`)
     return s.changed ? { text: s.text } : r
-  }).catch(() => ({ text: WITHHELD }))
+  }).catch(($, e, next) => (!isOn ? next(e) : { text: WITHHELD }))
 
   on('prompt.context', async ($, e, next) => {
     if (!isOn) return next(e)
@@ -598,6 +599,7 @@ export const register: Register = (on, options) => {
     // not passed on.
     return changed ? { blocks } : r
   }).catch(async ($, e, next) => {
+    if (!isOn) return next(e)
     // Withhold every block but the date rather than send one unscanned.
     const r = await next(e).catch(() => ({ blocks: [] }))
     return { blocks: r.blocks.map(b => (b.name === 'currentDate' ? b : { ...b, text: WITHHELD })) }
@@ -614,6 +616,7 @@ export const register: Register = (on, options) => {
     if (!sections.some(section => section.id === LINE.id)) sections.push(LINE)
     return { sections }
   }).catch(async ($, e, next) => {
+    if (!isOn) return next(e)
     const r = await next(e).catch(() => ({ sections: [] }))
     return { sections: [...r.sections.filter(s => s.scope === 'shared'), LINE] }
   })
@@ -623,7 +626,7 @@ export const register: Register = (on, options) => {
     const r = await next(e)
     const s = vault.scrub(r.text, `${e.skill} skill`)
     return s.changed ? { text: s.text } : r
-  }).catch(() => ({ text: WITHHELD }))
+  }).catch(($, e, next) => (!isOn ? next(e) : { text: WITHHELD }))
 
   on('session.append', async ($, e, next) => {
     if (!isOn) return next(e)

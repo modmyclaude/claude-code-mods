@@ -198,13 +198,38 @@ test('another mod or a Remote Control /config cannot switch it off (a mod that l
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
   w.answer.Bash = () => bash(ENV)
-  expect(await flip($, false, { kind: 'plugin', name: 'other' })).toEqual({ deny: 'cloakroom stays on: you switch it off in /config or the modmyclaude hub' })
+  expect(await flip($, false, { kind: 'plugin', name: 'other' })).toEqual({ deny: 'cloakroom stays on: you switch it off in the /config menu on this machine, or in the modmyclaude hub' })
   // Nor a /config sent over Remote Control: not attestably the person's hand.
-  expect(await flip($, false, { kind: 'bridge' })).toEqual({ deny: 'cloakroom stays on: you switch it off in /config or the modmyclaude hub' })
+  expect(await flip($, false, { kind: 'bridge' })).toEqual({ deny: 'cloakroom stays on: you switch it off in the /config menu on this machine, or in the modmyclaude hub' })
   expect(stdoutOf(await runBash($, 'cat .env'))).not.toContain(KEY)
   expect(await flip($, false, { kind: 'plugin', name: 'modmyclaude-hub' })).toEqual({ value: false })
   expect(stdoutOf(await runBash($, 'cat .env'))).toContain(KEY)
   // Back on is the safe way: any mod may.
   expect(await flip($, true, { kind: 'plugin', name: 'other' })).toEqual({ value: true })
   expect(stdoutOf(await runBash($, 'cat .env'))).not.toContain(KEY)
+})
+
+test('switched off, a failure beneath reaches the engine as it is: no withheld text, no ticket line, nothing in its voice', { options: { enabled: false } }, async ($, on) => {
+  const w = world(on, { [`${ROOT}/.env`]: ENV })
+  const down = () => {
+    throw new Error('beneath is down')
+  }
+  on('prompt.compose', down)
+  on('prompt.attachment', down)
+  on('prompt.context', down)
+  on('skill.prompt', down)
+  w.answer.Bash = down
+  await start($)
+  const hook = { kind: 'hook', event: 'SessionStart' } as const
+  const outcomes: string[] = []
+  for (const call of [
+    () => $.prompt.compose(COMPOSE),
+    () => $.prompt.attachment({ type: 'hook_additional_context', text: 'env', origin: hook }),
+    () => $.prompt.context({ blocks: [{ name: 'claudeMd', text: 'notes' }] }),
+    () => $.skill.prompt({ skill: 'deploy', text: 'steps' }),
+    () => runBash($, 'ls'),
+  ]) {
+    outcomes.push(await call().then(out => `answered ${JSON.stringify(out)}`, () => 'failed'))
+  }
+  expect(outcomes).toEqual(['failed', 'failed', 'failed', 'failed', 'failed'])
 })
