@@ -32,9 +32,9 @@
     "motion": {
       "type": "string",
       "title": "Motion",
-      "description": "rotate: pages of whole symbols that fit the band, flipped every few seconds, one redraw a page. scroll: a marquee moving a few cells a second, the pace in the speed setting; every step redraws the band, which costs some CPU all day.",
-      "default": "rotate",
-      "options": ["rotate", "scroll"]
+      "description": "scroll: a marquee moving a few cells a second, the pace in the speed setting; every step redraws the band, about 5% of a core at the default pace. rotate: pages of whole symbols that fit the band, flipped every few seconds, one redraw a page, close to free.",
+      "default": "scroll",
+      "options": ["scroll", "rotate"]
     },
     "speed": {
       "type": "number",

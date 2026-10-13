@@ -31,8 +31,8 @@ export const GAP = '   '
 
 export type Tone = 'up' | 'down' | 'flat' | 'dim' | 'name'
 export type Motion = 'scroll' | 'rotate'
-/** Pages by default: one redraw a page. A marquee redraws the band every step, which costs CPU all day, so it is the choice. */
-export const DEFAULT_MOTION: Motion = 'rotate'
+/** The marquee by default, the person's call; pages (`rotate`) redraw once each and are the low-power choice. */
+export const DEFAULT_MOTION: Motion = 'scroll'
 
 /** The symbols of a setting or a command, upper-cased, cleaned, deduplicated, capped. */
 export function parseSymbols(text: string): string[] {

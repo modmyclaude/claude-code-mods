@@ -115,10 +115,10 @@ describe('D and E: failures', () => {
 })
 
 describe('F and G: motion', () => {
-  test('the marquee shifts one cell per frame, four frames a second by default, wraps, and fills exactly the room beside the lead cell at any width', async ($, on) => {
+  test('the marquee, the default, shifts one cell per frame, four frames a second by default, wraps, and fills exactly the room beside the lead cell at any width', async ($, on) => {
     const w = world(on)
     await w.start($)
-    await $.command.run({ command: 'tape', args: 'scroll', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+    await $.command.run({ command: 'tape', args: 'scroll', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } }) // the default already; restarts the frame timer at a known instant
     for (const columns of [60, 100, 157]) {
       const band = await mountBand($, 'terminal', { bodyColumns: columns })
       const lead = 'tape · hyperliquid perps │ '
@@ -149,7 +149,6 @@ describe('F and G: motion', () => {
     const w = world(on)
     await w.start($)
     const run = (args: string) => $.command.run({ command: 'tape', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
-    await run('scroll')
     const band = await mountBand($, 'terminal', { bodyColumns: 100 })
     const rounds = () => w.rec.requests.filter(r => r.body?.includes('allMids') && r.body.includes('xyz')).length
     const before = rounds()
@@ -171,9 +170,10 @@ describe('F and G: motion', () => {
     expect(rounds()).toBe(before) // and the motion switch fetched nothing either
     await band.unmount()
   })
-  test('rotate, the default, shows pages of whole symbols that fit, flips every rotateSeconds, and runs no frame timer', async ($, on) => {
+  test('rotate shows pages of whole symbols that fit, flips every rotateSeconds, and runs no frame timer', async ($, on) => {
     const w = world(on)
     await w.start($)
+    await $.command.run({ command: 'tape', args: 'rotate', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
     const band = await mountBand($, 'terminal', { bodyColumns: 70 })
     const first = await movingOf(band)
     expect(first.startsWith('AAPL 346.16 +0.3%   NVDA')).toBe(true)
@@ -244,7 +244,7 @@ describe('H and I: yielding and the switches', () => {
     await w.settle()
     expect(await rowOf(band)).toContain('AAPL')
     await run('')
-    expect(w.rec.logs.at(-1)).toBe('tape: AAPL NVDA TSLA AMZN SP500 GOLD BTC ETH · hyperliquid perps · rotate')
+    expect(w.rec.logs.at(-1)).toBe('tape: AAPL NVDA TSLA AMZN SP500 GOLD BTC ETH · hyperliquid perps · scroll')
     await run('remove btc')
     await run('')
     expect(w.rec.logs.at(-1)).toContain('GOLD ETH ·')
@@ -310,6 +310,7 @@ describe('L: the desktop tree', () => {
   test('the desktop packs about a quarter more than the count, its font being narrower than the cells counted', async ($, on) => {
     const w = world(on)
     await w.start($)
+    await $.command.run({ command: 'tape', args: 'rotate', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } }) // pages show the packing plainly
     const terminal = await mountBand($, 'terminal', { bodyColumns: 90 })
     const desktop = await mountBand($, 'desktop', { bodyColumns: 90 })
     const t = await movingOf(terminal)
