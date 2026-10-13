@@ -174,6 +174,17 @@ async function refusedWindow($: EngineInterface, now: number): Promise<ReturnTyp
   return cutOffWindow(windows, now)
 }
 
+/**
+ * Switched on: what an off it could not fully clear (a state write that failed) left behind is
+ * dropped first, so words already handed back are never sent at the reset.
+ */
+async function fresh($: EngineInterface): Promise<void> {
+  if ((await read($, queued)) !== null) await update($, queued, () => null)
+  if ((await read($, limit)) !== null) await update($, limit, () => null)
+  if ((await read($, lastSent)) !== null) await update($, lastSent, () => null)
+  await sync($)
+}
+
 export const register: Register = (on, options) => {
   isOn = options.enabled !== false
 
@@ -183,7 +194,7 @@ export const register: Register = (on, options) => {
       const wasOn = isOn
       isOn = set.value
       // Only a change: off again would give the words back again.
-      if (isOn !== wasOn) await safely($, () => (isOn ? sync($) : letGo($)))
+      if (isOn !== wasOn) await safely($, () => (isOn ? fresh($) : letGo($)))
       $.ui.invalidate('ui.render')
     }
     return set

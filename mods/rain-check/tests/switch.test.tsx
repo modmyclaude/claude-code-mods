@@ -161,6 +161,12 @@ test('switched off while its state will not write: the words still come back, an
   await answered($)
   await w.clock.advance(6 * HOUR)
   expect(w.sent.map(s => s.text)).toEqual(['try again'])
+
+  // On again: what it could not clear is not picked up, so words already handed back never go out.
+  await flip($, true)
+  await w.clock.advance(6 * HOUR)
+  expect(w.sent.map(s => s.text)).toEqual(['try again'])
+  await expectNoBand($)
 })
 
 test('switched off while a send gets ready: the words come back once, and it never goes out', async ($, on) => {

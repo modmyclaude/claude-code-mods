@@ -394,7 +394,7 @@ export const register: Register = (on, options) => {
 
   // Saved before the tool runs; kept once it ran. The tool runs exactly once whatever happens here.
   // Off, no snapshot: the call passes as it came. One taken before a switch mid-command is still
-  // kept (its files are already saved), without a band.
+  // kept (its files are already saved); its band is not drawn while off.
   on('tool.call', async ($, e, next) => {
     if (!isOn || e.tool !== 'Bash') return next(e)
     let prepared: Prepared = {}

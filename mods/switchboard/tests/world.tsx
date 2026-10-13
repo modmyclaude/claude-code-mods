@@ -28,6 +28,8 @@ export type World = {
   env: Record<string, string>
   id: string
   surfaces: RenderSurface[]
+  /** When set, the next `$.session.surfaces()` waits on it (a test holds a write mid-way). */
+  surfacesGate?: Promise<void>
   isPanePlaced: boolean
   panes: string[]
   /** What `tail` prints for this session's transcript, and every command the mod ran. */
@@ -72,7 +74,12 @@ export function world(on: On): World {
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.id', () => ({ value: w.id }))
   on('session.root', () => ({ value: '/work/api-server' }))
-  on('session.surfaces', () => ({ value: w.surfaces }))
+  on('session.surfaces', async () => {
+    const gate = w.surfacesGate
+    w.surfacesGate = undefined
+    if (gate !== undefined) await gate
+    return { value: w.surfaces }
+  })
   on('env.get', ($, e) => ({ value: w.env[e.name] }))
   on('fs.write', ($, e) => {
     w.touched.push(`write ${e.path}`)

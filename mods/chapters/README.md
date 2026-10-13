@@ -49,7 +49,7 @@ With a review on screen, `/chapters` alone opens it again. A new review runs onl
 
 ## Settings
 
-- **On:** on by default. Off, Chapters calls no model, runs no git and draws no line or pane; it still notes Claude's edits in memory, so a review of the last turn is whole once it is on. A review being written when it goes off stops there and is never drawn. `/chapters` says it is off. `/config` or the modmyclaude hub flips it, live.
+- **On:** on by default. Off, Chapters calls no model, runs no git, draws no line or pane and notes none of Claude's edits. A review being written when it goes off stops there and is never drawn. `/chapters` says it is off. `/config` or the modmyclaude hub flips it, live.
 - **Model:** `haiku` by default. Any alias or id Claude Code takes (`sonnet`, say) writes a deeper review at that model's price.
 - **Branch to compare against:** `main` by default, for `/chapters branch`.
 

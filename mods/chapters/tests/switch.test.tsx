@@ -184,3 +184,17 @@ test('the dropped review answering late does not free the lock of the one writte
   for (let i = 0; i < 20 && w.prompts.length < 2; i++) await w.clock.settle()
   expect(await bandTexts($)).toEqual([BAND])
 })
+
+test('an edit made while off is not noted: on again, the last turn has nothing to review', async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  w.replies = [TWO]
+  await start($)
+  await flip($, false)
+  await editTurn($)
+  await flip($, true)
+  await chapters($, w, 'last')
+  for (let i = 0; i < 10; i++) await w.clock.settle()
+  expect(w.prompts).toEqual([])
+  expect((await paneTexts($)).join(' ')).toContain('nothing to review')
+})

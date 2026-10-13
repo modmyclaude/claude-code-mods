@@ -178,3 +178,50 @@ test('switched off while a read is under way: no toast, and nothing drawn after'
   expect(w.toasts).toEqual([])
   await expectNothingDrawn($)
 })
+
+test('switched off while its record is being written: the closed record stands', async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  await start($)
+  let open = () => {}
+  w.surfacesGate = new Promise<void>(resolve => (open = resolve))
+  const starting = turnStart($)
+  await w.clock.settle()
+  await flip($, false)
+  expect(mine(w)?.state).toBe('gone')
+  open()
+  await starting
+  await w.clock.settle()
+  expect(mine(w)?.state).toBe('gone')
+})
+
+test('a read that lands after the switch went off is dropped: on again is a fresh look, with no toast', async ($, on) => {
+  let isArmed = false
+  let reached = () => {}
+  let open = () => {}
+  const isAtGate = new Promise<void>(resolve => (reached = resolve))
+  const gate = new Promise<void>(resolve => (open = resolve))
+  on('fs.list', { path: DIR }, async ($, e, next) => {
+    if (isArmed) {
+      isArmed = false
+      reached()
+      await gate
+    }
+    return next(e)
+  })
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  other(w, 'c1', 'Fix the login', 'working', T0)
+  await start($)
+  isArmed = true
+  const polling = w.clock.advance(POLL_MS)
+  await isAtGate
+  await flip($, false)
+  open()
+  await polling
+  await w.clock.settle()
+  other(w, 'c1', 'Fix the login', 'needs-you', T0 + POLL_MS + 1_000, { where: 'desktop', waitingOn: 'a permission for Bash' })
+  await flip($, true)
+  await w.clock.settle()
+  expect(w.toasts).toEqual([])
+})

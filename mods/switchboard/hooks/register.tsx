@@ -130,6 +130,8 @@ async function writeMine($: EngineInterface): Promise<void> {
   }
   const now = await $.clock.now()
   me.where = await whereNow($)
+  // Switched off meanwhile: its closed record stands.
+  if (!isOn) return
   await $.fs.write(`${dir}/${me.id}.json`, JSON.stringify(recordOf(me, now)))
   me.writtenAt = now
 }
@@ -206,6 +208,8 @@ async function readOthers($: EngineInterface): Promise<void> {
     }
     const listed = new Set(recent.map(entry => entry.name))
     for (const name of cache.keys()) if (!listed.has(name)) cache.delete(name)
+    // Switched off meanwhile: nothing of this read is kept, so on again is a fresh look.
+    if (!isOn) return
     const next = rowsOf(records, me.id, now)
     for (const row of newlyNeeding(next, seen)) $.ui.toast(toastLine(row))
     seen = seenOf(next)

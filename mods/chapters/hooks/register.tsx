@@ -46,8 +46,8 @@ let lastTurnEdits: Edit[] = []
 let isWriting = false
 
 // The switch (`enabled`, which /config and the modmyclaude hub flip): off, Chapters calls no
-// model and draws no line or pane; it still notes Claude's edits, so a review of the last turn
-// is whole once it is on. A review being written when it goes off never asks the model again
+// model, draws no line or pane and notes nothing (the flip reloads the mod, which would drop
+// what it noted anyway). A review being written when it goes off never asks the model again
 // and never draws. The engine reloads the mod with
 // the new value; the config.set hook below is the same switch at once.
 let isOn = true
@@ -279,7 +279,7 @@ export const register: Register = (on, options) => {
   // Claude's own edits this turn, for a review outside git or of the last turn.
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
-    if (ran.deny !== undefined || ran.isError) return ran
+    if (!isOn || ran.deny !== undefined || ran.isError) return ran
     try {
       const input = e as unknown as Record<string, unknown>
       const str = (v: unknown) => (typeof v === 'string' ? v : undefined)
