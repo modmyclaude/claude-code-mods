@@ -136,15 +136,15 @@ async function emptyArchive($: EngineInterface, base: string, name: string): Pro
  * Before the command runs: what it can destroy, saved into a pending archive
  * (and a git object). A skip says why nothing was saved, when that is news.
  */
-async function prepare($: EngineInterface, command: string): Promise<Prepared> {
-  if (settings.ignore?.test(command)) return {}
+async function prepare($: EngineInterface, shellCommand: string): Promise<Prepared> {
+  if (settings.ignore?.test(shellCommand)) return {}
   const where = await whereNow($)
   if (where === null) return {}
   const isGit = await isGitAt($, where.root)
-  let plan = planFor(classify(command, where.home === undefined ? {} : { home: where.home }), where.cwd, where.root, isGit)
-  if (settings.always?.test(command)) plan = { ...treePlan(isGit), outside: plan?.outside ?? [], notes: plan?.notes ?? [] }
+  let plan = planFor(classify(shellCommand, where.home === undefined ? {} : { home: where.home }), where.cwd, where.root, isGit)
+  if (settings.always?.test(shellCommand)) plan = { ...treePlan(isGit), outside: plan?.outside ?? [], notes: plan?.notes ?? [] }
   if (plan === null) return {}
-  const cmd = oneLine(clean(command), 48)
+  const cmd = oneLine(clean(shellCommand), 48)
   if (isEmpty(plan.scope)) {
     return plan.outside.length > 0 ? { skip: { text: `mulligan: no do-over for "${cmd}": ${clean(plan.outside[0]!)} is outside the project.`, tone: 'subtle' } } : {}
   }
@@ -200,7 +200,7 @@ async function prepare($: EngineInterface, command: string): Promise<Prepared> {
     }
   }
   if (sha === undefined && archive === undefined) return {} // nothing there to lose (a redirect to a new file)
-  return { pending: { command, plan, ...(sha === undefined ? {} : { sha }), ...(archive === undefined ? {} : { archive }), bytes, where } }
+  return { pending: { command: shellCommand, plan, ...(sha === undefined ? {} : { sha }), ...(archive === undefined ? {} : { archive }), bytes, where } }
 }
 
 /** After the command ran: the pending snapshot takes its slot, the oldest gives way. */
