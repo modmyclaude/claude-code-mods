@@ -105,12 +105,11 @@ test('flipped live: off clears the line and stops the timer at once; on shows th
   await todos($, list(STEPS, 2))
   expect(await bandText($, 'terminal')).toBeUndefined()
 
-  // On again: the step Claude reached while it was off, with no new call needed.
+  // On again: the step Claude reached while it was off, and its clock running, with no new call needed.
   await flip($, true)
   expect(await bandText($, 'terminal')).toContain('Wire the routes')
-  await todos($, list(STEPS, 2))
   await w.clock.advance(2 * S)
-  expect(w.periods()).toBeGreaterThan(before)
+  expect(w.periods(), 'the switch alone restarts the clock').toBeGreaterThan(before)
 })
 
 test('a plan that finished just before the switch went off gets no receipt after it', async ($, on) => {

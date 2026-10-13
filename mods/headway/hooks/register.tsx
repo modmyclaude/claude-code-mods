@@ -174,7 +174,8 @@ export const register: Register = (on, options) => {
     const set = await next(e)
     if (set.deny === undefined && typeof set.value === 'boolean') {
       isOn = set.value
-      // The next tick stops the timer; the redraw clears the line now.
+      // Off, the next tick stops the timer; on, the plan it kept following runs its clock again now.
+      if (isOn) await safely($, async () => syncTimer($, await read($, run), await $.clock.now()))
       $.ui.invalidate('ui.render')
     }
     return set
@@ -197,6 +198,8 @@ export const register: Register = (on, options) => {
       } catch (error) {
         $.ui.log(`headway: no plan tool lent (${String(error)})`, { to: 'debug' })
       }
+      // Reloaded (a switch flip does that) mid-plan: its clock runs again without waiting for Claude.
+      await safely($, async () => syncTimer($, await read($, run), await $.clock.now()))
     }
     return next(e)
   })
