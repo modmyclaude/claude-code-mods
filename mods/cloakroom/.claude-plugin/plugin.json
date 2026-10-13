@@ -1,10 +1,18 @@
 {
   "name": "cloakroom",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it.",
   "homepage": "https://modmyclaude.com/mods/cloakroom",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
-  "keywords": ["security", "secrets", "redaction", "privacy", "api-keys", "env"]
+  "keywords": ["security", "secrets", "redaction", "privacy", "api-keys", "env"],
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Switch cloakroom off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    }
+  }
 }

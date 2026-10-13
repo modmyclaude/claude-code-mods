@@ -36,6 +36,13 @@ const LOCAL_READS = new Set(['Read', 'Glob', 'Grep', 'LSP', 'ToolSearch'])
 /** @-mentions that are media, not text: the engine attaches them as images or PDFs. */
 const MEDIA = /\.(?:png|jpe?g|gif|webp|bmp|ico|tiff?|pdf|zip|gz|tgz|mp[34]|mov|wav|woff2?|ttf|otf)$/i
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, cloakroom hides
+// nothing, restores nothing, holds nothing and reads no file; every door passes what the
+// engine sends as it is. The engine reloads the mod with the new value; the config.set hook
+// below is the same switch at once.
+let isOn = true
+const OFF_TEXT = 'Cloakroom is off. /mods or /config turns it on.'
+
 const PERMIT_MS = 10 * 60_000
 const REVEAL_MS = 30_000
 const AUDIT_MS = 6_000
@@ -92,6 +99,8 @@ type Room = {
   auditView: string[] | undefined
   loadId: string
   copies: number
+  /** The project whose .env files are still to be read: the session started with cloakroom off. */
+  unseeded: string | undefined
 }
 
 const trimEnd = (path: string) => path.replace(/[\\/]+$/, '')
@@ -111,6 +120,16 @@ function rescanCached($: Dollar, room: Room): void {
     $.ui.invalidate('prompt.context')
   } catch {
     // a re-entered call cannot reach $: the next growth asks again
+  }
+}
+
+/** Switched on: prompt parts the engine cached while cloakroom was off are asked again, to be checked. */
+function rescanAll($: Dollar): void {
+  try {
+    $.ui.invalidate('prompt.attachment')
+    $.ui.invalidate('prompt.context')
+  } catch {
+    // nothing cached
   }
 }
 
@@ -278,7 +297,7 @@ async function show($: Dollar, room: Room, arg: string): Promise<string> {
   room.revealTimer?.cancel()
   room.revealTimer = $.clock.after(REVEAL_MS, () => {
     if (room.reveal === entry) room.reveal = undefined
-    redraw($)
+    if (isOn) redraw($) // off, nothing of it is drawn
   })
   redraw($)
   return `cloakroom: showing ${entry.label} in the band above the prompt for ${REVEAL_MS / 1000} seconds. It is drawn on your screen only; Claude is not sent the value.`
@@ -413,7 +432,8 @@ async function answer($: Dollar, room: Room, args: string, origin: string): Prom
 
 // ------------------------------------------------------- the hooks
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  isOn = options.enabled !== false
   const room: Room = {
     vault: new Vault(),
     holds: [],
@@ -424,8 +444,42 @@ export const register: Register = on => {
     auditView: undefined,
     loadId: shortId(),
     copies: 0,
+    unseeded: undefined,
   }
   const { vault } = room
+
+  // Off at once: holds, Allow once permits and a shown value are dropped, so none comes
+  // back stale; what was hidden stays hidden (nothing is asked again to undo it). A ticket
+  // Claude uses while off stays the ticket's text: restoring it with no check on the way
+  // out would be the leak this mod is for. On at once: .env files are read if the session
+  // started off, and the prompt parts cached while off are asked again.
+  on('config.set', { key: 'cloakroom.enabled' }, async ($, e, next) => {
+    // Off only by the person (the menu, the bridge) or the hub on their press: a mod that lets
+    // Claude change settings must not be a way around the cloakroom.
+    if (e.value === false && e.origin.kind === 'plugin' && e.origin.name !== 'modmyclaude-hub') {
+      return { deny: 'cloakroom stays on: you switch it off in /config or the modmyclaude hub' }
+    }
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      if (set.value) {
+        const cwd = room.unseeded
+        room.unseeded = undefined
+        // Read before the doors open; a value that cannot be learned is still caught by its shape.
+        if (cwd !== undefined) await seed($, room, cwd).catch(() => undefined)
+        isOn = true
+        rescanAll($)
+      } else {
+        isOn = false
+        room.holds.length = 0
+        room.permits.clear()
+        room.reveal = undefined
+        room.revealTimer?.cancel()
+        room.revealTimer = undefined
+      }
+      redraw($)
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     try {
@@ -438,11 +492,14 @@ export const register: Register = on => {
     } catch {
       // a host that takes no commands: the doors still work
     }
-    await seed($, room, e.cwd)
+    // Off, no file is read: the .env files wait until it is switched on.
+    if (isOn) await seed($, room, e.cwd)
+    else room.unseeded = e.cwd
     return next(e)
   })
 
   on('tool.call', async ($, e, next) => {
+    if (!isOn) return next(e)
     const tool = String(e.tool)
     const { tool: _tool, tool_use_id: _id, agentId: _agent, consent: _consent, ...args } = e as Record<string, unknown>
     let call = e
@@ -477,6 +534,7 @@ export const register: Register = on => {
   )
 
   on('prompt.submit', async ($, e, next) => {
+    if (!isOn) return next(e)
     const s = vault.scrub(e.text, 'your prompt')
     const context = e.context?.map(c => vault.scrub(c, 'prompt context'))
     if (!s.changed && !context?.some(c => c.changed)) return next(e)
@@ -488,6 +546,7 @@ export const register: Register = on => {
   )
 
   on('prompt.mention', async ($, e, next) => {
+    if (!isOn) return next(e)
     if (MEDIA.test(e.path)) return next(e) // images and PDFs: see Limits
     let text: string
     try {
@@ -515,6 +574,7 @@ export const register: Register = on => {
   )
 
   on('prompt.attachment', async ($, e, next) => {
+    if (!isOn) return next(e)
     const r = await next(e)
     if (r.text === null) return r
     const s = vault.scrub(r.text, `${e.type} attachment`)
@@ -522,6 +582,7 @@ export const register: Register = on => {
   }).catch(() => ({ text: WITHHELD }))
 
   on('prompt.context', async ($, e, next) => {
+    if (!isOn) return next(e)
     const r = await next(e)
     let changed = false
     const blocks = r.blocks.map(b => {
@@ -541,6 +602,7 @@ export const register: Register = on => {
   })
 
   on('prompt.compose', async ($, e, next) => {
+    if (!isOn) return next(e)
     const r = await next(e)
     const sections = r.sections.map(section => {
       if (section.id === LINE.id) return section
@@ -555,12 +617,14 @@ export const register: Register = on => {
   })
 
   on('skill.prompt', async ($, e, next) => {
+    if (!isOn) return next(e)
     const r = await next(e)
     const s = vault.scrub(r.text, `${e.skill} skill`)
     return s.changed ? { text: s.text } : r
   }).catch(() => ({ text: WITHHELD }))
 
   on('session.append', async ($, e, next) => {
+    if (!isOn) return next(e)
     const r = scrubBlocks(vault, e.message.content, SOURCES[e.door] ?? 'the conversation')
     if (!r.changed) return next(e)
     return next({ ...e, message: { ...e.message, content: r.value } })
@@ -569,6 +633,7 @@ export const register: Register = on => {
   )
 
   on('session.send', async ($, e, next) => {
+    if (!isOn) return next(e)
     const s = vault.scrub(e.text, 'an outgoing message')
     return next(s.changed ? { ...e, text: s.text } : e)
   }).catch(($, e, next) =>
@@ -576,11 +641,13 @@ export const register: Register = on => {
   )
 
   on('session.receive', async ($, e, next) => {
+    if (!isOn) return next(e)
     const s = vault.scrub(e.text, 'a delivery')
     return next(s.changed ? { ...e, text: s.text } : e)
   }).catch(($, e, next) => (next.called ? next(e) : { consumed: 'cloakroom could not check this delivery for secrets' }))
 
   on('telemetry.log', { to: 'collector' }, async ($, e, next) => {
+    if (!isOn) return next(e)
     let changed = false
     const attributes: Record<string, string | number | boolean | readonly string[]> = {}
     for (const [key, value] of Object.entries(e.attributes)) {
@@ -596,7 +663,7 @@ export const register: Register = on => {
   // keyboard on its own. Once the person focuses it, the ring starts on Deny;
   // Allow once has no hotkey, so no stray key can press it.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+    if (!isOn || e.props.hasSurvey) return next(e)
     const hold = room.holds[0]
     const shown = room.reveal
     if (!hold && !shown) return next(e)
@@ -607,6 +674,7 @@ export const register: Register = on => {
 
     // Each button acts on the hold it was drawn for, even if the queue moved since.
     const decide = (isAllowed: boolean) => async () => {
+      if (!isOn) return // a press drawn before the switch went off
       for (let i = room.holds.length - 1; i >= 0; i--) {
         if (room.holds[i]!.command === hold!.command) room.holds.splice(i, 1)
       }
@@ -663,6 +731,15 @@ export const register: Register = on => {
   // The audit's findings, on the person's screen only. File names and previews are untrusted: clean() each line.
   on('ui.render', { component: 'Pane', requestId: AUDIT_PANE }, ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
+    if (!isOn) {
+      return (
+        <Box flexDirection="column">
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+        </Box>
+      )
+    }
     const lines = room.auditView ?? ['Run /cloakroom audit to check your past transcripts.']
     return (
       <Box flexDirection="column" paddingX={1}>
@@ -674,7 +751,11 @@ export const register: Register = on => {
   })
 
   // Every word of the output passes clean(): file names, previews and echoed arguments are untrusted.
-  on('command.run', { command: 'cloakroom' }, async ($, e) => ({
-    text: clean(await answer($, room, e.args, e.origin.kind), { keepNewlines: true }),
-  })).catch(() => ({ text: 'cloakroom: that command failed, and nothing was shown.' }))
+  on('command.run', { command: 'cloakroom' }, async ($, e) => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
+    return { text: clean(await answer($, room, e.args, e.origin.kind), { keepNewlines: true }) }
+  }).catch(() => ({ text: 'cloakroom: that command failed, and nothing was shown.' }))
 }

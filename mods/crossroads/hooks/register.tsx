@@ -72,6 +72,12 @@ const live = {
   isModelRefused: false,
 }
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Crossroads
+// draws no band, makes no model call, takes no guess and counts nothing. The engine
+// reloads the mod with the new value; the config.set hook below is the same switch at once.
+let isOn = true
+const OFF_TEXT = 'Crossroads is off. /mods or /config turns it on.'
+
 // The engine follows `$` only into functions declared at the top level of
 // this file, so every helper that touches `$` lives out here.
 
@@ -408,7 +414,25 @@ async function send($: EngineInterface) {
   await learn($, { type: 'taken', kind: item.kind })
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  isOn = options.enabled !== false
+
+  // Off at once: work under way goes stale and the list is dropped, so it never comes back old.
+  on('config.set', { key: 'crossroads.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      isOn = set.value
+      if (!isOn) {
+        moveOn()
+        live.shown = undefined
+        live.take = undefined
+        await clearView($)
+      }
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: PLUGIN,
@@ -422,6 +446,7 @@ export const register: Register = on => {
 
   // A new turn: the old list is gone (a prompt's own hook has already judged it).
   on('turn.start', async ($, e, next) => {
+    if (!isOn) return next(e)
     live.isTurnRunning = true
     live.shown = undefined
     live.take = undefined
@@ -434,6 +459,7 @@ export const register: Register = on => {
   // Subagents raise turn.complete too: only the main loop's answer gets a
   // list, and a subagent finishing only wakes a list waiting on it.
   on('turn.complete', ($, e, next) => {
+    if (!isOn) return next(e)
     if (e.agentId !== undefined) {
       live.nudge?.()
 
@@ -453,6 +479,7 @@ export const register: Register = on => {
   // Anything submitted clears the band at once and makes in-flight work stale.
   // It never blocks a prompt: if learning fails, the prompt still goes in.
   on('prompt.submit', async ($, e, next) => {
+    if (!isOn) return next(e)
     const shown = live.shown
     const take = live.take
     live.shown = undefined
@@ -473,6 +500,7 @@ export const register: Register = on => {
   // not drawn either). It is judged on its raw text for the note; our copy of
   // it is cleaned, as it is drawn in the band and may be drafted.
   on('prompt.suggest', async ($, e, next) => {
+    if (!isOn) return next(e)
     // A guess made while a turn runs belongs to no finished turn.
     const at = live.isTurnRunning ? null : live.epoch
     const result = await next(e)
@@ -491,6 +519,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('session.end', async ($, e, next) => {
+    if (!isOn) return next(e)
     if (e.reason === 'clear') {
       moveOn()
       live.shown = undefined
@@ -504,6 +533,10 @@ export const register: Register = on => {
   // Every answer is a toast and the command returns {}: none of it is for the
   // model, which would otherwise read the output.
   on('command.run', { command: PLUGIN }, async ($, e) => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off') {
       await $.store.set('enabled', false)
@@ -544,7 +577,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || e.props.view.agentId !== undefined) return next(e)
+    if (!isOn || e.props.hasSurvey || e.props.view.agentId !== undefined) return next(e)
     const current = await read($, view)
     if (current.phase === 'idle' || e.props.isWorking) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)

@@ -4,6 +4,8 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- cloakroom 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live. Off, it hides, restores, holds and reads nothing, a ticket Claude already holds stays its text and what was hidden stays hidden; switched on, it reads the .env files and has cached prompt parts checked again. Another mod can switch it on but not off.
+- crossroads 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live; off, Crossroads draws no band, makes no model call, leaves Claude Code's own guess as it is and counts nothing, and a list under way is dropped.
 - second-wind 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live; off, Second Wind draws nothing, counts nothing and keeps no timer, and a breath under way when it goes off is dropped uncounted.
 - halftime 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live; off, Halftime draws nothing, blows no whistle and keeps no timer, and a run in play when it goes off is paused, offered back by /halftime once it is on.
 - headway 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live; off, Headway draws nothing, lends no plan tool, keeps no timer and toasts nothing, and still follows the plan, so switched on again it shows where things stand.

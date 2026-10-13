@@ -35,7 +35,9 @@ Commands:
 
 ## Settings
 
-None. Use the commands above.
+- **On:** on by default. Off, Crossroads draws no band, makes no model call, leaves Claude Code's own guess as it is and counts nothing; `/crossroads` says it is off. `/config` or the modmyclaude hub flips it, live.
+
+Nothing else to set; the commands above do the rest.
 
 ## What it can touch
 

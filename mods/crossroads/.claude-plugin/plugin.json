@@ -1,11 +1,19 @@
 {
   "name": "crossroads",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Three ways forward after every turn, risky ones marked. About $0.0002 a turn.",
   "homepage": "https://modmyclaude.com/mods/crossroads",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["next-prompt", "suggestions", "workflow", "band", "hotkeys", "safety"],
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Switch crossroads off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    }
+  }
 }

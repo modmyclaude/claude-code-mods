@@ -32,10 +32,11 @@ Read this first. Cloakroom lowers the chance that a secret ends up somewhere it 
 What the validator sees it reach (`claude plugin validate --strict`):
 
 ```
-hooks: session.start, tool.call, prompt.submit, prompt.mention, prompt.attachment, prompt.context, prompt.compose, skill.prompt, session.append, session.send, session.receive, telemetry.log{to=collector}, ui.render{component=AbovePrompt}, ui.render{component=Pane, requestId=cloakroom-audit}, command.run{command=cloakroom}
+hooks: config.set{key="cloakroom.enabled"}, session.start, tool.call, prompt.submit, prompt.mention, prompt.attachment, prompt.context, prompt.compose, skill.prompt, session.append, session.send, session.receive, telemetry.log{to=collector}, ui.render{component=AbovePrompt}, ui.render{component=Pane, requestId=cloakroom-audit}, command.run{command=cloakroom}
 answers its own command: command.run{command=cloakroom}
+gating hook without .catch: config.set{key="cloakroom.enabled"}
 gating hook with .catch: tool.call, prompt.submit, prompt.mention, session.append, session.send, session.receive, telemetry.log{to=collector}
-calls: $.clock.after (via show), $.clock.now, $.command.register, $.env.get, $.fs.exists, $.fs.list (via listDir), $.fs.read, $.fs.write, $.prompt.submit, $.session.surfaces (via audit, show), $.ui.invalidate (via redraw, rescanCached), $.ui.open (via audit), $.ui.resolve, $.ui.toast
+calls: $.clock.after (via show), $.clock.now, $.command.register, $.env.get, $.fs.exists, $.fs.list (via listDir), $.fs.read, $.fs.write, $.prompt.submit, $.session.surfaces (via audit, show), $.ui.invalidate (via redraw, rescanAll, rescanCached), $.ui.open (via audit), $.ui.resolve, $.ui.toast
 env writes: nothing
 env reads: CLAUDE_CONFIG_DIR, HOME, TEMP, TMP, TMPDIR, USERPROFILE
 hooks telemetry for: collector
@@ -94,7 +95,7 @@ The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and 
 
 ## Settings
 
-None.
+- **On:** on by default. Off, cloakroom hides nothing, restores nothing, holds nothing and reads no file: every door passes what Claude Code sends as it is, so a secret that reaches Claude while it is off reaches it as written. A ticket Claude already holds stays its ticket text (written as text into a file, say); the real value never comes back while it is off. What was hidden before stays hidden. Switching off drops any held command, Allow once and shown value. Switching on reads the `.env` files (if the session started off) and has the cached prompt parts checked again; switching reloads the mod, so tickets from before it are refused in tools, as after a restart. `/cloakroom` says it is off. `/config` or the modmyclaude hub flips it, live; another mod can switch it on, but not off.
 
 ## What it can touch
 
