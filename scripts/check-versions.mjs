@@ -26,7 +26,31 @@ const NOT_SHIPPED = [/^mods\/[^/]+\/README\.md$/, /^mods\/[^/]+\/tests\//, /^mod
 
 const changed = git('diff', '--name-only', base, head, '--', 'mods').split('\n').filter(Boolean)
 const shipped = changed.filter(path => !NOT_SHIPPED.some(re => re.test(path)))
-const mods = [...new Set(shipped.map(path => path.split('/')[1]))].filter(Boolean).sort()
+
+// Listing links and artwork are what the Claude plugin directory shows; they change nothing a session runs.
+const LISTING_KEYS = ['homepage', 'repository', 'supportUrl', 'documentationUrl', 'privacyPolicyUrl', 'termsOfServiceUrl', 'classification', 'icon']
+function manifestAt(ref, mod) {
+  try { return JSON.parse(git('show', `${ref}:mods/${mod}/.claude-plugin/plugin.json`)) } catch { return undefined }
+}
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, sortKeys(value[key])]))
+  return value
+}
+function withoutListing(manifest) {
+  const rest = { ...manifest }
+  for (const key of LISTING_KEYS) delete rest[key]
+  return JSON.stringify(sortKeys(rest))
+}
+/** True when a mod's only shipped change is listing keys in its plugin.json. */
+function listingOnly(mod) {
+  const paths = shipped.filter(path => path.split('/')[1] === mod)
+  if (paths.length !== 1 || paths[0] !== `mods/${mod}/.claude-plugin/plugin.json`) return false
+  const before = manifestAt(base, mod)
+  const after = manifestAt(head, mod)
+  return before !== undefined && after !== undefined && withoutListing(before) === withoutListing(after)
+}
+const mods = [...new Set(shipped.map(path => path.split('/')[1]))].filter(Boolean).filter(mod => !listingOnly(mod)).sort()
 
 /** The mod's version at a commit; undefined when it had no manifest there (a new mod), null when the manifest has none. */
 function versionAt(ref, mod) {
