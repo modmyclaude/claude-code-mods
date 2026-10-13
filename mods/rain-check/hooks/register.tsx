@@ -166,8 +166,8 @@ async function letGo($: EngineInterface): Promise<void> {
 /** The window a refused turn ran into, from a reading taken now (the last one can trail), else the last one. */
 async function refusedWindow($: EngineInterface, now: number): Promise<ReturnType<typeof cutOffWindow>> {
   try {
-    const fresh = (await $.session.usage()).rateLimits
-    if (fresh.length > 0) return cutOffWindow(fresh, now)
+    const reading = (await $.session.usage()).rateLimits
+    if (reading.length > 0) return cutOffWindow(reading, now)
   } catch {
     // No fresh reading: the last one stands.
   }
