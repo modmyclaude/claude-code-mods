@@ -161,7 +161,7 @@ describe('the gallery button', () => {
     await w.clock.settle()
     expect(w.config.theme).toBe('light')
     expect(w.store.get('ownTheme')).toBe('dark')
-    expect(w.heard.map(h => h.text).join('\n')).toContain('set to light to match paper')
+    expect(w.heard.map(heard => heard.text).join('\n')).toContain('set to light to match paper')
     await ui.unmount()
   })
 })
