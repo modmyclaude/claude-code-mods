@@ -37,6 +37,14 @@ let nearRefusalAt = -Infinity
 /** Set before send's first await, so two presses (or a press and the tick) cannot both send. */
 let isSending = false
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Rain Check holds
+// nothing, draws nothing, keeps no timer and sends nothing. The engine reloads the mod with
+// the new value; the config.set hook below is the same switch at once.
+let isOn = true
+const OFF_TEXT = 'Rain Check is off. /mods or /config turns it on.'
+/** What the toast leads with when switching off gives a waiting prompt back. */
+const OFF_LEAD = 'Rain Check is off, so nothing waits.'
+
 /** A prompt the person sent themselves: typed, from the phone bridge, or the desktop app's box. */
 async function isPerson($: EngineInterface, origin: PromptOrigin | undefined): Promise<boolean> {
   if (origin === undefined || origin.kind === 'composer' || origin.kind === 'bridge') return true
@@ -83,7 +91,7 @@ async function tick($: EngineInterface): Promise<void> {
  * one the limit refuses again waits again (classic.StopFailure, from lastSent).
  */
 async function send($: EngineInterface): Promise<void> {
-  if (isSending) return
+  if (!isOn || isSending) return
   isSending = true
   try {
     const waiting = await read($, queued)
@@ -92,6 +100,12 @@ async function send($: EngineInterface): Promise<void> {
     await update($, limit, () => null)
     await update($, lastSent, () => waiting)
     await sync($)
+    // Switched off while this send got ready: the words go back to the person, never out.
+    if (!isOn) {
+      await update($, lastSent, () => null)
+      await giveBack($, waiting, OFF_LEAD)
+      return
+    }
     const result = await $.prompt.submit({ text: waiting.text })
     if (result.drop !== undefined) {
       await update($, lastSent, () => null)
@@ -122,11 +136,31 @@ async function giveBack($: EngineInterface, waiting: RainCheckQueued, lead: stri
 
 /** Drops what waits, and never the person's words: they go back in the box. */
 async function cancel($: EngineInterface): Promise<void> {
+  if (!isOn) return
   const waiting = await read($, queued)
   if (waiting === null) return $.ui.toast('Nothing is waiting.')
   await update($, queued, () => null)
   await sync($)
   await giveBack($, waiting, 'Cancelled.')
+}
+
+/**
+ * Switched off: nothing waits and no limit is kept, so on again starts fresh. A waiting
+ * prompt goes back to the person, never out. The words go back before the queue clears:
+ * a reload in between can give them back twice, never lose them.
+ */
+async function letGo($: EngineInterface): Promise<void> {
+  nearRefusalAt = -Infinity
+  timer?.cancel()
+  timer = null
+  // A send under way has the words in hand: it sees the switch before it sends, and gives them back.
+  const waiting = isSending ? null : await read($, queued)
+  if (waiting !== null) {
+    await giveBack($, waiting, OFF_LEAD)
+    await update($, queued, () => null)
+  }
+  if ((await read($, limit)) !== null) await update($, limit, () => null)
+  if ((await read($, lastSent)) !== null) await update($, lastSent, () => null)
 }
 
 /** The window a refused turn ran into, from a reading taken now (the last one can trail), else the last one. */
@@ -140,7 +174,21 @@ async function refusedWindow($: EngineInterface, now: number): Promise<ReturnTyp
   return cutOffWindow(windows, now)
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  isOn = options.enabled !== false
+
+  on('config.set', { key: 'rain-check.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      const wasOn = isOn
+      isOn = set.value
+      // Only a change: off again would give the words back again.
+      if (isOn !== wasOn) await safely($, () => (isOn ? sync($) : letGo($)))
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'rain-check',
@@ -150,19 +198,21 @@ export const register: Register = on => {
     })
     const started = await next(e)
     // After a reload the limit and the waiting prompt are still in $.state, but not their tick.
-    await safely($, () => sync($))
+    // Reloaded off, what the copy before held is let go: the words go back, never out.
+    await safely($, () => (isOn ? sync($) : letGo($)))
     return started
   })
 
   // Keeps the latest windows: a refusal reads its reset time from them.
   on('session.measure', ($, e, next) => {
+    if (!isOn) return next(e)
     windows = e.rateLimits
     return next(e)
   })
 
   // A turn Claude Code ended on the usage limit: hold what comes next until the reset.
   on('classic.StopFailure', async ($, e, next) => {
-    if (e.error === 'rate_limit') {
+    if (isOn && e.error === 'rate_limit') {
       await safely($, async () => {
         const now = await $.clock.now()
         const out = await refusedWindow($, now)
@@ -190,7 +240,7 @@ export const register: Register = on => {
   // At the limit, a prompt the person sends waits for the reset instead of failing. A hook that
   // throws is skipped and the prompt goes through, so a bug here never eats one (a test pins it).
   on('prompt.submit', async ($, e, next) => {
-    if (e.turnId !== undefined || !(await isPerson($, e.origin))) return next(e)
+    if (!isOn || e.turnId !== undefined || !(await isPerson($, e.origin))) return next(e)
     // Slash commands and shell lines never reach the model's limit: they always run.
     if (/^\s*[/!]/.test(e.text)) return next(e)
     const cur = await read($, limit)
@@ -205,7 +255,7 @@ export const register: Register = on => {
 
   // A main turn that answered means the limit is over: what waits can go now.
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined && e.reason === 'answer') {
+    if (isOn && e.agentId === undefined && e.reason === 'answer') {
       await safely($, async () => {
         await update($, lastSent, () => null)
         if ((await read($, limit)) === null) return
@@ -221,7 +271,7 @@ export const register: Register = on => {
   // A /clear or a resumed conversation: picking up the old turn no longer makes sense.
   // The limit is the account's and stays, and so does a prompt the person wrote.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear' || e.reason === 'resume') {
+    if (isOn && (e.reason === 'clear' || e.reason === 'resume')) {
       await safely($, async () => {
         if ((await read($, queued))?.source === 'continue') {
           await update($, queued, () => null)
@@ -233,6 +283,10 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'rain-check' }, async ($, e) => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     const word = e.args.trim().toLowerCase()
     const waiting = await read($, queued)
     const cur = await read($, limit)
@@ -262,7 +316,7 @@ export const register: Register = on => {
 
   // The band: beneath whatever other mods draw, one line (two while a prompt waits).
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+    if (!isOn || e.props.hasSurvey) return next(e)
     const waiting = await read($, queued)
     const cur = await read($, limit)
     if (waiting === null && cur === null) return next(e)
@@ -292,6 +346,7 @@ export const register: Register = on => {
             variant="primary"
             onPress={() =>
               safely($, async () => {
+                if (!isOn) return
                 await update($, queued, () => ({ text: CONTINUE_TEXT, sendAt: sendTime(cur), source: 'continue' as const }))
                 await sync($)
               })
@@ -302,6 +357,7 @@ export const register: Register = on => {
             label="Dismiss"
             onPress={() =>
               safely($, async () => {
+                if (!isOn) return
                 await update($, limit, () => null)
                 await sync($)
               })

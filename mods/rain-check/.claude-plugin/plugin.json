@@ -7,5 +7,13 @@
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["rate-limit", "usage-limit", "queue", "resume", "band"],
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Switch rain-check off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    }
+  }
 }

@@ -34,13 +34,13 @@ Slash commands and `!` shell lines are never held: they do not use your model li
 
 ## Settings
 
-None.
+- **On:** on by default. Off, Rain Check holds nothing, draws nothing and sends nothing, and forgets the limit it saw; a prompt already waiting goes back to the prompt box (or the transcript, where no box takes it), never out. `/rain-check` says it is off. `/config` or the modmyclaude hub flips it, live.
 
 ## What it can touch
 
 - **Reads:** the usage windows Claude Code reports after each response (kind, percent used, reset time), the kind of error that ends a turn (only to see a `rate_limit`), and each prompt you send while a limit has refused you (to hold it). Before any refusal it reads your prompts only to let them pass. When it gives your words back, it reads what is already in the prompt box, so they go after your draft.
 - **Writes:** its own session state (the limit, the waiting prompt, the countdown's clock, and the last prompt it sent), the line above the prompt, and toasts. Nothing is kept across sessions.
-- **On disk:** nothing, with one exception. When your words come back (you cancel, or the send is blocked) and the prompt box cannot take them, they are shown in full in one dim line in the transcript, so they are not lost. Claude is not sent that line, but Claude Code's debug log (a file, when debug logging is on) keeps a copy.
+- **On disk:** nothing, with one exception. When your words come back (you cancel, the send is blocked, or you switch Rain Check off) and the prompt box cannot take them, they are shown in full in one dim line in the transcript, so they are not lost. Claude is not sent that line, but Claude Code's debug log (a file, when debug logging is on) keeps a copy.
 - **Sends:** at the reset, the prompt you wrote, or "Continue where you left off. Your usage limit has reset." if you pressed Continue then. It sends nothing you did not write or ask for.
 - **Processes and network:** none. **Model calls:** none of its own.
 

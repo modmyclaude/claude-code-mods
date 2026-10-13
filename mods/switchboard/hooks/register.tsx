@@ -73,6 +73,12 @@ let endedId: string | null = null
  */
 let transcriptHint: string | undefined
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Switchboard writes
+// no record, reads no other session's, keeps no timer and draws nothing. The engine reloads
+// the mod with the new value; the config.set hook below is the same switch at once.
+let isOn = true
+const OFF_TEXT = 'Switchboard is off. /mods or /config turns it on.'
+
 async function safely($: EngineInterface, work: () => Promise<unknown>): Promise<void> {
   try {
     await work()
@@ -247,6 +253,40 @@ function noteTranscript(path: string | undefined): boolean {
   return true
 }
 
+/** Starts reporting: this session's record, the timer and a first read (at a start, or switched on). */
+async function begin($: EngineInterface): Promise<void> {
+  base = await configDir($)
+  const cwd = await $.session.root()
+  const now = await $.clock.now()
+  // Folded again on every start: the quiet list opens only when asked, in this session.
+  await update($, showQuiet, () => false)
+  const isNew = (await $.session.turns().catch(() => 1)) === 0
+  me = { id: await $.session.id(), folder: folderName(cwd), cwd, state: 'idle', since: now, where: await whereNow($), isNew, writtenAt: 0, transcript: transcriptHint, titleCheckedAt: 0 }
+  await refreshTitle($, true)
+  await writeMine($)
+  timer ??= $.clock.every(POLL_MS, () => void safely($, () => tick($)))
+  await readOthers($)
+}
+
+/**
+ * Switched off: this session stops reporting and reading. Its record is written once more, as
+ * closed, so other sessions stop showing it working or waiting on you now rather than when it
+ * goes stale; switched on, a fresh record replaces it. Only this session's own file is touched.
+ */
+async function signOff($: EngineInterface): Promise<void> {
+  timer?.cancel()
+  timer = null
+  // On again is a fresh look: what changed meanwhile shows in the band, without a toast each.
+  seen = undefined
+  // Its events go unheard while off: after a /clear then, this path would be the old conversation's.
+  transcriptHint = undefined
+  const dir = folderOf()
+  // Already closed, or the record of a conversation a /clear or resume ended: that one says gone.
+  if (me === null || dir === undefined || me.state === 'gone' || me.id === endedId) return
+  const now = await $.clock.now()
+  await $.fs.write(`${dir}/${me.id}.json`, JSON.stringify({ ...recordOf(me, now), state: 'gone', since: now }))
+}
+
 /**
  * Opens the pane. One pane per id: an id Claude Code still holds open only retitles, so a pane the
  * desktop hid (closed or squeezed away without a close reaching the engine) would stay hidden.
@@ -262,7 +302,21 @@ async function openPane($: EngineInterface) {
   return $.ui.open({ id: PANE, title: 'Switchboard', focus: true, closeOnEscape: true })
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  isOn = options.enabled !== false
+
+  on('config.set', { key: 'switchboard.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      const wasOn = isOn
+      isOn = set.value
+      // Only a change: on again would start this session's record over.
+      if (isOn !== wasOn) await safely($, () => (isOn ? begin($) : signOff($)))
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'switchboard',
@@ -270,24 +324,14 @@ export const register: Register = on => {
       immediate: true,
     })
     const started = await next(e)
-    await safely($, async () => {
-      base = await configDir($)
-      const cwd = await $.session.root()
-      const now = await $.clock.now()
-      // Folded again on every start: the quiet list opens only when asked, in this session.
-      await update($, showQuiet, () => false)
-      const isNew = (await $.session.turns().catch(() => 1)) === 0
-      me = { id: await $.session.id(), folder: folderName(cwd), cwd, state: 'idle', since: now, where: await whereNow($), isNew, writtenAt: 0, transcript: transcriptHint, titleCheckedAt: 0 }
-      await refreshTitle($, true)
-      await writeMine($)
-      timer ??= $.clock.every(POLL_MS, () => void safely($, () => tick($)))
-      await readOthers($)
-    })
+    // Off, the command stays and nothing else starts: no record, no timer, no read.
+    if (isOn) await safely($, () => begin($))
     return started
   })
 
   // The session's title, id and transcript ride on these settings-hook events; read them, change nothing.
   on('classic.SessionStart', async ($, e, next) => {
+    if (!isOn) return next(e)
     await safely($, async () => {
       if (e.session_id) await becomeSession($, e.session_id)
       noteTranscript(e.transcript_path)
@@ -297,6 +341,7 @@ export const register: Register = on => {
     return next(e)
   })
   on('classic.UserPromptSubmit', async ($, e, next) => {
+    if (!isOn) return next(e)
     await safely($, async () => {
       const isNewPath = noteTranscript(e.transcript_path)
       if (e.session_title?.trim()) await setTitle($, e.session_title)
@@ -307,6 +352,7 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
+    if (!isOn) return next(e)
     await safely($, () => setState($, 'working'))
     return next(e)
   })
@@ -314,7 +360,7 @@ export const register: Register = on => {
   // A main turn's end: idle, or an error that wants the person; and the title, which Claude Code
   // writes after the first prompt, is looked up again (at most every two minutes).
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) {
+    if (isOn && e.agentId === undefined) {
       await safely($, async () => {
         await setState($, e.reason === 'error' || e.reason === 'refusal' ? 'error' : 'idle')
         // An untitled session looks at every turn end until Claude Code has titled it.
@@ -326,7 +372,7 @@ export const register: Register = on => {
 
   // Claude Code's own "a dialog is waiting on you": a permission (for the tool the turn just called), a question, a plan.
   on('classic.Notification', async ($, e, next) => {
-    if (WAITING.has(e.notification_type)) {
+    if (isOn && WAITING.has(e.notification_type)) {
       await safely($, async () => {
         await setState($, 'needs-you', waitingWords(e.notification_type, me?.lastTool))
         // A first turn can ask before any turn has ended: look for the title now too.
@@ -338,6 +384,7 @@ export const register: Register = on => {
 
   // The tool a dialog asks about; and once it ran, the dialog was answered and the session works again.
   on('tool.call', async ($, e, next) => {
+    if (!isOn) return next(e)
     if (me !== null && e.agentId === undefined) me.lastTool = String(e.tool)
     const ran = await next(e)
     if (me?.state === 'needs-you') await safely($, () => setState($, 'working'))
@@ -345,13 +392,14 @@ export const register: Register = on => {
   })
 
   on('session.measure', ($, e, next) => {
-    if (me !== null && e.cost !== undefined) me.costUsd = e.cost.usd
+    if (isOn && me !== null && e.cost !== undefined) me.costUsd = e.cost.usd
     return next(e)
   })
 
   // The conversation ends. On a /clear or a resume the process goes on under a new id
   // (classic.SessionStart brings it); any other end is this session closing.
   on('session.end', async ($, e, next) => {
+    if (!isOn) return next(e)
     await safely($, async () => {
       const dir = folderOf()
       if (me === null || dir === undefined) return
@@ -374,6 +422,7 @@ export const register: Register = on => {
   // A surface came to look (or left): say where this session is now, and read at once.
   on('session.attach', async ($, e, next) => {
     const attached = await next(e)
+    if (!isOn) return attached
     await safely($, async () => {
       await writeMine($)
       await readOthers($)
@@ -382,6 +431,10 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'switchboard' }, async $ => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     const opened = await openPane($)
     if (!opened.isPlaced) {
       const list = await read($, rows)
@@ -396,6 +449,7 @@ export const register: Register = on => {
   // The footer: a count beside the engine's own labels while another session needs you.
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     const engine = await next(e)
+    if (!isOn) return engine
     const label = footerLabel(await read($, rows))
     if (label === null) return engine
     const { Box, Text } = $.ui.resolve(e)
@@ -412,7 +466,7 @@ export const register: Register = on => {
 
   // The band: one line, beneath other mods' lines, only while another session needs you.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+    if (!isOn || e.props.hasSurvey) return next(e)
     const line = bandLine(await read($, rows))
     if (line === null) return next(e)
     const rest = await next(e)
@@ -431,6 +485,15 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const elements = $.ui.resolve(e)
     const { Box, Button, Text } = elements
+    if (!isOn) {
+      return (
+        <Box flexDirection="column">
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+        </Box>
+      )
+    }
     const list = await read($, rows)
     const isQuietShown = await read($, showQuiet)
     const now = (await read($, readAt)) || (await $.clock.now())
