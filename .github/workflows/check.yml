@@ -18,7 +18,7 @@ concurrency:
 jobs:
   mods:
     name: mods (Claude Code ${{ matrix.claude }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -43,7 +43,7 @@ jobs:
         run: CLAUDE_BIN=claude node scripts/build-catalog.mjs --check && node scripts/build-themes.mjs --check
 
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
