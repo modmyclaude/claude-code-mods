@@ -3,6 +3,9 @@
 // locally on every mod (or the mods named) before one is submitted:
 //   SECRET     a string shaped like a real key in a shipped file     (blocking)
 //   INVISIBLE  a zero-width or bidi character in a shipped file       (blocking)
+//   H_NAME     a .tsx file using the name `h` (or `Fragment`) for anything
+//              but calling it: JSX compiles to h(...), so the directory's
+//              read of the drawing breaks (MOD_CAPABILITY_USE_NOT_PLAIN) (blocking)
 //   TOOL_CHECK a tool.check hook that does not `return next(e)` or a
 //              literal verdict, so the decision cannot be shown to be
 //              left with the person                                   (blocking)
@@ -169,6 +172,26 @@ function scanModule(path, out) {
   }
 }
 
+// ---- .tsx files: `h` and `Fragment` are the JSX factory's names and nothing else's
+function scanJsxNames(path, out) {
+  const text = readFileSync(path, 'utf8')
+  const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const rel = relative(ROOT, path)
+  const walk = node => {
+    if (ts.isIdentifier(node) && (node.text === 'h' || node.text === 'Fragment')) {
+      const p = node.parent
+      const isCallee = ts.isCallExpression(p) && p.expression === node
+      const isTypeSide = ts.isPropertySignature(p) || ts.isTypeReferenceNode(p) || ts.isPropertyAccessExpression(p) && p.name === node || ts.isPropertyAssignment(p) && p.name === node && !ts.isShorthandPropertyAssignment(p) || ts.isJsxAttribute(p) || ts.isQualifiedName(p)
+      if (!isCallee && !isTypeSide) {
+        const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
+        out.push({ kind: 'H_NAME', at: `${rel}:${line}`, text: `the name ${node.text} is used as ${p.getText(sf).replace(/\s+/g, ' ').slice(0, 50)}; in a .tsx file it is the JSX factory and nothing else (rename it)`, blocking: true })
+      }
+    }
+    node.forEachChild(walk)
+  }
+  walk(sf)
+}
+
 const names = process.argv.slice(2)
 const mods = (names.length ? names.map(n => n.replace(/^mods\//, '').replace(/\/$/, '')) : readdirSync(join(ROOT, 'mods'))).filter(m => { try { return statSync(join(ROOT, 'mods', m, '.claude-plugin', 'plugin.json')).isFile() } catch { return false } })
 let blocking = 0, warnings = 0
@@ -177,6 +200,7 @@ for (const mod of mods) {
   for (const path of shipped(join(ROOT, 'mods', mod))) {
     scanText(path, out)
     if (/\/hooks\/[^/]+\.tsx?$/.test(path)) scanModule(path, out)
+    if (path.endsWith('.tsx')) scanJsxNames(path, out)
   }
   const b = out.filter(f => f.blocking).length, w = out.length - b
   blocking += b; warnings += w
