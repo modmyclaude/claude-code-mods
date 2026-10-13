@@ -161,7 +161,7 @@ describe('what the model is sent', () => {
     await start($)
     await chapters($, w)
     expect(w.prompts).toHaveLength(1)
-    expect(w.prompts[0]).toBe(`The diff:\n${parseDiff(DIFF).map(f => [`diff --git a/${f.path} b/${f.path}`, ...f.hunks.map(h => h.text)].join('\n')).join('\n')}`)
+    expect(w.prompts[0]).toBe(`The diff:\n${parseDiff(DIFF).map(f => [`diff --git a/${f.path} b/${f.path}`, ...f.hunks.map(hunk => hunk.text)].join('\n')).join('\n')}`)
     expect(w.models).toEqual(['haiku'])
   })
 
@@ -279,15 +279,15 @@ describe('the logic alone', () => {
 
   test('hunks for a chapter: those touching its lines, else the file\'s', () => {
     const files = parseDiff([DIFF, '@@ -40,2 +42,3 @@', ' x', '+y', ' z'].join('\n'))
-    expect(hunksFor(files, 'README.md', [42, 44]).map(h => h.newStart)).toEqual([42])
-    expect(hunksFor(files, 'README.md', [1, 1]).map(h => h.newStart)).toEqual([1])
-    expect(hunksFor(files, 'README.md', [100, 120]).map(h => h.newStart)).toEqual([1, 42]) // none near: the whole file
+    expect(hunksFor(files, 'README.md', [42, 44]).map(hunk => hunk.newStart)).toEqual([42])
+    expect(hunksFor(files, 'README.md', [1, 1]).map(hunk => hunk.newStart)).toEqual([1])
+    expect(hunksFor(files, 'README.md', [100, 120]).map(hunk => hunk.newStart)).toEqual([1, 42]) // none near: the whole file
     expect(hunksFor(files, 'nowhere.ts')).toEqual([])
   })
 
   test('a long hunk is cut by lines with a header that stays true', () => {
-    const h = parseDiff(['diff --git a/a b/a', '@@ -5,200 +5,200 @@', ...Array.from({ length: 200 }, (_, i) => (i % 2 ? `+n${i}` : `-o${i}`))].join('\n'))[0]!.hunks[0]!
-    const cut = shortHunk(h, 10).split('\n')
+    const hunk = parseDiff(['diff --git a/a b/a', '@@ -5,200 +5,200 @@', ...Array.from({ length: 200 }, (_, i) => (i % 2 ? `+n${i}` : `-o${i}`))].join('\n'))[0]!.hunks[0]!
+    const cut = shortHunk(hunk, 10).split('\n')
     expect(cut[0]).toBe('@@ -5,5 +5,5 @@')
     expect(cut).toHaveLength(11)
   })

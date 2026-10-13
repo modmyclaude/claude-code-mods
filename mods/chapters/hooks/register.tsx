@@ -70,14 +70,14 @@ function relative(path: string, root: string): string {
 }
 
 /** A hunk short enough to draw, its header's counts made true for the lines kept. */
-export function shortHunk(h: Hunk, max = HUNK_LINES): string {
-  const lines = h.text.split('\n')
-  if (lines.length - 1 <= max) return h.text
+export function shortHunk(hunk: Hunk, max = HUNK_LINES): string {
+  const lines = hunk.text.split('\n')
+  if (lines.length - 1 <= max) return hunk.text
   const kept = lines.slice(1, max + 1)
   const old = kept.filter(l => l.startsWith(' ') || l.startsWith('-')).length
   const now = kept.filter(l => l.startsWith(' ') || l.startsWith('+')).length
   const oldStart = /^@@ -(\d+)/.exec(lines[0]!)?.[1] ?? '1'
-  return [`@@ -${oldStart},${old} +${h.newStart},${now} @@`, ...kept].join('\n')
+  return [`@@ -${oldStart},${old} +${hunk.newStart},${now} @@`, ...kept].join('\n')
 }
 
 /**
