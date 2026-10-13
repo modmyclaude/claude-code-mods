@@ -27,7 +27,7 @@
       "name": "cloakroom",
       "source": "./mods/cloakroom",
       "description": "Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "safety",
       "keywords": [
         "security",
@@ -42,7 +42,7 @@
       "name": "crossroads",
       "source": "./mods/crossroads",
       "description": "Three ways forward after every turn, risky ones marked. About $0.0002 a turn.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "workflow",
       "keywords": [
         "next-prompt",
@@ -86,7 +86,7 @@
       "name": "halftime",
       "source": "./mods/halftime",
       "description": "Claude works, you play. The whistle blows the moment it needs you.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "fun",
       "keywords": [
         "games",
@@ -115,7 +115,7 @@
       "name": "headway",
       "source": "./mods/headway",
       "description": "See how far along Claude is, and when it will land.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "visibility",
       "keywords": [
         "progress",
@@ -222,7 +222,7 @@
       "name": "second-wind",
       "source": "./mods/second-wind",
       "description": "A breath, an eye rest or a stretch while Claude works, sized to the wait.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "wellness",
       "keywords": [
         "wellness",
