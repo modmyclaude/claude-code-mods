@@ -74,6 +74,8 @@ export type AntFarmView = {
   isTimelineExpanded?: boolean
   /** The activity timeline is folded away. */
   isTimelineHidden?: boolean
+  /** The mission map is folded away. */
+  isMapHidden?: boolean
 }
 
 /** What one row of the activity timeline records. */

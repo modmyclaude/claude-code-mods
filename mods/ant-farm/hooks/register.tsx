@@ -631,6 +631,7 @@ export const register: Register = (on, options) => {
         toggleFinished: () => void update($, view, x => ({ ...x, isFinishedExpanded: !x.isFinishedExpanded })),
         toggleTimeline: () => void update($, view, x => ({ ...x, isTimelineHidden: x.isTimelineHidden !== true })),
         growTimeline: () => void update($, view, x => ({ ...x, isTimelineExpanded: true })),
+        toggleMap: () => void update($, view, x => ({ ...x, isMapHidden: x.isMapHidden !== true })),
       },
     })
   })

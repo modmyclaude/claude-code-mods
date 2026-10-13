@@ -747,7 +747,7 @@ describe('size and speed', () => {
 
 // ---------------------------------------------------------------- the desktop app
 
-const STATIC = ['inspector-prev', 'inspector-next', 'inspector-close', 'more-events', 'toggle-timeline', 'toggle-finished']
+const STATIC = ['inspector-prev', 'inspector-next', 'inspector-close', 'more-events', 'toggle-timeline', 'toggle-finished', 'toggle-map']
 
 /** The Box each static Button sits in, by the Button's key. */
 function wrappers(tree: unknown): Map<string, Drawn> {
@@ -889,6 +889,52 @@ describe('the heat strip', () => {
     expect(await column()).toEqual(['·', '·', '▒', '·', '·', '·'])
     await w.clock.advance(40_000)
     expect(await column()).toEqual(['·', '·', '·', '·', '·', '·']) // gone past the minute
+    await pane.unmount()
+  })
+})
+
+// ---------------------------------------------------------------- the mission map
+
+describe('the mission map', () => {
+  test('the desktop draws one still map that keeps its bytes while the cards tick and changes with the mission; the terminal draws none', async ($, on) => {
+    const w = world(on)
+    const a = await w.spawn($, 'Lead')
+    const b = await w.spawn($, 'Helper', { parent: a })
+    const terminal = await mountAt($, 'terminal', 100)
+    expect(walk(await terminal.drawn(), n => n.type === 'Svg').length).toBe(0)
+    expect(await terminal.find({ key: 'map' })).toBeUndefined()
+    await terminal.unmount()
+    const pane = await mountAt($, 'desktop', 100)
+    // an Svg is a leaf the kit keys by nothing: found by type under the map block
+    const map = async () => walk(await pane.find({ key: 'map' }), n => n.type === 'Svg')[0] as (Drawn & { props: { source: string; alt: string; isInteractive?: boolean } }) | undefined
+    const first = await map()
+    expect(first).toBeDefined()
+    expect(first!.type).toBe('Svg')
+    expect(first!.props.isInteractive).toBeUndefined() // a still picture: no frame to re-set
+    expect(first!.props.source).toContain('main loop')
+    expect(first!.props.source).toContain('>#1 Lead<')
+    expect(first!.props.source).toContain('>#2 Helper<')
+    expect(first!.props.source).not.toContain('<animate')
+    expect(first!.props.alt).toContain('2 subagents')
+    await w.clock.advance(1_000)
+    expect((await map())!.props.source).toBe(first!.props.source) // nothing of the clock in it
+    await w.finish($, b)
+    expect((await map())!.props.source).not.toBe(first!.props.source)
+    expect((await map())!.props.alt).toContain('#2 Helper (from #1): done')
+    await pane.unmount()
+  })
+  test('m folds the map away and brings it back', async ($, on) => {
+    const w = world(on)
+    await w.spawn($, 'One')
+    const pane = await mountAt($, 'desktop', 100, { isFocused: true })
+    const svgs = async () => walk(await pane.drawn(), n => n.type === 'Svg').length
+    expect(await svgs()).toBe(1)
+    expect((await pane.find({ key: 'keys' }))?.text).toContain('m map')
+    await pane.press({ key: 'toggle-map' })
+    expect(await svgs()).toBe(0)
+    expect((await pane.find({ key: 'toggle-map' }))?.props.label).toBe('show')
+    await pane.press({ key: 'toggle-map' })
+    expect(await svgs()).toBe(1)
     await pane.unmount()
   })
 })

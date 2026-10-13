@@ -29,6 +29,10 @@ Mission control for your subagents: what each one is doing, its activity and its
   row per ten seconds of the last minute, each cell shaded by how much that
   subagent did in that window, in its colour, with the mission numbers
   underneath. It steps once every ten seconds.
+  On the desktop app the pane also holds a mission map: a still picture of
+  who spawned whom, each node named by its mission number and task, a halo on
+  the running ones, done and failed in their colours, the full task names in
+  its alt text; `m` hides or shows it.
 - **The cards.** One bordered card per running subagent, one to three across
   depending on the pane's width. Each shows its number and task, its ant,
   model and elapsed time, a status line (`WORKING · Bash npm test · 4s`,
@@ -169,6 +173,10 @@ Every setting has a default, so the notice at install about options not yet set 
   the card keeps its last phase: the mod reads no permission decision.
 - Hotkeys act only while the pane holds the keyboard, as Claude Code keys every
   pane; from the prompt, click a card's `inspect` instead.
+- **The mission map is a still picture, on the desktop app only.** The terminal
+  has no picture element, and an interactive drawing would be re-set on every
+  tick and flash, so the map takes no clicks and redraws only when the mission
+  changes; the cards and keys do the work.
 - **The hover reveal draws where the surface tracks the pointer:** the desktop
   app, and a terminal with mouse tracking. Elsewhere the cards are as before.
 - **A click on the desktop app can be dropped while the pane is live.** The app

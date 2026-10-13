@@ -6,12 +6,13 @@
 // sized in cells so nothing wraps: a part too long for its room is cut at
 // its end, never folded onto a line of its own.
 
-import type { BoxProps, ButtonProps, ElementConstructor, RasterProps, RenderElement, TextProps } from 'claude-code'
+import type { BoxProps, ButtonProps, ElementConstructor, RasterProps, RenderElement, SvgProps, TextProps } from 'claude-code'
 
 import type { AntFarmAnt, AntFarmEvent, AntFarmUsage, AntFarmView } from '../types'
 import { boltSprite } from './bolt-draw'
 import type { BoltSmallPose } from './bolt'
 import { glyphRow, paintedRow } from './cells'
+import { mapNodes, missionMap } from './map'
 import {
   activityText, COMPACT_BELOW, eventLook, FRESH_MS, gridOf, heatGlyph, heatGrid, hotkeyOf, met, ordered, pulse, rowsOf, SETTLE_MS,
   sparkline, spinner, statusLook, TIMELINE_ROWS, TIMELINE_ROWS_EXPANDED,
@@ -27,6 +28,7 @@ export type Elements = {
   Text: ElementConstructor<TextProps>
   Button: ElementConstructor<ButtonProps>
   Raster?: ElementConstructor<RasterProps>
+  Svg?: ElementConstructor<SvgProps>
 }
 
 /** Everything the pane is drawn from, read by the hook and handed here. */
@@ -57,6 +59,7 @@ export type ControlInput = {
     toggleFinished: () => void
     toggleTimeline: () => void
     growTimeline: () => void
+    toggleMap: () => void
   }
 }
 
@@ -464,6 +467,27 @@ export function drawControl(c: ControlInput): RenderElement {
   const finishedBlock =
     c.view.isFinishedExpanded && !compact ? rowsOf(finishedShown, cols).map(row => <Box flexDirection="row" gap={1} alignItems="flex-start">{row.map(card)}</Box>) : finishedShown.map(line)
 
+  // The mission map, on the surfaces that draw vectors: the main loop and every subagent as
+  // nodes, handoffs as edges, a still picture (the desktop re-sets an interactive frame on
+  // every render pass of a hook that ticks, so no pulse and no tooltips). Its source changes
+  // only when the mission's shape does.
+  const Svg = c.ui.Svg
+  const mapBlock = (() => {
+    if (Svg === undefined || c.surface === 'terminal' || compact || c.list.length === 0) return null
+    const hidden = c.view.isMapHidden === true
+    const shape = mapNodes(c.list, clean)
+    const map = hidden ? undefined : missionMap(shape.nodes, shape.hidden)
+    return (
+      <Box key="map" flexDirection="column" marginBottom={1}>
+        <Box key="map-head" flexDirection="row">
+          <Text bold>Mission map</Text>
+          <Box flexGrow={1} />
+          <Box {...remount('map')}><Button key="toggle-map" {...plain} hotkey="m" label={hidden ? 'show' : 'hide'} onPress={() => c.on.toggleMap()} /></Box>
+        </Box>
+        {map !== undefined ? <Svg key="mission-map" source={map.source} alt={map.alt} width={Math.min(map.width, c.columns * 7)} /> : null}
+      </Box>
+    )
+  })()
   return (
     <Box flexDirection="column" width={c.columns}>
       {header}
@@ -473,6 +497,7 @@ export function drawControl(c: ControlInput): RenderElement {
           <Text dimColor>No subagents yet this session. Each one gets an ant here when it starts.</Text>
         </Box>
       ) : null}
+      {mapBlock}
       {selected !== undefined ? inspector(selected) : null}
       {runningBlock}
       {finished.length > 0 ? (
@@ -498,7 +523,7 @@ export function drawControl(c: ControlInput): RenderElement {
       {timeline()}
       {c.isFocused ? (
         <Box key="keys" marginTop={1} minWidth={0}>
-          <Text dimColor wrap={cut}>Keys · 1-9 open · n next · p previous · x close · f finished · t activity</Text>
+          <Text dimColor wrap={cut}>Keys · 1-9 open · n next · p previous · x close · f finished · t activity{c.surface !== 'terminal' ? ' · m map' : ''}</Text>
         </Box>
       ) : null}
     </Box>

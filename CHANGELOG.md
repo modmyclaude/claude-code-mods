@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- ant-farm 0.3.5: a mission map on the desktop app: a still picture of who spawned whom, each node named by its mission number and task, a halo on the running ones, done and failed in their colours, the full tasks in its alt text; `m` hides or shows it. Drawn as a picture so it never flickers.
 - cloakroom 0.1.4: the audit's running count goes by its own name, no longer the name of the function that runs the audit, so the plugin directory can follow it; nothing it does changed.
 - last-look 0.1.3: the five spelled-out names no longer share the name of the function that holds a command, so the plugin directory can follow it; nothing it does changed.
 - cloakroom 0.1.3: the plugin directory's source checks pass: a short name in the hooks module is spelled out so the drawing's factory name is never reused, and two key-shaped test lines are built from parts; nothing it does changed.
