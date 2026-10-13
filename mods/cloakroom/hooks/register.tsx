@@ -223,7 +223,7 @@ async function holdIfLeaving($: Dollar, room: Room, sent: string, restored: stri
       '(a real value goes only into echo, printf, cat and other local file tools). ' +
       'Prefer the environment variable instead of the value.'
   }
-  const same = room.holds.findIndex(h => h.command === sent)
+  const same = room.holds.findIndex(hold => hold.command === sent)
   if (same >= 0) room.holds.splice(same, 1)
   room.holds.push({ command: sent, labels: names, count, reason })
   if (room.holds.length > MAX_HOLDS) room.holds.shift()

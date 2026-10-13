@@ -30,7 +30,7 @@ function adversarial(secret: string, bytes: number): string {
   const parts = [
     repeat('a', slice), // one long run of name characters
     repeat('eyJ' + 'a'.repeat(5000) + ' ', slice), // JWT head, no dots
-    repeat('-----BEGIN PRIVATE KEY-----', slice), // key blocks that never end
+    repeat(['-----BEGIN', ' PRIVATE KEY-----'].join(''), slice), // key blocks that never end
     repeat('key:a:', slice), // a secret-ish name every 6 characters
     repeat('token=', slice), // names with empty values
     repeat('ab://c:d', slice), // URL credentials with no "@"

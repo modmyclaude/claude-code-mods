@@ -191,7 +191,7 @@ describe('previews', () => {
 
   test('a private key block shows only its first line', () => {
     const pem = ['-----BEGIN RSA', ' PRIVATE KEY-----', '\nAAAA\nBBBB\n-----END RSA', ' PRIVATE KEY-----'].join('')
-    expect(mask(pem)).toBe('-----BEGIN RSA PRIVATE KEY----- (4 lines)')
+    expect(mask(pem)).toBe(['-----BEGIN RSA', ' PRIVATE KEY----- (4 lines)'].join(''))
   })
 
   test('no preview of a corpus secret holds four of its hidden characters in a row', () => {
