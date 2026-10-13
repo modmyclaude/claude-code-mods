@@ -74,7 +74,7 @@ describe('matching the theme', () => {
     await wear($, 'paper --match')
     expect(w.store.get('ownTheme')).toBe('dark')
     // The person, in /config, after the match.
-    await $.config.set({ key: 'theme', value: 'dark-daltonized', previous: 'light', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } } as never)
+    await $.config.set({ key: 'theme', value: 'dark-daltonized', previous: 'light', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
     expect(w.store.get('ownTheme')).toBeUndefined()
     expect(w.store.get('matchedTheme')).toBeUndefined()
     const sets = w.config.sets.length

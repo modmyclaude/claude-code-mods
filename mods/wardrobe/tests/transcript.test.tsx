@@ -181,12 +181,12 @@ describe('a light look paints only where the app is light', () => {
     const dark = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'AssistantMessage', props: ROWS.AssistantMessage })
     expect(tintsAbove(await dark.drawn())).toEqual([[]])
     await dark.unmount()
-    await $.config.set({ key: 'theme', value: 'light', previous: 'dark', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } } as never) // the person, in /config
+    await $.config.set({ key: 'theme', value: 'light', previous: 'dark', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } }) // the person, in /config
     const light = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'AssistantMessage', props: ROWS.AssistantMessage })
     expect(tintsAbove(await light.drawn())).toEqual([[paper.palette.bg]])
     await light.unmount()
     w.config.theme = 'dark'
-    await $.config.set({ key: 'theme', value: 'dark', previous: 'light', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } } as never)
+    await $.config.set({ key: 'theme', value: 'dark', previous: 'light', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
     await wear($, 'paper --match')
     const matched = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'AssistantMessage', props: ROWS.AssistantMessage })
     expect(tintsAbove(await matched.drawn())).toEqual([[paper.palette.bg]])
