@@ -112,7 +112,7 @@ async function holdTexts($: EngineInterface, root: string): Promise<Record<strin
  * One run of the tests, start to call; a run asked for while one goes is queued, once, as a run
  * that starts on its own. A run the person starts clears the hold and finds the command again; one
  * that starts on its own does not run while held, or when a hold file at the root is not what it
- * was at the person's last run.
+ * was at the person's last run, or while the switch is off.
  */
 async function runTests($: EngineInterface, isByPerson: boolean): Promise<void> {
   if (isRunning) {
@@ -121,6 +121,8 @@ async function runTests($: EngineInterface, isByPerson: boolean): Promise<void> 
   }
   isRunning = true
   try {
+    // Off, a run that would start on its own does not (one queued or due when the switch went off).
+    if (!isByPerson && !(await isOn($))) return
     const root = await $.session.root()
     const texts = await holdTexts($, root)
     if (isByPerson) {
@@ -161,6 +163,8 @@ async function runTests($: EngineInterface, isByPerson: boolean): Promise<void> 
     keepOutput(outputs, run.at, output)
     const before = (await read($, runs)).at(-1)
     await update($, runs, list => [...list, run].slice(-KEEP_RUNS))
+    // One that was going when the switch went off keeps its call, and says nothing.
+    if (!isByPerson && !(await isOn($))) return
     $.ui.status(statusWords(run))
     // A toast only when the call flips: passing to failing, or back.
     const wasPassing = before === undefined ? undefined : before.status === 'passed'
@@ -255,6 +259,26 @@ async function command($: EngineInterface, args: string, origin: string): Promis
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
+
+  // The switch (`enabled`, which /config and the modmyclaude hub flip). The engine reloads
+  // the mod with the new value; this makes it so at once, over /umpire on or off too.
+  // Off clears the status line, as /umpire off does. On keeps any hold (only the person
+  // clears one), and takes the hold files as they are now when none were taken yet.
+  on('config.set', { key: 'umpire.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      const value = set.value
+      // Off from anyone; on over a typed /umpire off only from the person (the menu, the bridge)
+      // or the hub, which flips it on their press. Another plugin's flip changes the setting alone.
+      const isPersons = e.origin.kind !== 'plugin' || e.origin.name === 'modmyclaude-hub'
+      settings = { ...settings, enabled: value }
+      if (!value || isPersons) await update($, isOnSet, () => value)
+      if (!value) $.ui.status(undefined)
+      $.ui.invalidate('ui.render')
+      if (value && baseline === null) baseline = await $.session.root().then(root => holdTexts($, root)).catch(() => null)
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     try {

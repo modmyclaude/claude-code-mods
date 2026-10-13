@@ -39,7 +39,7 @@ It finds the test command once per session: your setting, else the one you set f
 
 ## Settings
 
-- **On from the start:** run in every session without `/umpire on`. Off by default.
+- **On from the start:** run in every session without `/umpire on`. Off by default. `/config` or the modmyclaude hub flips it, live, and that flip also overrides `/umpire on` or `off` for this session. Another mod can switch it off, but not back on over your `/umpire off`.
 - **Test command:** the command to run, as you would type it. Empty: found from the project.
 - **Time limit (seconds):** 120 by default; a longer run is stopped and called timed out.
 

@@ -31,7 +31,7 @@ export function readSettings(options: Record<string, unknown>): Settings {
 
 // What lives only as long as this copy of the module: the settings, this turn's changes, the
 // last changed turn's (for /pop-quiz ask), how many turns changed files, and an epoch that moves
-// on at every prompt and turn start so a quiz for an older turn is dropped.
+// on at every prompt and turn start (and the switch going off) so a quiz for an older turn is dropped.
 let settings: Settings = readSettings({})
 let turnChanges: Change[] = []
 let lastChanges: Change[] = []
@@ -85,8 +85,11 @@ async function complete($: EngineInterface, prompt: string): Promise<ModelComple
   }
 }
 
-/** Asks for two questions about `changes`; one retry, then silence. Dropped if the person moved on. */
-async function askAbout($: EngineInterface, at: number, changes: readonly Change[]): Promise<void> {
+/**
+ * Asks for two questions about `changes`; one retry, then silence. Dropped if the person moved on.
+ * A quiz the person did not ask for makes no call, first or retry, once the switch is off.
+ */
+async function askAbout($: EngineInterface, at: number, changes: readonly Change[], isByPerson = false): Promise<void> {
   if (isAsking || changes.length === 0) return
   const surfaces = await $.session.surfaces()
   if (!surfaces.some(s => s === 'terminal' || s === 'desktop')) return debug($, 'no surface draws the band: no call')
@@ -95,6 +98,7 @@ async function askAbout($: EngineInterface, at: number, changes: readonly Change
     const prompt = buildPrompt(summarize(changes, await $.session.root()))
     let questions = null
     for (let attempt = 0; attempt < 2 && questions === null; attempt++) {
+      if (!isByPerson && !(await isOn($))) return
       const result = await complete($, prompt)
       if (result === null) return // refused: a retry would be refused too
       const cost = costOf(result.usage as { input_tokens?: number; output_tokens?: number } | undefined)
@@ -136,13 +140,34 @@ async function command($: EngineInterface, args: string, origin: string): Promis
   if (verb === 'ask') {
     if (lastChanges.length === 0) return $.ui.toast('pop-quiz: no turn has changed a file yet this session.')
     $.ui.toast('pop-quiz: writing two questions about the last change...')
-    return askAbout($, epoch, lastChanges)
+    return askAbout($, epoch, lastChanges, true)
   }
   $.ui.toast('pop-quiz: /pop-quiz on, off, every <n>, ask, or score.')
 }
 
 export const register: Register = (on, options) => {
   settings = readSettings(options)
+
+  // The switch (`enabled`, which /config and the modmyclaude hub flip). The engine reloads
+  // the mod with the new value; this makes it so at once, over /pop-quiz on or off too.
+  // Off clears the quiz and drops one still being written, as the next prompt does.
+  on('config.set', { key: 'pop-quiz.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      const value = set.value
+      // Off from anyone; on over a typed /pop-quiz off only from the person (the menu, the bridge)
+      // or the hub, which flips it on their press. Another plugin's flip changes the setting alone.
+      const isPersons = e.origin.kind !== 'plugin' || e.origin.name === 'modmyclaude-hub'
+      settings = { ...settings, enabled: value }
+      if (!value || isPersons) await update($, isOnSet, () => value)
+      if (!value) {
+        epoch++
+        await update($, quiz, () => null)
+      }
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     try {
