@@ -11,6 +11,12 @@
   "userConfig": {
     "enabled": {
       "type": "boolean",
+      "title": "On",
+      "description": "Switch pop-quiz off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    },
+    "startOn": {
+      "type": "boolean",
       "title": "On from the start",
       "description": "Quiz in every session without typing /pop-quiz on. Each quiz is one small-model call (about $0.0004 at list prices).",
       "default": false

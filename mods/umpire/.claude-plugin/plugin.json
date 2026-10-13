@@ -11,6 +11,12 @@
   "userConfig": {
     "enabled": {
       "type": "boolean",
+      "title": "On",
+      "description": "Switch umpire off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    },
+    "startOn": {
+      "type": "boolean",
       "title": "On from the start",
       "description": "Run the tests after every turn that changes files, in every session, without typing /umpire on.",
       "default": false

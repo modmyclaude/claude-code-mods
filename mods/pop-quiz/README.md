@@ -37,7 +37,8 @@ Type `/pop-quiz on`. From then on, every third turn in which Claude changed file
 
 ## Settings
 
-- **On from the start:** quiz in every session without `/pop-quiz on`. Off by default. `/config` or the modmyclaude hub flips it, live, and that flip also overrides `/pop-quiz on` or `off` for this session. Another mod can switch it off, but not back on over your `/pop-quiz off`.
+- **On:** on by default. Off, Pop Quiz asks and draws nothing, and every `/pop-quiz` command says it is off; switched on again, `/pop-quiz on` (or the setting below) decides, as before. `/config` or the modmyclaude hub flips it, live. A quiz costs money, so another mod cannot switch it on; anyone can switch it off.
+- **On from the start:** quiz in every session without `/pop-quiz on`. Off by default.
 - **Quiz every n changed turns:** 3 by default.
 
 ## What it can touch

@@ -1,7 +1,8 @@
 // The switch: `enabled`, as /config or the modmyclaude hub flips it, through a stand-in
 // for the engine's own config row. Off stops the runs at once, even after the person
-// typed /umpire on: no line, no status, no run on the next turn; on brings them back.
-// A refused flip changes nothing. The hold is still recorded while off.
+// typed /umpire on: no line, no status, no run, and every command says it is off; on
+// again, what was typed (or the start setting) decides, as before. Only the person or the
+// hub switches it on. A refused flip changes nothing. The hold is still recorded while off.
 
 import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
@@ -11,7 +12,10 @@ import { JEST_FAIL, JEST_PASS, ROOT, band, pane, start, turn, umpire, world } fr
 
 const PASSED = { text: 'umpire: 144 passed · 0 failed · 8.3 s', color: 'success' }
 
-function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
+const OFF = 'Umpire is off. /mods or /config turns it on.'
+const REFUSED = { deny: 'umpire stays off: you switch it on in the /config menu or the modmyclaude hub' }
+
+function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'bridge' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
   return $.config.set({ key: 'umpire.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin } as never)
 }
 
@@ -87,12 +91,17 @@ test('switched off after a turn: the run it was due never starts; one already go
   expect(w.toasts).toEqual(toasts)
   expect(w.status).toEqual(status)
   expect(await band($)).toBeUndefined()
+  // Its call is kept: the pane says off while off, and shows it once on again.
+  const off = await pane($)
+  expect((await off.findAll({ type: 'Text' })).map(t => t.text)).toEqual([OFF])
+  await off.unmount()
+  await flip($, true)
   const ui = await pane($)
   expect((await ui.findAll({ type: 'Text' })).map(t => t.text)[0]).toBe('umpire: 142 passed · 2 failed · auth.test.ts, user.test.ts · 9.0 s')
   await ui.unmount()
 })
 
-test('switched on: the files are taken as they are then, so a later change holds; a hold Claude made while off stays', async ($, on) => {
+test('switched on: the files are taken as they are then, so a later change holds; a hold Claude made while off stays', { options: { enabled: false, startOn: true } }, async ($, on) => {
   const w = world(on)
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
@@ -114,17 +123,50 @@ test('switched on: the files are taken as they are then, so a later change holds
   expect(w.runs).toHaveLength(1)
 })
 
-test('another plugin switching it on does not undo a typed /umpire off; the hub does, as the person does', async ($, on) => {
+test('switched off: nothing runs, nothing is drawn, every command says it is off', { options: { enabled: false, startOn: true } }, async ($, on) => {
+  const w = world(on)
+  await start($)
+  for (const verb of ['on', 'run', 'show', 'tell', 'command make test', '']) await umpire($, verb)
+  expect(w.toasts).toEqual(Array(6).fill(OFF))
+  await turn($, w)
+  await w.clock.advance(9_000)
+  expect(w.runs).toEqual([])
+  expect(await band($)).toBeUndefined()
+  const ui = await pane($)
+  expect((await ui.findAll({ type: 'Text' })).map(t => t.text)).toEqual([OFF])
+  await ui.unmount()
+})
+
+test('it runs commands, so only the person or the hub switches it on; another mod is refused', { options: { enabled: false, startOn: true } }, async ($, on) => {
   const w = world(on)
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
-  await umpire($, 'off')
-  expect(await flip($, true, { kind: 'plugin', name: 'other' })).toEqual({ value: true })
+  expect(await flip($, true, { kind: 'plugin', name: 'other' })).toEqual(REFUSED)
   await turn($, w)
   expect(w.runs).toEqual([])
   expect(await flip($, true, { kind: 'plugin', name: 'modmyclaude-hub' })).toEqual({ value: true })
   await turn($, w)
   expect(w.runs).toHaveLength(1)
+})
+
+test('a /config sent over Remote Control may switch it on, as the person may', { options: { enabled: false, startOn: true } }, async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  await start($)
+  expect(await flip($, true, { kind: 'bridge' })).toEqual({ value: true })
+  await turn($, w)
+  expect(w.runs).toHaveLength(1)
+})
+
+test('the switch never undoes what was typed: off and on again, a typed /umpire off still holds', { options: { startOn: true } }, async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  await start($)
+  await umpire($, 'off')
+  await flip($, false)
+  await flip($, true)
+  await turn($, w)
+  expect(w.runs).toEqual([])
 })
 
 test('any plugin may switch it off, over a typed /umpire on: off is the safe way', async ($, on) => {

@@ -22,12 +22,15 @@ const ALL_TIME = 'allTime'
 /** Origins that are the person: typed, the phone bridge, the desktop app's box. */
 const PERSON = new Set(['composer', 'bridge', 'sdk'])
 
-type Settings = { enabled: boolean; every: number }
+/** `isEnabled`: the switch (on unless set off); `startOn`: quiz in every session without /pop-quiz on. */
+type Settings = { isEnabled: boolean; startOn: boolean; every: number }
 
 export function readSettings(options: Record<string, unknown>): Settings {
   const every = typeof options.every === 'number' && Number.isFinite(options.every) ? Math.min(20, Math.max(1, Math.round(options.every))) : 3
-  return { enabled: options.enabled === true, every }
+  return { isEnabled: options.enabled !== false, startOn: options.startOn === true, every }
 }
+
+const OFF_TEXT = 'Pop Quiz is off. /mods or /config turns it on.'
 
 // What lives only as long as this copy of the module: the settings, this turn's changes, the
 // last changed turn's (for /pop-quiz ask), how many turns changed files, and an epoch that moves
@@ -43,8 +46,9 @@ function debug($: EngineInterface, text: string): void {
   $.ui.log(`pop-quiz: ${text}`, { to: 'debug' })
 }
 
+/** Quizzing: the switch on, and /pop-quiz on typed this session (else the start setting). */
 async function isOn($: EngineInterface): Promise<boolean> {
-  return (await read($, isOnSet)) ?? settings.enabled
+  return settings.isEnabled && ((await read($, isOnSet)) ?? settings.startOn)
 }
 
 async function every($: EngineInterface): Promise<number> {
@@ -98,7 +102,8 @@ async function askAbout($: EngineInterface, at: number, changes: readonly Change
     const prompt = buildPrompt(summarize(changes, await $.session.root()))
     let questions = null
     for (let attempt = 0; attempt < 2 && questions === null; attempt++) {
-      if (!isByPerson && !(await isOn($))) return
+      // Switched off, no call at all; turned off by /pop-quiz off, none the person did not ask for.
+      if (!settings.isEnabled || (!isByPerson && !(await isOn($)))) return
       const result = await complete($, prompt)
       if (result === null) return // refused: a retry would be refused too
       const cost = costOf(result.usage as { input_tokens?: number; output_tokens?: number } | undefined)
@@ -148,19 +153,19 @@ async function command($: EngineInterface, args: string, origin: string): Promis
 export const register: Register = (on, options) => {
   settings = readSettings(options)
 
-  // The switch (`enabled`, which /config and the modmyclaude hub flip). The engine reloads
-  // the mod with the new value; this makes it so at once, over /pop-quiz on or off too.
-  // Off clears the quiz and drops one still being written, as the next prompt does.
+  // The switch (`enabled`, which /config and the modmyclaude hub flip): off, no quiz is asked or
+  // drawn and every command says so; on, /pop-quiz on or the start setting decide, as before. The
+  // engine reloads the mod with the new value; this makes it so at once. A quiz costs money, so
+  // only the person (the menu, the bridge) or the hub on their press switches it on; anyone may
+  // switch it off. Off clears the quiz and drops one still being written, as the next prompt does.
   on('config.set', { key: 'pop-quiz.enabled' }, async ($, e, next) => {
+    if (e.value === true && e.origin.kind === 'plugin' && e.origin.name !== 'modmyclaude-hub') {
+      return { deny: 'pop-quiz stays off: you switch it on in the /config menu or the modmyclaude hub' }
+    }
     const set = await next(e)
     if (set.deny === undefined && typeof set.value === 'boolean') {
-      const value = set.value
-      // Off from anyone; on over a typed /pop-quiz off only from the person (the menu, the bridge)
-      // or the hub, which flips it on their press. Another plugin's flip changes the setting alone.
-      const isPersons = e.origin.kind !== 'plugin' || e.origin.name === 'modmyclaude-hub'
-      settings = { ...settings, enabled: value }
-      if (!value || isPersons) await update($, isOnSet, () => value)
-      if (!value) {
+      settings = { ...settings, isEnabled: set.value }
+      if (!set.value) {
         epoch++
         await update($, quiz, () => null)
       }
@@ -223,6 +228,7 @@ export const register: Register = (on, options) => {
 
   // Two questions under the other mods' bands, each with show answer, and skip.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!settings.isEnabled) return next(e)
     const below = await next(e)
     const questions = await read($, quiz)
     if (questions === null || (e.surface !== 'terminal' && e.surface !== 'desktop')) return below
@@ -266,6 +272,10 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'pop-quiz' }, async ($, e) => {
+    if (!settings.isEnabled) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     try {
       await command($, e.args, e.origin.kind)
     } catch (error) {

@@ -10,7 +10,10 @@ import { TWO, bandTexts, edit, quizCmd, start, turn, world } from './world'
 
 const FIRST = '1. Why does the migration add an index on user_id?'
 
-function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
+const OFF = 'Pop Quiz is off. /mods or /config turns it on.'
+const REFUSED = { deny: 'pop-quiz stays off: you switch it on in the /config menu or the modmyclaude hub' }
+
+function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'bridge' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
   return $.config.set({ key: 'pop-quiz.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin } as never)
 }
 
@@ -97,18 +100,46 @@ test('switched off after a turn: the quiz it was due makes no call; one being wr
   expect(await bandTexts($)).toEqual([])
 })
 
-test('another plugin switching it on does not undo a typed /pop-quiz off; the hub does, as the person does', async ($, on) => {
+test('switched off: no quiz, nothing drawn, and every command says it is off', { options: { enabled: false, startOn: true, every: 1 } }, async ($, on) => {
+  const w = world(on)
+  await start($)
+  await turn($, w, [edit()])
+  for (const args of ['on', 'ask', 'score', 'every 2', '']) await quizCmd($, args)
+  expect(w.toasts).toEqual(Array(5).fill(OFF))
+  expect(w.calls).toEqual([])
+  expect(await bandTexts($)).toEqual([])
+})
+
+test('a quiz costs money, so only the person or the hub switches it on; another mod is refused', { options: { enabled: false, startOn: true, every: 1 } }, async ($, on) => {
   const w = world(on)
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
-  await quizCmd($, 'every 1')
-  await quizCmd($, 'off')
-  expect(await flip($, true, { kind: 'plugin', name: 'other' })).toEqual({ value: true })
+  expect(await flip($, true, { kind: 'plugin', name: 'other' })).toEqual(REFUSED)
   await turn($, w, [edit()])
-  expect(w.calls).toHaveLength(0)
+  expect(w.calls).toEqual([])
   expect(await flip($, true, { kind: 'plugin', name: 'modmyclaude-hub' })).toEqual({ value: true })
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(1)
+})
+
+test('a /config sent over Remote Control may switch it on, as the person may', { options: { enabled: false, startOn: true, every: 1 } }, async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  await start($)
+  expect(await flip($, true, { kind: 'bridge' })).toEqual({ value: true })
+  await turn($, w, [edit()])
+  expect(w.calls).toHaveLength(1)
+})
+
+test('the switch never undoes what was typed: off and on again, a typed /pop-quiz off still holds', { options: { startOn: true, every: 1 } }, async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  await start($)
+  await quizCmd($, 'off')
+  await flip($, false)
+  await flip($, true)
+  await turn($, w, [edit()])
+  expect(w.calls).toEqual([])
 })
 
 test('any plugin may switch it off, over a typed /pop-quiz on: off is the safe way', async ($, on) => {
@@ -120,4 +151,42 @@ test('any plugin may switch it off, over a typed /pop-quiz on: off is the safe w
   expect(await flip($, false, { kind: 'plugin', name: 'other' })).toEqual({ value: false })
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(0)
+})
+
+test('switched off and on again, the quiz that was showing does not come back', async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  await start($)
+  await quizCmd($, 'every 1')
+  await quizCmd($, 'on')
+  await turn($, w, [edit()])
+  expect((await bandTexts($))[1]).toBe(FIRST)
+  await flip($, false)
+  await flip($, true)
+  expect(await bandTexts($)).toEqual([])
+})
+
+test('a quiz the person asked for makes no second call once the switch goes off', { plugins: [SLOW] }, async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  w.replies = ['fail', TWO]
+  await start($)
+  await turn($, w, [edit()])
+  // The command waits on the call: it is let run while the clock moves.
+  const asking = quizCmd($, 'ask')
+  await w.clock.settle()
+  await flip($, false)
+  await w.clock.advance(5_000)
+  await w.clock.advance(5_000)
+  await asking
+  expect(w.calls).toHaveLength(1)
+  expect(await bandTexts($)).toEqual([])
+})
+
+test('switched off with a quiz kept from before (the engine reloaded it off): nothing of it is drawn', { options: { enabled: false } }, async ($, on) => {
+  world(on)
+  const kept = [{ q: 'Why the index?', a: 'Lookups by user.', isShown: false }]
+  on('state.get', { plugin: 'pop-quiz', key: 'quiz' }, () => ({ value: { value: kept, version: 2 } }))
+  await start($)
+  expect(await bandTexts($)).toEqual([])
 })

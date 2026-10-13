@@ -8,7 +8,7 @@ import { bandWords, changedFile, detect, heldWords, holdFile, namesWords, parseR
 import type { Project } from '../hooks/tests'
 import { JEST_FAIL, JEST_PASS, ROOT, SURFACES, band, pane, start, turn, umpire, world } from './world'
 
-const ON = { options: { enabled: true } }
+const ON = { options: { startOn: true } }
 
 describe('when it runs', () => {
   test('off by default: an edit turn runs nothing until /umpire on', async ($, on) => {
@@ -32,7 +32,7 @@ describe('when it runs', () => {
     expect(w.runs).toHaveLength(1)
   })
 
-  test('the one command, in the project root, with a time limit and no watch mode', { options: { enabled: true, maxSeconds: 45 } }, async ($, on) => {
+  test('the one command, in the project root, with a time limit and no watch mode', { options: { startOn: true, maxSeconds: 45 } }, async ($, on) => {
     const w = world(on)
     await start($)
     await turn($, w)
@@ -53,7 +53,7 @@ describe('when it runs', () => {
     expect(w.runs).toHaveLength(2)
   })
 
-  test('a run past the time limit is stopped and called timed out', { options: { enabled: true, maxSeconds: 30 } }, async ($, on) => {
+  test('a run past the time limit is stopped and called timed out', { options: { startOn: true, maxSeconds: 30 } }, async ($, on) => {
     const w = world(on)
     w.results = ['hang']
     await start($)

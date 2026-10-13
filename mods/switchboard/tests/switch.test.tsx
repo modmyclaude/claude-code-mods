@@ -225,3 +225,19 @@ test('a read that lands after the switch went off is dropped: on again is a fres
   await w.clock.settle()
   expect(w.toasts).toEqual([])
 })
+
+test('the same switch twice does nothing more: on while on keeps the record, off while off writes nothing', async ($, on) => {
+  const w = world(on)
+  on('config.set', ($, e) => ({ value: e.value }))
+  await start($)
+  await turnStart($)
+  await w.clock.settle()
+  expect(mine(w)?.state).toBe('working')
+  await flip($, true)
+  expect(mine(w)?.state).toBe('working')
+  await flip($, false)
+  expect(mine(w)?.state).toBe('gone')
+  const writes = w.touched.filter(t => t.startsWith('write ')).length
+  await flip($, false)
+  expect(w.touched.filter(t => t.startsWith('write ')).length).toBe(writes)
+})

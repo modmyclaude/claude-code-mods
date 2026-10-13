@@ -32,13 +32,16 @@ const FILE_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 /** Runners told they are not in a terminal: no watch mode, no colour. */
 const RUN_ENV = { CI: '1', NO_COLOR: '1', FORCE_COLOR: '0' }
 
-type Settings = { enabled: boolean; command: string; maxSeconds: number }
+/** `isEnabled`: the switch (on unless set off); `startOn`: run in every session without /umpire on. */
+type Settings = { isEnabled: boolean; startOn: boolean; command: string; maxSeconds: number }
 
 export function readSettings(options: Record<string, unknown>): Settings {
   const s = typeof options.maxSeconds === 'number' && Number.isFinite(options.maxSeconds) ? Math.min(600, Math.max(5, Math.round(options.maxSeconds))) : 120
   const command = typeof options.command === 'string' ? options.command.trim().slice(0, 500) : ''
-  return { enabled: options.enabled === true, command, maxSeconds: s }
+  return { isEnabled: options.enabled !== false, startOn: options.startOn === true, command, maxSeconds: s }
 }
+
+const OFF_TEXT = 'Umpire is off. /mods or /config turns it on.'
 
 // What lives only as long as this copy of the module: the settings, whether this turn changed a
 // file, the run in flight and the one queued behind it, the detected command, the runs' output,
@@ -56,8 +59,9 @@ function debug($: EngineInterface, text: string): void {
   $.ui.log(`umpire: ${text}`, { to: 'debug' })
 }
 
+/** Running: the switch on, and /umpire on typed this session (else the start setting). */
 async function isOn($: EngineInterface): Promise<boolean> {
-  return (await read($, isOnSet)) ?? settings.enabled
+  return settings.isEnabled && ((await read($, isOnSet)) ?? settings.startOn)
 }
 
 /** Keeps one run's output, dropping the oldest past ten runs or a million characters. */
@@ -115,6 +119,8 @@ async function holdTexts($: EngineInterface, root: string): Promise<Record<strin
  * was at the person's last run, or while the switch is off.
  */
 async function runTests($: EngineInterface, isByPerson: boolean): Promise<void> {
+  // Switched off, nothing runs, not even a press on a pane drawn before.
+  if (!settings.isEnabled) return
   if (isRunning) {
     isQueued = true
     return
@@ -260,22 +266,22 @@ async function command($: EngineInterface, args: string, origin: string): Promis
 export const register: Register = (on, options) => {
   settings = readSettings(options)
 
-  // The switch (`enabled`, which /config and the modmyclaude hub flip). The engine reloads
-  // the mod with the new value; this makes it so at once, over /umpire on or off too.
-  // Off clears the status line, as /umpire off does. On keeps any hold (only the person
-  // clears one), and takes the hold files as they are now when none were taken yet.
+  // The switch (`enabled`, which /config and the modmyclaude hub flip): off, nothing runs and
+  // every command says so; on, /umpire on or the start setting decide, as before. The engine
+  // reloads the mod with the new value; this makes it so at once. Umpire runs commands, so only
+  // the person (the menu, the bridge) or the hub on their press switches it on; anyone may
+  // switch it off. Off clears the status line. A hold is never cleared by the switch.
   on('config.set', { key: 'umpire.enabled' }, async ($, e, next) => {
+    if (e.value === true && e.origin.kind === 'plugin' && e.origin.name !== 'modmyclaude-hub') {
+      return { deny: 'umpire stays off: you switch it on in the /config menu or the modmyclaude hub' }
+    }
     const set = await next(e)
     if (set.deny === undefined && typeof set.value === 'boolean') {
-      const value = set.value
-      // Off from anyone; on over a typed /umpire off only from the person (the menu, the bridge)
-      // or the hub, which flips it on their press. Another plugin's flip changes the setting alone.
-      const isPersons = e.origin.kind !== 'plugin' || e.origin.name === 'modmyclaude-hub'
-      settings = { ...settings, enabled: value }
-      if (!value || isPersons) await update($, isOnSet, () => value)
-      if (!value) $.ui.status(undefined)
+      settings = { ...settings, isEnabled: set.value }
+      if (!set.value) $.ui.status(undefined)
       $.ui.invalidate('ui.render')
-      if (value && baseline === null) baseline = await $.session.root().then(root => holdTexts($, root)).catch(() => null)
+      // Running again, with no snapshot of the hold files yet: they are taken as they are now.
+      if (baseline === null && (await isOn($))) baseline = await $.session.root().then(root => holdTexts($, root)).catch(() => null)
     }
     return set
   })
@@ -351,6 +357,15 @@ export const register: Register = (on, options) => {
   // /umpire show: the last call, its failing names, the end of its output, and the history.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Code, Text } = $.ui.resolve(e)
+    if (!settings.isEnabled) {
+      return (
+        <Box flexDirection="column" paddingX={1}>
+          <Text key="off" dimColor>
+            {OFF_TEXT}
+          </Text>
+        </Box>
+      )
+    }
     const list = await read($, runs)
     const last = list.at(-1)
     const held = await read($, heldBy)
@@ -396,6 +411,10 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'umpire' }, async ($, e) => {
+    if (!settings.isEnabled) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     try {
       await command($, e.args, e.origin.kind)
     } catch (error) {

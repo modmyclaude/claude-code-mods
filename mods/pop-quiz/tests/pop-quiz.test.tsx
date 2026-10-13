@@ -7,7 +7,7 @@ import { MAX_DIFF, MAX_PROMPT, changeOf, costOf, isQuizTurn, isSecretFile, parse
 import { readSettings } from '../hooks/register'
 import { ROOT, SURFACES, TWO, band, bandTexts, edit, quizCmd, readFile, reply, start, turn, world, write } from './world'
 
-const ON = { options: { enabled: true, every: 1 } }
+const ON = { options: { startOn: true, every: 1 } }
 
 describe('which turns get a quiz', () => {
   test('a turn that edited a file gets one call, carrying the file list and a short diff', ON, async ($, on) => {
@@ -38,7 +38,7 @@ describe('which turns get a quiz', () => {
     expect(w.calls).toHaveLength(1)
   })
 
-  test('every 3 quizzes the 3rd, 6th and 9th turns that changed files, and no other', { options: { enabled: true } }, async ($, on) => {
+  test('every 3 quizzes the 3rd, 6th and 9th turns that changed files, and no other', { options: { startOn: true } }, async ($, on) => {
     const w = world(on)
     await start($)
     const quizzedAfter: number[] = []
@@ -202,8 +202,8 @@ describe('the logic alone', () => {
 
   test('the pace setting is clamped from 1 to 20', () => {
     expect([0, 1, 3, 7.4, 20, 99, Number.NaN, '5'].map(every => readSettings({ every }).every)).toEqual([1, 1, 3, 7, 20, 20, 3, 3])
-    expect(readSettings({}).enabled).toBe(false)
-    expect(readSettings({ enabled: true }).enabled).toBe(true)
+    expect(readSettings({})).toMatchObject({ isEnabled: true, startOn: false })
+    expect(readSettings({ enabled: false, startOn: true })).toMatchObject({ isEnabled: false, startOn: true })
   })
 
   test('the summary lists each file once, relative to the project', () => {
