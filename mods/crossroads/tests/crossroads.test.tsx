@@ -28,6 +28,10 @@ import { BATTERY_RISKY, PLAIN_UNSAFE, REVIEW_RISKY, RU_EL_SAFE, SAFE_SET } from 
 const PLUGIN = 'crossroads'
 const SURFACES = ['terminal', 'desktop'] as const
 const USAGE = { input_tokens: 700, output_tokens: 250, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+// Secret-shaped fixtures are built from parts, so no line of this file is itself shaped like a key.
+const AWS_KEY = ['AKIA', 'IOSFODNN7', 'EXAMPLE'].join('')
+const STRIPE_KEY = ['sk', 'live', '51HAbCdEfGhIjKlMn0'].join('_')
+const OPENAI_KEY = ['sk', 'proj', 'AbCdEfGhIjKlMnOpQrStUvWxYz012345'].join('-')
 
 const BAND = {
   component: 'AbovePrompt',
@@ -611,12 +615,12 @@ test('backs off after 3 ignored lists in a row, and recovers when one is taken',
 
 test('only the digest leaves the machine, secrets replaced', async ($, on) => {
   const messages: SessionMessage[] = [
-    { role: 'user', text: 'deploy with key AKIAIOSFODNN7EXAMPLE please', toolUses: [] },
+    { role: 'user', text: `deploy with key ${AWS_KEY} please`, toolUses: [] },
     {
       role: 'assistant',
       text: '',
       toolUses: [
-        { tool_use_id: 'w', tool: 'Write', input: { file_path: '/home/me/app/.env', content: 'STRIPE=sk_live_51HAbCdEfGhIjKlMn0' } },
+        { tool_use_id: 'w', tool: 'Write', input: { file_path: '/home/me/app/.env', content: `STRIPE=${STRIPE_KEY}` } },
         { tool_use_id: 'b', tool: 'Bash', input: { command: 'PGPASSWORD=hunter2 psql -c "select 1"' }, isError: true, text: 'fail' },
       ],
     },
@@ -629,7 +633,7 @@ test('only the digest leaves the machine, secrets replaced', async ($, on) => {
   expect(sent).toContain(`Ran \`PGPASSWORD=${REDACTED} psql -c "select 1"\`: failed`)
   expect(sent).toContain('Slash commands in this session: /deploy-staging')
   expect(sent).toContain('The assistant ended by asking: Want me to review the same guard in signup.ts?')
-  for (const secret of ['AKIAIOSFODNN7EXAMPLE', 'sk_live_', 'hunter2', '/home/me']) expect(sent).not.toContain(secret)
+  for (const secret of [AWS_KEY, 'sk_live_', 'hunter2', '/home/me']) expect(sent).not.toContain(secret)
 })
 
 test('/crossroads shows calls and cost in a toast, never to the model; off, on and forget work', async ($, on) => {
@@ -929,7 +933,7 @@ test('a secret cut at the command clip edge never leaks a prefix', async ($, on)
     {
       role: 'assistant',
       text: '',
-      toolUses: [{ tool_use_id: 'b', tool: 'Bash', input: { command: `echo ${pad} sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz012345` }, text: 'ok' }],
+      toolUses: [{ tool_use_id: 'b', tool: 'Bash', input: { command: `echo ${pad} ${OPENAI_KEY}` }, text: 'ok' }],
     },
   ]
   const seen = world(on, [reply(THREE)], { surfaces: ['desktop'], messages })

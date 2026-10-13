@@ -53,22 +53,33 @@ import {
   SAFE_SET,
 } from './phrasings'
 
+// Secret-shaped fixtures are built from parts, so no line of this file is itself shaped like a key.
+const AWS_KEY = ['AKIA', 'IOSFODNN7', 'EXAMPLE'].join('')
+const GITHUB_TOKEN = ['ghp', 'aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789'].join('_')
+const GITHUB_PAT = ['github', 'pat', '11ABCDEFG0123456789', 'abcdefghijklmnopqrstuvwxyz'].join('_')
+const ANTHROPIC_KEY = ['sk', 'ant', 'api03', 'AbCdEfGhIjKlMnOpQrStUv'].join('-')
+const OPENAI_KEY = ['sk', 'proj', 'AbCdEfGhIjKlMnOpQrStUvWxYz012345'].join('-')
+const STRIPE_KEY = ['sk', 'live', '51HAbCdEfGhIjKlMn0'].join('_')
+const GITLAB_TOKEN = ['glpat', 'AbCdEfGhIjKlMnOpQrSt'].join('-')
+const BEGIN = (kind: string, tail = '') => ['-----BEGIN ', kind, ' PRIVATE', ` KEY${tail}-----`].join('')
+const END = (kind: string) => ['-----END ', kind, ' PRIVATE', ' KEY-----'].join('')
+
 const ZERO = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 
 describe('redact', () => {
   const secrets: [string, string][] = [
-    ['AWS access key', 'aws key AKIAIOSFODNN7EXAMPLE here'],
-    ['GitHub token', 'token ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789 ok'],
-    ['GitHub fine-grained', 'github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz'],
-    ['Anthropic key', 'use sk-ant-api03-AbCdEfGhIjKlMnOpQrStUv-wxyz'], // through the general sk- rule
+    ['AWS access key', `aws key ${AWS_KEY} here`],
+    ['GitHub token', `token ${GITHUB_TOKEN} ok`],
+    ['GitHub fine-grained', GITHUB_PAT],
+    ['Anthropic key', `use ${ANTHROPIC_KEY}-wxyz`], // through the general sk- rule
     // Built at run time so no line here looks like a live credential to a scanner.
     ['Slack token', `slack ${['xo', 'xb-', '1234567890-', 'AbCdEfGhIjKl'].join('')} ok`],
     ['Google API key', `maps ${['AI', 'za', 'SyB', 'x7Kq'.repeat(8)].join('')} ok`],
-    ['OpenAI key', 'OPENAI sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz012345'],
-    ['Stripe live key', 'stripe sk_live_51HAbCdEfGhIjKlMn0'],
+    ['OpenAI key', `OPENAI ${OPENAI_KEY}`],
+    ['Stripe live key', `stripe ${STRIPE_KEY}`],
     ['Stripe webhook secret', 'whsec_AbCdEfGhIjKlMnOpQrSt'],
     ['JWT', 'auth eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'],
-    ['private key block', '-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA7\n-----END RSA PRIVATE KEY-----'],
+    ['private key block', `${BEGIN('RSA')}\nMIIEpAIBAAKCAQEA7\n${END('RSA')}`],
     ['password assignment', 'export DB_PASSWORD=hunter2'],
     ['quoted JSON secret', '{"client_secret": "abc123def456"}'],
     ['api key colon', 'API_KEY: s3cr3tvalue'],
@@ -85,7 +96,7 @@ describe('redact', () => {
   test('the secret value itself is gone', () => {
     expect(redact('export DB_PASSWORD=hunter2')).toBe(`export DB_PASSWORD=${REDACTED}`)
     expect(redact('git clone https://alex:p4ssw0rd@github.com/x/y.git')).not.toContain('p4ssw0rd')
-    expect(redact('AKIAIOSFODNN7EXAMPLE')).toBe(REDACTED)
+    expect(redact(AWS_KEY)).toBe(REDACTED)
   })
 
   const harmless = [
@@ -118,9 +129,9 @@ describe('redact', () => {
     ['export SECRET_KEY_BASE=9f8e7d6c5b4a39281706f5e4d3c2b1a0', '9f8e7d6c5b4a39281706f5e4d3c2b1a0'],
     ['dbpass=Tr0ub4dor psql', 'Tr0ub4dor'],
     ['my password is hunter2 please log in', 'hunter2'],
-    ['-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOYBF0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'lQOYBF0'],
+    [`${BEGIN('PGP', ' BLOCK')}\nlQOYBF0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`, 'lQOYBF0'],
     ['echo npm_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789 > ~/.npmrc', 'npm_AbC'],
-    ['glpat-AbCdEfGhIjKlMnOpQrSt', 'glpat-'],
+    [GITLAB_TOKEN, 'glpat-'],
     ['hf_AbCdEfGhIjKlMnOpQrStUvWxYz01234567', 'hf_'],
     ['Authorization: token 0123456789abcdef0123456789abcdef01234567', '0123456789abcdef'],
     ['twilio key S' + 'K0123456789abcdef0123456789abcdef', 'SK0123456789abcdef'],
@@ -365,7 +376,7 @@ describe('the digest', () => {
     { role: 'user', text: 'make login safer', toolUses: [] },
     { role: 'assistant', text: 'ok', toolUses: [{ tool_use_id: 'r0', tool: 'Read', input: { file_path: '/repo/old.ts' } }] },
     { role: 'user', text: '<command-name>/review</command-name>', toolUses: [] },
-    { role: 'user', text: 'add a guard to auth.ts, key is sk-ant-api03-AbCdEfGhIjKlMnOpQrStUv', toolUses: [] },
+    { role: 'user', text: `add a guard to auth.ts, key is ${ANTHROPIC_KEY}`, toolUses: [] },
     {
       role: 'assistant',
       text: '',
