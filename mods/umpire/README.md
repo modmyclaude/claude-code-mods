@@ -39,6 +39,8 @@ It finds the test command once per session: your setting, else the one you set f
 
 ## Settings
 
+Every setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.
+
 - **On:** on by default. Off, Umpire runs nothing and draws nothing, and every `/umpire` command says it is off; switched on again, `/umpire on` (or the setting below) decides, as before. `/config` or the modmyclaude hub flips it, live. It runs commands, so another mod cannot switch it on; anyone can switch it off.
 - **On from the start:** run in every session without `/umpire on`. Off by default.
 - **Test command:** the command to run, as you would type it. Empty: found from the project.
