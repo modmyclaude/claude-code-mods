@@ -2,7 +2,7 @@
 
 # Ant Farm
 
-Watch your subagents work, and what they cost, live.
+Mission control for your subagents: what each one is doing, its activity and its cost, live.
 
 ## Install
 
