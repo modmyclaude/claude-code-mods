@@ -26,8 +26,8 @@ const PERSON = new Set(['composer', 'bridge', 'sdk'])
 type Settings = { isEnabled: boolean; startOn: boolean; every: number }
 
 export function readSettings(options: Record<string, unknown>): Settings {
-  const every = typeof options.every === 'number' && Number.isFinite(options.every) ? Math.min(20, Math.max(1, Math.round(options.every))) : 3
-  return { isEnabled: options.enabled !== false, startOn: options.startOn === true, every }
+  const turns = typeof options.every === 'number' && Number.isFinite(options.every) ? Math.min(20, Math.max(1, Math.round(options.every))) : 3
+  return { isEnabled: options.enabled !== false, startOn: options.startOn === true, every: turns }
 }
 
 const OFF_TEXT = 'Pop Quiz is off. /mods or /config turns it on.'
