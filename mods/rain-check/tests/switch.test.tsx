@@ -17,7 +17,7 @@ function rainCheck($: Engine, args: string) {
 }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'rain-check.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' } } as never)
+  return $.config.set({ key: 'rain-check.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 /** Counts the minute tick's periods (one `clock.every` dispatch each); hooked above the mocked clock. */

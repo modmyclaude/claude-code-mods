@@ -6,6 +6,7 @@
 
 import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
+import type { ConfigOrigin } from 'claude-code'
 
 import { heldWords } from '../hooks/tests'
 import { JEST_FAIL, JEST_PASS, ROOT, band, pane, start, turn, umpire, world } from './world'
@@ -15,8 +16,8 @@ const PASSED = { text: 'umpire: 144 passed · 0 failed · 8.3 s', color: 'succes
 const OFF = 'Umpire is off. /mods or /config turns it on.'
 const REFUSED = { deny: 'umpire stays off: you switch it on in the /config menu or the modmyclaude hub' }
 
-function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'bridge' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
-  return $.config.set({ key: 'umpire.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin } as never)
+function flip($: Engine, value: boolean, origin: ConfigOrigin = { kind: 'composer' }) {
+  return $.config.set({ key: 'umpire.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin })
 }
 
 test('flipped live: off clears the line and runs nothing, over /umpire on; on brings them back', async ($, on) => {

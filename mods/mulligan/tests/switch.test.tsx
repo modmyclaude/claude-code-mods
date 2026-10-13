@@ -28,7 +28,7 @@ const STUB = {
 }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'mulligan.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } } as never)
+  return $.config.set({ key: 'mulligan.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 /** Counts the band's `$.clock.after` waits (its 8 seconds); registered before the world, so above its clock. */

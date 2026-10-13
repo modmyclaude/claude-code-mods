@@ -13,7 +13,7 @@ const BIG = numbered(2_000)
 const OFF = 'Trim is off. /mods or /config turns it on.'
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'trim.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } } as never)
+  return $.config.set({ key: 'trim.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 /** Every Text of a Bash call's row on a surface: the engine's own and any trim adds. */

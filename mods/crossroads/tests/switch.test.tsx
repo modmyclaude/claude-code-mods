@@ -142,7 +142,7 @@ function crossroads($: Engine, args = '') {
 }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'crossroads.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' } } as never)
+  return $.config.set({ key: 'crossroads.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 test('switched off: no band, no model call, no timer, nothing counted, and the guess and prompts pass untouched', { options: { enabled: false } }, async ($, on) => {

@@ -5,7 +5,7 @@
 // (the others, through a stand-in for the engine's own config row).
 
 import { expect, mock, test } from 'claude-code/testing'
-import type { On, RenderSurface, SessionAppendMessage } from 'claude-code'
+import type { ConfigOrigin, On, RenderSurface, SessionAppendMessage } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 import { alnum } from './corpus'
@@ -58,8 +58,8 @@ async function band($: Engine, surface: RenderSurface) {
   return { texts, buttons }
 }
 
-function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'bridge' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
-  return $.config.set({ key: 'cloakroom.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin } as never)
+function flip($: Engine, value: boolean, origin: ConfigOrigin = { kind: 'composer' }) {
+  return $.config.set({ key: 'cloakroom.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin })
 }
 
 const NOTHING_DRAWN = { texts: ["another mod's band"], buttons: [] }
