@@ -1,11 +1,19 @@
 {
   "name": "halftime",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Claude works, you play. The whistle blows the moment it needs you.",
   "homepage": "https://modmyclaude.com/mods/halftime",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "author": { "name": "modmyclaude" },
   "license": "MIT",
   "keywords": ["games", "fun", "waiting", "band", "whistle", "daily"],
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Switch halftime off without uninstalling it. The modmyclaude hub flips this too.",
+      "default": true
+    }
+  }
 }

@@ -42,6 +42,13 @@ const QUIET = 'subtle'
 
 type Spec = { kind: 'every' | 'after'; ms: number }
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Second Wind
+// draws nothing, arms nothing and keeps no timer. The engine reloads the mod with the
+// new value; the config.set hook below is the same switch at once. Not `isOn`, which
+// is the /breathe on and off kept in the store.
+let isEnabled = true
+const OFF_TEXT = 'Second Wind is off. /mods or /config turns it on.'
+
 // Bookkeeping for this load of the module, reset by register(). A hot reload
 // drops it with the timers it names; `heal` restarts them from $.state.
 let settings: Settings = readSettings({})
@@ -116,6 +123,11 @@ function want($: EngineInterface, spec: Spec | null): void {
 
 /** Runs `step` one at a time; a call that lands mid-step runs it once more after. */
 async function pump($: EngineInterface): Promise<void> {
+  // Switched off: a tick that still lands stops its timer instead.
+  if (!isEnabled) {
+    want($, null)
+    return
+  }
   if (isBusy) {
     isAgain = true
     return
@@ -408,6 +420,7 @@ async function end($: EngineInterface, turnId: string, isAborted: boolean): Prom
 let guide: { key: string; source: string; shown: boolean; builtAt: number } = { key: '', source: '', shown: false, builtAt: 0 }
 
 export const register: Register = (on, options) => {
+  isEnabled = options.enabled !== false
   settings = readSettings(options)
   timer = null
   isBusy = false
@@ -417,6 +430,24 @@ export const register: Register = (on, options) => {
   isMirroring = false
   typingShown = undefined
   mainTurn = null
+
+  // Off drops the breath in progress uncounted, as /breathe off does; on, the next turn shows it.
+  on('config.set', { key: 'second-wind.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      isEnabled = set.value
+      if (!isEnabled) {
+        mainTurn = null
+        try {
+          await stop($)
+        } catch {
+          // A tick that still lands stops its timer instead.
+        }
+      }
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     try {
@@ -435,6 +466,10 @@ export const register: Register = (on, options) => {
   // The answer is for the person, not the model: a dim
   // transcript line Claude never reads, and an empty result.
   on('command.run', { command: 'breathe' }, async ($, e) => {
+    if (!isEnabled) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     // One log line per line: the desktop app runs a multi-line log together.
     for (const line of (await breathe($, e.args, e.origin.kind)).text.split('\n')) $.ui.log(line)
     return {}
@@ -457,6 +492,7 @@ export const register: Register = (on, options) => {
 
   on('session.detach', async ($, e, next) => {
     const r = await next(e)
+    if (!isEnabled) return r
     try {
       const cur = await read($, run)
       if (cur !== null && (cur.phase === 'waiting' || cur.phase === 'breathing') && (await $.session.surfaces()).length === 0) await drop($, cur)
@@ -468,6 +504,7 @@ export const register: Register = (on, options) => {
 
   // Only the main conversation raises turn.start: a subagent's run never does.
   on('turn.start', async ($, e, next) => {
+    if (!isEnabled) return next(e)
     try {
       await begin($, e.turnId)
     } catch {
@@ -479,7 +516,7 @@ export const register: Register = (on, options) => {
   // A subagent's completion carries its agentId and is ignored: only the main
   // loop's answer folds the band.
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) {
+    if (isEnabled && e.agentId === undefined) {
       try {
         await end($, e.turnId, e.isAborted)
       } catch {
@@ -493,8 +530,13 @@ export const register: Register = (on, options) => {
   // whether the box holds a draft on the terminal and the desktop alike; the
   // desktop app draws its own composer and raises no prompt.edit. A render hook cannot write state, so the write waits one clock turn.
   on('ui.render', { component: 'PromptHint' }, ($, e, next) => {
+    if (!isEnabled) return next(e)
     const isDraft = e.props.isDraft
-    if (isDraft !== typingShown) $.clock.after(0, () => noteTyping($, isDraft))
+    if (isDraft !== typingShown) {
+      $.clock.after(0, () => {
+        if (isEnabled) noteTyping($, isDraft)
+      })
+    }
     return next(e)
   })
 
@@ -502,17 +544,17 @@ export const register: Register = (on, options) => {
   // before its prompt line redraws. Never awaited: the edit passes through
   // untouched and at once.
   on('prompt.edit', ($, e, next) => {
-    noteTyping($, draftAfter(e).length > 0)
+    if (isEnabled) noteTyping($, draftAfter(e).length > 0)
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('prompt.submit', ($, e, next) => {
-    noteTyping($, false)
+    if (isEnabled) noteTyping($, false)
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+    if (!isEnabled || e.props.hasSurvey) return next(e)
 
     // The desktop runs the guide in a frame of its own, and re-sets that frame on every draw of
     // the band, identical tree or not (seen live four times). So this path reads only
@@ -697,7 +739,7 @@ export const register: Register = (on, options) => {
   // its own there. The desktop's turn row is left alone: swapping Claude's word in and out read as
   // flashing, and the band's guide already breathes (seen live).
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    if (e.props.message !== null || e.surface === 'desktop') return next(e)
+    if (!isEnabled || e.props.message !== null || e.surface === 'desktop') return next(e)
     const r = await read($, run)
     if (r === null) return next(e)
     const frame = frameAt(r, await read($, clock))

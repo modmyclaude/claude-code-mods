@@ -67,9 +67,8 @@ that comes back after any of these waits for your click.
 
 ## Settings
 
-No settings screen. Auto mode (`/halftime auto`) and your last game are
-remembered across sessions; the picker's `daily` / `practice` toggle lasts the
-session.
+- **On:** on by default. Off, Halftime draws nothing, blows no whistle and keeps no timer; `/halftime` says it is off. Turned off mid-game, the run is paused and the band closes, as `/halftime off` does; turned back on, `/halftime` offers the run back. `/config` or the modmyclaude hub flips it, live.
+- Auto mode (`/halftime auto`) and your last game are remembered across sessions; the picker's `daily` / `practice` toggle lasts the session.
 
 ## What it can touch
 

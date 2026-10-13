@@ -54,6 +54,8 @@ Breathe gently and never strain. If you feel lightheaded, stop and breathe norma
 
 ## Settings
 
+- **On:** on by default. Off, Second Wind draws nothing, counts nothing and keeps no timer; `/breathe` says it is off. Turned off mid-turn, that turn's breath is dropped uncounted; turned back on, the band shows from the next turn. `/config` or the modmyclaude hub flips it, live.
+
 Change them in `/config`. Installing says these options are not yet set: each has the default below, so nothing needs setting first.
 
 | Setting | Default | What it does |

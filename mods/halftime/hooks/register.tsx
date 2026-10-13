@@ -48,6 +48,12 @@ const isMain = (e: object) => loopOf((e as { agentId?: unknown }).agentId) === '
 
 const resumable = (run: HalftimeRun | null) => run !== null && run.status !== 'over'
 
+// The switch (`enabled`, which /config and the modmyclaude hub flip): off, Halftime draws
+// nothing, blows no whistle and keeps no timer. The engine reloads the mod with the new
+// value; the config.set hook below is the same switch at once.
+let isOn = true
+const OFF_TEXT = 'Halftime is off. /mods or /config turns it on.'
+
 /** The store as bests.ts reads it (every call still spelled `$.store.<op>(...)` here). */
 const storeOf = ($: EngineInterface): Store => ({
   get: key => $.store.get(key),
@@ -65,6 +71,13 @@ const mod = {
   flushing: false,
   typing: false,
   saving: new Set<number>(),
+}
+
+/** The 3-2-1's tick. Switched off, a tick that still lands stops the countdown instead. */
+function countdownTicked($: EngineInterface) {
+  if (isOn) return void apply($, countdownTick)
+  mod.countdown?.cancel()
+  mod.countdown = null
 }
 
 /** One pure transition at the current time, then whatever it calls for. */
@@ -85,7 +98,7 @@ async function apply($: EngineInterface, change: (s: HalftimeSession, now: numbe
 async function followUp($: EngineInterface, before: HalftimeSession, next: HalftimeSession) {
   // The 3-2-1 is the only timer the hooks module runs during a run, and only while counting.
   const counting = next.phase === 'board' && next.run?.status === 'countdown'
-  if (counting && !mod.countdown) mod.countdown = $.clock.every(1000, () => void apply($, countdownTick))
+  if (counting && !mod.countdown) mod.countdown = $.clock.every(1000, () => countdownTicked($))
   if (!counting && mod.countdown) {
     mod.countdown.cancel()
     mod.countdown = null
@@ -160,7 +173,9 @@ function whistle($: EngineInterface, reason: HalftimeReason, loop: string) {
  * a render hook that sees the keys leave the board schedules the pause instead.
  */
 function pauseSoon($: EngineInterface) {
-  $.clock.after(0, () => void apply($, pauseForTyping))
+  $.clock.after(0, () => {
+    if (isOn) void apply($, pauseForTyping)
+  })
 }
 
 async function setAuto($: EngineInterface, auto: boolean) {
@@ -208,12 +223,32 @@ async function copy($: EngineInterface, text: string, surface: 'terminal' | 'des
   $.ui.toast(copied.isCopied ? 'result copied' : 'this surface cannot copy - select the line instead')
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  isOn = options.enabled !== false
   mod.countdown = null
   mod.offer = null
   mod.flushing = false
   mod.typing = false
   mod.saving.clear()
+
+  // Off pauses a run in play and closes the band, as /halftime off does; on, /halftime opens it again.
+  on('config.set', { key: 'halftime.enabled' }, async ($, e, next) => {
+    const set = await next(e)
+    if (set.deny === undefined && typeof set.value === 'boolean') {
+      isOn = set.value
+      if (!isOn) {
+        mod.offer?.cancel()
+        mod.offer = null
+        try {
+          await apply($, close)
+        } catch {
+          // A countdown tick that still lands stops it instead.
+        }
+      }
+      $.ui.invalidate('ui.render')
+    }
+    return set
+  })
 
   on('session.start', async ($, e, next) => {
     // Runs at once, mid-turn too: playing while Claude works is the point.
@@ -231,7 +266,7 @@ export const register: Register = on => {
     }
     // A reload keeps the session's state but not the old timers: pick a countdown back up.
     const s = await read($, session)
-    if (s.phase === 'board' && s.run?.status === 'countdown' && !mod.countdown) mod.countdown = $.clock.every(1000, () => void apply($, countdownTick))
+    if (isOn && s.phase === 'board' && s.run?.status === 'countdown' && !mod.countdown) mod.countdown = $.clock.every(1000, () => countdownTicked($))
     return next(e)
   })
 
@@ -240,6 +275,10 @@ export const register: Register = on => {
   // command answers {}. VS Code and mobile draw no band: there the row is the only place
   // to show anything, and the CommandOutput hook below draws the scorecard in it.
   on('command.run', { command: 'halftime' }, async ($, e) => {
+    if (!isOn) {
+      $.ui.toast(OFF_TEXT)
+      return {}
+    }
     const said = await command($, e.args)
     if (await banded($)) {
       $.ui.toast(said)
@@ -257,6 +296,7 @@ export const register: Register = on => {
 
   // The band: picker, offer, board or whistle line.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!isOn) return next(e)
     // A survey owns the band: yield it, and pause a run in play (the keys are the survey's now).
     if (e.props.hasSurvey) {
       const s = await read($, session)
@@ -395,7 +435,7 @@ export const register: Register = on => {
 
   // VS Code and mobile have no band and no board: the command's row is the scorecard.
   on('ui.render', { component: 'CommandOutput', props: { command: 'halftime' } }, async ($, e, next) => {
-    if (e.surface !== 'mobile' && e.surface !== 'vscode') return next(e)
+    if (!isOn || (e.surface !== 'mobile' && e.surface !== 'vscode')) return next(e)
     const { Text } = $.ui.resolve(e)
     return (
       <Text wrap="truncate-end">
@@ -408,6 +448,7 @@ export const register: Register = on => {
   // Typing at the prompt means the keys left the board: a run in play pauses instead of
   // playing on unattended. Drawing never writes, so the pause is scheduled for just after.
   on('ui.render', { component: 'PromptHint' }, ($, e, next) => {
+    if (!isOn) return next(e)
     const isDraft = e.props.isDraft
     if (isDraft && !mod.typing) pauseSoon($)
     mod.typing = isDraft
@@ -416,12 +457,14 @@ export const register: Register = on => {
 
   // The board's posts: input and frame ticks. Off-shape data is dropped unread.
   on('ui.message', async ($, e, next) => {
+    if (!isOn) return next(e)
     const msg = parseMsg(e.data)
     if (msg) await apply($, (s, now) => onMessage(s, msg, now))
     return next(e)
   })
 
   on('ui.fault', async ($, e, next) => {
+    if (!isOn) return next(e)
     $.ui.log(`halftime: the board failed on ${e.surface} (${e.phase}): ${e.reason}`, { to: 'debug' })
     await update($, fault, () => ({ surface: e.surface, reason: e.reason }))
     return next(e)
@@ -429,7 +472,7 @@ export const register: Register = on => {
 
   // Main-loop turns: start resumes from the whistle (3-2-1) and may arm the offer.
   on('turn.start', async ($, e, next) => {
-    if (!isMain(e)) return next(e)
+    if (!isOn || !isMain(e)) return next(e)
     const s = await apply($, (s0, now) => turnStart(s0, e.turnId, now))
     mod.offer?.cancel()
     mod.offer = null
@@ -442,7 +485,7 @@ export const register: Register = on => {
 
   // ... and its end is the whistle: your move.
   on('turn.complete', async ($, e, next) => {
-    if (!isMain(e)) return next(e)
+    if (!isOn || !isMain(e)) return next(e)
     mod.offer?.cancel()
     mod.offer = null
     await apply($, turnComplete)
@@ -451,6 +494,7 @@ export const register: Register = on => {
 
   // Needs-you signals from any loop: a subagent's permission prompt needs you too.
   on('classic.PermissionRequest', async ($, e, next) => {
+    if (!isOn) return next(e)
     const answer = await next(e)
     // A settings hook that decided means no dialog will show.
     if (!answer.decision) await whistle($, 'permission', loopOf(e.agent_id))
@@ -458,11 +502,13 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('classic.Elicitation', async ($, e, next) => {
+    if (!isOn) return next(e)
     await whistle($, 'input', loopOf(e.agent_id))
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('classic.Notification', async ($, e, next) => {
+    if (!isOn) return next(e)
     const kind = String(e.notification_type)
     if (/permission/.test(kind)) await whistle($, 'permission', loopOf(e.agent_id))
     else if (/elicitation/.test(kind)) await whistle($, 'input', loopOf(e.agent_id))
@@ -471,18 +517,21 @@ export const register: Register = on => {
 
   // A question for the person: observe it, never answer or deny it.
   on('tool.call', { tool: 'AskUserQuestion' }, async ($, e, next) => {
+    if (!isOn) return next(e)
     await whistle($, 'question', loopOf(e.agentId))
     return next(e)
   }).catch(($, e, next) => next(e))
 
   // The loop that asked has its answer and moved on: Claude is working again.
   on('classic.PostToolBatch', async ($, e, next) => {
+    if (!isOn) return next(e)
     const s = await read($, session)
     if (s.asking.includes(loopOf(e.agent_id))) await apply($, s0 => workAgain(s0, loopOf(e.agent_id)))
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('session.end', async ($, e, next) => {
+    if (!isOn) return next(e)
     try {
       await apply($, close)
     } catch {
