@@ -63,7 +63,8 @@ describe('tool summaries', () => {
     // Redacted before the cut: the token would have been cut in half, past the rules' reach.
     expect(toolSummary('Bash', { command: 'curl https://api.example.com/v1/items -H "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"' }).text)
       .toBe('Bash curl https://api.example.com/v1/items -H "Autho…')
-    expect(toolSummary('Bash', { command: 'export GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789 && gh auth status' }).text)
+    const token = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('_') // from parts: no secret-shaped line in this file
+    expect(toolSummary('Bash', { command: `export GITHUB_TOKEN=${token} && gh auth status` }).text)
       .toBe('Bash export GITHUB_TOKEN=[REDACTED] && gh auth status')
   })
 

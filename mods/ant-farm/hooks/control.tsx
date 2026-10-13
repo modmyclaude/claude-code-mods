@@ -99,8 +99,8 @@ export function headline(list: readonly AntFarmAnt[], live: ReadonlyMap<string, 
 
 /**
  * The status line of a card or the inspector: the mark, the word and what
- * follows it (`◐ WORKING · Bash npm test · 4s`, `◇ WAITING · permission for
- * Bash`, `✓ DONE · 1m 20s`). The mark turns while the subagent works.
+ * follows it (`◐ WORKING · Bash npm test · 4s`, `◇ WAITING · held by the
+ * engine`, `✓ DONE · 1m 20s`). The mark turns while the subagent works.
  */
 export function stateLine(a: AntFarmAnt, live: LivePhase | undefined, now: number, frame: number): { text: string; color: string } {
   const look = statusLook(a.status, live?.phase)

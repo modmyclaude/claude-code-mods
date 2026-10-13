@@ -11,7 +11,7 @@
 //
 // The pane is a mission control: what each subagent is doing right now comes
 // from the chunks of its model requests (thinking, text, a tool named), its
-// tool calls and the permission verdicts on them; the activity timeline keeps
+// tool calls; the activity timeline keeps
 // the last eighty of those. Nothing shown is inferred.
 
 import { atom, read, update } from 'claude-code'
@@ -473,14 +473,6 @@ export const register: Register = (on, options) => {
     setPhase($, agentId, 'working')
     $.clock.after(0, () => void recordTool($, agentId, e.tool, summary, result).catch(() => undefined))
     return result
-  }).catch(($, e, next) => next(e))
-
-  // The permission verdict on a subagent's tool call: `ask` means the person
-  // is being asked, and the subagent waits on them.
-  on('tool.check', async ($, e, next) => {
-    const verdict = await next(e)
-    if (e.agentId !== undefined && verdict.decision === 'ask') setPhase($, e.agentId, 'waiting', `permission for ${clean(e.tool)}`)
-    return verdict
   }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {

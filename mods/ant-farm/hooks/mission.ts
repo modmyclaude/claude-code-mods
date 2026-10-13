@@ -12,8 +12,8 @@ import { redact } from './redact'
  * raises in its loop: nothing is inferred. `starting` until its first model
  * request; `thinking` while a thinking block streams; `writing` while text
  * streams; `tool` from the model naming a tool until the call answered;
- * `waiting` while the person is asked for a permission, or the engine's list
- * says the agent is held; `working` between a tool's answer and the next
+ * `waiting` while the engine's list says the agent is held; `working`
+ * between a tool's answer and the next
  * request, and for an agent the mod only found mid-run.
  */
 export type AntFarmPhase = 'starting' | 'thinking' | 'writing' | 'tool' | 'waiting' | 'working'

@@ -196,29 +196,23 @@ describe('what each subagent is doing, from what the engine said', () => {
     expect(eventRows(await pane.drawn()).length).toBe(4)
   })
 
-  test('a permission ask holds the subagent: WAITING on its card, in the headline and the counts', async ($, on) => {
+  test('a permission ask on a subagent tool is left with the engine: the verdict passes through untouched and the card keeps its last phase', async ($, on) => {
     const w = world(on)
     const id = await w.spawn($, 'Asking')
     await w.step($, id, usage('claude-haiku-5-5', 100, 10))
     w.rec.checkDecision = 'ask'
-    await w.check($, id, 'Bash', { command: 'rm -rf build' })
+    const verdict = await w.check($, id, 'Bash', { command: 'rm -rf build' })
+    expect(verdict.decision).toBe('ask')
     for (const surface of SURFACES) {
       const pane = await mountAt($, surface)
       const all = (await texts(pane)).join('\n')
-      expect(all).toContain('◇ WAITING · permission for Bash')
-      expect(all).toContain('Waiting · 1 held')
-      // A held agent counts once: as waiting, not as running too.
-      expect((await pane.find({ key: 'counts' }))?.text).toBe('0 running · 0 done · 0 failed · 1 waiting')
+      expect(all).not.toContain('permission')
+      expect(all).not.toContain('WAITING')
+      const counts = (await pane.find({ key: 'counts' }))?.text ?? ''
+      expect(counts).toContain('1 running')
+      expect(counts).not.toContain('waiting')
       await pane.unmount()
     }
-    // Its next request frees it.
-    await w.step($, id, usage('claude-haiku-5-5', 100, 10))
-    const pane = await mountAt($, 'terminal')
-    const all = (await texts(pane)).join('\n')
-    expect(all).toContain('WORKING')
-    expect(all).not.toContain('WAITING')
-    expect(all).toContain('Working · 1 running')
-    expect((await pane.find({ key: 'counts' }))?.text).toBe('1 running · 0 done · 0 failed')
   })
 
   test('the engine list saying waiting holds a card too, and running frees it', async ($, on) => {
@@ -472,7 +466,7 @@ describe('colours, estimates and numbers after the live look', () => {
     }
   })
 
-  test('a card held on the person shows no time left, on the card, in the inspector and in the band', async ($, on) => {
+  test('a card the engine holds shows no time left, on the card, in the inspector and in the band', async ($, on) => {
     const w = world(on, { placed: false }) // the band lists the ants where the pane cannot be placed
     engineBand(on)
     const id = await w.spawn($, 'Held one')
@@ -485,9 +479,8 @@ describe('colours, estimates and numbers after the live look', () => {
     }
     const pane = await mountAt($, 'terminal', 60)
     expect(textOf(cardsOf(await pane.drawn())[0])).toContain('left')
-    w.rec.checkDecision = 'ask'
-    await w.check($, id, 'Bash', { command: 'rm x' })
-    await w.clock.advance(20_000)
+    w.rec.listed = w.rec.listed.map(a => (a.id === id ? { ...a, status: 'waiting' } : a))
+    await w.clock.advance(20_000) // the ticker reads the engine's list: held
     expect(textOf(cardsOf(await pane.drawn())[0])).not.toContain('left')
     await pane.press({ key: `inspect-${id}` })
     expect((await pane.find({ key: 'inspector' }))?.text).not.toContain('left')

@@ -32,7 +32,7 @@ Watch your subagents work, and what they cost, live.
 - **The cards.** One bordered card per running subagent, one to three across
   depending on the pane's width. Each shows its number and task, its ant,
   model and elapsed time, a status line (`WORKING · Bash npm test · 4s`,
-  `THINKING · 12s`, `WAITING · permission for Bash`), a sparkline of tokens
+  `THINKING · 12s`, `WAITING · held by the engine`), a sparkline of tokens
   per request, requests and tokens, a progress bar, its estimated cost and
   ETA, and on a wide card how many tools it called, files it edited and calls
   that failed. The border takes the model's colour, green for a moment when it
@@ -43,8 +43,8 @@ Watch your subagents work, and what they cost, live.
 - **The status is read, never guessed.** `THINKING` while a thinking block
   streams in its own model request, `WORKING` while it writes or runs a tool
   (the status line names the tool and what it touches: `Bash npm test`,
-  `Edit auth.ts`), `WAITING` while Claude Code asks you for a permission on
-  its tool, or its agent list says it is held, `DONE` and `FAILED` at its end.
+  `Edit auth.ts`), `WAITING` while Claude Code's agent list says it is held,
+  `DONE` and `FAILED` at its end.
   A held subagent counts as waiting, not as running too.
 - **The activity timeline.** Under the cards, the last 80 things the subagents
   did, newest first on the mission clock: starts and handoffs (`from #1`),
@@ -112,9 +112,9 @@ Every setting has a default, so the notice at install about options not yet set 
 - **What it watches, without changing it:** the chunks of each subagent's
   model requests (which kind streams: thinking, text, a tool named), each
   subagent's tool calls (the tool and what it names: a file's name, a
-  command's first line, a pattern) and the permission verdict on them. The
-  stream, the call and the verdict pass through as the engine made them; the
-  main loop's own tool calls are not recorded. Anything shaped like a
+  command's first line, a pattern). The stream and the call pass through as
+  the engine made them, and a permission decision is never read or touched by
+  the mod; the main loop's own tool calls are not recorded. Anything shaped like a
   credential in those words (a token, a `password=` value, a key in a URL) is
   replaced with `[REDACTED]` before the pane keeps or shows it.
 - **Memory:** its counts live in session state and are gone when the session
@@ -160,8 +160,8 @@ Every setting has a default, so the notice at install about options not yet set 
   unaffected). The timeline keeps the last 80 rows; the long form shows 40.
 - The live status is what the engine said last. A subagent the mod only found
   mid-run reads `WORKING` until its next request says more; after a code reload
-  every running one does. A permission ask is seen when Claude Code asks you,
-  not when a subagent merely plans a tool.
+  every running one does. While Claude Code asks you about a subagent's tool,
+  the card keeps its last phase: the mod reads no permission decision.
 - Hotkeys act only while the pane holds the keyboard, as Claude Code keys every
   pane; from the prompt, click a card's `inspect` instead.
 - **The hover reveal draws where the surface tracks the pointer:** the desktop
