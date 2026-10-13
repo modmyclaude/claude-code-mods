@@ -58,7 +58,7 @@ async function band($: Engine, surface: RenderSurface) {
   return { texts, buttons }
 }
 
-function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
+function flip($: Engine, value: boolean, origin: { kind: 'composer' } | { kind: 'bridge' } | { kind: 'plugin'; name: string } = { kind: 'composer' }) {
   return $.config.set({ key: 'cloakroom.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin } as never)
 }
 
@@ -193,12 +193,14 @@ test('started off and switched on: the .env files are read then, so a learned va
   expect(seen).toMatch(/^connecting with \[secret:DB_PASSWORD#[a-z2-7]{6}\]\.\.\.$/)
 })
 
-test('another mod cannot switch it off (a mod that lets Claude change settings is no way around it); the hub can', async ($, on) => {
+test('another mod or a Remote Control /config cannot switch it off (a mod that lets Claude change settings is no way around it); the hub can', async ($, on) => {
   const w = world(on, { [`${ROOT}/.env`]: ENV })
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
   w.answer.Bash = () => bash(ENV)
   expect(await flip($, false, { kind: 'plugin', name: 'other' })).toEqual({ deny: 'cloakroom stays on: you switch it off in /config or the modmyclaude hub' })
+  // Nor a /config sent over Remote Control: not attestably the person's hand.
+  expect(await flip($, false, { kind: 'bridge' })).toEqual({ deny: 'cloakroom stays on: you switch it off in /config or the modmyclaude hub' })
   expect(stdoutOf(await runBash($, 'cat .env'))).not.toContain(KEY)
   expect(await flip($, false, { kind: 'plugin', name: 'modmyclaude-hub' })).toEqual({ value: false })
   expect(stdoutOf(await runBash($, 'cat .env'))).toContain(KEY)

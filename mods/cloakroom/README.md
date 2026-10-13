@@ -95,7 +95,7 @@ The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and 
 
 ## Settings
 
-- **On:** on by default. Off, cloakroom hides nothing, restores nothing, holds nothing and reads no file: every door passes what Claude Code sends as it is, so a secret that reaches Claude while it is off reaches it as written. A ticket Claude already holds stays its ticket text (written as text into a file, say); the real value never comes back while it is off. What was hidden before stays hidden. Switching off drops any held command, Allow once and shown value. Switching on reads the `.env` files (if the session started off) and has the cached prompt parts checked again; switching reloads the mod, so tickets from before it are refused in tools, as after a restart. `/cloakroom` says it is off. `/config` or the modmyclaude hub flips it, live; another mod can switch it on, but not off.
+- **On:** on by default. Off, cloakroom hides nothing, restores nothing, holds nothing and reads no file: every door passes what Claude Code sends as it is, so a secret that reaches Claude while it is off reaches it as written. A ticket Claude already holds stays its ticket text (written as text into a file, say); the real value never comes back while it is off. What was hidden before stays hidden. Switching off drops any held command, Allow once and shown value. Switching on reads the `.env` files (if the session started off) and has the cached prompt parts checked again; switching reloads the mod, so tickets from before it are refused in tools, as after a restart. `/cloakroom` says it is off. `/config` or the modmyclaude hub flips it, live; another mod, or a `/config` sent over Remote Control, can switch it on but not off.
 
 ## What it can touch
 

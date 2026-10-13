@@ -454,9 +454,11 @@ export const register: Register = (on, options) => {
   // out would be the leak this mod is for. On at once: .env files are read if the session
   // started off, and the prompt parts cached while off are asked again.
   on('config.set', { key: 'cloakroom.enabled' }, async ($, e, next) => {
-    // Off only by the person (the menu, the bridge) or the hub on their press: a mod that lets
-    // Claude change settings must not be a way around the cloakroom.
-    if (e.value === false && e.origin.kind === 'plugin' && e.origin.name !== 'modmyclaude-hub') {
+    // Off only by the person in the menu or the hub on their press. Not another mod (one that
+    // lets Claude change settings must not be a way around the cloakroom), and not a /config
+    // over Remote Control, which the engine says is not attestably the person's hand.
+    const isPersons = e.origin.kind === 'composer' || (e.origin.kind === 'plugin' && e.origin.name === 'modmyclaude-hub')
+    if (e.value === false && !isPersons) {
       return { deny: 'cloakroom stays on: you switch it off in /config or the modmyclaude hub' }
     }
     const set = await next(e)
