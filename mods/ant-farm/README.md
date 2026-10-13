@@ -109,6 +109,11 @@ Every setting has a default, so the notice at install about options not yet set 
   subagent that started before the mod loaded, to settle one that ended
   without saying so, and to see one the engine holds), opens and lists its own
   pane, sets its status line, shows toasts.
+- **The two hooks that act:** `/antfarm` opens the pane, or lists the
+  subagents in the band above the prompt where a pane cannot be placed, and
+  does nothing else. The hook on a subagent's spawn runs after the engine has
+  spawned it and records the number, task, type and model that came back; it
+  never refuses, delays or changes a spawn. Every other hook only watches.
 - **What it watches, without changing it:** the chunks of each subagent's
   model requests (which kind streams: thinking, text, a tool named), each
   subagent's tool calls (the tool and what it names: a file's name, a

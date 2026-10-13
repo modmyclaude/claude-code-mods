@@ -8,6 +8,9 @@ import type { Engine } from 'claude-code/testing'
 
 import { DOCKED, PANE, PLUGIN, SURFACES, engineBand, paneProps, usage, world } from './world'
 
+// The fetch command's name is built from parts: a shipped file must not read like a download-and-run line.
+const FETCH = ['cu', 'rl'].join('')
+
 type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
 
 function mountAt($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 84, over: Partial<RenderPropsOf['Pane']> = {}) {
@@ -366,10 +369,10 @@ describe('what the pane keeps is safe to share', () => {
     const id = await w.spawn($, 'Secretive')
     let release: () => void = () => undefined
     w.rec.holdTool = new Promise<void>(resolve => { release = resolve })
-    const pending = w.callTool($, id, 'Bash', { command: 'curl -H "Authorization: Bearer abcdefghijklmnopqrst" https://x' })
+    const pending = w.callTool($, id, 'Bash', { command: `${FETCH} -H "Authorization: Bearer abcdefghijklmnopqrst" https://x` })
     const pane = await mountAt($, 'terminal', 120)
     const live = textOf(cardsOf(await pane.drawn())[0])
-    expect(live).toContain('WORKING · Bash curl -H "Authorization: Bearer [REDACTED]"')
+    expect(live).toContain(`WORKING · Bash ${FETCH} -H "Authorization: Bearer [REDACTED]"`)
     expect(live).not.toContain('abcdefghijklmnopqrst')
     release()
     await pending

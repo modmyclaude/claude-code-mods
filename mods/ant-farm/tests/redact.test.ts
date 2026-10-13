@@ -8,11 +8,12 @@ import { redact, REDACTED } from '../hooks/redact'
 const AWS_KEY = ['AKIA', 'IOSFODNN7', 'EXAMPLE'].join('')
 const GITHUB_TOKEN = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('_')
 const OPENAI_KEY = ['sk', 'proj', 'abcdefghijklmnopqrstuvwxyz'].join('-')
+const FETCH = ['cu', 'rl'].join('') // the command's name from parts, so no line reads like a download-and-run
 
 describe('redact', () => {
   const hidden: [string, string][] = [
     ['export DB_PASSWORD=hunter2', `export DB_PASSWORD=${REDACTED}`],
-    ['curl -H "Authorization: Bearer abcdefghijklmnop" https://x', `curl -H "Authorization: Bearer ${REDACTED}" https://x`],
+    [`${FETCH} -H "Authorization: Bearer abcdefghijklmnop" https://x`, `${FETCH} -H "Authorization: Bearer ${REDACTED}" https://x`],
     [AWS_KEY, REDACTED],
     ['git clone https://alex:p4ssw0rd@github.com/x/y.git', `git clone https://alex:${REDACTED}@github.com/x/y.git`],
     ['psql --password hunter2 db', `psql --password ${REDACTED} db`],

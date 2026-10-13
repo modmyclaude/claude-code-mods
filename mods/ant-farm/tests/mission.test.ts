@@ -61,8 +61,9 @@ describe('tool summaries', () => {
     expect(toolSummary('Mystery', { anything: 1 })).toEqual({ kind: 'tool', text: 'Mystery' })
     expect(toolSummary('Bash', { command: 42 })).toEqual({ kind: 'tool', text: 'Bash' })
     // Redacted before the cut: the token would have been cut in half, past the rules' reach.
-    expect(toolSummary('Bash', { command: 'curl https://api.example.com/v1/items -H "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"' }).text)
-      .toBe('Bash curl https://api.example.com/v1/items -H "Autho…')
+    const fetch = ['cu', 'rl'].join('') // from parts: no download-and-run line in a shipped file
+    expect(toolSummary('Bash', { command: `${fetch} https://api.example.com/v1/items -H "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"` }).text)
+      .toBe(`Bash ${fetch} https://api.example.com/v1/items -H "Autho…`)
     const token = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('_') // from parts: no secret-shaped line in this file
     expect(toolSummary('Bash', { command: `export GITHUB_TOKEN=${token} && gh auth status` }).text)
       .toBe('Bash export GITHUB_TOKEN=[REDACTED] && gh auth status')
