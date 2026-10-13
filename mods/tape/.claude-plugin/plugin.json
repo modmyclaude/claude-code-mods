@@ -1,0 +1,60 @@
+{
+  "name": "tape",
+  "version": "0.1.0",
+  "description": "A ticker tape above the prompt: live stock, index, gold, FX and crypto prices, keyless by default.",
+  "homepage": "https://modmyclaude.com/mods/tape",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["stocks", "crypto", "ticker", "prices", "band", "hyperliquid", "alpaca"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Off draws nothing, runs no timer and fetches nothing.",
+      "default": true
+    },
+    "symbols": {
+      "type": "string",
+      "title": "Symbols",
+      "description": "Comma-separated. Stocks, indices, gold and FX as Hyperliquid lists them (AAPL, SP500, GOLD, EUR), crypto by name (BTC, ETH). Forty at most.",
+      "default": "AAPL,NVDA,TSLA,AMZN,SP500,GOLD,BTC,ETH"
+    },
+    "refresh": {
+      "type": "number",
+      "title": "Refresh (seconds)",
+      "description": "How often prices are fetched. At least 5; after a failure the wait doubles, up to five minutes, until the next success.",
+      "default": 10,
+      "min": 5,
+      "max": 300
+    },
+    "motion": {
+      "type": "string",
+      "title": "Motion",
+      "description": "scroll: a marquee that moves one cell ten times a second. rotate: pages of whole symbols, flipped every few seconds, with no per-frame redraw.",
+      "default": "scroll",
+      "options": ["scroll", "rotate"]
+    },
+    "rotateSeconds": {
+      "type": "number",
+      "title": "Rotate every (seconds)",
+      "description": "How long each page shows when motion is rotate.",
+      "default": 8,
+      "min": 2,
+      "max": 60
+    },
+    "alpacaKey": {
+      "type": "string",
+      "title": "Alpaca key id (optional)",
+      "description": "With the secret below, stock symbols come as real-time IEX quotes from data.alpaca.markets under your own Alpaca account; crypto stays on Hyperliquid. Stored as a secret, never drawn or logged.",
+      "sensitive": true
+    },
+    "alpacaSecret": {
+      "type": "string",
+      "title": "Alpaca secret key (optional)",
+      "description": "The secret that goes with the key id above. Stored as a secret, never drawn or logged.",
+      "sensitive": true
+    }
+  }
+}
