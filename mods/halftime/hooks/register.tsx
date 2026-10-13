@@ -276,6 +276,8 @@ export const register: Register = (on, options) => {
   // to show anything, and the CommandOutput hook below draws the scorecard in it.
   on('command.run', { command: 'halftime' }, async ($, e) => {
     if (!isOn) {
+      // Where no band is drawn (VS Code, mobile) the command's own row is the answer, as for the scorecard.
+      if (!(await banded($))) return { text: OFF_TEXT }
       $.ui.toast(OFF_TEXT)
       return {}
     }

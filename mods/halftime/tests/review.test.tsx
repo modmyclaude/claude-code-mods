@@ -117,6 +117,15 @@ for (const surface of ['vscode', 'mobile'] as const) {
   })
 }
 
+for (const surface of ['vscode', 'mobile'] as const) {
+  test(`switched off on ${surface}, where no band is drawn, the command's own row says so`, { options: { enabled: false } }, async ($, on) => {
+    const { seen } = world(on, { surfaces: [surface] })
+    await $.session.start({ cwd: '/', surface, isInteractive: true } as never)
+    expect(await $.command.run(halftime('cratehop'))).toEqual({ text: 'Halftime is off. /mods or /config turns it on.' })
+    expect(seen.toasts).toEqual([])
+  })
+}
+
 // Where copy has no clipboard (the desktop app), the result stays on screen to select.
 
 const NOCLIP: Plugin = {
