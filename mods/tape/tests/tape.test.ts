@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 import {
-  ageOf, backoff, cellsOf, fmtChange, fmtPrice, isQuiet, leadOf, MAX_INTERVAL_MS, pagesOf, parseAssetCtxs, parseMids, parseSnapshots,
+  ageOf, backoff, cellsOf, clampSpeed, DIVIDER, fmtChange, fmtPrice, frameMsOf, isQuiet, leadOf, MAX_INTERVAL_MS, pagesOf, parseAssetCtxs, parseMids, parseSnapshots,
   parseSymbols, ring, ringLength, runsOfPage, SYMBOLS_MAX, windowOf,
 } from '../hooks/tape'
 
@@ -108,5 +108,24 @@ describe('the loop', () => {
     expect(isQuiet('false')).toBe(false)
     expect(isQuiet('1')).toBe(true)
     expect(isQuiet('true')).toBe(true)
+  })
+})
+
+describe('the pace', () => {
+  test('the speed clamps to one to ten whole cells a second, anything else is four, and the frame follows', () => {
+    expect(clampSpeed(undefined)).toBe(4)
+    expect(clampSpeed('fast')).toBe(4)
+    expect(clampSpeed(Number.NaN)).toBe(4)
+    expect(clampSpeed(0)).toBe(1)
+    expect(clampSpeed(2.6)).toBe(3)
+    expect(clampSpeed(99)).toBe(10)
+    expect(frameMsOf(4)).toBe(250)
+    expect(frameMsOf(3)).toBe(333)
+    expect(frameMsOf(10)).toBe(100)
+    expect(frameMsOf(0)).toBe(1000)
+  })
+  test('the divider is one glyph with a space each side', () => {
+    expect([...DIVIDER].length).toBe(3)
+    expect(DIVIDER.trim()).toBe('│')
   })
 })

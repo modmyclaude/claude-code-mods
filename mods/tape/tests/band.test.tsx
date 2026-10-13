@@ -17,7 +17,7 @@ describe('A and B: the row', () => {
     for (const surface of ['terminal', 'desktop'] as const) {
       const band = await mountBand($, surface, { bodyColumns: 200 })
       const row = await rowOf(band)
-      expect(row.startsWith('tape · hyperliquid perps  '), surface).toBe(true)
+      expect(row.startsWith('tape · hyperliquid perps │ '), surface).toBe(true)
       expect(row).toContain('AAPL 346.16 +0.3%')
       expect(row).toContain('NVDA 225.55 -1.2%')
       expect(row).toContain('AMZN 231.40 0.0%')
@@ -74,7 +74,7 @@ describe('D and E: failures', () => {
     w.rec.mode = 'ok'
     await w.clock.advance(20_000) // the wait doubled after the failure
     await w.settle()
-    expect(await rowOf(band)).toContain('tape · hyperliquid perps  ') // the age is gone
+    expect(await rowOf(band)).toContain('tape · hyperliquid perps │ ') // the age is gone
     expect(await rowOf(band)).not.toContain('old')
     await band.unmount()
   })
@@ -115,40 +115,70 @@ describe('D and E: failures', () => {
 })
 
 describe('F and G: motion', () => {
-  test('the marquee shifts one cell per frame, wraps, and fills exactly the room beside the lead cell at any width', async ($, on) => {
+  test('the marquee shifts one cell per frame, four frames a second by default, wraps, and fills exactly the room beside the lead cell at any width', async ($, on) => {
     const w = world(on)
     await w.start($)
+    await $.command.run({ command: 'tape', args: 'scroll', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
     for (const columns of [60, 100, 157]) {
       const band = await mountBand($, 'terminal', { bodyColumns: columns })
-      const lead = 'tape · hyperliquid perps  '
+      const lead = 'tape · hyperliquid perps │ '
+      expect((await rowOf(band)).startsWith(lead), `${columns}`).toBe(true)
       const a = await movingOf(band)
       expect([...a].length, `${columns}`).toBe(columns - [...lead].length)
-      await w.clock.advance(100)
+      await w.clock.advance(249)
+      expect(await movingOf(band)).toBe(a) // not yet: a frame is 250 ms at four cells a second
+      await w.clock.advance(1)
       const b = await movingOf(band)
       expect(b).toBe((await movingOf(band)))
       expect(b.slice(0, -1)).toBe(a.slice(1)) // one cell to the left
-      await w.clock.advance(100)
+      await w.clock.advance(250)
       expect((await movingOf(band)).slice(0, -2)).toBe(a.slice(2))
+      expect((await rowOf(band)).startsWith(lead)).toBe(true) // the lead and its divider stand still
       await band.unmount()
     }
     const band = await mountBand($, 'terminal', { bodyColumns: 100 })
     const length = [...(await movingOf(band))].length
     const start = await movingOf(band)
-    await w.clock.advance(100 * 60) // past one lap of a short tape: it wraps
+    await w.clock.advance(250 * 200) // past one lap of a short tape: it wraps
     const later = await movingOf(band)
     expect([...later].length).toBe(length)
     expect(later).not.toBe(start)
     await band.unmount()
   })
-  test('rotate shows pages of whole symbols that fit, flips every rotateSeconds, and runs no frame timer', async ($, on) => {
+  test('the speed setting sets the pace from one to ten cells a second, live, and fetches nothing', async ($, on) => {
     const w = world(on)
     await w.start($)
-    await $.command.run({ command: 'tape', args: 'rotate', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+    const run = (args: string) => $.command.run({ command: 'tape', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+    await run('scroll')
+    const band = await mountBand($, 'terminal', { bodyColumns: 100 })
+    const rounds = () => w.rec.requests.filter(r => r.body?.includes('allMids') && r.body.includes('xyz')).length
+    const before = rounds()
+    const a = await movingOf(band)
+    await setConfig($, 'tape.speed', 10, 4)
+    await w.clock.advance(100)
+    expect((await movingOf(band)).slice(0, -1)).toBe(a.slice(1)) // one cell per 100 ms now
+    await setConfig($, 'tape.speed', 1, 10)
+    const b = await movingOf(band)
+    await w.clock.advance(999)
+    expect(await movingOf(band)).toBe(b) // one cell a second
+    await w.clock.advance(1)
+    expect((await movingOf(band)).slice(0, -1)).toBe(b.slice(1))
+    expect(rounds()).toBe(before) // a speed change asks the network for nothing
+    await run('rotate')
+    const page = await movingOf(band)
+    await w.clock.advance(1000)
+    expect(await movingOf(band)).toBe(page) // the frame timer went with the motion
+    expect(rounds()).toBe(before) // and the motion switch fetched nothing either
+    await band.unmount()
+  })
+  test('rotate, the default, shows pages of whole symbols that fit, flips every rotateSeconds, and runs no frame timer', async ($, on) => {
+    const w = world(on)
+    await w.start($)
     const band = await mountBand($, 'terminal', { bodyColumns: 70 })
     const first = await movingOf(band)
     expect(first.startsWith('AAPL 346.16 +0.3%   NVDA')).toBe(true)
     expect(first.endsWith(' ')).toBe(false) // whole cells, no gap at the end
-    expect([...first].length).toBeLessThanOrEqual(70 - 26)
+    expect([...first].length).toBeLessThanOrEqual(70 - 27)
     await w.clock.advance(100)
     expect(await movingOf(band)).toBe(first) // no marquee
     await w.clock.advance(8_000)
@@ -214,7 +244,7 @@ describe('H and I: yielding and the switches', () => {
     await w.settle()
     expect(await rowOf(band)).toContain('AAPL')
     await run('')
-    expect(w.rec.logs.at(-1)).toBe('tape: AAPL NVDA TSLA AMZN SP500 GOLD BTC ETH · hyperliquid perps · scroll')
+    expect(w.rec.logs.at(-1)).toBe('tape: AAPL NVDA TSLA AMZN SP500 GOLD BTC ETH · hyperliquid perps · rotate')
     await run('remove btc')
     await run('')
     expect(w.rec.logs.at(-1)).toContain('GOLD ETH ·')
@@ -253,7 +283,7 @@ describe('J and K: what leaves the machine', () => {
     expect(call.url).toBe('https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL,NVDA,TSLA,AMZN,SP500,GOLD&feed=iex')
     const band = await mountBand($, 'desktop', { bodyColumns: 200 })
     const row = await rowOf(band)
-    expect(row.startsWith('tape · alpaca iex  ')).toBe(true)
+    expect(row.startsWith('tape · alpaca iex │ ')).toBe(true)
     expect(row).toContain('AAPL 347.50 +2.2%') // from the snapshot
     expect(row).toContain('BTC 83,508 +2.1%') // still from Hyperliquid
     const everything = JSON.stringify(await band.drawn()) + w.rec.logs.join('\n')
@@ -267,7 +297,7 @@ describe('J and K: what leaves the machine', () => {
     await w.clock.advance(10_000)
     await w.settle()
     expect(w.rec.logs.filter(l => l.includes('alpaca refused'))).toEqual(['tape: alpaca refused the key; stocks stay on hyperliquid until the keys change'])
-    expect((await rowOf(band)).startsWith('tape · hyperliquid perps  ')).toBe(true)
+    expect((await rowOf(band)).startsWith('tape · hyperliquid perps │ ')).toBe(true)
     await w.clock.advance(10_000)
     await w.settle()
     expect(calls().length).toBe(3) // no further Alpaca call until the keys change
@@ -283,7 +313,7 @@ describe('L: the desktop tree', () => {
     const band = await mountBand($, 'desktop', { bodyColumns: 90 })
     const tree = await band.drawn()
     const row = await rowOf(band)
-    for (const ch of row) expect(/^[\x20-\x7e·]$/.test(ch), JSON.stringify(ch)).toBe(true)
+    for (const ch of row) expect(/^[\x20-\x7e·│]$/.test(ch), JSON.stringify(ch)).toBe(true)
     expect(walk(tree, n => n.type === 'Button').length).toBe(0)
     const shrinking = walk(tree, n => n.type === 'Box' && (n.props?.flexShrink === undefined || Number(n.props.flexShrink) > 0) && n.props?.width === undefined
       && (n.children ?? []).some(c => (c as Drawn).type === 'Text' && (c as Drawn).props?.wrap === 'truncate-end'))
@@ -305,7 +335,7 @@ describe('M: a reload', () => {
       return next(e)
     })
     await w.start($)
-    const band = await mountBand($, 'terminal')
+    const band = await mountBand($, 'terminal', { bodyColumns: 200 }) // one page: every symbol, whatever page the flips reach
     expect(await rowOf(band)).toContain('AAPL')
     const rounds = () => w.rec.requests.filter(r => r.body?.includes('allMids') && r.body.includes('xyz')).length
     await w.start($) // the code reloaded: register ran again, session.start again

@@ -10,10 +10,10 @@ A ticker tape above the prompt: live stock, index, gold, FX and crypto prices, k
 
 ## Use it
 
-- **The band.** One row above the prompt: `tape · hyperliquid perps   AAPL 346.16 +0.3%   NVDA 225.55 -1.2%   SP500 7,798 -0.1%   BTC 83,508 +2.1%`. Up in the theme's green, down in its red, unchanged dim; a sign and a colour, nothing else. The lead cell names the source, and adds `· 2m old` when the last fetch failed and the prices shown are the last good ones.
+- **The band.** One row above the prompt: `tape · hyperliquid perps │ AAPL 346.16 +0.3%   NVDA 225.55 -1.2%   SP500 7,798 -0.1%   BTC 83,508 +2.1%`. Up in the theme's green, down in its red, unchanged dim; a sign and a colour, nothing else. The lead cell names the source, and adds `· 2m old` when the last fetch failed and the prices shown are the last good ones. The tape runs out under the divider after it, so the cell on its way out is cut there, as on any ticker.
 - **Keyless by default.** Prices come from Hyperliquid's public info API: stocks, indices, gold and FX from its `xyz` market (`AAPL`, `NVDA`, `SP500`, `GOLD`, `EUR` and about a hundred more), crypto from its main market (`BTC`, `ETH`, `SOL` and the rest). These are perpetual-contract mid prices, not exchange quotes: close to the market, not the market itself. The band says so in its lead cell. A symbol Hyperliquid does not list draws as `SYM ?`, with one line in the transcript.
 - **Your own Alpaca key, if you have one.** Put your Alpaca key id and secret in `/config` and stock symbols come as real-time IEX quotes from Alpaca's market data under your own account (the free plan is enough); crypto stays on Hyperliquid. The lead cell then reads `alpaca iex`. The keys are stored as secrets and never drawn or logged. If Alpaca refuses them, one transcript line says so and stocks go back to Hyperliquid until the keys change.
-- **Motion.** `scroll` is a marquee that moves one cell ten times a second. `rotate` shows pages of whole symbols that fit the band, flipped every few seconds, with no redraw in between. Both in `/config`; `/tape scroll` and `/tape rotate` switch for the session.
+- **Motion.** `rotate`, the default, shows pages of whole symbols that fit the band, flipped every eight seconds, with no redraw in between. `scroll` is a marquee that moves four cells a second (`speed`, one to ten); every step redraws the band, and on one machine that took about an eighth of a core at ten cells a second, all day, idle or not. So the marquee is the choice, not the default. Both in `/config`; `/tape scroll` and `/tape rotate` switch for the session.
 - **Commands.** `/tape` writes the list and the source to the transcript. `/tape add NVDA` and `/tape remove NVDA` change the list for this session (the lasting list is the `symbols` setting). `/tape off` hides the band for the session and stops fetching; `/tape on` brings it back.
 - **Failures.** The last good prices stay on the band; nothing goes blank. After a failure or a rate limit the wait before the next fetch doubles, up to five minutes, and resets on the next success.
 - **The quiet switch.** With `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` set, tape makes no request at all and the band reads `tape off: nonessential traffic disabled`.
@@ -28,7 +28,8 @@ Every setting has a default, so the notice at install about options not yet set 
 | `enabled` | `true` | Off draws nothing, runs no timer and fetches nothing. |
 | `symbols` | `AAPL,NVDA,TSLA,AMZN,SP500,GOLD,BTC,ETH` | The symbols, comma-separated, forty at most. Stocks, indices, gold and FX as Hyperliquid lists them; crypto by name. |
 | `refresh` | `10` | Seconds between fetches, at least 5. |
-| `motion` | `scroll` | `scroll` or `rotate`. |
+| `motion` | `rotate` | `rotate` or `scroll`. |
+| `speed` | `4` | Cells a second when motion is `scroll`, 1 to 10. |
 | `rotateSeconds` | `8` | How long each page shows when motion is `rotate`. |
 | `alpacaKey` | empty | Optional. Your Alpaca key id; stored as a secret. |
 | `alpacaSecret` | empty | Optional. Your Alpaca secret key; stored as a secret. |

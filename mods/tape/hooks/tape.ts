@@ -10,8 +10,12 @@ export const DEFAULT_SYMBOLS = 'AAPL,NVDA,TSLA,AMZN,SP500,GOLD,BTC,ETH'
 export const SYMBOL_RE = /^[A-Z0-9][A-Z0-9:.-]{0,15}$/
 /** Symbols at most; the rest of a long setting are dropped. */
 export const SYMBOLS_MAX = 40
-/** The marquee moves one cell per frame, ten frames a second: the engine's own ceiling for redraws. */
-export const FRAME_MS = 100
+/** The marquee's pace in cells a second: four reads at a glance; ten is the engine's own ceiling for redraws. */
+export const DEFAULT_SPEED = 4
+export const SPEED_MIN = 1
+export const SPEED_MAX = 10
+/** Between the lead cell and the moving part: where the tape runs out, so the cell on its way out is cut there. */
+export const DIVIDER = ' │ '
 /** The longest wait between fetches after failures. */
 export const MAX_INTERVAL_MS = 300_000
 /** The gap between two symbols on the tape. */
@@ -19,6 +23,8 @@ export const GAP = '   '
 
 export type Tone = 'up' | 'down' | 'flat' | 'dim' | 'name'
 export type Motion = 'scroll' | 'rotate'
+/** Pages by default: one redraw a page. A marquee redraws the band every step, which costs CPU all day, so it is the choice. */
+export const DEFAULT_MOTION: Motion = 'rotate'
 
 /** The symbols of a setting or a command, upper-cased, cleaned, deduplicated, capped. */
 export function parseSymbols(text: string): string[] {
@@ -34,6 +40,17 @@ export function parseSymbols(text: string): string[] {
 
 export function isMotion(value: unknown): value is Motion {
   return value === 'scroll' || value === 'rotate'
+}
+
+/** The speed setting as whole cells a second within the range; anything else is the default. */
+export function clampSpeed(value: unknown): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : DEFAULT_SPEED
+  return Math.min(SPEED_MAX, Math.max(SPEED_MIN, n))
+}
+
+/** The wait between two frames of the marquee at a speed, in milliseconds. */
+export function frameMsOf(speed: number): number {
+  return Math.round(1000 / clampSpeed(speed))
 }
 
 /** A finite positive number from what a source wrote, or undefined. */

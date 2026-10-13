@@ -15,8 +15,8 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { TapeMeta, TapeQuotes, TapeView } from '../types'
 import {
-  ageOf, backoff, cellsOf, DEFAULT_SYMBOLS, FRAME_MS, isMotion, isQuiet, leadOf, pagesOf, parseAssetCtxs, parseMids, parseSnapshots,
-  parseSymbols, ring, runsOfPage, windowOf,
+  ageOf, backoff, cellsOf, clampSpeed, DEFAULT_MOTION, DEFAULT_SPEED, DEFAULT_SYMBOLS, DIVIDER, frameMsOf, isMotion, isQuiet, leadOf, pagesOf,
+  parseAssetCtxs, parseMids, parseSnapshots, parseSymbols, ring, runsOfPage, windowOf,
 } from './tape'
 import type { Motion, Run } from './tape'
 
@@ -35,7 +35,8 @@ const view = atom({ plugin: 'tape', key: 'view' } as const, { on: true } as Tape
 let enabled = true
 let symbolsSetting = DEFAULT_SYMBOLS
 let refreshS = 10
-let motionSetting: Motion = 'scroll'
+let motionSetting: Motion = DEFAULT_MOTION
+let speedSetting = DEFAULT_SPEED
 let rotateS = 8
 let alpacaKey = ''
 let alpacaSecret = ''
@@ -71,9 +72,19 @@ async function startLoops($: EngineInterface) {
   const v = await read($, view)
   if (!enabled || !v.on || quiet) return
   scheduleFetch($, 0)
+  await startMotion($)
+}
+
+/** Restarts the frame or page timer for the current motion, speed and page time; the fetch loop is left alone. */
+async function startMotion($: EngineInterface) {
+  frameTimer?.cancel()
+  pageTimer?.cancel()
+  frameTimer = pageTimer = undefined
+  const v = await read($, view)
+  if (!enabled || !v.on || quiet) return
   const motion = v.motion ?? motionSetting
   if (motion === 'scroll') {
-    frameTimer = $.clock.every(FRAME_MS, () => void update($, view, x => ({ ...x, offset: (x.offset ?? 0) + 1 })))
+    frameTimer = $.clock.every(frameMsOf(speedSetting), () => void update($, view, x => ({ ...x, offset: (x.offset ?? 0) + 1 })))
   } else {
     pageTimer = $.clock.every(rotateS * 1000, () => void update($, view, x => ({ ...x, page: (x.page ?? 0) + 1 })))
   }
@@ -178,7 +189,8 @@ export const register: Register = (on, options) => {
   enabled = options.enabled !== false
   symbolsSetting = typeof options.symbols === 'string' && options.symbols.trim() !== '' ? options.symbols : DEFAULT_SYMBOLS
   refreshS = clampRefresh(options.refresh)
-  motionSetting = isMotion(options.motion) ? options.motion : 'scroll'
+  motionSetting = isMotion(options.motion) ? options.motion : DEFAULT_MOTION
+  speedSetting = clampSpeed(options.speed)
   rotateS = clampRotate(options.rotateSeconds)
   alpacaKey = typeof options.alpacaKey === 'string' ? options.alpacaKey.trim() : ''
   alpacaSecret = typeof options.alpacaSecret === 'string' ? options.alpacaSecret.trim() : ''
@@ -217,19 +229,25 @@ export const register: Register = (on, options) => {
   })
   on('config.set', { key: 'tape.motion' }, async ($, e, next) => {
     const r = await next(e)
-    motionSetting = isMotion(e.value) ? e.value : 'scroll'
+    motionSetting = isMotion(e.value) ? e.value : DEFAULT_MOTION
     await update($, view, x => {
       const { motion: _, ...rest } = x
       return rest
     })
-    await startLoops($)
+    await startMotion($)
     $.ui.invalidate('ui.render')
+    return r
+  })
+  on('config.set', { key: 'tape.speed' }, async ($, e, next) => {
+    const r = await next(e)
+    speedSetting = clampSpeed(e.value)
+    await startMotion($)
     return r
   })
   on('config.set', { key: 'tape.rotateSeconds' }, async ($, e, next) => {
     const r = await next(e)
     rotateS = clampRotate(e.value)
-    await startLoops($)
+    await startMotion($)
     return r
   })
   for (const key of ['tape.alpacaKey', 'tape.alpacaSecret'] as const) {
@@ -286,7 +304,7 @@ export const register: Register = (on, options) => {
       case 'scroll':
       case 'rotate':
         await update($, view, x => ({ ...x, motion: verb.toLowerCase() as Motion }))
-        await startLoops($)
+        await startMotion($)
         break
       default:
         $.ui.log(usage)
@@ -318,7 +336,7 @@ export const register: Register = (on, options) => {
     const source = Object.values(q).some(x => x.source === 'alpaca') ? 'alpaca' : 'hyperliquid'
     const stale = m.lastErr !== null && (m.lastOk === null || m.lastErr > m.lastOk)
     const lead = leadOf(source, stale ? ageOf(now, m.lastOk) : undefined)
-    const room = Math.max(0, width - [...lead].length - 2)
+    const room = Math.max(0, width - [...lead].length - [...DIVIDER].length)
     const motion = v.motion ?? motionSetting
     let runs: Run[]
     if (motion === 'scroll') {
@@ -332,7 +350,7 @@ export const register: Register = (on, options) => {
         {below}
         <Box key="tape" flexDirection="row" width={width} minWidth={0}>
           <Box flexShrink={0}>
-            <Text dimColor>{lead}  </Text>
+            <Text dimColor>{`${lead}${DIVIDER}`}</Text>
           </Box>
           <Box flexDirection="row" flexShrink={1} minWidth={0}>
             {runs.map(run => (

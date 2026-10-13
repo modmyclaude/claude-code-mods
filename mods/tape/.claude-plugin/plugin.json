@@ -32,9 +32,17 @@
     "motion": {
       "type": "string",
       "title": "Motion",
-      "description": "scroll: a marquee that moves one cell ten times a second. rotate: pages of whole symbols, flipped every few seconds, with no per-frame redraw.",
-      "default": "scroll",
-      "options": ["scroll", "rotate"]
+      "description": "rotate: pages of whole symbols that fit the band, flipped every few seconds, one redraw a page. scroll: a marquee moving a few cells a second, the pace in the speed setting; every step redraws the band, which costs some CPU all day.",
+      "default": "rotate",
+      "options": ["rotate", "scroll"]
+    },
+    "speed": {
+      "type": "number",
+      "title": "Scroll speed (cells per second)",
+      "description": "How far the marquee moves each second when motion is scroll. Four reads at a glance; ten is the engine's ceiling for redraws.",
+      "default": 4,
+      "min": 1,
+      "max": 10
     },
     "rotateSeconds": {
       "type": "number",
