@@ -90,7 +90,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "keywords": [
         "security",
         "secrets",
@@ -128,7 +128,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "6dee58f",
+      "commit": "b23aa23",
       "reach": [
         "writes files",
         "reads files",
@@ -214,7 +214,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "6dee58f",
+      "commit": "d4a6290",
       "reach": [
         "calls a model",
         "hooks prompts"
