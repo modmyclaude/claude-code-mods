@@ -2,9 +2,10 @@
 // field is drawn one code-font cell per character there; the terminal keeps
 // its plain text rows.
 
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
 
 import { BAND, VIEWPORT, boardOf, fieldText, halftime, world } from './fixtures'
+import { test } from './limit'
 
 type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
 const kids = (n: Node) => (n.children ?? []) as Node[]

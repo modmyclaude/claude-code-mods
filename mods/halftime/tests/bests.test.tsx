@@ -1,10 +1,11 @@
 // Personal bests survive two open sessions: every save re-reads the store
 // right before writing, so a lower score never overwrites a higher one.
 
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect } from 'claude-code/testing'
 
 import { addTotals, saveBest, saveDaily, type Store } from '../hooks/bests'
 import { BAND, VIEWPORT, bandText, boardOf, halftime, play, titleText, world } from './fixtures'
+import { test } from './limit'
 
 /** One shared disk, and a session's view of it; `afterSet` runs once right after this session's next write. */
 function sessionOn(disk: Map<string, unknown>, hooks: { afterSet?: () => void } = {}): Store {

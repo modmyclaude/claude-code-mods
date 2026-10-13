@@ -6,11 +6,12 @@
 // in: a fault's reason, what a board posts, what the store holds, and what is
 // typed after /halftime.
 
-import { describe, expect, mock, test } from 'claude-code/testing'
+import { describe, expect, mock } from 'claude-code/testing'
 import type { Engine, Plugin } from 'claude-code/testing'
 
 import { clean } from '../hooks/share'
 import { BAND, SURFACES, VIEWPORT, halftime, said, world } from './fixtures'
+import { test } from './limit'
 
 const CONTROLS = [
   ['BEL', '\u0007'],

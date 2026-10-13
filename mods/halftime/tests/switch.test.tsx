@@ -4,10 +4,11 @@
 // (the first test, by its options); the config.set hook flips it at once (the others,
 // through a stand-in for the engine's own config row).
 
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { BAND, METER, SURFACES, VIEWPORT, bandText, boardOf, halftime, meterCount, play, said, world } from './fixtures'
+import { test } from './limit'
 
 const OFF = 'Halftime is off. /mods or /config turns it on.'
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }

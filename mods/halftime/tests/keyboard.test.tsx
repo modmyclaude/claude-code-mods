@@ -2,7 +2,7 @@
 // the board its click. The band's focus chord (ctrl+x tab) and the letter pad
 // under the board take the keys instead, and the run plays from the keyboard.
 
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
 
 import type { On } from 'claude-code'
 import type { Engine, Plugin } from 'claude-code/testing'
@@ -10,6 +10,7 @@ import type { Engine, Plugin } from 'claude-code/testing'
 import { GAME_IDS, gameOf } from '../hooks/games'
 import { padFor } from '../hooks/view'
 import { BAND, VIEWPORT, boardOf, fieldText, halftime, play, world } from './fixtures'
+import { test } from './limit'
 
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 

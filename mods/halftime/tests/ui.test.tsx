@@ -2,13 +2,14 @@
 // the result line and its copy, the fit to the band's own width, the
 // scorecard where no board can be drawn, and the keys a board never passes on.
 
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
 
 import { CRATEHOP } from '../hooks/games/cratehop'
 import { SWEEP, initSweep } from '../hooks/games/sweep'
 import { dailySeed } from '../hooks/rng'
 import { BAND, ENGINE_BAND, SURFACES, T0, VIEWPORT, bandText, boardOf, cellAt, fieldText, halftime, play, said, titleText, world } from './fixtures'
 import type { BoardSeen } from './fixtures'
+import { test } from './limit'
 
 const DAY = '2026-10-09'
 

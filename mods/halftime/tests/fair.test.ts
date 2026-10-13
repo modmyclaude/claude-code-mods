@@ -4,7 +4,7 @@
 // year (from 2026-10-09) and a set of practice seeds, and play them with a
 // bot or a solver that sees only what a player sees.
 
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect } from 'claude-code/testing'
 
 import type { HalftimeCratehop, HalftimeGameId, HalftimeMerge, HalftimeSweep, HalftimeTailchase } from '../types'
 import { CRATEHOP, airDistance, clearWindowMs, initCratehop, jumpCratehop, layout, minGap, reactionMs, speedAt, stepCratehop, timeToLand } from '../hooks/games/cratehop'
@@ -13,8 +13,7 @@ import { OPENING_MOVES, canMove, highChance, initMerge, moveMerge, pointsFor, sl
 import { TAILCHASE, initTailchase, moveTailchase, reachableCells, stepMs, stepTailchase, turnTailchase } from '../hooks/games/tailchase'
 import { SWEEP, countAdjacent, dealSweep, initSweep, latticeMines, neighbors, revealAt, solves } from '../hooks/games/sweep'
 import { dailySeed, dayKey, fnv1a, practiceSeed, rand } from '../hooks/rng'
-
-const LONG = { timeoutMs: 60_000 }
+import { test } from './limit'
 
 /** What the ticket asks for, written out so a change to a constant cannot quietly move the goalposts. */
 const REACT_MS = 250
@@ -299,7 +298,7 @@ describe('cratehop', () => {
   /** The narrowest fair board: a 24-column band, 22 field cells. */
   const NARROW = 22
 
-  test('a human-like bot (sees only the screen, reacts in 250 ms, +-60 ms of jitter) clears the cap regime on every daily seed for a year and 50 practice seeds', LONG, () => {
+  test('a human-like bot (sees only the screen, reacts in 250 ms, +-60 ms of jitter) clears the cap regime on every daily seed for a year and 50 practice seeds', () => {
     expect(FAR - capX).toBeGreaterThanOrEqual(60 * CRATEHOP.vmax)
     let jumps = 0
     for (const seed of seeds) {
@@ -311,7 +310,7 @@ describe('cratehop', () => {
     expect(jumps / seeds.length).toBeGreaterThan(FAR / 50)
   })
 
-  test('the same bot also clears 5,000 cells on a wide board, on a sample of the seeds', LONG, () => {
+  test('the same bot also clears 5,000 cells on a wide board, on a sample of the seeds', () => {
     for (const seed of seeds.filter((_, i) => i % 14 === 0)) {
       const run = human(seed, 5000, 68)
       expect(run.dead, `seed ${seed} crashed at ${Math.round(run.x)}`).toBe(false)
@@ -422,7 +421,7 @@ describe('tailchase', () => {
     expect(stepMs(1_000_000)).toBe(TAILCHASE.floorMs)
   })
 
-  test('every pip lands on a free cell the head can reach, across many seeds and long scripted games, and the speed caps', LONG, () => {
+  test('every pip lands on a free cell the head can reach, across many seeds and long scripted games, and the speed caps', () => {
     const seeds = [...dailySeeds('tailchase').slice(0, 20), ...practiceSeeds('tailchase', 12)]
     let best = 0
     let capped = 0
@@ -603,7 +602,7 @@ describe('sweep', () => {
     expect(solve(easy).s.won).toBe(true)
   })
 
-  test('the solver clears every daily board for a year and 200 practice seeds with no guess', LONG, () => {
+  test('the solver clears every daily board for a year and 200 practice seeds with no guess', () => {
     for (const seed of seeds) {
       const board = initSweep(seed)
       // The fair density, never thinned by the fallback.
@@ -762,7 +761,7 @@ describe('merge', () => {
 // ---- the clock ---------------------------------------------------------------------------------
 
 describe('generation time', () => {
-  test('a year of daily boards for all four games, laid out as far as a long run goes, takes a fraction of a second', LONG, () => {
+  test('a year of daily boards for all four games, laid out as far as a long run goes, takes a fraction of a second', () => {
     // Warm the code paths once, so the first call's compile time is not the thing measured.
     for (const id of GAME_IDS) gameOf(id).init(dailySeed(id, '2026-10-08'))
     layout(initCratehop(5), 3000)

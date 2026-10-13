@@ -4,7 +4,7 @@
 // reach a clipboard, the five behaviours no test pinned before (mutants M1
 // to M5), and the band's stacking.
 
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
 import type { Plugin } from 'claude-code/testing'
 import type { RenderSurface } from 'claude-code'
 
@@ -12,18 +12,18 @@ import { IDLE_PAUSE_MS } from '../hooks/engine'
 import { initSweep } from '../hooks/games/sweep'
 import { dailySeed } from '../hooks/rng'
 import { BAND, METER, SURFACES, VIEWPORT, bandText, boardOf, cellAt, fieldText, halftime, meterCount, play, said, world } from './fixtures'
+import { test } from './limit'
 
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 const turnDone = (turnId: string, agentId?: string) => ({
   answer: 'done', durationMs: 1000, isAborted: false, turnId, reason: 'answer' as const, ...(agentId ? { agentId } : {}),
 })
-const LONG = { timeoutMs: 60_000 }
 
 type Totals = { playedMs: number; waitPlayedMs: number; runs: number }
 
 // A realtime run nobody plays stops ticking, and its idle time never counts.
 
-test('a realtime run with no key or click for 20 s pauses itself, stops its frame clock, and counts none of the idle time', { plugins: [METER], ...LONG }, async ($, on) => {
+test('a realtime run with no key or click for 20 s pauses itself, stops its frame clock, and counts none of the idle time', { plugins: [METER] }, async ($, on) => {
   const disk = new Map<string, unknown>()
   const { clock, seen } = world(on, { store: disk })
   await $.turn.start(MAIN_TURN)
@@ -58,7 +58,7 @@ test('a realtime run with no key or click for 20 s pauses itself, stops its fram
   expect(totals.waitPlayedMs).toBe(totals.playedMs)
 })
 
-test('a key now and then keeps a realtime run in play well past 20 s, and all of it counts', LONG, async ($, on) => {
+test('a key now and then keeps a realtime run in play well past 20 s, and all of it counts', async ($, on) => {
   const disk = new Map<string, unknown>()
   const { clock } = world(on, { store: disk })
   await $.command.run(halftime('tailchase'))

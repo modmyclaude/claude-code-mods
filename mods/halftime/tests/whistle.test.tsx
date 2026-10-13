@@ -2,9 +2,10 @@
 // engine raises them, on a run being played on the board, on both surfaces
 // that draw one.
 
-import { expect, test } from 'claude-code/testing'
+import { expect } from 'claude-code/testing'
 
 import { BAND, METER, SURFACES, VIEWPORT, bandText, boardOf, fieldText, halftime, meterCount, play, said, titleText, world } from './fixtures'
+import { test } from './limit'
 
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 const turnDone = (turnId: string, agentId?: string) => ({

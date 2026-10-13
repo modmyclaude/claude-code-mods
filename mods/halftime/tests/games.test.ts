@@ -3,7 +3,7 @@
 // must keep (never Enter, y, n or a digit).
 
 import { BOLT_PALETTE, BOLT_RUN, boltCells } from '../hooks/bolt'
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect } from 'claude-code/testing'
 
 import type { HalftimeCratehop, HalftimeSweep, HalftimeTailchase } from '../types'
 import { CRATEHOP, airDistance, hits, initCratehop, jumpCratehop, layout, minGap, speedAt, stepCratehop } from '../hooks/games/cratehop'
@@ -15,6 +15,7 @@ import { FLOOR, SLAB, SWEEP, countAdjacent, flagAt, flood, initSweep, neighbors,
 import { SHARED_KEYS } from '../hooks/engine'
 import { dailySeed, dayKey, fnv1a, rand, randInt } from '../hooks/rng'
 import { duration, scorecard, shareLine } from '../hooks/share'
+import { test } from './limit'
 
 describe('names', () => {
   // Every id is a picker button, a command argument, a store key and a daily seed. A rename is
