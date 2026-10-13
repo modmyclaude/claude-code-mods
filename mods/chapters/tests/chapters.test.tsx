@@ -2,9 +2,10 @@
 // the model is sent, the pane and its presses, the band, and the logic alone.
 
 import { describe, expect, test } from 'claude-code/testing'
+import type { ModelCompleteInput } from 'claude-code'
 
 import { batches, editDiff, hunksFor, isSecretFile, newFileDiff, parseDiff } from '../hooks/diff'
-import { MAX_INPUT, costWords, parseReply } from '../hooks/review'
+import { MAX_INPUT, MAX_TOKENS, SYSTEM, TIMEOUT_MS, costWords, parseReply } from '../hooks/review'
 import { shortHunk } from '../hooks/register'
 import { DIFF, MB, ROOT, SURFACES, TWO, bandTexts, chapters, pane, paneTexts, reply, start, world } from './world'
 
@@ -176,6 +177,21 @@ describe('what the model is sent', () => {
     expect(w.prompts[0]).toMatch(/^This is part 1 of 2 of the diff/)
     expect(w.prompts[1]).toMatch(/more changed files were not sent \(too long\)/)
     expect((await paneTexts($)).at(-1)).toMatch(/^\d+ changed files were too long to send and are not in this review\./)
+  })
+
+  test('each call carries the instructions, the token cap, low effort and the time limit; a refused alias falls back to the environment\'s small model with the same request', async ($, on) => {
+    const calls: ModelCompleteInput[] = []
+    on('model.complete', { model: /./ }, ($, e, next) => {
+      calls.push(e)
+      return next(e)
+    })
+    on('env.get', { name: 'ANTHROPIC_DEFAULT_HAIKU_MODEL' }, () => ({ value: 'claude-haiku-gateway' }))
+    const w = world(on)
+    w.replies = ['deny', TWO]
+    await start($)
+    await chapters($, w)
+    expect(calls.map(c => c.model)).toEqual(['haiku', 'claude-haiku-gateway'])
+    for (const c of calls) expect(c).toMatchObject({ system: SYSTEM, maxTokens: MAX_TOKENS, effort: 'low', timeoutMs: TIMEOUT_MS, prompt: calls[0]!.prompt })
   })
 
   test('the model you set writes the review', { options: { model: 'sonnet' } }, async ($, on) => {

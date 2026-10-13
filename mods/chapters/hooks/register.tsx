@@ -126,9 +126,9 @@ async function gitDiff($: EngineInterface, root: string, scope: 'changes' | 'sta
 }
 
 async function complete($: EngineInterface, prompt: string): Promise<ModelCompleteResult | null> {
-  const ask = { system: SYSTEM, prompt, maxTokens: MAX_TOKENS, effort: 'low', timeoutMs: TIMEOUT_MS } as const
+  const request = { system: SYSTEM, prompt, maxTokens: MAX_TOKENS, effort: 'low', timeoutMs: TIMEOUT_MS } as const
   try {
-    return await $.model.complete({ ...ask, model: settings.model })
+    return await $.model.complete({ ...request, model: settings.model })
   } catch (refusal) {
     // The haiku alias can be refused (a gateway): the environment may name the provider's small model.
     const other = settings.model === MODEL ? ((await $.env.get('ANTHROPIC_DEFAULT_HAIKU_MODEL').catch(() => undefined)) ?? (await $.env.get('ANTHROPIC_SMALL_FAST_MODEL').catch(() => undefined))) : undefined
@@ -137,7 +137,7 @@ async function complete($: EngineInterface, prompt: string): Promise<ModelComple
       return null
     }
     try {
-      return await $.model.complete({ ...ask, model: other })
+      return await $.model.complete({ ...request, model: other })
     } catch (again) {
       debug($, `model refused: ${String(again)}`)
       return null
