@@ -632,7 +632,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "keywords": [
         "safety",
         "bash",
@@ -665,7 +665,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "46496e5",
+      "commit": "1c3ec0c",
       "reach": [
         "reads files",
         "runs commands",

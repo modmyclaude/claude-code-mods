@@ -131,7 +131,7 @@
       "name": "last-look",
       "source": "./mods/last-look",
       "description": "Holds destructive commands until you approve, and shows what they would destroy.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "category": "safety",
       "keywords": [
         "safety",
