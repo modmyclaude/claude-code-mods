@@ -37,8 +37,8 @@ type Settings = { isEnabled: boolean; startOn: boolean; command: string; maxSeco
 
 export function readSettings(options: Record<string, unknown>): Settings {
   const s = typeof options.maxSeconds === 'number' && Number.isFinite(options.maxSeconds) ? Math.min(600, Math.max(5, Math.round(options.maxSeconds))) : 120
-  const command = typeof options.command === 'string' ? options.command.trim().slice(0, 500) : ''
-  return { isEnabled: options.enabled !== false, startOn: options.startOn === true, command, maxSeconds: s }
+  const testCommand = typeof options.command === 'string' ? options.command.trim().slice(0, 500) : ''
+  return { isEnabled: options.enabled !== false, startOn: options.startOn === true, command: testCommand, maxSeconds: s }
 }
 
 const OFF_TEXT = 'Umpire is off. /mods or /config turns it on.'

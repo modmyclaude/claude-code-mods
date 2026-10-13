@@ -262,6 +262,14 @@ describe('the call', () => {
     await turn($, w)
     expect(w.runs[0]!.argv).toEqual(['/bin/sh', '-c', 'make test-fast'])
   })
+
+  test('the command setting wins over the project\'s and the one found, trimmed, run through the shell', { options: { startOn: true, command: '  make check  ' } }, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await umpire($, 'command make test-fast')
+    await turn($, w)
+    expect(w.runs[0]!.argv).toEqual(['/bin/sh', '-c', 'make check'])
+  })
 })
 
 describe('the parsers and the words', () => {
