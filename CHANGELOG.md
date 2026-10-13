@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- cloakroom 0.1.4: the audit's running count goes by its own name, no longer the name of the function that runs the audit, so the plugin directory can follow it; nothing it does changed.
 - last-look 0.1.3: the five spelled-out names no longer share the name of the function that holds a command, so the plugin directory can follow it; nothing it does changed.
 - cloakroom 0.1.3: the plugin directory's source checks pass: a short name in the hooks module is spelled out so the drawing's factory name is never reused, and two key-shaped test lines are built from parts; nothing it does changed.
 - last-look 0.1.2: the plugin directory's source checks pass: the invisible-character rule is written as escapes, and five short names in the hooks module are spelled out so the drawing's factory name is never reused; nothing it does changed.

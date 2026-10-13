@@ -344,39 +344,39 @@ async function runAudit($: Dollar, room: Room): Promise<string[]> {
   const files = await listTranscripts($, `${base}/projects`)
   if (files.length === 0) return [`cloakroom audit: no transcripts found in ${shownBase}/projects.`]
 
-  const { audit } = room
+  const { audit: tally } = room
   const started = performance.now()
   let bytes = 0
   let read = 0
   let isCut = false
   for (const file of files) {
-    if (audit.done.has(file.path)) continue
+    if (tally.done.has(file.path)) continue
     if (performance.now() - started > AUDIT_MS || bytes > AUDIT_BYTES) {
       isCut = true
       break
     }
-    audit.done.add(file.path)
+    tally.done.add(file.path)
     if (file.size > FS_READ_MAX) {
-      audit.tooBig++
+      tally.tooBig++
       continue
     }
     const text = await $.fs.read(file.path).catch(() => undefined)
     if (text === undefined) {
-      audit.unreadable++
+      tally.unreadable++
       continue
     }
-    auditTranscript(audit, room.vault, text, file.path, new Date(file.mtimeMs).toISOString().slice(0, 10))
+    auditTranscript(tally, room.vault, text, file.path, new Date(file.mtimeMs).toISOString().slice(0, 10))
     bytes += text.length
     read++
   }
-  const covered = files.filter(f => audit.done.has(f.path)).length
+  const covered = files.filter(f => tally.done.has(f.path)).length
   const lines = [
     `cloakroom audit (read-only): ${covered} of ${plural(files.length, 'transcript')} in ${shownBase}/projects checked, newest first (${read} read just now).`,
   ]
-  if (audit.tooBig > 0 || audit.unreadable > 0) {
-    lines.push(`Not checked: ${audit.tooBig} over 4 MiB (the most one file read can take) and ${audit.unreadable} unreadable.`)
+  if (tally.tooBig > 0 || tally.unreadable > 0) {
+    lines.push(`Not checked: ${tally.tooBig} over 4 MiB (the most one file read can take) and ${tally.unreadable} unreadable.`)
   }
-  const found = findingLines(audit)
+  const found = findingLines(tally)
   if (found.length === 0) {
     lines.push('No exposed secrets found in what was checked.')
   } else {
