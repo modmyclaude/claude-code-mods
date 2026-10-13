@@ -11,6 +11,16 @@
 //   TOOL_CHECK a tool.check hook that does not `return next(e)` or a
 //              literal verdict, so the decision cannot be shown to be
 //              left with the person                                   (blocking)
+//   PERMISSION a classic.PermissionRequest hook, in hooks or tests, that does
+//              not `return next(e)` or a literal deny/ask answer
+//              (MOD_PERMISSION_ANSWER_UNREAD)                         (blocking)
+//   CONFIG_SET a `config.set(...)` call, in hooks or tests, whose argument is
+//              not one object literal with a fixed-text key and a value, or
+//              carries a cast (MOD_CONFIG_SET_UNREAD)                 (blocking)
+//   EVENT      a hook on an event the directory's list lacks, `ui.fault`
+//              so far (MOD_HOOKS_UNKNOWN_EVENT)                       (blocking)
+//   IMPORT     a Client element whose path is not a fixed string, or an
+//              import() of a computed path (MOD_IMPORT_DYNAMIC_COMPUTED) (blocking)
 //   RUN        a download-and-run command in a shipped file           (warning)
 //   FOLLOW     `$` or `on` used in a way a static read may not follow:
 //              not as `$.noun.method(...)`, not as `on("event", hook)`,
@@ -190,6 +200,71 @@ function scanModule(path, out) {
   }
 }
 
+// ---- hooks and tests alike: permission answers, config.set calls, unknown events, computed paths
+const UNKNOWN_EVENTS = new Set(['ui.fault'])
+function scanShared(path, out) {
+  const text = readFileSync(path, 'utf8')
+  const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
+  const rel = relative(ROOT, path)
+  const lineOf = node => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
+  const report = (kind, node, why) => out.push({ kind, at: `${rel}:${lineOf(node)}`, text: why, blocking: true })
+  const isFn = n => ts.isArrowFunction(n) || ts.isFunctionExpression(n)
+  const isLiteralText = n => ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)
+  const walk = node => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression
+      // on('event', ..., hook)
+      if (ts.isIdentifier(callee) && callee.text === 'on' && node.arguments[0] && isLiteralText(node.arguments[0])) {
+        const ev = node.arguments[0].text
+        if (UNKNOWN_EVENTS.has(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list; Claude Code at that list's version refuses to load the mod`)
+        const fn = node.arguments[node.arguments.length - 1]
+        if (ev === 'classic.PermissionRequest' && fn && isFn(fn)) checkAnswer(fn, 'classic.PermissionRequest')
+      }
+      // X.config.set(arg)
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'set' && ts.isPropertyAccessExpression(callee.expression) && callee.expression.name.text === 'config') {
+        const a = node.arguments[0]
+        if (!a || !ts.isObjectLiteralExpression(a)) report('CONFIG_SET', node, `config.set takes one object written in the call (${a ? a.getText(sf).slice(0, 50) : 'nothing'}); a cast or a variable breaks the directory's read`)
+        else {
+          const key = a.properties.find(q => ts.isPropertyAssignment(q) && ts.isIdentifier(q.name) && q.name.text === 'key')
+          const value = a.properties.find(q => (ts.isPropertyAssignment(q) || ts.isShorthandPropertyAssignment(q)) && ts.isIdentifier(q.name) && q.name.text === 'value')
+          if (!key || !isLiteralText(key.initializer)) report('CONFIG_SET', node, `config.set needs a fixed-text key member (${key ? key.initializer.getText(sf).slice(0, 40) : 'none'})`)
+          if (!value) report('CONFIG_SET', node, 'config.set needs a value member written in the call')
+        }
+      }
+      // import(expr)
+      if (callee.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0] && !isLiteralText(node.arguments[0])) report('IMPORT', node, `import() of a computed path (${node.arguments[0].getText(sf).slice(0, 40)}); write a fixed string or a static import`)
+    }
+    // <Client path={...}> with anything but a fixed string
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
+      const tag = node.tagName.getText(sf)
+      if (tag === 'Client' || tag.endsWith('.Client')) {
+        const pathAttr = node.attributes.properties.find(a => ts.isJsxAttribute(a) && ts.isIdentifier(a.name) && (a.name.text === 'module' || a.name.text === 'path'))
+        const init = pathAttr && pathAttr.initializer
+        const fixed = init && (ts.isStringLiteral(init) || (ts.isJsxExpression(init) && init.expression && isLiteralText(init.expression)))
+        if (!fixed) report('IMPORT', node, `a Client element whose module is not a fixed string (${init ? init.getText(sf).slice(0, 40) : 'no module'})`)
+      }
+    }
+    node.forEachChild(walk)
+  }
+  function checkAnswer(fn, ev) {
+    const e = fn.parameters[1] && ts.isIdentifier(fn.parameters[1].name) ? fn.parameters[1].name.text : undefined
+    const next = fn.parameters[2] && ts.isIdentifier(fn.parameters[2].name) ? fn.parameters[2].name.text : undefined
+    for (const prm of fn.parameters) if (!ts.isIdentifier(prm.name)) report('PERMISSION', prm, `a ${ev} hook's parameters must be plain names`)
+    const returns = []
+    const inner = n => { if (isFn(n) && n !== fn) return; if (ts.isReturnStatement(n)) returns.push(n); if (ts.isIdentifier(n) && n.text === 'arguments') report('PERMISSION', n, `a ${ev} hook must not use arguments`); n.forEachChild(inner) }
+    inner(fn.body)
+    if (!ts.isBlock(fn.body)) returns.push({ expression: fn.body, getStart: () => fn.body.getStart(sf) })
+    if (returns.length === 0) report('PERMISSION', fn, `a ${ev} hook that returns nothing ends the check without deciding it; return next(${e ?? 'e'}) or a literal deny or ask`)
+    for (const r of returns) {
+      const x = r.expression
+      const passes = x && ts.isCallExpression(x) && ts.isIdentifier(x.expression) && x.expression.text === next && x.arguments.length === 1 && ts.isIdentifier(x.arguments[0]) && x.arguments[0].text === e
+      const verdict = x && ts.isObjectLiteralExpression(x) && x.properties.some(q => ts.isPropertyAssignment(q) && ts.isIdentifier(q.name) && (q.name.text === 'decision' || q.name.text === 'deny') && (isLiteralText(q.initializer) && (q.name.text === 'deny' || ['deny', 'ask'].includes(q.initializer.text))))
+      if (!passes && !verdict) report('PERMISSION', r, `a ${ev} hook must return next(${e ?? 'e'}) or a literal deny or ask; this returns ${x ? x.getText(sf).slice(0, 50) : 'nothing'}`)
+    }
+  }
+  walk(sf)
+}
+
 // ---- .tsx files: `h` and `Fragment` are the JSX factory's names and nothing else's
 function scanJsxNames(path, out) {
   const text = readFileSync(path, 'utf8')
@@ -199,8 +274,7 @@ function scanJsxNames(path, out) {
     if (ts.isIdentifier(node) && (node.text === 'h' || node.text === 'Fragment')) {
       const p = node.parent
       const isCallee = ts.isCallExpression(p) && p.expression === node
-      const isTypeSide = ts.isPropertySignature(p) || ts.isTypeReferenceNode(p) || ts.isPropertyAccessExpression(p) && p.name === node || ts.isPropertyAssignment(p) && p.name === node && !ts.isShorthandPropertyAssignment(p) || ts.isJsxAttribute(p) || ts.isQualifiedName(p)
-      if (!isCallee && !isTypeSide) {
+      if (!isCallee) { // a type member, a property, a parameter: the directory counts them all
         const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
         out.push({ kind: 'H_NAME', at: `${rel}:${line}`, text: `the name ${node.text} is used as ${p.getText(sf).replace(/\s+/g, ' ').slice(0, 50)}; in a .tsx file it is the JSX factory and nothing else (rename it)`, blocking: true })
       }
@@ -219,6 +293,7 @@ for (const mod of mods) {
     scanText(path, out)
     if (/\/hooks\/[^/]+\.tsx?$/.test(path)) scanModule(path, out)
     if (path.endsWith('.tsx')) scanJsxNames(path, out)
+    if (/\/(?:hooks|tests)\/[^/]+\.tsx?$/.test(path)) scanShared(path, out)
   }
   const b = out.filter(f => f.blocking).length, w = out.length - b
   blocking += b; warnings += w
