@@ -89,11 +89,6 @@ export function world(on: On, setup: { env?: Record<string, string>; mode?: Mode
   }
 }
 
-/** A /config row changing, as the menu would send it. */
-export function setConfig($: Engine, key: string, value: unknown, previous: unknown) {
-  return $.config.set({ key, value, previous, provider: { plugin: 'engine', tier: 'core' } } as never)
-}
-
 export function bandProps(over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] {
   return { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {}, ...over }
 }

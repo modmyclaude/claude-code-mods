@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import { keyOf, mountBand, movingOf, rowOf, setConfig, SNAPSHOTS, textOf, walk, world } from './world'
+import { keyOf, mountBand, movingOf, rowOf, SNAPSHOTS, textOf, walk, world } from './world'
 import type { Drawn } from './world'
 
 const KEY = 'PKTESTKEYID1234'
@@ -153,10 +153,10 @@ describe('F and G: motion', () => {
     const rounds = () => w.rec.requests.filter(r => r.body?.includes('allMids') && r.body.includes('xyz')).length
     const before = rounds()
     const a = await movingOf(band)
-    await setConfig($, 'tape.speed', 10, 4)
+    await $.config.set({ key: 'tape.speed', value: 10, previous: 4, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
     await w.clock.advance(100)
     expect((await movingOf(band)).slice(0, -1)).toBe(a.slice(1)) // one cell per 100 ms now
-    await setConfig($, 'tape.speed', 1, 10)
+    await $.config.set({ key: 'tape.speed', value: 1, previous: 10, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
     const b = await movingOf(band)
     await w.clock.advance(999)
     expect(await movingOf(band)).toBe(b) // one cell a second
@@ -216,13 +216,13 @@ describe('H and I: yielding and the switches', () => {
     const band = await mountBand($, 'terminal')
     expect(await rowOf(band)).toContain('AAPL')
     const before = w.rec.requests.length
-    await setConfig($, 'tape.enabled', false, true)
+    await $.config.set({ key: 'tape.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
     await w.settle()
     expect(textOf(await band.drawn())).toBe('beneath')
     await w.clock.advance(60_000)
     await w.settle()
     expect(w.rec.requests.length).toBe(before)
-    await setConfig($, 'tape.enabled', true, false)
+    await $.config.set({ key: 'tape.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
     await w.clock.advance(1)
     await w.settle()
     expect(w.rec.requests.length).toBeGreaterThan(before)
@@ -271,8 +271,8 @@ describe('J and K: what leaves the machine', () => {
   test('with keys set, stocks come from one Alpaca call with the exact headers, crypto stays on Hyperliquid, and the key is in no tree or log; a 401 falls back once', async ($, on) => {
     const w = world(on)
     await w.start($)
-    await setConfig($, 'tape.alpacaKey', KEY, '')
-    await setConfig($, 'tape.alpacaSecret', SECRET, '')
+    await $.config.set({ key: 'tape.alpacaKey', value: KEY, previous: '', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+    await $.config.set({ key: 'tape.alpacaSecret', value: SECRET, previous: '', provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
     await w.clock.advance(1) // the fetch the keys asked for
     await w.settle()
     const calls = () => w.rec.requests.filter(r => r.url.startsWith('https://data.alpaca.markets/v2/stocks/snapshots'))
