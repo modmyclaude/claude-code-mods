@@ -131,7 +131,7 @@
       "name": "last-look",
       "source": "./mods/last-look",
       "description": "Holds destructive commands until you approve, and shows what they would destroy.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "safety",
       "keywords": [
         "safety",
@@ -147,7 +147,7 @@
       "name": "noted",
       "source": "./mods/noted",
       "description": "Turns your corrections into permanent rules, without duplicates.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "memory",
       "keywords": [
         "memory",
