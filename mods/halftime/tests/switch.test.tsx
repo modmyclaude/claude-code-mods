@@ -14,7 +14,7 @@ const OFF = 'Halftime is off. /mods or /config turns it on.'
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'halftime.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' } } as never)
+  return $.config.set({ key: 'halftime.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 const band = ($: Engine, surface: 'terminal' | 'desktop') =>
@@ -49,7 +49,7 @@ test('switched off: no band, no board, no whistle, no timer, and turns, prompts 
   await survey.unmount()
 
   // No whistle: Claude's prompts and questions pass as they came.
-  expect(await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'ls' } })).toEqual({})
+  expect(await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'ls' } })).toEqual({ decision: { behavior: 'deny', message: 'the test world answers no' } })
   expect(await $.classic.Elicitation({ mcp_server_name: 'tracker', message: 'Which project?' })).toEqual({})
   expect(await $.classic.Notification({ message: 'Claude needs your permission to use Bash', notification_type: 'permission_prompt' })).toEqual({})
   expect(await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)).toEqual({ result: { answers: { 'Ship it?': 'Yes' } }, text: 'User answered: Yes' })

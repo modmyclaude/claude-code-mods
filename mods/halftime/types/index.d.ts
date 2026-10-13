@@ -142,14 +142,11 @@ export type HalftimeStats = {
   runs: number
 }
 
-export type HalftimeFault = { surface: string; reason: string }
-
 declare module 'claude-code' {
   interface PluginState {
     halftime: {
       session: HalftimeSession
       stats: HalftimeStats
-      fault: HalftimeFault | null
     }
   }
 }

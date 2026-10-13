@@ -10,7 +10,7 @@ import type { ClientKeyEvent, ClientPointerEvent, ClientSurface } from 'claude-c
 
 /** [text, color, background, flags]: '' and 0 for none; flags 1 bold, 2 dim, 4 inverse. */
 type Seg = [string, string, string, number]
-type Grid = { x: number; cw: number; ox: number; oy: number; w: number; h: number; vw?: number }
+type Grid = { x: number; cw: number; ox: number; oy: number; width: number; height: number; vw?: number }
 type Props = {
   rid: number
   live: boolean
@@ -124,7 +124,7 @@ function start(surface: Surface, props: Props): Local {
       const col = event.x - g.x
       const cx = Math.floor(col / g.cw) + g.ox
       const cy = row + g.oy
-      if (col < 0 || row < 0 || row >= local.props.rows.length || cx - g.ox >= (g.vw ?? g.w) || cx < 0 || cy < 0 || cx >= g.w || cy >= g.h) return
+      if (col < 0 || row < 0 || row >= local.props.rows.length || cx - g.ox >= (g.vw ?? g.width) || cx < 0 || cy < 0 || cx >= g.width || cy >= g.height) return
       queue(local, `click:${cx},${cy},${button}`)
     }
     send(surface, local, false)

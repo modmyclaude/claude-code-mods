@@ -1,15 +1,12 @@
 // One control character in a drawn string and the engine
 // refuses the band's whole tree, taking every other mod's band with it.
-// The one outside text halftime draws is why a board failed (the surface's
-// words, quoting what the board threw); the rest is its own words, game ids
-// and numbers. Each control class goes through every way outside text gets
-// in: a fault's reason, what a board posts, what the store holds, and what is
-// typed after /halftime.
+// Halftime draws only its own words, game ids and numbers. Each control class
+// goes through every way outside text could get in: what a board posts, what
+// the store holds, and what is typed after /halftime.
 
-import { describe, expect, mock } from 'claude-code/testing'
+import { describe, expect } from 'claude-code/testing'
 import type { Engine, Plugin } from 'claude-code/testing'
 
-import { clean } from '../hooks/share'
 import { BAND, SURFACES, VIEWPORT, halftime, said, world } from './fixtures'
 import { test } from './limit'
 
@@ -35,39 +32,6 @@ const NEIGHBOUR: Plugin = {
           {rest}
         </Box>
       )
-    })
-  },
-}
-
-/**
- * Stands above halftime: breaks the board once on each surface (its rows
- * become a string, so the board throws while drawing and the engine reports a
- * fault), and puts the control character the test names into the fault's
- * reason as halftime stores it. The engine promises a reason with no control
- * character; this breaks that promise on purpose, so the band never leans on it.
- */
-const BREAKER: Plugin = {
-  name: 'breaker',
-  tier: 'prepend',
-  register(on) {
-    const broken = new Set<string>()
-    const corrupt = (node: unknown): unknown => {
-      if (node === null || typeof node !== 'object') return node
-      const el = node as { type?: string; props?: Record<string, unknown>; children?: unknown[] }
-      if (el.type === 'Client') return { ...el, props: { ...el.props, props: { ...(el.props?.props as object), rows: 'not rows' } } }
-      return el.children ? { ...el, children: el.children.map(corrupt) } : el
-    }
-    on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-      const tree = await next(e)
-      if (broken.has(e.surface) || !JSON.stringify(tree ?? null).includes('"Client"')) return tree
-      broken.add(e.surface)
-      return corrupt(tree) as typeof tree
-    })
-    on('state.set', async ($, e, next) => {
-      const write = e as unknown as { plugin: string; key: string; value: { surface: string; reason: string } | null }
-      if (write.plugin !== 'halftime' || write.key !== 'fault' || write.value === null) return next(e)
-      const dirt = (await $.env.get('HALFTIME_DIRT')) ?? ''
-      return next({ ...e, value: { ...write.value, reason: `the board${dirt} broke` } } as typeof e)
     })
   },
 }
@@ -112,36 +76,7 @@ async function mountBand($: Engine, surface: (typeof SURFACES)[number]) {
 }
 
 describe('control characters', () => {
-  test('clean() handles each control class, bidi and zero-width', () => {
-    const cases: [string, string][] = [
-      ['boom\u0007', 'boom�'],
-      ['\u001b[31mboom\u001b[0m', 'boom'],
-      ['boom\u007f', 'boom�'],
-      ['bo\u0000om', 'bo�om'],
-      ['boom\u009b2J', 'boom'],
-      ['\u001b]0;title\u0007boom', 'boom'],
-      ['bo\u200bom\u202e', 'boom'],
-      ['at line 1\nat line 2', 'at line 1 at line 2'],
-      ['RangeError', 'RangeError'],
-    ]
-    for (const [raw, out] of cases) expect(clean(raw)).toBe(out)
-  })
-
   for (const [name, c] of CONTROLS) {
-    test(`${name} in why the board failed: the fallback line draws clean`, { plugins: [BREAKER, NEIGHBOUR] }, async ($, on) => {
-      world(on)
-      mock.env(on, { HALFTIME_DIRT: c })
-      await $.command.run(halftime('cratehop'))
-      for (const surface of SURFACES) {
-        // The first drawing here: the board throws, and the engine reports the fault.
-        await expect(mountBand($, surface)).rejects.toThrow(/Client/)
-        const ui = await mountBand($, surface)
-        await expectClean(ui, surface)
-        expect((await ui.find({ type: 'Text', text: /could not run here/ }))?.text).toMatch(/could not run here \(the board�? broke\)/)
-        await ui.unmount()
-      }
-    })
-
     test(`${name} in what a board posts: dropped or ignored, never drawn`, { plugins: [NEIGHBOUR] }, async ($, on) => {
       world(on)
       await $.command.run(halftime('sweep'))

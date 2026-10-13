@@ -496,7 +496,7 @@ describe('drawing', () => {
         expect(rowText(row)[g.x - 1], `${cols} cols`).toBe('│')
         expect(rowText(row)[g.x + g.vw * g.cw], `${cols} cols`).toBe('│')
         expect(g.x + g.vw * g.cw + 1, `${cols} cols`).toBeLessThanOrEqual(cols)
-        expect(g.vw).toBeLessThanOrEqual(g.w)
+        expect(g.vw).toBeLessThanOrEqual(g.width)
       }
     })
   })

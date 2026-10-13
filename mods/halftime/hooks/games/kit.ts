@@ -20,7 +20,7 @@ export const INVERSE = 4
  * centering pad and the side rail; `w` x `h` is the whole field, `vw` how many
  * of its columns (cells) are drawn when a narrow band scrolls it.
  */
-export type Grid = { x: number; cw: number; ox: number; oy: number; w: number; h: number; vw: number }
+export type Grid = { x: number; cw: number; ox: number; oy: number; width: number; height: number; vw: number }
 
 export type Drawn = { rows: Seg[][]; grid?: Grid }
 

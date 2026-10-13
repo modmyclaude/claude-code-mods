@@ -152,7 +152,7 @@ export function drawTailchase(s: HalftimeTailchase, cols: number, rows: number):
     field.push(cells)
   }
   const framed = frame(field, vw * cw, cols)
-  return { rows: framed.rows, grid: { x: framed.x, cw, ox, oy, w: s.w, h: s.h, vw } }
+  return { rows: framed.rows, grid: { x: framed.x, cw, ox, oy, width: s.w, height: s.h, vw } }
 }
 
 const turn = (dir: number) => `turn:${dir}`

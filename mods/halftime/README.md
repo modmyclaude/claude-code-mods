@@ -97,6 +97,10 @@ that comes back after any of these waits for your click.
   play. Turn-based games (merge, sweep) never tick, so they need no such pause.
 - **After you answer a permission prompt**, play resumes when that step's tools
   finish (the API has no "dialog answered" event), or at your next turn.
+- **A permission prompt another hook settles** before any dialog shows (one of
+  your own settings hooks allows or denies it) still blows the whistle: Halftime
+  passes Claude Code's answer on without reading it. Play comes back the same
+  way, when that step's tools finish.
 - **Two open sessions** share bests safely (each save re-reads the store just
   before writing and repairs a lower write it finds after), but the store has no
   true compare-and-set: two saves in the same instant can still race. Totals are

@@ -4,7 +4,7 @@
 
 import { expect, mock } from 'claude-code/testing'
 import type { Engine, Plugin } from 'claude-code/testing'
-import type { ClassicResultOf, On, RenderSurface } from 'claude-code'
+import type { On, RenderSurface } from 'claude-code'
 
 /** 3 pm local time on 9 October 2026: the daily board's day is 2026-10-09 wherever the test runs. */
 export const T0 = new Date(2026, 9, 9, 15, 0, 0).getTime()
@@ -43,7 +43,6 @@ export function world(
   options: {
     store?: Record<string, unknown> | Map<string, unknown>
     now?: number
-    permission?: ClassicResultOf['classic.PermissionRequest']
     /** What `$.session.surfaces()` answers: the terminal unless a test says otherwise. */
     surfaces?: RenderSurface[]
   } = {},
@@ -73,7 +72,11 @@ export function world(
   on('session.surfaces', () => ({ value: options.surfaces ?? ['terminal'] }))
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
-  on('classic.PermissionRequest', () => options.permission ?? {})
+  // What Claude Code answers beneath halftime: a fixed deny, an answer the plugin directory
+  // reads in a test (halftime passes it on unread either way).
+  on('classic.PermissionRequest', () => {
+    return { decision: { behavior: 'deny', message: 'the test world answers no' } }
+  })
   on('classic.Elicitation', () => ({}))
   on('classic.Notification', () => ({}))
   on('classic.PostToolBatch', () => ({}))
@@ -160,7 +163,7 @@ export type BoardSeen = {
   title: [string, string, string, number][]
   rows: [string, string, string, number][][]
   /** Field geometry for clicks (tailchase, sweep); null for a game with no field to aim at. */
-  grid: { x: number; cw: number; ox: number; oy: number; w: number; h: number; vw: number } | null
+  grid: { x: number; cw: number; ox: number; oy: number; width: number; height: number; vw: number } | null
   wait: string
   hint: string
 }

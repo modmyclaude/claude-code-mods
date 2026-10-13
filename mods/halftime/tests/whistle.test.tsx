@@ -182,13 +182,14 @@ test('an input request from a tool and the permission notification blow it too',
   expect(await bandText(ui)).toContain('permission')
 })
 
-test('a permission a settings hook already decided shows no dialog, so no whistle', async ($, on) => {
-  world(on, { permission: { decision: { behavior: 'allow' } } })
+test('the permission answer passes on unread: what Claude Code answers comes back as it was, and the whistle blows', async ($, on) => {
+  world(on)
   await $.turn.start(MAIN_TURN)
   await $.command.run(halftime('merge'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
-  await $.classic.PermissionRequest({ tool_name: 'Read', tool_input: { file_path: 'x' } })
-  expect(await boardOf(ui)).toBeDefined()
+  expect(await $.classic.PermissionRequest({ tool_name: 'Read', tool_input: { file_path: 'x' } })).toEqual({ decision: { behavior: 'deny', message: 'the test world answers no' } })
+  expect(await boardOf(ui)).toBeUndefined()
+  expect(await bandText(ui)).toContain('permission')
 })
 
 test('the observing hooks never block: with their own logic failing, the question and the prompt go through', async ($, on) => {
@@ -198,12 +199,14 @@ test('the observing hooks never block: with their own logic failing, the questio
     asked += 1
     return { result: {} as never, text: 'User answered: No' }
   })
-  on('classic.PermissionRequest', () => ({}))
+  on('classic.PermissionRequest', () => {
+    return { decision: { behavior: 'deny', message: 'not in this folder' } }
+  })
   const answer = await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)
   expect(asked).toBe(1)
   expect(answer.text).toBe('User answered: No')
   expect(answer.deny).toBeUndefined()
-  expect(await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} })).toEqual({})
+  expect(await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} })).toEqual({ decision: { behavior: 'deny', message: 'not in this folder' } })
 })
 
 test('a survey takes the band: the run pauses and the board waits for a click afterwards', { plugins: [METER] }, async ($, on) => {

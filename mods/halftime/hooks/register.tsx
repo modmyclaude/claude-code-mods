@@ -19,14 +19,13 @@ import {
   resume, setPractice, showBoard, startGame, turnComplete, turnStart, unsaved, workAgain,
 } from './engine'
 import { GAME_IDS, gameOf, isGameId } from './games'
-import { clean, scorecard } from './share'
+import { scorecard } from './share'
 import { boardView } from './view'
 
 const EMPTY_STATS: HalftimeStats = { auto: false, last: null, best: {}, daily: {}, playedMs: 0, waitPlayedMs: 0, runs: 0 }
 
 const session = atom({ plugin: 'halftime', key: 'session' } as const, EMPTY_SESSION)
 const stats = atom({ plugin: 'halftime', key: 'stats' } as const, EMPTY_STATS)
-const fault = atom({ plugin: 'halftime', key: 'fault' } as const, null)
 
 /** Auto mode offers a game once a main-loop turn has run this long. */
 export const OFFER_AFTER_MS = 10_000
@@ -105,8 +104,6 @@ async function followUp($: EngineInterface, before: HalftimeSession, next: Halft
   }
   if (next.run && next.run.id !== before.run?.id) {
     await remember($, next.run.game)
-    // A new run gets a fresh try on a surface where the board failed before.
-    await update($, fault, () => null)
   }
   if (unsaved(next) && next.run) await saveResult($, next.run.id)
   const leftPlay = before.run?.status === 'live' && next.run?.status !== 'live'
@@ -323,7 +320,6 @@ export const register: Register = (on, options) => {
         mine
       )
     const st = await read($, stats)
-    const broken = await read($, fault)
     const now = await $.clock.now()
     const cols = Math.max(16, e.props.bodyColumns)
 
@@ -412,14 +408,7 @@ export const register: Register = (on, options) => {
     const props = boardView(run, st, cols, boardRows, now)
     return stack(
       <Box flexDirection="column">
-        {/* The reason is the surface's words, quoting what the board threw: untrusted. */}
-        {broken && broken.surface === e.surface ? (
-          <Text dimColor wrap="truncate-end">
-            halftime: the board could not run here ({clean(broken.reason)}). {scorecard(st)}
-          </Text>
-        ) : (
-          <Client key={`board-${run.id}-${run.epoch}`} module="./board.tsx" props={{ ...props, cells: e.surface === 'desktop' }} />
-        )}
+        <Client key={`board-${run.id}-${run.epoch}`} module="./board.tsx" props={{ ...props, cells: e.surface === 'desktop' }} />
         {roomy ? (
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
             {result ? <Text wrap="truncate-end">{result.share}</Text> : null}
@@ -465,13 +454,6 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('ui.fault', async ($, e, next) => {
-    if (!isOn) return next(e)
-    $.ui.log(`halftime: the board failed on ${e.surface} (${e.phase}): ${e.reason}`, { to: 'debug' })
-    await update($, fault, () => ({ surface: e.surface, reason: e.reason }))
-    return next(e)
-  })
-
   // Main-loop turns: start resumes from the whistle (3-2-1) and may arm the offer.
   on('turn.start', async ($, e, next) => {
     if (!isOn || !isMain(e)) return next(e)
@@ -494,13 +476,13 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // Needs-you signals from any loop: a subagent's permission prompt needs you too.
+  // Needs-you signals from any loop: a subagent's permission prompt needs you too. The
+  // answer passes on unread, so a prompt another hook settles still blows the whistle;
+  // play comes back when that step's tools finish.
   on('classic.PermissionRequest', async ($, e, next) => {
     if (!isOn) return next(e)
-    const answer = await next(e)
-    // A settings hook that decided means no dialog will show.
-    if (!answer.decision) await whistle($, 'permission', loopOf(e.agent_id))
-    return answer
+    await whistle($, 'permission', loopOf(e.agent_id))
+    return next(e)
   }).catch(($, e, next) => next(e))
 
   on('classic.Elicitation', async ($, e, next) => {
