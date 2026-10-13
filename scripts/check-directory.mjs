@@ -21,6 +21,9 @@
 //              so far (MOD_HOOKS_UNKNOWN_EVENT)                       (blocking)
 //   IMPORT     a Client element whose path is not a fixed string, or an
 //              import() of a computed path (MOD_IMPORT_DYNAMIC_COMPUTED) (blocking)
+//   CLIENT     a Client element with any other attribute not written as a
+//              literal (a template key, a props spread): a hint while the
+//              directory's reading of Client is settled               (warning)
 //   RUN        a download-and-run command in a shipped file           (warning)
 //   FOLLOW     `$` or `on` used in a way a static read may not follow:
 //              not as `$.noun.method(...)`, not as `on("event", hook)`,
@@ -242,6 +245,15 @@ function scanShared(path, out) {
         const init = pathAttr && pathAttr.initializer
         const fixed = init && (ts.isStringLiteral(init) || (ts.isJsxExpression(init) && init.expression && isLiteralText(init.expression)))
         if (!fixed) report('IMPORT', node, `a Client element whose module is not a fixed string (${init ? init.getText(sf).slice(0, 40) : 'no module'})`)
+        // Until the directory's reader is understood: every other attribute of a Client written as a
+        // literal too (a template key or a props spread may read as the computed path it refuses).
+        for (const a of node.attributes.properties) {
+          if (ts.isJsxSpreadAttribute(a)) { out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(a)}`, text: 'a Client element with a spread attribute; the directory may read it as a computed path', blocking: false }); continue }
+          if (!ts.isJsxAttribute(a) || !ts.isIdentifier(a.name) || a.name.text === 'module') continue
+          const v = a.initializer
+          const literal = !v || ts.isStringLiteral(v) || (ts.isJsxExpression(v) && v.expression && (isLiteralText(v.expression) || (ts.isObjectLiteralExpression(v.expression) && v.expression.properties.every(q => ts.isPropertyAssignment(q) && (isLiteralText(q.initializer) || ts.isNumericLiteral(q.initializer) || q.initializer.kind === ts.SyntaxKind.TrueKeyword || q.initializer.kind === ts.SyntaxKind.FalseKeyword)))))
+          if (!literal) out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(a)}`, text: `a Client element's ${a.name.text} is not written as a literal (${v ? v.getText(sf).replace(/\s+/g, ' ').slice(0, 50) : ''}); the directory may read it as a computed path`, blocking: false })
+        }
       }
     }
     node.forEachChild(walk)
@@ -258,7 +270,17 @@ function scanShared(path, out) {
     for (const r of returns) {
       const x = r.expression
       const passes = x && ts.isCallExpression(x) && ts.isIdentifier(x.expression) && x.expression.text === next && x.arguments.length === 1 && ts.isIdentifier(x.arguments[0]) && x.arguments[0].text === e
-      const verdict = x && ts.isObjectLiteralExpression(x) && x.properties.some(q => ts.isPropertyAssignment(q) && ts.isIdentifier(q.name) && (q.name.text === 'decision' || q.name.text === 'deny') && (isLiteralText(q.initializer) && (q.name.text === 'deny' || ['deny', 'ask'].includes(q.initializer.text))))
+      // a literal answer: { decision: 'deny' | 'ask' } (tool.check's shape) or the classic hook's
+      // { decision: { behavior: 'deny' | 'ask', ... } }, written in the return
+      const isVerdictLiteral = q => {
+        if (!ts.isPropertyAssignment(q) || !ts.isIdentifier(q.name)) return false
+        if (q.name.text === 'deny') return isLiteralText(q.initializer)
+        if (q.name.text !== 'decision') return false
+        if (isLiteralText(q.initializer)) return ['deny', 'ask'].includes(q.initializer.text)
+        if (ts.isObjectLiteralExpression(q.initializer)) return q.initializer.properties.some(b => ts.isPropertyAssignment(b) && ts.isIdentifier(b.name) && b.name.text === 'behavior' && isLiteralText(b.initializer) && ['deny', 'ask'].includes(b.initializer.text))
+        return false
+      }
+      const verdict = x && ts.isObjectLiteralExpression(x) && x.properties.some(isVerdictLiteral)
       if (!passes && !verdict) report('PERMISSION', r, `a ${ev} hook must return next(${e ?? 'e'}) or a literal deny or ask; this returns ${x ? x.getText(sf).slice(0, 50) : 'nothing'}`)
     }
   }
