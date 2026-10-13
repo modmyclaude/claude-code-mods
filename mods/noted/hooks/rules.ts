@@ -49,7 +49,7 @@ function parse(content: string): Parsed {
   let fence: { char: string; length: number; start: number } | null = null
   for (const line of splitLines(content)) {
     // A byte order mark is not part of the first line's text.
-    const text = line.start === 0 ? line.text.replace(/^﻿/, '') : line.text
+    const text = line.start === 0 ? line.text.replace(/^\ufeff/, '') : line.text
     const marker = FENCE.exec(text)
     let isCode = fence !== null
     if (marker) {

@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- noted 0.1.2: the byte-order-mark rule is written as an escape, so the source reads as it runs (the plugin directory's source check asks for no invisible characters); nothing else changed.
 - ant-farm 0.3.4: a subagent's card no longer says `WAITING · permission for …` while Claude Code asks you about its tool; the mod reads no permission decision and passes every verdict through untouched, which the plugin directory's source check asks for. `WAITING` still marks an agent the engine's list holds. The secret-shaped test fixtures are built from parts.
 - cloakroom 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live. Off, it hides, restores, holds and reads nothing, a ticket Claude already holds stays its text and what was hidden stays hidden; switched on, it reads the .env files and has cached prompt parts checked again. Another mod, or a /config sent over Remote Control, can switch it on but not off; a failure beneath while it is off reaches Claude Code as it is.
 - crossroads 0.1.2: an On switch (on by default) that /config and the modmyclaude hub flip live; off, Crossroads draws no band, makes no model call, leaves Claude Code's own guess as it is and counts nothing, and a list under way is dropped.
