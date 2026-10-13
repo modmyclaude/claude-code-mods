@@ -47,7 +47,7 @@ Every setting has a default, so the notice at install about options not yet set 
 - **Hyperliquid's own terms** apply to its API; the mod uses the public, keyless endpoints and sends nothing of yours. Whether the service is available where you are is between you and Hyperliquid.
 - **Alpaca's free plan** gives IEX-venue prices in real time and 200 requests a minute; tape makes one request per refresh for all your stock symbols. SIP (full-market) data is not on the free plan.
 - **The 24 h change** is read from each source's own earlier price and shows `--` until that has arrived, about a minute after the band first draws.
-- **The desktop app draws text in a proportional font**, so the marquee's cells are not all the same width there; the row still holds what fits.
+- **The desktop app draws text in a proportional font**, narrower than the cells the band counts, so there the band packs about a quarter more than the count says. A page can still cut its last price at the right edge when the symbols run long.
 - A symbol list is capped at forty, and each symbol at sixteen characters of letters, digits, colon, dot and dash; anything else is dropped before it is drawn.
 
 ## Built from a prompt

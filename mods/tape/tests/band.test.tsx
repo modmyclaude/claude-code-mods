@@ -307,6 +307,22 @@ describe('J and K: what leaves the machine', () => {
 })
 
 describe('L: the desktop tree', () => {
+  test('the desktop packs about a quarter more than the count, its font being narrower than the cells counted', async ($, on) => {
+    const w = world(on)
+    await w.start($)
+    const terminal = await mountBand($, 'terminal', { bodyColumns: 90 })
+    const desktop = await mountBand($, 'desktop', { bodyColumns: 90 })
+    const t = await movingOf(terminal)
+    const d = await movingOf(desktop)
+    expect(t.startsWith('AAPL')).toBe(true)
+    expect(t).toContain('TSLA')
+    expect(t).not.toContain('AMZN') // three whole cells fit 63 counted cells
+    expect(d.startsWith(t)).toBe(true) // the same page, continued
+    expect(d).toContain('AMZN') // a fourth on the desktop
+    expect(d).not.toContain('SP500')
+    await terminal.unmount()
+    await desktop.unmount()
+  })
   test('plain characters only, words boxes may shrink, no buttons, a shallow tree', async ($, on) => {
     const w = world(on)
     await w.start($)

@@ -16,7 +16,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { TapeMeta, TapeQuotes, TapeView } from '../types'
 import {
   ageOf, backoff, cellsOf, clampSpeed, DEFAULT_MOTION, DEFAULT_SPEED, DEFAULT_SYMBOLS, DIVIDER, frameMsOf, isMotion, isQuiet, leadOf, pagesOf,
-  parseAssetCtxs, parseMids, parseSnapshots, parseSymbols, ring, runsOfPage, windowOf,
+  parseAssetCtxs, parseMids, parseSnapshots, parseSymbols, ring, roomOf, runsOfPage, windowOf,
 } from './tape'
 import type { Motion, Run } from './tape'
 
@@ -336,7 +336,7 @@ export const register: Register = (on, options) => {
     const source = Object.values(q).some(x => x.source === 'alpaca') ? 'alpaca' : 'hyperliquid'
     const stale = m.lastErr !== null && (m.lastOk === null || m.lastErr > m.lastOk)
     const lead = leadOf(source, stale ? ageOf(now, m.lastOk) : undefined)
-    const room = Math.max(0, width - [...lead].length - [...DIVIDER].length)
+    const room = roomOf(width, lead, e.surface)
     const motion = v.motion ?? motionSetting
     let runs: Run[]
     if (motion === 'scroll') {

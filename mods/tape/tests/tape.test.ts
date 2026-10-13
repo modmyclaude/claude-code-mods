@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 import {
-  ageOf, backoff, cellsOf, clampSpeed, DIVIDER, fmtChange, fmtPrice, frameMsOf, isQuiet, leadOf, MAX_INTERVAL_MS, pagesOf, parseAssetCtxs, parseMids, parseSnapshots,
+  ageOf, backoff, cellsOf, clampSpeed, DIVIDER, fmtChange, fmtPrice, frameMsOf, isQuiet, leadOf, MAX_INTERVAL_MS, pagesOf, roomOf, parseAssetCtxs, parseMids, parseSnapshots,
   parseSymbols, ring, ringLength, runsOfPage, SYMBOLS_MAX, windowOf,
 } from '../hooks/tape'
 
@@ -123,6 +123,12 @@ describe('the pace', () => {
     expect(frameMsOf(3)).toBe(333)
     expect(frameMsOf(10)).toBe(100)
     expect(frameMsOf(0)).toBe(1000)
+  })
+  test('the room beside the lead is the width less the lead and the divider, a quarter more on the desktop, never negative', () => {
+    expect(roomOf(100, 'tape · hyperliquid perps', 'terminal')).toBe(73)
+    expect(roomOf(100, 'tape · hyperliquid perps', 'desktop')).toBe(98)
+    expect(roomOf(90, 'tape · hyperliquid perps', 'vscode')).toBe(63)
+    expect(roomOf(10, 'tape · hyperliquid perps', 'desktop')).toBe(0)
   })
   test('the divider is one glyph with a space each side', () => {
     expect([...DIVIDER].length).toBe(3)

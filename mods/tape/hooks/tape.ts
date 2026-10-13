@@ -16,6 +16,14 @@ export const SPEED_MIN = 1
 export const SPEED_MAX = 10
 /** Between the lead cell and the moving part: where the tape runs out, so the cell on its way out is cut there. */
 export const DIVIDER = ' │ '
+/** The desktop app draws text in a proportional font, narrower than the cells the band counts: it holds about a quarter more. */
+export const DESKTOP_FILL = 1.25
+
+/** The cells beside the lead: the band's width less the lead and the divider, a quarter more on the desktop. */
+export function roomOf(width: number, lead: string, surface: string): number {
+  const fill = surface === 'desktop' ? DESKTOP_FILL : 1
+  return Math.max(0, Math.floor(width * fill) - [...lead].length - [...DIVIDER].length)
+}
 /** The longest wait between fetches after failures. */
 export const MAX_INTERVAL_MS = 300_000
 /** The gap between two symbols on the tape. */
