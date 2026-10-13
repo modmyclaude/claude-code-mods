@@ -23,6 +23,14 @@ import {
   turnToolUses,
 } from '../hooks/logic'
 
+// Secret-shaped fixtures are built from parts, so no line of this file is itself shaped like a key.
+const AWS_KEY = ['AKIA', 'IOSFODNN7', 'EXAMPLE'].join('')
+const AWS_SECRET = ['wJalrXUtnFEMI', 'K7MDENG'].join('/')
+const ANTHROPIC_KEY = ['sk', 'ant', 'api03', 'abcdefghijklmnopqrst'].join('-')
+const STRIPE_KEY = ['sk', 'live', '51Habcdefghijk'].join('_')
+const GITHUB_TOKEN = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123'].join('_')
+const SLACK_TOKEN = ['xoxb', '1234567890', 'abcdefghij'].join('-')
+
 const ALL = [...TOPICS]
 
 // The fastest of three runs, in ms: a busy machine slows one run, not all three,
@@ -156,13 +164,13 @@ describe('maskSecrets hides secret-shaped text', () => {
     ['export GITHUB_TOKEN=abc123def456', 'abc123def456', 'export GITHUB_TOKEN='],
     ['deploy --token=tok_live_998877 --app prod', 'tok_live_998877', '--app prod'],
     ['{"client_secret": "shh-very-quiet"}', 'shh-very-quiet', 'client_secret'],
-    ['AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG aws s3 ls', 'wJalrXUtnFEMI', 'aws s3 ls'],
+    [`AWS_SECRET_ACCESS_KEY=${AWS_SECRET} aws s3 ls`, AWS_SECRET.slice(0, 13), 'aws s3 ls'],
     ['git push https://alex:p4ssw0rd@github.com/a/b.git', 'p4ssw0rd', 'github.com/a/b.git'],
-    ['use sk-ant-api03-abcdefghijklmnopqrst now', 'abcdefghijklmnopqrst', 'now'],
-    ['stripe key sk_live_51Habcdefghijk', '51Habcdefghijk', 'stripe'],
-    ['gh auth ghp_abcdefghijklmnopqrstuvwxyz0123', 'ghp_abcdefghij', 'gh auth'],
-    ['slack xoxb-1234567890-abcdefghij', 'xoxb-1234567890', 'slack'],
-    ['aws AKIAIOSFODNN7EXAMPLE', 'AKIAIOSFODNN7EXAMPLE', 'aws'],
+    [`use ${ANTHROPIC_KEY} now`, 'abcdefghijklmnopqrst', 'now'],
+    [`stripe key ${STRIPE_KEY}`, '51Habcdefghijk', 'stripe'],
+    [`gh auth ${GITHUB_TOKEN}`, GITHUB_TOKEN.slice(0, 14), 'gh auth'],
+    [`slack ${SLACK_TOKEN}`, SLACK_TOKEN.slice(0, 15), 'slack'],
+    [`aws ${AWS_KEY}`, AWS_KEY, 'aws'],
     ['checksum 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08', '9f86d081884c7d65', 'checksum'],
     ['blob dGhpc0lzQVZlcnlMb25nU2VjcmV0VmFsdWUxMjM0NTY3OA== end', 'dGhpc0lzQVZlcnlMb25n', 'end'],
   ]
@@ -212,8 +220,8 @@ describe('maskSecrets hides secret-shaped text', () => {
     const line = describeToolUse(use('s', 'Bash', { command: `${'x'.repeat(150)} API_KEY=abcdefghijklmnop` }))
     expect(line).not.toContain('abcdefghijklmnop')
     // A secret that straddles the 160-character cap is masked whole, not cut in half.
-    const straddle = describeToolUse(use('t', 'Bash', { command: `${'x'.repeat(145)} ghp_abcdefghijklmnopqrstuvwxyz0123` }))
-    expect(straddle).not.toContain('ghp_abc')
+    const straddle = describeToolUse(use('t', 'Bash', { command: `${'x'.repeat(145)} ${GITHUB_TOKEN}` }))
+    expect(straddle).not.toContain(GITHUB_TOKEN.slice(0, 7))
     expect(describeToolUse(use('u', 'WebFetch', { url: 'https://h.io/?token=zzz111' }))).toBe('WebFetch (url: https://h.io/?token=[hidden])')
   })
 })
