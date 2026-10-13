@@ -20,7 +20,9 @@ if (/^0+$/.test(base)) {
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
 const ROOT = git('rev-parse', '--show-toplevel').trim()
-const NOT_SHIPPED = [/^mods\/[^/]+\/README\.md$/, /^mods\/[^/]+\/tests\//]
+// icon.png is the listing icon the Claude plugin directory reads from the repo. It changes nothing a
+// session runs, so a new or changed icon needs no bump.
+const NOT_SHIPPED = [/^mods\/[^/]+\/README\.md$/, /^mods\/[^/]+\/tests\//, /^mods\/[^/]+\/\.claude-plugin\/icon\.png$/]
 
 const changed = git('diff', '--name-only', base, head, '--', 'mods').split('\n').filter(Boolean)
 const shipped = changed.filter(path => !NOT_SHIPPED.some(re => re.test(path)))
