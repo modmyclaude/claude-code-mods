@@ -37,8 +37,7 @@ function showTimers(on: On): () => number {
 
 /** The engine's end of every other door, each answering what it was handed and recording it. */
 function doors(on: On) {
-  const seen = { mentioned: [] as string[], sent: [] as string[], logged: [] as unknown[] }
-  on('prompt.mention', ($, e) => (seen.mentioned.push(e.path), { type: 'file' }))
+  const seen = { sent: [] as string[], logged: [] as unknown[] }
   on('prompt.compose', () => ({ sections: [...SECTIONS] }))
   on('prompt.attachment', ($, e) => ({ text: e.text }))
   on('prompt.context', ($, e) => ({ blocks: e.blocks }))
@@ -81,8 +80,6 @@ test('switched off: nothing hidden, restored or held, no file read, no band, and
 
   // Every other door hands the engine, and back, exactly what it was given.
   expect(await $.prompt.submit({ text: `use ${KEY}`, ...PERSON })).toEqual({ text: `use ${KEY}` })
-  expect(await $.prompt.mention({ mention: 'keys.txt', path: `${ROOT}/keys.txt` })).toEqual({ type: 'file' })
-  expect(d.mentioned).toEqual([`${ROOT}/keys.txt`])
   expect(await $.prompt.compose(COMPOSE)).toEqual({ sections: [...SECTIONS] })
   const hook = { kind: 'hook', event: 'SessionStart' } as const
   expect(await $.prompt.attachment({ type: 'hook_additional_context', text: `env: ${KEY}`, origin: hook })).toEqual({ text: `env: ${KEY}` })

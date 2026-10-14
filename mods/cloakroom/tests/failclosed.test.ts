@@ -67,29 +67,6 @@ describe('the prompt doors', () => {
     expect(r.drop).toBe('cloakroom could not check this prompt for secrets, so it was not sent.')
   })
 
-  test('prompt.mention attaches nothing it could not check', SLOW, async ($, on) => {
-    const w = world(on, { [`${ROOT}/huge.txt`]: HUGE })
-    const mentioned: string[] = []
-    on('prompt.mention', ($, e) => {
-      mentioned.push(e.path)
-      return { type: 'file' }
-    })
-    await start($)
-    const r = await $.prompt.mention({ mention: 'huge.txt', path: `${ROOT}/huge.txt` })
-    expect(r.deny).toBe('cloakroom could not check this file for secrets, so it was not attached.')
-    expect(mentioned).toEqual([])
-    expect(w.writes).toEqual([])
-  })
-
-  test('prompt.mention attaches nothing it could not read', async ($, on) => {
-    const w = world(on, { [`${ROOT}/locked.txt`]: 'x' })
-    w.unreadable.add(`${ROOT}/locked.txt`)
-    on('prompt.mention', () => ({ type: 'file' }))
-    await start($)
-    const r = await $.prompt.mention({ mention: 'locked.txt', path: `${ROOT}/locked.txt` })
-    expect(r.deny).toMatch(/could not read @locked\.txt/)
-  })
-
   test('prompt.attachment withholds an attachment it could not scrub', SLOW, async ($, on) => {
     world(on)
     on('prompt.attachment', ($, e) => ({ text: e.text }))

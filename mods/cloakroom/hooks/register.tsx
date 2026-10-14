@@ -6,7 +6,6 @@
 //                      of Write, Edit, NotebookEdit and Bash only; Bash held
 //                      when it would carry a value off the machine
 //   prompt.submit      what you type or paste
-//   prompt.mention     an @file with secrets is attached as a scrubbed copy
 //   prompt.attachment  reminders, hook output, nested CLAUDE.md, mentioned files
 //   prompt.context     CLAUDE.md and the first message's context blocks
 //   prompt.compose     the system prompt's sections, plus one line on tickets
@@ -33,8 +32,6 @@ type Dollar = EngineInterface
 const RESTORE = new Set(['Write', 'Edit', 'NotebookEdit', 'Bash'])
 /** Local lookups whose inputs are paths and patterns: left as written. */
 const LOCAL_READS = new Set(['Read', 'Glob', 'Grep', 'LSP', 'ToolSearch'])
-/** @-mentions that are media, not text: the engine attaches them as images or PDFs. */
-const MEDIA = /\.(?:png|jpe?g|gif|webp|bmp|ico|tiff?|pdf|zip|gz|tgz|mp[34]|mov|wav|woff2?|ttf|otf)$/i
 
 // The switch (`enabled`, which /config and the modmyclaude hub flip): off, cloakroom hides
 // nothing, restores nothing, holds nothing and reads no file; every door passes what the
@@ -97,20 +94,13 @@ type Room = {
   audit: AuditState
   /** The last audit's lines, drawn in its pane only: command text is a transcript row Claude reads. */
   auditView: string[] | undefined
-  loadId: string
-  copies: number
   /** The project whose .env files are still to be read: the session started with cloakroom off. */
   unseeded: string | undefined
 }
 
 const trimEnd = (path: string) => path.replace(/[\\/]+$/, '')
-const baseName = (path: string) => path.split(/[\\/]/).pop() || 'file'
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-function shortId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(4))
-  return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
-}
 
 /** Prompt parts the engine caches are asked again once the vault learns a value. */
 function rescanCached($: Dollar, room: Room): void {
@@ -442,8 +432,6 @@ export const register: Register = (on, options) => {
     revealTimer: undefined,
     audit: newAudit(),
     auditView: undefined,
-    loadId: shortId(),
-    copies: 0,
     unseeded: undefined,
   }
   const { vault } = room
@@ -548,39 +536,14 @@ export const register: Register = (on, options) => {
     next.called ? next(e) : { drop: 'cloakroom could not check this prompt for secrets, so it was not sent.' },
   )
 
-  on('prompt.mention', async ($, e, next) => {
-    if (!isOn) return next(e)
-    if (MEDIA.test(e.path)) return next(e) // images and PDFs: see Limits
-    let text: string
-    try {
-      text = await $.fs.read(e.path)
-    } catch {
-      if (!(await $.fs.exists(e.path).catch(() => true))) return next(e) // not there: nothing to attach
-      return { deny: `cloakroom could not read @${e.mention} to check it for secrets (over 4 MiB, or unreadable), so it was not attached.` }
-    }
-    const s = vault.scrub(text, `@${e.mention}`, { keepLines: true })
-    if (!s.changed) return next(e)
-    rescanCached($, room)
-    // The engine reads the file itself: hand it a copy with tickets in place
-    // of values, so neither the request nor the transcript holds them.
-    const tmp = (await $.env.get('TMPDIR')) || (await $.env.get('TEMP')) || (await $.env.get('TMP')) || '/tmp'
-    const copy = `${trimEnd(tmp)}/cloakroom-${room.loadId}/${++room.copies}-${baseName(e.path)}`
-    await $.fs.write(copy, s.text)
-    const r = await next({ ...e, path: copy })
-    if (r.deny !== undefined || r.type === null) return r
-    const note =
-      `cloakroom: @${e.mention} is ${e.path}. The copy attached here has ${labels(s.entries)} as tickets; ` +
-      `make changes in ${e.path} itself, not in the copy.`
-    return { type: r.type, context: [...(r.context ?? []), note] }
-  }).catch(($, e, next) =>
-    next.called ? next(e) : { deny: 'cloakroom could not check this file for secrets, so it was not attached.' },
-  )
-
   on('prompt.attachment', async ($, e, next) => {
     if (!isOn) return next(e)
     const r = await next(e)
     if (r.text === null) return r
-    const s = vault.scrub(r.text, `${e.type} attachment`)
+    // A file the person @-mentioned, or one Claude Code shows edited, keeps its line count, so a
+    // `#L10-20` reference in the prompt still names the lines it did.
+    const isFile = e.type === 'file' || e.type === 'edited_text_file'
+    const s = vault.scrub(r.text, `${e.type} attachment`, { keepLines: isFile })
     return s.changed ? { text: s.text } : r
   }).catch(($, e, next) => (!isOn ? next(e) : { text: WITHHELD }))
 

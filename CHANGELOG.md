@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- cloakroom 0.1.5: an `@`-mentioned file is no longer read and copied by cloakroom before Claude Code reads it; it is scrubbed as the attachment Claude Code makes of it, its line count kept, so `#L10-20` still names the same lines. That ends the hook on `prompt.mention` (an event the plugin directory refuses), the copy under `$TMPDIR`, every file write and the `TMPDIR`, `TEMP` and `TMP` reads. Everything else it hides and holds is as before.
 - footprints 0.1.2: an @-mentioned file turns blue once Claude reads it with Read, no longer on the mention itself: the plugin directory's list of events lacks the mention event, and a mod hooked on it is refused. Nothing else changed.
 - play-by-play 0.1.4: the arrow-keys element is built from the surface's own table of elements, so the plugin directory reads the file it loads from the element and not from the line that fetches the table; nothing it does changed.
 - halftime 0.1.6: the game board is built from the element table itself rather than from a name taken out of it, so the plugin directory can read which file it loads; nothing it does changed.

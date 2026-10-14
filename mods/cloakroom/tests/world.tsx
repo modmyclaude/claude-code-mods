@@ -9,7 +9,6 @@ import type { Engine, MockClock } from 'claude-code/testing'
 
 export const ROOT = '/work/app'
 export const HOME = '/home/me'
-export const TMP = '/tmp/me'
 /** 2026-10-09 09:00 UTC. */
 export const T0 = Date.UTC(2026, 9, 9, 9, 0, 0)
 
@@ -71,7 +70,7 @@ export function world(on: On, files: Record<string, string> = {}): World {
     opened: [],
     isPanePlaced: true,
   }
-  mock.env(on, { HOME, TMPDIR: TMP })
+  mock.env(on, { HOME })
 
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.surfaces', () => ({ value: w.surfaces }))

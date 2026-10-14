@@ -32,13 +32,13 @@ Read this first. Cloakroom lowers the chance that a secret ends up somewhere it 
 What the validator sees it reach (`claude plugin validate --strict`):
 
 ```
-hooks: config.set{key="cloakroom.enabled"}, session.start, tool.call, prompt.submit, prompt.mention, prompt.attachment, prompt.context, prompt.compose, skill.prompt, session.append, session.send, session.receive, telemetry.log{to=collector}, ui.render{component=AbovePrompt}, ui.render{component=Pane, requestId=cloakroom-audit}, command.run{command=cloakroom}
+hooks: config.set{key="cloakroom.enabled"}, session.start, tool.call, prompt.submit, prompt.attachment, prompt.context, prompt.compose, skill.prompt, session.append, session.send, session.receive, telemetry.log{to=collector}, ui.render{component=AbovePrompt}, ui.render{component=Pane, requestId=cloakroom-audit}, command.run{command=cloakroom}
 answers its own command: command.run{command=cloakroom}
 gating hook without .catch: config.set{key="cloakroom.enabled"}
-gating hook with .catch: tool.call, prompt.submit, prompt.mention, session.append, session.send, session.receive, telemetry.log{to=collector}
-calls: $.clock.after (via show), $.clock.now, $.command.register, $.env.get, $.fs.exists, $.fs.list (via listDir), $.fs.read, $.fs.write, $.prompt.submit, $.session.surfaces (via audit, show), $.ui.invalidate (via redraw, rescanAll, rescanCached), $.ui.open (via audit), $.ui.resolve, $.ui.toast
+gating hook with .catch: tool.call, prompt.submit, session.append, session.send, session.receive, telemetry.log{to=collector}
+calls: $.clock.after (via show), $.clock.now, $.command.register, $.env.get (via runAudit), $.fs.list (via listDir), $.fs.read (via runAudit, seed), $.prompt.submit, $.session.surfaces (via audit, show), $.ui.invalidate (via redraw, rescanAll, rescanCached), $.ui.open (via audit), $.ui.resolve, $.ui.toast
 env writes: nothing
-env reads: CLAUDE_CONFIG_DIR, HOME, TEMP, TMP, TMPDIR, USERPROFILE
+env reads: CLAUDE_CONFIG_DIR, HOME, USERPROFILE
 hooks telemetry for: collector
 ```
 
@@ -99,11 +99,11 @@ The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and 
 
 ## What it can touch
 
-- **Files read:** your project's `.env` and `.env.*` files at session start, at the root and up to two folder levels down (`apps/web/.env`), skipping `node_modules`, `.git`, build output and hidden folders, at most 120 folders. A file you `@`-mention, so it can be checked first. Your transcripts under `~/.claude/projects` (or `$CLAUDE_CONFIG_DIR/projects`), only when you run `/cloakroom audit`, newest first, at most 4 MiB per file and about 6 seconds and 96 MB per run.
-- **Files written:** a copy of an `@`-mentioned file that held a secret, with tickets in place of the values, under `$TMPDIR/cloakroom-<id>/`. Claude reads that copy and is told the real path. Nothing else is written: no store, no settings, no plugin state. A real value is never written to disk by cloakroom.
+- **Files read:** your project's `.env` and `.env.*` files at session start, at the root and up to two folder levels down (`apps/web/.env`), skipping `node_modules`, `.git`, build output and hidden folders, at most 120 folders. An `@`-mentioned file is not read by cloakroom: it is scrubbed as the attachment Claude Code makes of it, its line count kept, so `#L10-20` still names the same lines. Your transcripts under `~/.claude/projects` (or `$CLAUDE_CONFIG_DIR/projects`), only when you run `/cloakroom audit`, newest first, at most 4 MiB per file and about 6 seconds and 96 MB per run.
+- **Files written:** none: no store, no settings, no plugin state, no copy of any file. A real value is never written to disk by cloakroom.
 - **Memory:** the ticket-to-value map and the last audit's results, in the mod's own memory, gone when the session ends or the mod reloads.
 - **Shown to Claude:** the plain `/cloakroom` list and the one-line answers of `show`, `forget` and `audit`, as any command's output is. Never a value, and never the audit's findings.
-- **Environment:** reads `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE` (to find transcripts) and `TMPDIR`, `TEMP` and `TMP` (for mention copies). Writes none.
+- **Environment:** reads `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE` (to find transcripts). Writes none.
 - **Prompts sent:** one, only after you press Allow once, telling Claude it may run the held command again.
 - **Telemetry:** rewrites records bound for your own OpenTelemetry collector when one is configured. It never touches Anthropic's own analytics.
 - **Network, processes, model calls:** none.
@@ -113,12 +113,11 @@ The band never takes the keyboard by itself. Click it, or press ctrl+x tab, and 
 - Detection is pattern-based: known key formats (AWS, GitHub, Anthropic, OpenAI, Stripe, Slack, Google, Twilio, Resend, SendGrid, Mailgun, npm, PyPI, GitLab, Hugging Face and more), private key blocks, JWTs, Bearer and Basic headers, passwords in connection URLs, and values written next to a secret-like name. A secret in an unknown format with no telling name can be missed. Stripe publishable keys (`pk_`) and documentation examples are left alone on purpose.
 - Only a value that is at least 8 characters, varied enough (about 3 bits of entropy per character), not a filesystem path and not a common default (`postgres`, `password`, `admin`, `changeme`, `localhost` and the like) is learned and hidden everywhere it appears. A short or common-default value is not learned and is only caught by shape: `DB_PASSWORD=hunter2` is hidden where it sits next to its name, but the bare word `hunter2` later in a log is not, and `POSTGRES_PASSWORD=postgres` is left alone so `postgres` in image names, lockfiles and package lists stays readable. A path next to a password-like name (`PWD`, `OLDPWD`, `PASSWORD_STORE_DIR`) is never treated as a secret.
 - Every pattern runs in linear time. A test sends 1 MB and 5 MB of text built to stall pattern matchers through a real tool call, best of three runs each, and requires the 5 MB run to take under 8 times as long as the 1 MB one (linear is about 5 times, quadratic 25), with a 15-second backstop (alone, 5 MB measured about 0.6 seconds on a laptop). Text over 16 MB, text whose check overruns 4 seconds, or a value nested too deep to walk is withheld rather than passed on unchecked.
-- If a check fails, the text is withheld, not sent. A tool result becomes `[cloakroom: result withheld, redaction failed]`, a prompt is not sent (it says why), an `@`-file is not attached, and a call that could not be checked does not run.
+- If a check fails, the text is withheld, not sent. A tool result becomes `[cloakroom: result withheld, redaction failed]`, a prompt is not sent (it says why), an attachment (an `@`-mentioned file among them) is withheld, and a call that could not be checked does not run.
 - The band (holds and `show`) draws in the terminal and the desktop app. In VS Code and on mobile there is no band: a held command stays refused (run it yourself), and `show` says it needs one of the other two. So does `audit`, whose pane is drawn only there too.
 - Some things are written by Claude Code itself, outside the doors cloakroom hooks: a large tool output it saves to its tool-results folder, and its own prompt history (what the up arrow recalls), which may keep a pasted key as you typed it.
 - A row may flash on screen, or reach an SDK stream or Remote Control, just before cloakroom rewrites it. Neither the model nor the transcript file reads that form. Tool results are rewritten before they are drawn.
 - Context another mod attaches to a tool result cannot be changed at that point (Claude Code requires it word for word). It is scrubbed when it reaches Claude, as an attachment and as a stored row.
-- An `@`-mentioned file is read twice, once by cloakroom to check it and once by Claude Code, so a file changed in that instant could slip past the first check. The attachment is still scrubbed when it reaches Claude.
 - `show` puts the value in the band. Another mod that draws around the band can read it there.
 
 ## Built from a prompt

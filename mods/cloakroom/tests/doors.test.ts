@@ -5,7 +5,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { alnum } from './corpus'
-import { bash, PERSON, ROOT, runBash, start, stdoutOf, TICKET, TICKETS, TMP, world } from './world'
+import { bash, PERSON, ROOT, runBash, start, stdoutOf, TICKET, TICKETS, world } from './world'
 
 const KEY = ['sk', '_live_', alnum(24, 400)].join('')
 const GH = ['gh', 'p_', alnum(36, 401)].join('')
@@ -115,50 +115,20 @@ describe('prompts', () => {
     expect(w.toasts).toEqual([])
   })
 
-  test('an @-mentioned file with a secret is attached as a scrubbed copy, lines kept', async ($, on) => {
-    const file = `${ROOT}/config/keys.pem`
+  test('a file the person @-mentioned reaches Claude scrubbed, its line count kept', async ($, on) => {
+    world(on)
+    on('prompt.attachment', ($, e) => ({ text: e.text }))
+    await start($)
     const pem = ['-----BEGIN', ' PRIVATE KEY-----\n', alnum(64, 402), '\n', alnum(40, 403), '\n-----END', ' PRIVATE KEY-----'].join('')
-    const w = world(on, { [file]: `# keys\n${pem}\nlast line\n` })
-    const mentioned: string[] = []
-    on('prompt.mention', ($, e) => {
-      mentioned.push(e.path)
-      return { type: 'file' }
-    })
-    await start($)
-    const r = await $.prompt.mention({ mention: 'config/keys.pem', path: file })
-    expect(mentioned).toHaveLength(1)
-    const copy = mentioned[0]!
-    expect(copy.startsWith(`${TMP}/cloakroom-`)).toBe(true)
-    expect(copy.endsWith('-keys.pem')).toBe(true)
-    const written = w.files[copy]!
-    expect(written).not.toContain(alnum(64, 402))
-    expect(written).toMatch(/^# keys\n\[secret:PRIVATE_KEY#[a-z2-7]{6}\]\n\n\n\nlast line\n$/) // 4 lines stay 4 lines
-    expect(r.context?.[0]).toContain(`@config/keys.pem is ${file}`)
-    expect(r.context?.[0]).toContain('not in the copy')
-  })
-
-  test('a clean @-mentioned file is read where it is, and nothing is written', async ($, on) => {
-    const file = `${ROOT}/README.md`
-    const w = world(on, { [file]: '# hello' })
-    const mentioned: string[] = []
-    on('prompt.mention', ($, e) => {
-      mentioned.push(e.path)
-      return { type: 'file' }
-    })
-    await start($)
-    const r = await $.prompt.mention({ mention: 'README.md', path: file })
-    expect(mentioned).toEqual([file])
-    expect(r).toEqual({ type: 'file' })
-    expect(w.writes).toEqual([])
-  })
-
-  test('a missing @file goes on to the engine; an image is not read as text', async ($, on) => {
-    const w = world(on)
-    on('prompt.mention', () => ({ type: null }))
-    await start($)
-    expect((await $.prompt.mention({ mention: 'gone.txt', path: `${ROOT}/gone.txt` })).type).toBeNull()
-    expect((await $.prompt.mention({ mention: 'logo.png', path: `${ROOT}/logo.png` })).type).toBeNull()
-    expect(w.reads.filter(p => p.endsWith('.png'))).toEqual([])
+    const file = `# keys\n${pem}\nlast line\n`
+    for (const type of ['file', 'edited_text_file']) {
+      const r = await $.prompt.attachment({ type, text: file, origin: { kind: 'engine' } })
+      expect(r.text, type).not.toContain(alnum(64, 402))
+      expect(r.text, type).toMatch(/^# keys\n\[secret:PRIVATE_KEY#[a-z2-7]{6}\]\n\n\n\nlast line\n$/) // 6 lines stay 6 lines
+    }
+    // A reminder keeps no line count: the ticket stands in the line it was on.
+    const note = await $.prompt.attachment({ type: 'hook_additional_context', text: `before\n${pem}\nafter`, origin: { kind: 'hook', event: 'SessionStart' } })
+    expect(note.text).toMatch(/^before\n\[secret:PRIVATE_KEY#[a-z2-7]{6}\]\nafter$/)
   })
 
   test('attachments the engine injects are scrubbed; a dropped one stays dropped', async ($, on) => {
