@@ -86,7 +86,7 @@
       "name": "halftime",
       "source": "./mods/halftime",
       "description": "Claude works, you play. The whistle blows the moment it needs you.",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "category": "fun",
       "keywords": [
         "games",
@@ -176,7 +176,7 @@
       "name": "play-by-play",
       "source": "./mods/play-by-play",
       "description": "Replays every change Claude made in a turn, shell edits included.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "category": "review",
       "keywords": [
         "review",
