@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- play-by-play 0.1.3: the arrow-keys element is written as a call, the form the mods docs use, so the plugin directory can read which file it loads; nothing it does changed.
 - halftime 0.1.5: the game board element is written as a call, the form the mods docs use, so the plugin directory can read which file it loads; nothing it does changed.
 - hatchling 0.1.2: the engine handle's type has a name of its own, so nothing in the hooks module shares the name a hook's first parameter carries, as the plugin directory's source check asks. The pet is unchanged.
 - play-by-play 0.1.2: the engine handle's type has a name of its own, so nothing in the hooks module shares the name a hook's first parameter carries, as the plugin directory's source check asks. The replay is unchanged.

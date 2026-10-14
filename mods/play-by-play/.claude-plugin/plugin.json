@@ -1,6 +1,6 @@
 {
   "name": "play-by-play",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Replays every change Claude made in a turn, shell edits included.",
   "homepage": "https://modmyclaude.com/mods/play-by-play",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
