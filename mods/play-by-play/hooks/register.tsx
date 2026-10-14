@@ -46,10 +46,10 @@ const hint = atom({ plugin: 'play-by-play', key: 'hint' } as const, false)
 const view = atom({ plugin: 'play-by-play', key: 'view' } as const, { back: 1, step: 0 })
 const shellPaused = atom({ plugin: 'play-by-play', key: 'shellPaused' } as const, false)
 
-type $ = EngineInterface
+type Dollar = EngineInterface
 
 /** A line for the debug log; logging must never break the hook it reports from. */
-function debug($: $, text: string) {
+function debug($: Dollar, text: string) {
   try {
     $.ui.log(`play-by-play: ${text}`, { to: 'debug' })
   } catch {
@@ -76,7 +76,7 @@ const toolEdited = new Map<string, number>()
  * Pauses shell tracking for the rest of the session, so a large repository
  * never taxes every command; says so once, however many calls find it slow.
  */
-async function pauseShell($: $, why: string) {
+async function pauseShell($: Dollar, why: string) {
   const held = await $.state.get({ plugin: 'play-by-play', key: 'shellPaused' })
   if (held.value === true) return
   const { isSet } = await $.state.set({ plugin: 'play-by-play', key: 'shellPaused' }, true, { ifVersion: held.version })
@@ -90,7 +90,7 @@ async function pauseShell($: $, why: string) {
 }
 
 /** Snapshots on the session's clock: one over SLOW_MS, failing, or too large pauses tracking. */
-async function timedSnapshot($: $, run: Run, at?: Snapshot): Promise<Snapshot | null> {
+async function timedSnapshot($: Dollar, run: Run, at?: Snapshot): Promise<Snapshot | null> {
   const startedAt = await $.clock.now()
   const taken = await snapshot(run, at).catch((error: unknown) => {
     debug($, `git failed around a command: ${String(error)}`)
@@ -103,7 +103,7 @@ async function timedSnapshot($: $, run: Run, at?: Snapshot): Promise<Snapshot | 
   return typeof taken === 'string' ? null : taken
 }
 
-async function record($: $, steps: readonly PlayByPlayStep[]) {
+async function record($: Dollar, steps: readonly PlayByPlayStep[]) {
   if (steps.length === 0) return
   await update($, current, turn =>
     addSteps(turn ?? { id: 'between-turns', prompt: 'changes made between turns', steps: [], dropped: 0 }, steps),
@@ -111,7 +111,7 @@ async function record($: $, steps: readonly PlayByPlayStep[]) {
 }
 
 /** Moves a finished turn into the kept list and raises the hint. */
-async function finishTurn($: $) {
+async function finishTurn($: Dollar) {
   const taken: { turn: PlayByPlayTurn | null } = { turn: null }
   await update($, current, turn => {
     taken.turn = turn
@@ -125,7 +125,7 @@ async function finishTurn($: $) {
   await update($, hint, () => true)
 }
 
-async function go($: $, nav: Nav) {
+async function go($: Dollar, nav: Nav) {
   if (nav.go === 'close') return $.ui.close({ id: PANE })
   const list = await read($, turns)
   await update($, view, at => {
@@ -135,7 +135,7 @@ async function go($: $, nav: Nav) {
 }
 
 /** A short message for the person alone: the model never reads a toast. */
-function tell($: $, text: string) {
+function tell($: Dollar, text: string) {
   try {
     $.ui.toast(text)
   } catch {
@@ -149,7 +149,7 @@ function tell($: $, text: string) {
  * Answers text only where no surface places the pane (a headless run), since
  * a command's text is read by the model and the pane is the answer.
  */
-async function openReplay($: $, back: number): Promise<string | undefined> {
+async function openReplay($: Dollar, back: number): Promise<string | undefined> {
   const list = await read($, turns)
   const turn = list[list.length - back]
   if (turn === undefined) {
