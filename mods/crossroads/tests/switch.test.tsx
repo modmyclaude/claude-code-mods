@@ -141,11 +141,6 @@ function crossroads($: Engine, args = '') {
   return $.command.run({ command: PLUGIN, args, origin: TYPED, presentation: { isFullscreen: false, columns: 100 } })
 }
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'crossroads.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 test('switched off: no band, no model call, no timer, nothing counted, and the guess and prompts pass untouched', { options: { enabled: false } }, async ($, on) => {
   const seen = world(on)
   // Nothing is written to the band's session state while off.
@@ -190,7 +185,7 @@ test('flipped live: off drops the list and the wait under way at once; on brings
   // The next turn waits on Claude Code's guess when the switch goes off.
   await finishTurn($, seen)
   expect((await band($, 'terminal')).texts).toEqual([BENEATH, LOADING])
-  await flip($, false)
+  await $.config.set({ key: 'crossroads.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   for (const surface of SURFACES) expect(await band($, surface), surface).toEqual({ texts: [BENEATH], picks: [] })
   const timers = seen.timers()
   expect(timers, 'the waits are counted').toBeGreaterThan(0)
@@ -204,7 +199,7 @@ test('flipped live: off drops the list and the wait under way at once; on brings
   await crossroads($)
   expect(seen.toasts).toEqual([OFF])
 
-  await flip($, true)
+  await $.config.set({ key: 'crossroads.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await finishTurn($, seen)
   await seen.clock.advance(ENGINE_WAIT_MS)
   expect(seen.calls).toHaveLength(2)

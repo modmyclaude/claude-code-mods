@@ -17,11 +17,6 @@ function headway($: Engine, args: string) {
   return $.command.run({ command: 'headway', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
 }
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'headway.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 test('switched off: no line, no pane, no tool lent, no timer, and tool calls pass untouched', { options: { enabled: false } }, async ($, on) => {
   const w = world(on, {}, ['desktop', 'terminal'])
   beneath(on)
@@ -96,7 +91,7 @@ test('flipped live: off clears the line and stops the timer at once; on shows th
   expect(await bandText($, 'terminal')).toContain('Write the migration')
 
   const drawnBefore = redraws
-  await flip($, false)
+  await $.config.set({ key: 'headway.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(redraws, 'the line is redrawn at once').toBeGreaterThan(drawnBefore)
   expect(await bandText($, 'terminal')).toBeUndefined()
   await w.clock.settle()
@@ -107,7 +102,7 @@ test('flipped live: off clears the line and stops the timer at once; on shows th
   expect(await bandText($, 'terminal')).toBeUndefined()
 
   // On again: the step Claude reached while it was off, and its clock running, with no new call needed.
-  await flip($, true)
+  await $.config.set({ key: 'headway.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(await bandText($, 'terminal')).toContain('Wire the routes')
   await w.clock.advance(2 * S)
   expect(w.periods(), 'the switch alone restarts the clock').toBeGreaterThan(before)
@@ -122,7 +117,7 @@ test('a plan that finished just before the switch went off gets no receipt after
   await todos($, list(STEPS, 1))
   await w.clock.advance(60 * S)
   await todos($, list(STEPS, STEPS.length))
-  await flip($, false)
+  await $.config.set({ key: 'headway.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await $.session.end({ reason: 'clear', sessionId: 'session-1', resume: { id: 'session-1' } })
   await w.clock.advance(30 * S)
   expect(w.toasts.filter(text => text.startsWith('Plan done'))).toEqual([])

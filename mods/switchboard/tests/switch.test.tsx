@@ -26,11 +26,6 @@ function switchboard($: Engine) {
   return $.command.run({ command: 'switchboard', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
 }
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'switchboard.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 /** Counts the poll timer's periods (one `clock.every` dispatch each); hooked above the mocked clock. */
 function polls(on: On): () => number {
   let periods = 0
@@ -101,7 +96,7 @@ test('flipped live: off signs its own record off as closed and stops at once; on
   expect(await footer($, 'terminal')).toBe('1 needs you')
 
   await w.clock.advance(10_000)
-  await flip($, false)
+  await $.config.set({ key: 'switchboard.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   // Its own record says closed at once, so other sessions stop showing it waiting on you.
   expect(mine(w)).toMatchObject({ state: 'gone', since: T0 + 10_000, updatedAt: T0 + 10_000 })
   const signedOff = w.files[`${DIR}/${MINE}.json`]?.text
@@ -134,7 +129,7 @@ test('flipped live: off signs its own record off as closed and stops at once; on
   // On again, a fresh look: a new record under the id it has now, its title looked up there,
   // the band and footer back (a dialog that opened meanwhile raises no toast), the poll ticking.
   other(w, 'c1', 'Fix the login', 'needs-you', T0 + 35_000, { where: 'desktop', waitingOn: 'a question' })
-  await flip($, true)
+  await $.config.set({ key: 'switchboard.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(mine(w, NEXT)).toMatchObject({ state: 'idle', since: T0 + 40_000 })
   expect(w.runs.at(-1)).toEqual(['tail', '-c', '262144', `${HOME}/.claude/projects/-work-api-server/${NEXT}.jsonl`])
   expect((await band($, 'desktop')).line).toContain('Fix the login needs you')
@@ -145,7 +140,7 @@ test('flipped live: off signs its own record off as closed and stops at once; on
   await turnStart($)
   expect(mine(w, NEXT)?.state).toBe('working')
   // Set on while on, it changes nothing: the record does not start over.
-  await flip($, true)
+  await $.config.set({ key: 'switchboard.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(mine(w, NEXT)?.state).toBe('working')
 })
 
@@ -172,7 +167,7 @@ test('switched off while a read is under way: no toast, and nothing drawn after'
   isArmed = true
   const polling = w.clock.advance(POLL_MS)
   await isAtGate
-  await flip($, false)
+  await $.config.set({ key: 'switchboard.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   open()
   await polling
   await w.clock.settle()
@@ -188,7 +183,7 @@ test('switched off while its record is being written: the closed record stands',
   w.surfacesGate = new Promise<void>(resolve => (open = resolve))
   const starting = turnStart($)
   await w.clock.settle()
-  await flip($, false)
+  await $.config.set({ key: 'switchboard.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(mine(w)?.state).toBe('gone')
   open()
   await starting
@@ -217,12 +212,12 @@ test('a read that lands after the switch went off is dropped: on again is a fres
   isArmed = true
   const polling = w.clock.advance(POLL_MS)
   await isAtGate
-  await flip($, false)
+  await $.config.set({ key: 'switchboard.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   open()
   await polling
   await w.clock.settle()
   other(w, 'c1', 'Fix the login', 'needs-you', T0 + POLL_MS + 1_000, { where: 'desktop', waitingOn: 'a permission for Bash' })
-  await flip($, true)
+  await $.config.set({ key: 'switchboard.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.clock.settle()
   expect(w.toasts).toEqual([])
 })
@@ -234,11 +229,11 @@ test('the same switch twice does nothing more: on while on keeps the record, off
   await turnStart($)
   await w.clock.settle()
   expect(mine(w)?.state).toBe('working')
-  await flip($, true)
+  await $.config.set({ key: 'switchboard.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(mine(w)?.state).toBe('working')
-  await flip($, false)
+  await $.config.set({ key: 'switchboard.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(mine(w)?.state).toBe('gone')
   const writes = w.touched.filter(t => t.startsWith('write ')).length
-  await flip($, false)
+  await $.config.set({ key: 'switchboard.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(w.touched.filter(t => t.startsWith('write ')).length).toBe(writes)
 })

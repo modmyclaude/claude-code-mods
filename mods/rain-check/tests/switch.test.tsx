@@ -16,11 +16,6 @@ function rainCheck($: Engine, args: string) {
   return $.command.run({ command: 'rain-check', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
 }
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'rain-check.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 /** Counts the minute tick's periods (one `clock.every` dispatch each); hooked above the mocked clock. */
 function ticks(on: On): () => number {
   let periods = 0
@@ -82,7 +77,7 @@ test('flipped live: a waiting prompt goes back to the box, never out, and nothin
   expect(periods()).toBeGreaterThan(0)
   w.box = 'a new draft'
 
-  await flip($, false)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   // The person's words come back after their draft, at once.
   expect(w.box).toBe('a new draft\n\nrun the tests')
   expect(w.toasts.pop()).toBe('Rain Check is off, so nothing waits. Your words are back in the prompt box.')
@@ -102,7 +97,7 @@ test('flipped live: a waiting prompt goes back to the box, never out, and nothin
   await expectNoBand($)
 
   // On again, it starts fresh: the next refusal holds what follows, and the countdown ticks.
-  await flip($, true)
+  await $.config.set({ key: 'rain-check.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await expectNoBand($)
   await refuse($)
   expect((await submit($, 'and the docs')).drop).toContain('Usage limit reached')
@@ -123,15 +118,15 @@ test('flipped live where no box takes the words: the transcript keeps them, and 
   await submit($, 'and run the tests')
   w.canFill = false
 
-  await flip($, false)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(w.toasts.pop()).toBe('Rain Check is off, so nothing waits. "and run the tests"')
   expect(w.logs).toEqual(['rain-check: your words, in full: and run the tests'])
-  await flip($, true)
+  await $.config.set({ key: 'rain-check.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 
   // A pick-up alone holds no words of the person's: it goes, with a word why.
   await refuse($)
   await press($, 'desktop', 'rain-continue')
-  await flip($, false)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(w.toasts.pop()).toBe('Rain Check is off, so nothing waits.')
   expect(w.logs).toHaveLength(1)
   await w.clock.advance(6 * HOUR)
@@ -147,14 +142,14 @@ test('switched off while its state will not write: the words still come back, an
   await submit($, 'run the tests')
   await rainCheck($, 'now') // the send waits one clock turn
   w.isStateBroken = true
-  await flip($, false)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   w.isStateBroken = false
   expect(w.box).toBe('run the tests')
 
   // The limit and the hold it could not clear stay in its state, and off they do nothing:
   // the send asked for before the switch, and off set again, neither send nor give the words back twice.
   await w.clock.settle()
-  await flip($, false)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(w.box).toBe('run the tests')
   expect(w.sent).toEqual([])
   await expectNoBand($)
@@ -164,7 +159,7 @@ test('switched off while its state will not write: the words still come back, an
   expect(w.sent.map(s => s.text)).toEqual(['try again'])
 
   // On again: what it could not clear is not picked up, so words already handed back never go out.
-  await flip($, true)
+  await $.config.set({ key: 'rain-check.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.clock.advance(6 * HOUR)
   expect(w.sent.map(s => s.text)).toEqual(['try again'])
   await expectNoBand($)
@@ -195,7 +190,7 @@ test('switched off while a send gets ready: the words come back once, and it nev
   await rainCheck($, 'now')
   const sending = w.clock.settle()
   await isAtGate
-  await flip($, false)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   open()
   await sending
   expect(w.sent).toEqual([])
@@ -212,8 +207,8 @@ test('on again starts fresh: what it sent, and a refusal near a cap, are forgott
   await submit($, 'run the tests')
   await press($, 'terminal', 'rain-now')
   expect(w.sent.map(s => s.text)).toEqual(['run the tests'])
-  await flip($, false)
-  await flip($, true)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await $.config.set({ key: 'rain-check.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   // Refused again: the limit shows, but what it sent before the switch is not held a second time.
   await refuse($)
   const { ui, waiting, limit } = await band($, 'terminal')
@@ -226,8 +221,8 @@ test('on again starts fresh: what it sent, and a refusal near a cap, are forgott
   await measure($, [window(97)])
   w.usage = [window(97)]
   await refuse($)
-  await flip($, false)
-  await flip($, true)
+  await $.config.set({ key: 'rain-check.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await $.config.set({ key: 'rain-check.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await refuse($)
   expect((await submit($, 'next')).drop).toBeUndefined()
 })

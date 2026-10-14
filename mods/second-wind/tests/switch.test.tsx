@@ -12,11 +12,6 @@ import type { World } from './world'
 
 const OFF = 'Second Wind is off. /mods or /config turns it on.'
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'second-wind.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 /** What each surface's band draws: its texts, and whether the desktop guide is there. */
 async function bands($: Engine, w: World) {
   const out: { texts: string[]; hasGuide: boolean }[] = []
@@ -85,7 +80,7 @@ test('flipped live: off clears the band and stops its clock at once; on again, i
   expect((await ui.find({ key: 'sw-cue' }))?.text).toBe('Breathe in 2')
   expect((await bands($, w))[1]?.hasGuide, 'desktop guide').toBe(true)
 
-  await flip($, false)
+  await $.config.set({ key: 'second-wind.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(await texts()).toEqual(['engine'])
   expect(await bands($, w)).toEqual([
     { texts: ['engine'], hasGuide: false },
@@ -97,7 +92,7 @@ test('flipped live: off clears the band and stops its clock at once; on again, i
 
   // On again in the same turn: that turn's breath was dropped, so the band waits for the next,
   // even when a client joins now.
-  await flip($, true)
+  await $.config.set({ key: 'second-wind.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.attach($, 'mobile')
   await w.clock.advance(10_000)
   expect(await texts()).toEqual(['engine'])
@@ -141,7 +136,7 @@ test('off with a breath still in state: nothing drawn, nothing ticks, nothing wr
   // The prompt line reports a draft just before the switch goes off; its note lands after.
   const hint = await w.hint($, 'terminal', true)
   isHolding = true
-  const flipped = flip($, false)
+  const flipped = $.config.set({ key: 'second-wind.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   for (let i = 0; i < 100 && !isHeld; i++) await Promise.resolve()
   expect(isHeld, 'the clean-up is held').toBe(true)
   await w.clock.settle()

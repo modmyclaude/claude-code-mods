@@ -27,11 +27,6 @@ const STUB = {
   },
 }
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'mulligan.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 /** Counts the band's `$.clock.after` waits (its 8 seconds); registered before the world, so above its clock. */
 function timers(on: On): () => number {
   let count = 0
@@ -92,7 +87,7 @@ test('flipped live: off stops snapshots and the band at once, a saved do-over st
   expect(await bandTexts($)).toEqual([BENEATH, 'mulligan: saved a do-over before "rm -rf dist" (dist) · /mulligan restore 1'])
   expect(asked()).toBe(1)
 
-  await flip($, false)
+  await $.config.set({ key: 'mulligan.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   for (const surface of SURFACES) expect(await bandTexts($, surface), surface).toEqual([BENEATH])
   const runs = w.runs.length
   put(w, 'build/out.js', 'built\n')
@@ -121,7 +116,7 @@ test('flipped live: off stops snapshots and the band at once, a saved do-over st
   expect(await paneTexts($)).toEqual([OFF])
   expect(indexOf(w).snapshots.map(s => s.n)).toEqual([1])
 
-  await flip($, true)
+  await $.config.set({ key: 'mulligan.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await bash($, 'rm -rf dist')
   expect(indexOf(w).snapshots.map(s => s.n)).toEqual([1, 2])
   expect(await bandTexts($)).toEqual([BENEATH, 'mulligan: saved a do-over before "rm -rf dist" (dist) · /mulligan restore 2'])

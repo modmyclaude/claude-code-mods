@@ -5,7 +5,7 @@
 // (the others, through a stand-in for the engine's own config row).
 
 import { expect, mock, test } from 'claude-code/testing'
-import type { ConfigOrigin, On, RenderSurface, SessionAppendMessage } from 'claude-code'
+import type { On, RenderSurface, SessionAppendMessage } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 import { alnum } from './corpus'
@@ -56,11 +56,6 @@ async function band($: Engine, surface: RenderSurface) {
   const buttons = (await ui.findAll({ type: 'Button' })).map(b => b.key)
   await ui.unmount()
   return { texts, buttons }
-}
-
-function flip($: Engine, value: boolean, origin: ConfigOrigin = { kind: 'composer' }) {
-  const previous = !value
-  return $.config.set({ key: 'cloakroom.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin })
 }
 
 const NOTHING_DRAWN = { texts: ["another mod's band"], buttons: [] }
@@ -145,7 +140,7 @@ test('flipped live: off drops holds, the Allow once and the shown value at once,
   expect(timers()).toBe(1)
   expect((await band($, 'terminal')).buttons).toEqual(['deny', 'allow'])
 
-  await flip($, false)
+  await $.config.set({ key: 'cloakroom.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   for (const surface of SURFACES) expect(await band($, surface), surface).toEqual(NOTHING_DRAWN)
   expect(await auditPane($)).toEqual([OFF])
   const ran = w.ran.length
@@ -165,7 +160,7 @@ test('flipped live: off drops holds, the Allow once and the shown value at once,
   expect(w.submitted).toHaveLength(1)
 
   const asked = w.invalidated.length
-  await flip($, true)
+  await $.config.set({ key: 'cloakroom.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   // What the engine cached while nothing was hidden is asked again.
   expect(w.invalidated.slice(asked)).toEqual(['prompt.attachment', 'prompt.context'])
   // No hold or shown value from before comes back.
@@ -187,7 +182,7 @@ test('started off and switched on: the .env files are read then, so a learned va
   expect(stdoutOf(await runBash($, 'deploy'))).toBe(`connecting with ${PW}...`)
   expect(w.reads).toEqual([])
 
-  await flip($, true)
+  await $.config.set({ key: 'cloakroom.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(w.reads).toEqual([`${ROOT}/.env`])
   const seen = stdoutOf(await runBash($, 'deploy'))
   expect(seen).not.toContain(PW)
@@ -199,14 +194,14 @@ test('another mod or a Remote Control /config cannot switch it off (a mod that l
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
   w.answer.Bash = () => bash(ENV)
-  expect(await flip($, false, { kind: 'plugin', name: 'other' })).toEqual({ deny: 'cloakroom stays on: you switch it off in the /config menu on this machine, or in the modmyclaude hub' })
+  expect(await $.config.set({ key: 'cloakroom.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'plugin', name: 'other' } })).toEqual({ deny: 'cloakroom stays on: you switch it off in the /config menu on this machine, or in the modmyclaude hub' })
   // Nor a /config sent over Remote Control: not attestably the person's hand.
-  expect(await flip($, false, { kind: 'bridge' })).toEqual({ deny: 'cloakroom stays on: you switch it off in the /config menu on this machine, or in the modmyclaude hub' })
+  expect(await $.config.set({ key: 'cloakroom.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'bridge' } })).toEqual({ deny: 'cloakroom stays on: you switch it off in the /config menu on this machine, or in the modmyclaude hub' })
   expect(stdoutOf(await runBash($, 'cat .env'))).not.toContain(KEY)
-  expect(await flip($, false, { kind: 'plugin', name: 'modmyclaude-hub' })).toEqual({ value: false })
+  expect(await $.config.set({ key: 'cloakroom.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'plugin', name: 'modmyclaude-hub' } })).toEqual({ value: false })
   expect(stdoutOf(await runBash($, 'cat .env'))).toContain(KEY)
   // Back on is the safe way: any mod may.
-  expect(await flip($, true, { kind: 'plugin', name: 'other' })).toEqual({ value: true })
+  expect(await $.config.set({ key: 'cloakroom.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'plugin', name: 'other' } })).toEqual({ value: true })
   expect(stdoutOf(await runBash($, 'cat .env'))).not.toContain(KEY)
 })
 

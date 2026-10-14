@@ -13,11 +13,6 @@ import { test } from './limit'
 const OFF = 'Halftime is off. /mods or /config turns it on.'
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'halftime.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 const band = ($: Engine, surface: 'terminal' | 'desktop') =>
   $.ui.mount({ plugin: 'halftime', surface, component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
 
@@ -89,7 +84,7 @@ test('flipped live: off pauses the run, clears the band and stops the 3-2-1 at o
   await $.classic.PostToolBatch({ tool_calls: [] })
   expect((await boardOf(ui))?.wait).toBe('back in 3...')
 
-  await flip($, false)
+  await $.config.set({ key: 'halftime.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(await bandText(ui)).toBe('ENGINE')
   expect(await bands($)).toEqual(['ENGINE', 'ENGINE'])
   const calls = meterCount(seen)
@@ -100,7 +95,7 @@ test('flipped live: off pauses the run, clears the band and stops the 3-2-1 at o
   expect(await bandText(ui)).toBe('ENGINE')
 
   // On again: the band stays closed, as /halftime off leaves it, and the picker offers the run back.
-  await flip($, true)
+  await $.config.set({ key: 'halftime.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(await bandText(ui)).toBe('ENGINE')
   await said($, seen, '')
   expect(await bandText(ui)).toContain('[back to cratehop]')
@@ -130,19 +125,19 @@ test('off with a game still in state: nothing drawn, nothing ticks, nothing writ
     writes.push(e.key)
     return next(e)
   })
-  /** Switches off with the clean-up's first write held a minute; nothing written before it counts. */
-  async function heldOff(): Promise<{ flipped: Promise<unknown> }> {
+  /** The next state write is held a minute: set before switching off, so the clean-up is held. */
+  function holdNextWrite() {
     isHolding = true
     isHeld = false
-    const flipped = flip($, false)
+  }
+  /** Waits until the clean-up is held; nothing written before that counts. */
+  async function untilHeld() {
     for (let i = 0; i < 100 && !isHeld; i++) await Promise.resolve()
     expect(isHeld, 'the clean-up is held').toBe(true)
     writes.length = 0
-    return { flipped }
   }
-  /** Back on, and the paused run back in play. */
-  async function playOn(ui: Awaited<ReturnType<typeof band>>) {
-    await flip($, true)
+  /** The paused run back in play, once the switch is on again. */
+  async function backInPlay(ui: Awaited<ReturnType<typeof band>>) {
     await said($, seen, '')
     await ui.press({ key: 'resume' })
     await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
@@ -158,19 +153,24 @@ test('off with a game still in state: nothing drawn, nothing ticks, nothing writ
 
   // A whistle: Claude moving on while off resumes nothing.
   await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} })
-  let held = await heldOff()
+  holdNextWrite()
+  let flipped = $.config.set({ key: 'halftime.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await untilHeld()
   expect(await bands($)).toEqual(['ENGINE', 'ENGINE'])
   await $.classic.PostToolBatch({ tool_calls: [] })
   expect(writes).toEqual([])
   await clock.advance(60_000)
-  await held.flipped
+  await flipped
 
   // A 3-2-1: its tick, and a reload's pick-up, start nothing.
-  await playOn(ui)
+  await $.config.set({ key: 'halftime.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await backInPlay(ui)
   await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} })
   await $.classic.PostToolBatch({ tool_calls: [] })
   expect((await boardOf(ui))?.wait).toBe('back in 3...')
-  held = await heldOff()
+  holdNextWrite()
+  flipped = $.config.set({ key: 'halftime.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await untilHeld()
   await clock.advance(3000)
   expect(writes).toEqual([])
   const every = meterCount(seen, 'every')
@@ -180,17 +180,20 @@ test('off with a game still in state: nothing drawn, nothing ticks, nothing writ
   expect(writes, 'its bests read in again, nothing more').toEqual(['stats'])
   expect(await bands($)).toEqual(['ENGINE', 'ENGINE'])
   await clock.advance(60_000)
-  await held.flipped
+  await flipped
 
   // A run in play: the board's late posts and the prompt line's pause change nothing.
-  await playOn(ui)
+  await $.config.set({ key: 'halftime.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await backInPlay(ui)
   const hint = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'PromptHint', props: { isDraft: true, isWorking: true, hint: '' } })
-  held = await heldOff()
+  holdNextWrite()
+  flipped = $.config.set({ key: 'halftime.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await untilHeld()
   await clock.settle()
   await ui.post({ iid: 'late', arm: 0, ev: [], tick: true })
   await hint.unmount()
   expect(writes).toEqual([])
   expect(await bands($)).toEqual(['ENGINE', 'ENGINE'])
   await clock.advance(60_000)
-  await held.flipped
+  await flipped
 })

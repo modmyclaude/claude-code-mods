@@ -29,11 +29,6 @@ const STUB = {
   },
 }
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'chapters.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 /** Counts the detached start of a review (`$.clock.after(0)`); registered before the world, so above its clock. */
 function timers(on: On): () => number {
   let count = 0
@@ -111,7 +106,7 @@ test('flipped live: off clears the band and drops the review under way at once; 
   expect((await paneTexts($))[0]).toBe('Writing the review of uncommitted changes...')
   const timersBefore = asked()
 
-  await flip($, false)
+  await $.config.set({ key: 'chapters.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   for (const surface of SURFACES) {
     expect(await bandTexts($, surface), surface).toEqual([BENEATH])
     expect(await paneTexts($, surface), surface).toEqual([OFF])
@@ -121,7 +116,7 @@ test('flipped live: off clears the band and drops the review under way at once; 
   expect(w.toasts).toEqual([OFF])
   expect(asked(), 'no timer while off').toBe(timersBefore)
 
-  await flip($, true)
+  await $.config.set({ key: 'chapters.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(await paneTexts($)).toEqual([STOPPED])
   // A new review is not blocked by the dropped one, still out.
   await chapters($, w)
@@ -139,7 +134,7 @@ test('flipped live: off clears the band and drops the review under way at once; 
   expect((await paneTexts($))[0]).toBe('uncommitted changes · 0 of 2 read')
 
   // A review waiting unread: switched off, its line goes too.
-  await flip($, false)
+  await $.config.set({ key: 'chapters.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(await bandTexts($)).toEqual([BENEATH])
 })
 
@@ -149,7 +144,7 @@ test('a review asked for just before the switch goes off never starts', async ($
   w.replies = [TWO]
   await start($)
   await $.command.run({ command: 'chapters', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
-  await flip($, false)
+  await $.config.set({ key: 'chapters.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.clock.advance(5_000)
   expect(w.gits).toEqual([])
   expect(w.prompts).toEqual([])
@@ -170,8 +165,8 @@ test('the dropped review answering late does not free the lock of the one writte
   await start($)
   await chapters($, w)
   for (let i = 0; i < 20 && held < 1; i++) await w.clock.settle()
-  await flip($, false)
-  await flip($, true)
+  await $.config.set({ key: 'chapters.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await $.config.set({ key: 'chapters.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await chapters($, w)
   for (let i = 0; i < 20 && held < 2; i++) await w.clock.settle()
   expect(held).toBe(2)
@@ -191,9 +186,9 @@ test('an edit made while off is not noted: on again, the last turn has nothing t
   on('config.set', ($, e) => ({ value: e.value }))
   w.replies = [TWO]
   await start($)
-  await flip($, false)
+  await $.config.set({ key: 'chapters.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await editTurn($)
-  await flip($, true)
+  await $.config.set({ key: 'chapters.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await chapters($, w, 'last')
   for (let i = 0; i < 10; i++) await w.clock.settle()
   expect(w.prompts).toEqual([])

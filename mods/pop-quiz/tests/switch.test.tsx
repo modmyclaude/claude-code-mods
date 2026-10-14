@@ -5,7 +5,6 @@
 
 import { expect, test } from 'claude-code/testing'
 import type { Engine, Plugin } from 'claude-code/testing'
-import type { ConfigOrigin } from 'claude-code'
 
 import { TWO, bandTexts, edit, quizCmd, start, turn, world } from './world'
 
@@ -13,11 +12,6 @@ const FIRST = '1. Why does the migration add an index on user_id?'
 
 const OFF = 'Pop Quiz is off. /mods or /config turns it on.'
 const REFUSED = { deny: 'pop-quiz stays off: you switch it on in the /config menu or the modmyclaude hub' }
-
-function flip($: Engine, value: boolean, origin: ConfigOrigin = { kind: 'composer' }) {
-  const previous = !value
-  return $.config.set({ key: 'pop-quiz.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin })
-}
 
 test('flipped live: off clears the quiz and makes no call, over /pop-quiz on; on brings it back', async ($, on) => {
   const w = world(on)
@@ -29,13 +23,13 @@ test('flipped live: off clears the quiz and makes no call, over /pop-quiz on; on
   expect(w.calls).toHaveLength(1)
   expect((await bandTexts($))[1]).toBe(FIRST)
 
-  expect(await flip($, false)).toEqual({ value: false })
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })).toEqual({ value: false })
   expect(await bandTexts($)).toEqual([])
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(1)
   expect(await bandTexts($)).toEqual([])
 
-  expect(await flip($, true)).toEqual({ value: true })
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })).toEqual({ value: true })
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(2)
   expect((await bandTexts($))[1]).toBe(FIRST)
@@ -46,12 +40,12 @@ test('a refused flip changes nothing, either way', async ($, on) => {
   on('config.set', () => ({ deny: 'set by your organisation' }))
   await start($)
   await quizCmd($, 'every 1')
-  expect(await flip($, true)).toEqual({ deny: 'set by your organisation' })
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })).toEqual({ deny: 'set by your organisation' })
   await turn($, w, [edit()])
   expect(w.calls).toEqual([])
 
   await quizCmd($, 'on')
-  expect(await flip($, false)).toEqual({ deny: 'set by your organisation' })
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })).toEqual({ deny: 'set by your organisation' })
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(1)
   expect((await bandTexts($))[1]).toBe(FIRST)
@@ -79,23 +73,23 @@ test('switched off after a turn: the quiz it was due makes no call; one being wr
   await $.turn.start({ turnId: 'due', prompt: 'go', origin: { kind: 'composer' } } as never)
   await $.tool.call(edit() as never)
   await $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: 'due', reason: 'answer' })
-  await flip($, false)
+  await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.clock.advance(1)
   expect(w.calls).toEqual([])
 
   // Being written when the switch goes off: its questions are dropped.
-  await flip($, true)
+  await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await turn($, w, [edit()])
-  await flip($, false)
+  await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.clock.advance(5_000)
   expect(w.calls).toHaveLength(1)
   expect(await bandTexts($)).toEqual([])
 
   // Its first reply fails after the switch went off: no second call.
-  await flip($, true)
+  await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   w.replies = [TWO, 'fail']
   await turn($, w, [edit()])
-  await flip($, false)
+  await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.clock.advance(5_000)
   await w.clock.advance(5_000)
   expect(w.calls).toHaveLength(2)
@@ -116,10 +110,10 @@ test('a quiz costs money, so only the person or the hub switches it on; another 
   const w = world(on)
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
-  expect(await flip($, true, { kind: 'plugin', name: 'other' })).toEqual(REFUSED)
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'plugin', name: 'other' } })).toEqual(REFUSED)
   await turn($, w, [edit()])
   expect(w.calls).toEqual([])
-  expect(await flip($, true, { kind: 'plugin', name: 'modmyclaude-hub' })).toEqual({ value: true })
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'plugin', name: 'modmyclaude-hub' } })).toEqual({ value: true })
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(1)
 })
@@ -128,7 +122,7 @@ test('a /config sent over Remote Control may switch it on, as the person may', {
   const w = world(on)
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
-  expect(await flip($, true, { kind: 'bridge' })).toEqual({ value: true })
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'bridge' } })).toEqual({ value: true })
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(1)
 })
@@ -138,8 +132,8 @@ test('the switch never undoes what was typed: off and on again, a typed /pop-qui
   on('config.set', ($, e) => ({ value: e.value }))
   await start($)
   await quizCmd($, 'off')
-  await flip($, false)
-  await flip($, true)
+  await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await turn($, w, [edit()])
   expect(w.calls).toEqual([])
 })
@@ -150,7 +144,7 @@ test('any plugin may switch it off, over a typed /pop-quiz on: off is the safe w
   await start($)
   await quizCmd($, 'every 1')
   await quizCmd($, 'on')
-  expect(await flip($, false, { kind: 'plugin', name: 'other' })).toEqual({ value: false })
+  expect(await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'plugin', name: 'other' } })).toEqual({ value: false })
   await turn($, w, [edit()])
   expect(w.calls).toHaveLength(0)
 })
@@ -163,8 +157,8 @@ test('switched off and on again, the quiz that was showing does not come back', 
   await quizCmd($, 'on')
   await turn($, w, [edit()])
   expect((await bandTexts($))[1]).toBe(FIRST)
-  await flip($, false)
-  await flip($, true)
+  await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  await $.config.set({ key: 'pop-quiz.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(await bandTexts($)).toEqual([])
 })
 
@@ -177,7 +171,7 @@ test('a quiz the person asked for makes no second call once the switch goes off'
   // The command waits on the call: it is let run while the clock moves.
   const asking = quizCmd($, 'ask')
   await w.clock.settle()
-  await flip($, false)
+  await $.config.set({ key: 'pop-quiz.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   await w.clock.advance(5_000)
   await w.clock.advance(5_000)
   await asking

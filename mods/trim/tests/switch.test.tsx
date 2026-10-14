@@ -12,11 +12,6 @@ import { PLUGIN, SURFACES, bash, numbered, paneTexts, row, start, stdoutOf, trim
 const BIG = numbered(2_000)
 const OFF = 'Trim is off. /mods or /config turns it on.'
 
-function flip($: Engine, value: boolean) {
-  const previous = !value
-  return $.config.set({ key: 'trim.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
-}
-
 /** Every Text of a Bash call's row on a surface: the engine's own and any trim adds. */
 async function rowTexts($: Engine, surface: (typeof SURFACES)[number], id: string, stdout: string): Promise<string[]> {
   const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolResult', props: row(id, stdout) })
@@ -60,7 +55,7 @@ test('flipped live: off passes output whole and clears the row and the status li
   const drawn = [`engine row: ${folded.split('\n').length} lines`, expect.stringMatching(/^trim: 1,945 lines folded · ~[\d.]+k tokens saved$/)]
   expect(await rowTexts($, 'terminal', w.ids[0]!, folded)).toEqual(drawn)
 
-  await flip($, false)
+  await $.config.set({ key: 'trim.enabled', value: false, previous: true, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(w.status).toBeUndefined()
   for (const surface of SURFACES) {
     expect(await rowTexts($, surface, w.ids[0]!, folded), surface).toEqual([`engine row: ${folded.split('\n').length} lines`])
@@ -73,7 +68,7 @@ test('flipped live: off passes output whole and clears the row and the status li
   await start($)
   expect(w.status).toBeUndefined()
 
-  await flip($, true)
+  await $.config.set({ key: 'trim.enabled', value: true, previous: false, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
   expect(w.status).toMatch(/^trim ~[\d.]+k saved$/)
   expect(await rowTexts($, 'terminal', w.ids[0]!, folded)).toEqual(drawn)
   expect(stdoutOf(await bash($, 'npm test'))).toMatch(/\[trim: 1,945 of 2,000 lines folded/)
