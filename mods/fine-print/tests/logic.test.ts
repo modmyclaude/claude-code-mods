@@ -162,7 +162,7 @@ describe('maskSecrets hides secret-shaped text', () => {
     ['PGPASSWORD=s3cr3t psql -h db', 's3cr3t', 'psql -h db'],
     ['https://api.example.com/v1/items?api_key=AKIASECRET&page=2', 'AKIASECRET', 'page=2'],
     ['export GITHUB_TOKEN=abc123def456', 'abc123def456', 'export GITHUB_TOKEN='],
-    ['deploy --token=tok_live_998877 --app prod', 'tok_live_998877', '--app prod'],
+    ['deploy --token=tok_live_xxxxxx --app prod', 'tok_live_xxxxxx', '--app prod'],
     ['{"client_secret": "shh-very-quiet"}', 'shh-very-quiet', 'client_secret'],
     [`AWS_SECRET_ACCESS_KEY=${AWS_SECRET} aws s3 ls`, AWS_SECRET.slice(0, 13), 'aws s3 ls'],
     ['git push https://alex:p4ssw0rd@github.com/a/b.git', 'p4ssw0rd', 'github.com/a/b.git'],
