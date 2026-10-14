@@ -295,6 +295,13 @@ function scanShared(path, out) {
           }
         }
       }
+      // const { Client } = $.ui.resolve(e): the directory's reader takes a Client named in that destructure
+      // as a file loaded by the call, with its argument as the path (halftime and play-by-play, four
+      // validations); hold the table and build the element from it instead (a hint until one validates)
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'resolve' && ts.isVariableDeclaration(node.parent) && ts.isObjectBindingPattern(node.parent.name)) {
+        const el = node.parent.name.elements.find(b => ts.isIdentifier(b.name) && (b.name.text === 'Client' || (b.propertyName && ts.isIdentifier(b.propertyName) && b.propertyName.text === 'Client')))
+        if (el) out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(el)}`, text: 'Client is taken out of $.ui.resolve(...) by name; the directory reads it as a file loaded by that call with its argument as the path (hold the table: const elements = $.ui.resolve(e); elements.Client({...}))', blocking: false })
+      }
       // import(expr)
       if (callee.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0] && !isLiteralText(node.arguments[0])) report('IMPORT', node, `import() of a computed path (${node.arguments[0].getText(sf).slice(0, 40)}); write a fixed string or a static import`)
     }
