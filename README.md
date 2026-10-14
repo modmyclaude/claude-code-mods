@@ -68,7 +68,7 @@ A mod is active as soon as it installs, with no restart. Installs at user scope 
 
 | | Mod | What it does | Can reach |
 |---|---|---|---|
-| <img src="brand/pixel-icons/svg/cloakroom.svg" width="32" height="32" alt=""> | [**Cloakroom**](mods/cloakroom)<br>`cloakroom@modmyclaude` | Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it. [Prompt](prompts/cloakroom.md) | `writes files` `reads files` `hooks tool calls` `hooks prompts` |
+| <img src="brand/pixel-icons/svg/cloakroom.svg" width="32" height="32" alt=""> | [**Cloakroom**](mods/cloakroom)<br>`cloakroom@modmyclaude` | Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it. [Prompt](prompts/cloakroom.md) | `reads files` `hooks tool calls` `hooks prompts` |
 | <img src="brand/pixel-icons/svg/last-look.svg" width="32" height="32" alt=""> | [**Last Look**](mods/last-look)<br>`last-look@modmyclaude` | Holds destructive commands until you approve, and shows what they would destroy. [Prompt](prompts/last-look.md) | `reads files` `runs commands` `hooks tool calls` |
 
 ### Cost and limits

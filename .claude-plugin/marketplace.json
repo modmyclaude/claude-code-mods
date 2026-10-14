@@ -27,7 +27,7 @@
       "name": "cloakroom",
       "source": "./mods/cloakroom",
       "description": "Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it.",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "category": "safety",
       "keywords": [
         "security",
