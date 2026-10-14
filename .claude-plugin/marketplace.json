@@ -101,7 +101,7 @@
       "name": "hatchling",
       "source": "./mods/hatchling",
       "description": "A collectible pixel pet that hatches, reacts and evolves while you code.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "fun",
       "keywords": [
         "pet",
@@ -176,7 +176,7 @@
       "name": "play-by-play",
       "source": "./mods/play-by-play",
       "description": "Replays every change Claude made in a turn, shell edits included.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "review",
       "keywords": [
         "review",

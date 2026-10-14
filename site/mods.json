@@ -484,7 +484,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "keywords": [
         "pet",
         "pixel-art",
@@ -513,7 +513,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "6dee58f",
+      "commit": "9b5d2b8",
       "reach": [
         "hooks tool calls"
       ],
@@ -845,7 +845,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "keywords": [
         "review",
         "diff",
@@ -875,7 +875,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "6dee58f",
+      "commit": "6d7e139",
       "reach": [
         "runs commands",
         "hooks tool calls"
