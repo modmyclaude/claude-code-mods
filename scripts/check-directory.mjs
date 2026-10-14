@@ -27,8 +27,8 @@
 //   IMPORT     a Client element whose path is not a fixed string, or an
 //              import() of a computed path (MOD_IMPORT_DYNAMIC_COMPUTED) (blocking)
 //   CLIENT     a Client element with any other attribute not written as a
-//              literal (a template key, a props spread): a hint while the
-//              directory's reading of Client is settled               (warning)
+//              literal or plain names (a template key, a props spread): a
+//              hint while the directory's reading of Client is settled (warning)
 //   RUN        a download-and-run command in a shipped file           (warning)
 //   FOLLOW     `$` or `on` used in a way a static read may not follow:
 //              not as `$.noun.method(...)`, not as `on("event", hook)`,
@@ -219,6 +219,9 @@ function scanShared(path, out) {
   const warn = (kind, node, why) => out.push({ kind, at: `${rel}:${lineOf(node)}`, text: why, blocking: false })
   const isFn = n => ts.isArrowFunction(n) || ts.isFunctionExpression(n)
   const permHooks = []
+  const isLiteralValue = n => isLiteralText(n) || ts.isNumericLiteral(n) || (ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(n.operand)) || n.kind === ts.SyntaxKind.TrueKeyword || n.kind === ts.SyntaxKind.FalseKeyword || n.kind === ts.SyntaxKind.NullKeyword
+  // plain, as the directory reads a member: a literal, a name, or an object of plain members (`!value`, a call or a spread is not)
+  const isPlain = n => isLiteralValue(n) || ts.isIdentifier(n) || (ts.isObjectLiteralExpression(n) && n.properties.every(q => ts.isShorthandPropertyAssignment(q) || (ts.isPropertyAssignment(q) && isPlain(q.initializer))))
   const isLiteralText = n => ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)
   const walk = node => {
     if (ts.isCallExpression(node)) {
@@ -236,9 +239,6 @@ function scanShared(path, out) {
         const a = node.arguments[0]
         if (!a || !ts.isObjectLiteralExpression(a)) report('CONFIG_SET', node, `config.set takes one object written in the call (${a ? a.getText(sf).slice(0, 50) : 'nothing'}); a cast or a variable breaks the directory's read`)
         else {
-          const isLiteralValue = n => isLiteralText(n) || ts.isNumericLiteral(n) || (ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(n.operand)) || n.kind === ts.SyntaxKind.TrueKeyword || n.kind === ts.SyntaxKind.FalseKeyword || n.kind === ts.SyntaxKind.NullKeyword
-          // plain: a literal, a name, or an object of plain members; `!value`, a call or a spread is not
-          const isPlain = n => isLiteralValue(n) || ts.isIdentifier(n) || (ts.isObjectLiteralExpression(n) && n.properties.every(q => ts.isShorthandPropertyAssignment(q) || (ts.isPropertyAssignment(q) && isPlain(q.initializer))))
           const short = n => n.getText(sf).replace(/\s+/g, ' ').slice(0, 40)
           const key = a.properties.find(q => ts.isPropertyAssignment(q) && ts.isIdentifier(q.name) && q.name.text === 'key')
           const value = a.properties.find(q => (ts.isPropertyAssignment(q) || ts.isShorthandPropertyAssignment(q)) && ts.isIdentifier(q.name) && q.name.text === 'value')
@@ -269,8 +269,8 @@ function scanShared(path, out) {
           if (ts.isJsxSpreadAttribute(a)) { out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(a)}`, text: 'a Client element with a spread attribute; the directory may read it as a computed path', blocking: false }); continue }
           if (!ts.isJsxAttribute(a) || !ts.isIdentifier(a.name) || a.name.text === 'module') continue
           const v = a.initializer
-          const literal = !v || ts.isStringLiteral(v) || (ts.isJsxExpression(v) && v.expression && (isLiteralText(v.expression) || (ts.isObjectLiteralExpression(v.expression) && v.expression.properties.every(q => ts.isPropertyAssignment(q) && (isLiteralText(q.initializer) || ts.isNumericLiteral(q.initializer) || q.initializer.kind === ts.SyntaxKind.TrueKeyword || q.initializer.kind === ts.SyntaxKind.FalseKeyword)))))
-          if (!literal) out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(a)}`, text: `a Client element's ${a.name.text} is not written as a literal (${v ? v.getText(sf).replace(/\s+/g, ' ').slice(0, 50) : ''}); the directory may read it as a computed path`, blocking: false })
+          const literal = !v || ts.isStringLiteral(v) || (ts.isJsxExpression(v) && v.expression && isPlain(v.expression))
+          if (!literal) out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(a)}`, text: `a Client element's ${a.name.text} is not written as a literal or plain names (${v ? v.getText(sf).replace(/\s+/g, ' ').slice(0, 50) : ''}); the directory may read it as a computed path`, blocking: false })
         }
       }
     }
@@ -308,8 +308,13 @@ function scanShared(path, out) {
   // hook's answer (halftime 0.1.3's `const next = await update(...)`, far from the hook).
   if (permHooks.length) {
     const hookFns = new Set()
+    const rootIsOn = call => { let c = call; while (ts.isCallExpression(c) && ts.isPropertyAccessExpression(c.expression)) c = c.expression.expression; return ts.isCallExpression(c) && ts.isIdentifier(c.expression) && c.expression.text === 'on' }
     const collect = n => {
-      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'on') { const f = n.arguments[n.arguments.length - 1]; if (f && isFn(f)) hookFns.add(f) }
+      if (ts.isCallExpression(n)) {
+        const isOn = ts.isIdentifier(n.expression) && n.expression.text === 'on'
+        const isCatch = ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'catch' && rootIsOn(n.expression.expression)
+        if (isOn || isCatch) { const f = n.arguments[n.arguments.length - 1]; if (f && isFn(f)) hookFns.add(f) }
+      }
       n.forEachChild(collect)
     }
     collect(sf)
