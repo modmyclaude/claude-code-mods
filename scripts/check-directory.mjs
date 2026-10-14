@@ -12,11 +12,17 @@
 //              literal verdict, so the decision cannot be shown to be
 //              left with the person                                   (blocking)
 //   PERMISSION a classic.PermissionRequest hook, in hooks or tests, that does
-//              not `return next(e)` or a literal deny/ask answer
-//              (MOD_PERMISSION_ANSWER_UNREAD)                         (blocking)
+//              not `return next(e)` or a literal deny/ask answer; or a
+//              permission hook (that one or tool.check) whose parameter names
+//              are declared, assigned or bound again anywhere in the same
+//              file (MOD_PERMISSION_ANSWER_UNREAD)                    (blocking;
+//              the name as another function's parameter is a hint)
 //   CONFIG_SET a `config.set(...)` call, in hooks or tests, whose argument is
 //              not one object literal with a fixed-text key and a value, or
-//              carries a cast (MOD_CONFIG_SET_UNREAD)                 (blocking)
+//              carries a cast, or a member that is not plain (a literal or a
+//              name: `!value` is not) (MOD_CONFIG_SET_UNREAD)         (blocking;
+//              members beyond key and value, and a value that is a name and
+//              not a literal, are hints until wardrobe's validation is read)
 //   EVENT      a hook on an event the directory's list lacks, `ui.fault`
 //              so far (MOD_HOOKS_UNKNOWN_EVENT)                       (blocking)
 //   IMPORT     a Client element whose path is not a fixed string, or an
@@ -211,7 +217,9 @@ function scanShared(path, out) {
   const rel = relative(ROOT, path)
   const lineOf = node => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
   const report = (kind, node, why) => out.push({ kind, at: `${rel}:${lineOf(node)}`, text: why, blocking: true })
+  const warn = (kind, node, why) => out.push({ kind, at: `${rel}:${lineOf(node)}`, text: why, blocking: false })
   const isFn = n => ts.isArrowFunction(n) || ts.isFunctionExpression(n)
+  const permHooks = []
   const isLiteralText = n => ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)
   const walk = node => {
     if (ts.isCallExpression(node)) {
@@ -222,16 +230,30 @@ function scanShared(path, out) {
         if (UNKNOWN_EVENTS.has(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list; Claude Code at that list's version refuses to load the mod`)
         const fn = node.arguments[node.arguments.length - 1]
         if (ev === 'classic.PermissionRequest' && fn && isFn(fn)) checkAnswer(fn, 'classic.PermissionRequest')
+        if ((ev === 'classic.PermissionRequest' || ev === 'tool.check') && fn && isFn(fn)) permHooks.push({ fn, ev })
       }
       // X.config.set(arg)
       if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'set' && ts.isPropertyAccessExpression(callee.expression) && callee.expression.name.text === 'config') {
         const a = node.arguments[0]
         if (!a || !ts.isObjectLiteralExpression(a)) report('CONFIG_SET', node, `config.set takes one object written in the call (${a ? a.getText(sf).slice(0, 50) : 'nothing'}); a cast or a variable breaks the directory's read`)
         else {
+          const isLiteralValue = n => isLiteralText(n) || ts.isNumericLiteral(n) || (ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(n.operand)) || n.kind === ts.SyntaxKind.TrueKeyword || n.kind === ts.SyntaxKind.FalseKeyword || n.kind === ts.SyntaxKind.NullKeyword
+          // plain: a literal, a name, or an object of plain members; `!value`, a call or a spread is not
+          const isPlain = n => isLiteralValue(n) || ts.isIdentifier(n) || (ts.isObjectLiteralExpression(n) && n.properties.every(q => ts.isShorthandPropertyAssignment(q) || (ts.isPropertyAssignment(q) && isPlain(q.initializer))))
+          const short = n => n.getText(sf).replace(/\s+/g, ' ').slice(0, 40)
           const key = a.properties.find(q => ts.isPropertyAssignment(q) && ts.isIdentifier(q.name) && q.name.text === 'key')
           const value = a.properties.find(q => (ts.isPropertyAssignment(q) || ts.isShorthandPropertyAssignment(q)) && ts.isIdentifier(q.name) && q.name.text === 'value')
-          if (!key || !isLiteralText(key.initializer)) report('CONFIG_SET', node, `config.set needs a fixed-text key member (${key ? key.initializer.getText(sf).slice(0, 40) : 'none'})`)
+          if (!key || !isLiteralText(key.initializer)) report('CONFIG_SET', node, `config.set needs a fixed-text key member (${key ? short(key.initializer) : 'none'})`)
           if (!value) report('CONFIG_SET', node, 'config.set needs a value member written in the call')
+          for (const q of a.properties) {
+            if (ts.isSpreadAssignment(q)) { report('CONFIG_SET', q, `config.set's object has a spread member (${short(q)}); every member must be written in the call`); continue }
+            if (ts.isShorthandPropertyAssignment(q)) continue
+            if (!ts.isPropertyAssignment(q) || !ts.isIdentifier(q.name)) { report('CONFIG_SET', q, `config.set's object has a member that is not a plain name (${short(q)})`); continue }
+            if (!isPlain(q.initializer)) report('CONFIG_SET', q, `config.set's ${q.name.text} is not plain (${short(q.initializer)}): write a literal or a name, not an expression`)
+          }
+          const extra = a.properties.filter(q => (ts.isPropertyAssignment(q) || ts.isShorthandPropertyAssignment(q)) && ts.isIdentifier(q.name) && q.name.text !== 'key' && q.name.text !== 'value').map(q => q.name.text)
+          if (extra.length) warn('CONFIG_SET', a, `config.set carries members beyond key and value (${extra.join(', ')}); whether the directory reads past those two is open until wardrobe's validation`)
+          if (value && !(ts.isPropertyAssignment(value) && isLiteralValue(value.initializer))) warn('CONFIG_SET', value, `config.set's value is a name, not a literal (${short(value)}); whether the directory reads a name as plain is open until wardrobe's validation`)
         }
       }
       // import(expr)
@@ -285,6 +307,35 @@ function scanShared(path, out) {
     }
   }
   walk(sf)
+  // A permission hook's parameter names are its own in the whole file: a variable, an assignment,
+  // a function or an import under one of them, anywhere, and the directory can no longer read the
+  // hook's answer (halftime 0.1.3's `const next = await update(...)`, far from the hook).
+  if (permHooks.length) {
+    const hookFns = new Set()
+    const collect = n => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'on') { const f = n.arguments[n.arguments.length - 1]; if (f && isFn(f)) hookFns.add(f) }
+      n.forEachChild(collect)
+    }
+    collect(sf)
+    const names = new Set()
+    for (const ph of permHooks) for (const prm of ph.fn.parameters) if (ts.isIdentifier(prm.name)) names.add(prm.name.text)
+    const inHook = n => { for (let c = n; c; c = c.parent) if (permHooks.some(ph => ph.fn === c)) return true; return false }
+    const where = n => inHook(n) ? 'in the hook' : 'elsewhere in this file'
+    const bound = n => {
+      const name = n.name && ts.isIdentifier(n.name) ? n.name.text : undefined
+      if (name && names.has(name)) {
+        if (ts.isVariableDeclaration(n) || ts.isBindingElement(n)) report('PERMISSION', n, `${name} is spelled like a permission hook's parameter and is declared again ${where(n)}; the directory then cannot read the hook's answer (rename it)`)
+        else if (ts.isFunctionDeclaration(n) || ts.isImportSpecifier(n) || ts.isClassDeclaration(n)) report('PERMISSION', n, `${name} is spelled like a permission hook's parameter and is bound again ${where(n)} (rename it)`)
+        else if (ts.isParameter(n) && !hookFns.has(n.parent)) {
+          if (inHook(n)) report('PERMISSION', n, `${name} is spelled like the hook's parameter and is bound again as a parameter inside the hook (rename it)`)
+          else if (!name.startsWith('$')) warn('PERMISSION', n, `${name} is spelled like a permission hook's parameter and is a parameter of another function in this file; the directory's wording names a variable elsewhere, so this is a hint (rename it to be safe)`)
+        }
+      }
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.left) && names.has(n.left.text)) report('PERMISSION', n, `${n.left.text} is spelled like a permission hook's parameter and is assigned ${where(n)} (rename it)`)
+      n.forEachChild(bound)
+    }
+    bound(sf)
+  }
 }
 
 // ---- .tsx files: `h` and `Fragment` are the JSX factory's names and nothing else's
@@ -306,12 +357,16 @@ function scanJsxNames(path, out) {
   walk(sf)
 }
 
+// A mod by name under mods/, or by path (a probe copy anywhere).
 const names = process.argv.slice(2)
-const mods = (names.length ? names.map(n => n.replace(/^mods\//, '').replace(/\/$/, '')) : readdirSync(join(ROOT, 'mods'))).filter(m => { try { return statSync(join(ROOT, 'mods', m, '.claude-plugin', 'plugin.json')).isFile() } catch { return false } })
+const isMod = dir => { try { return statSync(join(dir, '.claude-plugin', 'plugin.json')).isFile() } catch { return false } }
+const mods = (names.length ? names.map(n => n.replace(/\/$/, '')) : readdirSync(join(ROOT, 'mods')))
+  .map(n => isMod(n) ? { name: n, dir: n } : { name: n.replace(/^mods\//, ''), dir: join(ROOT, 'mods', n.replace(/^mods\//, '')) })
+  .filter(m => isMod(m.dir))
 let blocking = 0, warnings = 0
-for (const mod of mods) {
+for (const { name: mod, dir } of mods) {
   const out = []
-  for (const path of shipped(join(ROOT, 'mods', mod))) {
+  for (const path of shipped(dir)) {
     scanText(path, out)
     if (/\/hooks\/[^/]+\.tsx?$/.test(path)) scanModule(path, out)
     if (path.endsWith('.tsx')) scanJsxNames(path, out)
