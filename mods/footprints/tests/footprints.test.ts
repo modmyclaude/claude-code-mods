@@ -555,20 +555,6 @@ describe('the status line and the session', () => {
   })
 })
 
-describe('mentions', () => {
-  test('an @-mentioned file counts as read; one the engine could not attach does not', async ($, on) => {
-    world(on, { tracked: ['src/a.ts', 'src/b.ts'] })
-    on('prompt.mention', ($, e) => ({ type: e.path.endsWith('a.ts') ? 'file' : null }))
-    await start($)
-    await $.prompt.mention({ mention: 'src/a.ts', path: abs('src/a.ts') })
-    await $.prompt.mention({ mention: 'src/b.ts', path: abs('src/b.ts') })
-    await footprints($)
-    const ui = await mount($, 'terminal')
-    expect(await header(ui)).toBe('read 1 · edited 0 · new 0')
-    expect((await nameOf(ui, 'src/a.ts'))?.props.color).toBe('suggestion')
-  })
-})
-
 describe('slow git', () => {
   const statusRuns = (w: World) => w.rec.argv.filter(argv => argv.includes('status')).length
 

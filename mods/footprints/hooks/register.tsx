@@ -497,13 +497,6 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // An @-mentioned file is read into the conversation without a Read call: it counts as read too.
-  on('prompt.mention', async ($, e, next) => {
-    const attached = await next(e)
-    if (attached.deny === undefined && attached.type !== null) await quietly(recordRead($, 'Read', e.path))
-    return attached
-  }).catch(($, e, next) => next(e))
-
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const [marksRead, treeRead, chosen, phase] = await Promise.all([

@@ -14,7 +14,7 @@ A live file tree beside the chat that shows where Claude has been.
 
 - `/footprints` opens a pane with the project's file tree: docked beside the transcript in fullscreen, above the prompt otherwise. Because you asked, it opens at any terminal width, and it works while Claude is mid-turn. It adds nothing to the transcript (the model never reads it); the pane, or a toast, is the answer.
 - As Claude works, names change color:
-  - **blue** - read (Read, an @-mention; a folder Glob or Grep searched)
+  - **blue** - read (Read; a folder Glob or Grep searched)
   - **amber** - edited; it shimmers while the edit is still running (only while the pane is on screen)
   - **green** - edited, then committed with `git commit`
   - **new** - created this session
@@ -47,7 +47,7 @@ None.
 - Shell changes need git. Outside a git repo the tree still works (a walk that skips `node_modules`, `.git` and a few cache folders, without `.gitignore`), but Bash changes are not marked.
 - Shell attribution compares `git status` before and after the call plus file times, so: a branch switch that leaves git clean on both sides is not marked; a file you save in your own editor while a Bash command runs can be counted as changed by the shell; changes made by a background Bash command are not marked. With more than 400 files dirty, a file that was already dirty and is changed again may be missed.
 - Green needs a Bash command that runs `git commit` and moves HEAD. Commits you make in your own terminal are not seen.
-- Files read through the shell (`cat`, `rg`) do not turn blue; only Read, Glob, Grep and @-mentions count. Native macOS and Linux builds of Claude Code have no Glob or Grep tools, so folder marks mostly come from builds that do.
+- Files read through the shell (`cat`, `rg`) do not turn blue, and neither does a file you @-mention until Claude reads it with Read; only Read, Glob and Grep count. Native macOS and Linux builds of Claude Code have no Glob or Grep tools, so folder marks mostly come from builds that do.
 - `t` works only while the pane holds the keyboard; from the prompt, use `/footprints touched`.
 - Subagents' tool calls count too.
 - Big repos: it keeps up to 20,000 file names and draws up to 400 rows (the rest is one "more" line).
