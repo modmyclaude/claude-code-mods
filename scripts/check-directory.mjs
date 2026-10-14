@@ -32,15 +32,15 @@
 //   CLIENT     a Client element with any other attribute not written as a
 //              literal or plain names (a template key, a props spread): a
 //              hint while the directory's reading of Client is settled (warning)
+//   DOLLAR     in a hooks module, the name `$` used as anything but a hook's
+//              or a function's parameter, a plain call `$.noun.method(...)`,
+//              or an argument passed alone to a function declared at the top
+//              level of the same file (or imported from the kit): a type named
+//              `$`, a cast, `!`, `?.`, brackets, a method call, a variable
+//              (MOD_CAPABILITY_USE_NOT_PLAIN; tests are exempt: ant-farm's and
+//              wardrobe's pass `$` to methods and validated clean)  (blocking;
+//              a property read `$.noun.field` with no call is a hint)
 //   RUN        a download-and-run command in a shipped file           (warning)
-//   FOLLOW     `$` or `on` used in a way a static read may not follow:
-//              not as `$.noun.method(...)`, not as `on("event", hook)`,
-//              not passed whole to a function declared at the top of
-//              the same file or imported from the kit                  (warning:
-//              an approximation; it clears ant-farm and thermostat, which
-//              the directory passed, but does not yet reproduce the
-//              directory's three findings on last-look, so treat it as a
-//              hint until it is calibrated against those lines)
 // Usage: node scripts/check-directory.mjs [mod ...]   (every mod when none is named)
 // Exit 1 on any blocking finding. Approximations, read from the directory's
 // own fix texts; a pass here is not a pass there, a finding here is one there.
@@ -143,10 +143,7 @@ function scanModule(path, out) {
           ok = (ts.isCallExpression(p) && p.expression === node)
             || (ts.isCallExpression(p) && p.arguments.includes(node) && ts.isIdentifier(p.expression) && followed(p.expression.text))
         }
-        if (!ok) {
-          const where = ts.isCallExpression(p) && p.arguments.includes(node) ? `passed to ${p.expression.getText(sf).slice(0, 40)}, which is not declared in this file` : `used as ${p.getText(sf).slice(0, 50)}`
-          report('FOLLOW', node, `${node.text} ${where} (${label}): the directory follows ${node.text} only as ${node.text === dollar ? '$.noun.method(...)' : 'on("event", hook)'} or whole into a function declared at the top of this file`, false)
-        }
+        void ok
         return
       }
       node.forEachChild(walk)
@@ -366,6 +363,50 @@ function scanShared(path, out) {
       n.forEachChild(bound)
     }
     bound(sf)
+  }
+  // In a hooks module the directory reads the name $ as the hook's handle everywhere, and follows
+  // it only as a plain $.noun.method(...) call or passed alone to a function declared at the top
+  // level of the same file (play-by-play's `type $ = EngineInterface`, nine findings). Tests are
+  // exempt: ant-farm's and wardrobe's pass $ to methods of a test world and validated clean.
+  if (isHooksFile) {
+    const topLevel = new Set()
+    for (const st of sf.statements) {
+      if (ts.isFunctionDeclaration(st) && st.name) topLevel.add(st.name.text)
+      if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer && isFn(d.initializer)) topLevel.add(d.name.text)
+      if (ts.isImportDeclaration(st) && st.importClause && ts.isStringLiteral(st.moduleSpecifier) && /^claude-code(\/|$)/.test(st.moduleSpecifier.text)) {
+        const c = st.importClause
+        if (c.name) topLevel.add(c.name.text)
+        if (c.namedBindings && ts.isNamedImports(c.namedBindings)) for (const el of c.namedBindings.elements) topLevel.add(el.name.text)
+      }
+    }
+    const brief = n => n.getText(sf).replace(/\s+/g, ' ').slice(0, 44)
+    const dollar = n => {
+      if (ts.isIdentifier(n) && n.text === '$') {
+        const p = n.parent
+        let ok = false, why = ''
+        if (ts.isParameter(p) && p.name === n) ok = true
+        else if (ts.isTypeAliasDeclaration(p) && p.name === n) why = 'a type alias named $'
+        else if (ts.isInterfaceDeclaration(p) && p.name === n) why = 'an interface named $'
+        else if (ts.isTypeReferenceNode(p)) why = '$ written as a type'
+        else if (ts.isPropertyAccessExpression(p) && p.expression === n) {
+          const q = p.parent
+          ok = !p.questionDotToken && ts.isPropertyAccessExpression(q) && q.expression === p && !q.questionDotToken && ts.isCallExpression(q.parent) && q.parent.expression === q
+          if (!ok && !p.questionDotToken && ts.isPropertyAccessExpression(q) && q.expression === p && !q.questionDotToken && !(ts.isCallExpression(q.parent) && q.parent.expression === q)) {
+            // $.noun.field read, no call: the engine has such fields ($.plugin.root); the directory's wording names a call, so a hint
+            out.push({ kind: 'DOLLAR', at: `${rel}:${lineOf(n)}`, text: `${brief(q)} reads a field of $ without a call; the directory's wording names a plain $.noun.method(...) call, so this is unverified (a hint until a mod with it validates)`, blocking: false })
+            ok = true
+          }
+          if (!ok) why = `${brief(ts.isPropertyAccessExpression(q) ? q : p)} is not a plain $.noun.method(...) call`
+        } else if (ts.isCallExpression(p) && p.arguments.includes(n)) {
+          const callee = p.expression
+          if (ts.isIdentifier(callee) && topLevel.has(callee.text) && !p.typeArguments) ok = true
+          else why = `$ passed to ${brief(callee)}(...), which is not a function declared at the top level of this file or imported from the kit, written plainly`
+        } else why = `$ used as ${brief(p)}`
+        if (!ok) report('DOLLAR', n, `${why}; the directory reads $ as the hook's handle everywhere in a file that declares a hook, and follows it only as $.noun.method(...) or passed alone to a top-level function (rename what only shares the name)`)
+      }
+      n.forEachChild(dollar)
+    }
+    dollar(sf)
   }
 }
 
