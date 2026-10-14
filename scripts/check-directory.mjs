@@ -27,7 +27,8 @@
 //              (MOD_CONFIG_SET_UNREAD)                                (blocking)
 //   EVENT      a hook on an event the directory refused (`ui.fault`,
 //              `prompt.mention`: its list is read from an older Claude Code)
-//              (MOD_HOOKS_UNKNOWN_EVENT)                              (blocking;
+//              (MOD_HOOKS_UNKNOWN_EVENT; hooks modules only, a test world's
+//              stand-ins pass)                                        (blocking;
 //              an event outside the set the directory has accepted is a hint)
 //   IMPORT     a Client element or call whose module is not a fixed string,
 //              a Client taken out of `$.ui.resolve(e)` by name (the directory
@@ -264,8 +265,9 @@ function scanShared(path, out) {
       // on('event', ..., hook)
       if (ts.isIdentifier(callee) && callee.text === 'on' && node.arguments[0] && isLiteralText(node.arguments[0])) {
         const ev = node.arguments[0].text
-        if (REFUSED_EVENTS.has(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list; Claude Code at that list's version refuses to load the mod (drop the hook or cover it with an accepted event)`)
-        else if (!ACCEPTED_EVENTS.has(ev)) warn('EVENT', node, `on('${ev}') has not been seen accepted by the directory yet (its list is read from an older Claude Code); one validation decides it, and a refusal blocks the whole mod`)
+        // the event list is read on hooks modules; a test world's stand-in hooks pass (ant-farm's name a dozen unseen events)
+        if (isHooksFile && REFUSED_EVENTS.has(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list; Claude Code at that list's version refuses to load the mod (drop the hook or cover it with an accepted event)`)
+        else if (isHooksFile && !ACCEPTED_EVENTS.has(ev)) warn('EVENT', node, `on('${ev}') has not been seen accepted by the directory yet (its list is read from an older Claude Code); one validation decides it, and a refusal blocks the whole mod`)
         const fn = node.arguments[node.arguments.length - 1]
         if (ev === 'classic.PermissionRequest' && fn && isFn(fn)) checkAnswer(fn, 'classic.PermissionRequest')
         if ((ev === 'classic.PermissionRequest' || ev === 'tool.check') && fn && isFn(fn)) permHooks.push({ fn, ev })
