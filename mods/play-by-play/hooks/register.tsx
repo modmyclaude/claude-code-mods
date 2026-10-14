@@ -339,8 +339,8 @@ export const register: Register = on => {
     const keys =
       e.surface === 'terminal' || e.surface === 'desktop' ? (
         (() => {
-          const { Client } = $.ui.resolve(e)
-          return Client({ key: 'keys', module: './keys.ts', props: { hint: 'Keys: n/p step, 1-9 jump to a file, q closes; click this line for the arrow keys' } })
+          const elements = $.ui.resolve(e)
+          return elements.Client({ key: 'keys', module: './keys.ts', props: { hint: 'Keys: n/p step, 1-9 jump to a file, q closes; click this line for the arrow keys' } })
         })()
       ) : (
         <Text dimColor>Arrow keys need the terminal or the desktop app here; use the buttons.</Text>

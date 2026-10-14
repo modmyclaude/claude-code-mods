@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- play-by-play 0.1.4: the arrow-keys element is built from the surface's own table of elements, so the plugin directory reads the file it loads from the element and not from the line that fetches the table; nothing it does changed.
 - halftime 0.1.6: the game board is built from the element table itself rather than from a name taken out of it, so the plugin directory can read which file it loads; nothing it does changed.
 - play-by-play 0.1.3: the arrow-keys element is written as a call, the form the mods docs use, so the plugin directory can read which file it loads; nothing it does changed.
 - halftime 0.1.5: the game board element is written as a call, the form the mods docs use, so the plugin directory can read which file it loads; nothing it does changed.
