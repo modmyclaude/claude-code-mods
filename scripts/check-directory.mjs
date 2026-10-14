@@ -218,10 +218,19 @@ function scanModule(path, out) {
 }
 
 // ---- hooks and tests alike: permission answers, config.set calls, unknown events, computed paths
-// Events the directory refused (its list is read from an older Claude Code), and the events it has
-// accepted so far (every event the ten submitted mods hook); one outside both is unverified.
-const REFUSED_EVENTS = new Set(['ui.fault', 'prompt.mention'])
-const ACCEPTED_EVENTS = new Set(['agent.spawn', 'classic.Elicitation', 'classic.Notification', 'classic.PermissionRequest', 'classic.PostModelSwitch', 'classic.PostToolBatch', 'classic.SessionStart', 'command.run', 'config.set', 'prompt.submit', 'session.attach', 'session.compact', 'session.detach', 'session.end', 'session.measure', 'session.start', 'tool.call', 'turn.complete', 'turn.start', 'turn.step', 'ui.close', 'ui.message', 'ui.render', 'ui.scroll'])
+// The directory's event list is Claude Code's own table at 2.1.286 to 2.1.288 (43 events, identical in both builds,
+// read out of the binaries) plus the settings-hook events written classic.<Name> (that table is unchanged through
+// 2.1.296). It lacks exactly ui.fault (2.1.289), prompt.mention (2.1.290), prompt.autocomplete (2.1.292) and anything
+// newer (prompt.change, 2.1.300); a hook on one of those refuses the whole mod. Read on hooks modules only.
+const DIRECTORY_EVENTS = new Set(['agent.offer', 'agent.spawn', 'attribution.text', 'command.describe', 'command.run', 'config.describe', 'config.set', 'engine.create', 'plugin.register', 'prompt.attachment', 'prompt.compose', 'prompt.context', 'prompt.edit', 'prompt.fill', 'prompt.section', 'prompt.submit', 'prompt.suggest', 'session.append', 'session.attach', 'session.compact', 'session.detach', 'session.end', 'session.measure', 'session.receive', 'session.send', 'session.start', 'skill.prompt', 'telemetry.log', 'telemetry.mark', 'tool.call', 'tool.check', 'tool.describe', 'turn.complete', 'turn.start', 'turn.step', 'ui.focus', 'ui.input', 'ui.message', 'ui.press', 'ui.render', 'ui.resolve', 'ui.scroll', 'ui.select'])
+const CLASSIC_EVENTS = new Set(['ConfigChange', 'CwdChanged', 'DirectoryAdded', 'Elicitation', 'ElicitationResult', 'FileChanged', 'InstructionsLoaded', 'MessageDisplay', 'Notification', 'PermissionDenied', 'PermissionRequest', 'PostCompact', 'PostModelSwitch', 'PostToolBatch', 'PostToolUse', 'PostToolUseFailure', 'PreCompact', 'PreModelSwitch', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Setup', 'Stop', 'StopFailure', 'SubagentStart', 'SubagentStop', 'TaskCompleted', 'TaskCreated', 'TeammateIdle', 'UserPromptExpansion', 'UserPromptSubmit', 'WorktreeCreate', 'WorktreeRemove'])
+const EVENT_SINCE = { 'ui.fault': '2.1.289', 'prompt.mention': '2.1.290', 'prompt.autocomplete': '2.1.292', 'prompt.change': '2.1.300' }
+// A hook on a served $ method (`on('ui.close', { id }, ...)`) is not in that event table, yet the directory accepts
+// ui.close: last-look at 708d472 and ant-farm at 6dee58f validated with it and no event finding. The other method
+// names of the 2.1.293 table are unverified there, so they are a hint, not a block.
+const METHOD_HOOKS = new Set(['agent.list', 'agent.register', 'command.list', 'command.register', 'config.list', 'fs.read', 'fs.write', 'prompt.read', 'tool.list', 'tool.register', 'ui.blit', 'ui.close', 'ui.copy', 'ui.invalidate', 'ui.log', 'ui.notice', 'ui.open', 'ui.panes', 'ui.selection', 'ui.status', 'ui.toast'])
+const VERIFIED_METHOD_HOOKS = new Set(['ui.close'])
+const onDirectoryList = ev => DIRECTORY_EVENTS.has(ev) || VERIFIED_METHOD_HOOKS.has(ev) || (ev.startsWith('classic.') && CLASSIC_EVENTS.has(ev.slice('classic.'.length)))
 function scanShared(path, out) {
   const text = readFileSync(path, 'utf8')
   const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
@@ -269,8 +278,8 @@ function scanShared(path, out) {
       if (ts.isIdentifier(callee) && callee.text === 'on' && node.arguments[0] && isLiteralText(node.arguments[0])) {
         const ev = node.arguments[0].text
         // the event list is read on hooks modules; a test world's stand-in hooks pass (ant-farm's name a dozen unseen events)
-        if (isHooksFile && REFUSED_EVENTS.has(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list; Claude Code at that list's version refuses to load the mod (drop the hook or cover it with an accepted event)`)
-        else if (isHooksFile && !ACCEPTED_EVENTS.has(ev)) warn('EVENT', node, `on('${ev}') has not been seen accepted by the directory yet (its list is read from an older Claude Code); one validation decides it, and a refusal blocks the whole mod`)
+        if (isHooksFile && !onDirectoryList(ev) && METHOD_HOOKS.has(ev)) warn('EVENT', node, `on('${ev}') hooks a served method; the directory accepts ui.close (validated) but has not been seen with this one, and a refusal blocks the whole mod`)
+        else if (isHooksFile && !onDirectoryList(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list (Claude Code's own table at 2.1.288 plus the classic hooks${EVENT_SINCE[ev] ? `; this event came in ${EVENT_SINCE[ev]}` : ''}); the directory refuses the whole mod for it (drop the hook or cover it with a listed event)`)
         const fn = node.arguments[node.arguments.length - 1]
         if (ev === 'classic.PermissionRequest' && fn && isFn(fn)) checkAnswer(fn, 'classic.PermissionRequest')
         if ((ev === 'classic.PermissionRequest' || ev === 'tool.check') && fn && isFn(fn)) permHooks.push({ fn, ev })
