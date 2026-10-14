@@ -21,7 +21,10 @@
 //              not one object literal with a fixed-text key and a value, or
 //              carries a cast, or a member that is not plain: a literal or a
 //              name (`!value` is not; members beyond key and value, and a
-//              value that is a name, pass: wardrobe) (MOD_CONFIG_SET_UNREAD) (blocking)
+//              value that is a name, pass: wardrobe); or one not called on the
+//              enclosing hook's or test's first parameter (a test helper's `$`
+//              is not followed; a top-level function's is, in hooks)
+//              (MOD_CONFIG_SET_UNREAD)                                (blocking)
 //   EVENT      a hook on an event the directory's list lacks, `ui.fault`
 //              so far (MOD_HOOKS_UNKNOWN_EVENT)                       (blocking)
 //   IMPORT     a Client element whose path is not a fixed string, or an
@@ -218,7 +221,34 @@ function scanShared(path, out) {
   const report = (kind, node, why) => out.push({ kind, at: `${rel}:${lineOf(node)}`, text: why, blocking: true })
   const warn = (kind, node, why) => out.push({ kind, at: `${rel}:${lineOf(node)}`, text: why, blocking: false })
   const isFn = n => ts.isArrowFunction(n) || ts.isFunctionExpression(n)
+  const isAnyFn = n => isFn(n) || ts.isFunctionDeclaration(n) || ts.isMethodDeclaration(n)
   const permHooks = []
+  const isHooksFile = /\/hooks\//.test(rel)
+  const rootIsOn = call => { let c = call; while (ts.isCallExpression(c) && ts.isPropertyAccessExpression(c.expression)) c = c.expression.expression; return ts.isCallExpression(c) && ts.isIdentifier(c.expression) && c.expression.text === 'on' }
+  const lastArgOf = fn => ts.isCallExpression(fn.parent) && fn.parent.arguments[fn.parent.arguments.length - 1] === fn ? fn.parent : undefined
+  const isHookCallback = fn => { const c = lastArgOf(fn); if (!c) return false; const k = c.expression; return (ts.isIdentifier(k) && k.text === 'on') || (ts.isPropertyAccessExpression(k) && k.name.text === 'catch' && rootIsOn(k.expression)) }
+  const isTestCallback = fn => { const c = lastArgOf(fn); return !!c && ts.isIdentifier(c.expression) && (c.expression.text === 'test' || c.expression.text === 'it') }
+  const isTopLevelFn = fn => ts.isFunctionDeclaration(fn) ? fn.parent === sf : (ts.isVariableDeclaration(fn.parent) && ts.isVariableDeclarationList(fn.parent.parent) && ts.isVariableStatement(fn.parent.parent.parent) && fn.parent.parent.parent.parent === sf)
+  const firstParam = fn => fn.parameters[0] && ts.isIdentifier(fn.parameters[0].name) ? fn.parameters[0].name.text : undefined
+  const hasParam = (fn, name) => fn.parameters.some(q => ts.isIdentifier(q.name) && q.name.text === name)
+  const fnLabel = fn => ts.isFunctionDeclaration(fn) && fn.name ? fn.name.text : (ts.isVariableDeclaration(fn.parent) && ts.isIdentifier(fn.parent.name) ? fn.parent.name.text : 'a function')
+  // The directory reads a config.set only on the hook's first parameter: the enclosing hook's or
+  // test's own `$`, or (in a hooks module) a top-level function's parameter it was passed whole into.
+  // A test helper's `$` is not followed (the twelve switch tests' flip($, value), halftime 0.1.4).
+  function checkReceiver(call, recv) {
+    if (!ts.isIdentifier(recv)) { report('CONFIG_SET', call, `config.set must be called on the hook's first parameter, not on ${recv.getText(sf).slice(0, 30)}`); return }
+    const name = recv.text
+    for (let n = call.parent; n; n = n.parent) {
+      if (!isAnyFn(n)) continue
+      if (isHookCallback(n) || isTestCallback(n)) {
+        if (firstParam(n) === name) return
+        report('CONFIG_SET', call, `config.set is called on ${name}, not on the enclosing ${isHookCallback(n) ? 'hook' : 'test'}'s first parameter (${firstParam(n) ?? 'none'})`); return
+      }
+      if (isHooksFile && isTopLevelFn(n) && hasParam(n, name)) return
+      if (hasParam(n, name)) { report('CONFIG_SET', call, `config.set is called on ${name} inside ${fnLabel(n)}, which the directory does not follow; write the call in the ${isHooksFile ? 'hook' : 'test'} itself, on its first parameter`); return }
+    }
+    report('CONFIG_SET', call, `config.set is called on ${name} outside any hook or test; the directory reads it only on the hook's first parameter`)
+  }
   const isLiteralValue = n => isLiteralText(n) || ts.isNumericLiteral(n) || (ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(n.operand)) || n.kind === ts.SyntaxKind.TrueKeyword || n.kind === ts.SyntaxKind.FalseKeyword || n.kind === ts.SyntaxKind.NullKeyword
   // plain, as the directory reads a member: a literal, a name, or an object of plain members (`!value`, a call or a spread is not)
   const isPlain = n => isLiteralValue(n) || ts.isIdentifier(n) || (ts.isObjectLiteralExpression(n) && n.properties.every(q => ts.isShorthandPropertyAssignment(q) || (ts.isPropertyAssignment(q) && isPlain(q.initializer))))
@@ -236,6 +266,7 @@ function scanShared(path, out) {
       }
       // X.config.set(arg)
       if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'set' && ts.isPropertyAccessExpression(callee.expression) && callee.expression.name.text === 'config') {
+        checkReceiver(node, callee.expression.expression)
         const a = node.arguments[0]
         if (!a || !ts.isObjectLiteralExpression(a)) report('CONFIG_SET', node, `config.set takes one object written in the call (${a ? a.getText(sf).slice(0, 50) : 'nothing'}); a cast or a variable breaks the directory's read`)
         else {
@@ -308,7 +339,6 @@ function scanShared(path, out) {
   // hook's answer (halftime 0.1.3's `const next = await update(...)`, far from the hook).
   if (permHooks.length) {
     const hookFns = new Set()
-    const rootIsOn = call => { let c = call; while (ts.isCallExpression(c) && ts.isPropertyAccessExpression(c.expression)) c = c.expression.expression; return ts.isCallExpression(c) && ts.isIdentifier(c.expression) && c.expression.text === 'on' }
     const collect = n => {
       if (ts.isCallExpression(n)) {
         const isOn = ts.isIdentifier(n.expression) && n.expression.text === 'on'
