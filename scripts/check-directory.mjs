@@ -74,7 +74,10 @@ const ROOT = new URL('..', import.meta.url).pathname
 const SECRET = [
   /AKIA[0-9A-Z]{16}/, /ghp_[A-Za-z0-9]{20,}/, /github_pat_[A-Za-z0-9_]{20,}/, /sk-[A-Za-z0-9_-]{20,}/, /sk_(?:live|test)_[A-Za-z0-9]{10,}/,
   /xox[abprs]-[A-Za-z0-9-]{10,}/, /-----BEGIN [A-Z ]*PRIVATE KEY/, /AIza[0-9A-Za-z_-]{35}/, /glpat-[A-Za-z0-9_-]{20}/, /wJalrXUtnFEMI\/K7MDENG/,
+  /\bsk-(?:live|test|proj|ant)-[A-Za-z0-9_-]{6,}/, /\b(?:tok|pk|rk)_(?:live|test)_[A-Za-z0-9]{6,}/,
 ]
+// The directory's own form for a sample that cannot be real: the vendor's prefix followed only by x's or EXAMPLE.
+const isPlaceholder = hit => /^(?:x+|X+|EXAMPLE)$/.test(hit.replace(/^(?:[A-Za-z]+[-_])+/, ''))
 const INVISIBLE = /[\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff\u2028\u2029]/
 const RUN = /\b(?:curl|wget)\b[^\n]*(?:https?:|\|\s*(?:ba)?sh\b)|\|\s*(?:ba)?sh\b/
 const TEXT = /\.(?:ts|tsx|js|mjs|json|md|txt|css)$/
@@ -92,7 +95,7 @@ function scanText(path, out) {
   const lines = readFileSync(path, 'utf8').split('\n')
   lines.forEach((line, i) => {
     const at = `${relative(ROOT, path)}:${i + 1}`
-    for (const re of SECRET) if (re.test(line)) out.push({ kind: 'SECRET', at, text: line.trim().slice(0, 90), blocking: true })
+    for (const re of SECRET) { const hit = re.exec(line); if (hit && !isPlaceholder(hit[0])) out.push({ kind: 'SECRET', at, text: line.trim().slice(0, 90), blocking: true }) }
     if (INVISIBLE.test(line)) out.push({ kind: 'INVISIBLE', at, text: [...line].filter(c => INVISIBLE.test(c)).map(c => 'U+' + c.codePointAt(0).toString(16).toUpperCase()).join(' '), blocking: true })
     if (RUN.test(line)) out.push({ kind: 'RUN', at, text: line.trim().slice(0, 90), blocking: false })
   })
