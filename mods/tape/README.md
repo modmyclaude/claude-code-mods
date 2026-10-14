@@ -1,3 +1,5 @@
+<img src="../../brand/pixel-icons/svg/tape.svg" width="64" height="64" alt="">
+
 # Tape
 
 A ticker tape above the prompt: live stock, index, gold, FX and crypto prices, keyless by default.

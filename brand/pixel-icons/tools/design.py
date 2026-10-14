@@ -511,6 +511,25 @@ icon("umpire", "A tennis umpire's tall chair: from up there it makes the call on
     "................",
 ])
 
+icon("tape", "Price candles over a ticker strip: live market prices on a band above the prompt.", [
+    "................",
+    "...........L....",
+    "..........LLL...",
+    "..........LLL...",
+    "......G...LLL...",
+    ".....GGG..LLL...",
+    ".....GGG..LLL...",
+    "..L..GGG...L....",
+    ".LLL.GGG........",
+    ".LLL..G.........",
+    "..L.............",
+    ".PPPPPPPPPPPPPP.",
+    ".PPKKPKKKPPKKPP.",
+    ".PPPPPPPPPPPPPP.",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [

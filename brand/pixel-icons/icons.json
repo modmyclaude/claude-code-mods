@@ -614,6 +614,29 @@
       ]
     },
     {
+      "name": "tape",
+      "kind": "mod",
+      "meaning": "Price candles over a ticker strip: live market prices on a band above the prompt.",
+      "rows": [
+        "................",
+        "...........L....",
+        "..........LLL...",
+        "..........LLL...",
+        "......G...LLL...",
+        ".....GGG..LLL...",
+        ".....GGG..LLL...",
+        "..L..GGG...L....",
+        ".LLL.GGG........",
+        ".LLL..G.........",
+        "..L.............",
+        ".PPPPPPPPPPPPPP.",
+        ".PPKKPKKKPPKKPP.",
+        ".PPPPPPPPPPPPPP.",
+        "................",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",
