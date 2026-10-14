@@ -27,8 +27,8 @@
 //              (MOD_CONFIG_SET_UNREAD)                                (blocking)
 //   EVENT      a hook on an event the directory's list lacks, `ui.fault`
 //              so far (MOD_HOOKS_UNKNOWN_EVENT)                       (blocking)
-//   IMPORT     a Client element whose path is not a fixed string, or an
-//              import() of a computed path (MOD_IMPORT_DYNAMIC_COMPUTED) (blocking)
+//   IMPORT     a Client element or call whose module is not a fixed string,
+//              or an import() of a computed path (MOD_IMPORT_DYNAMIC_COMPUTED) (blocking)
 //   CLIENT     a Client element with any other attribute not written as a
 //              literal or plain names (a template key, a props spread): a
 //              hint while the directory's reading of Client is settled (warning)
@@ -277,6 +277,21 @@ function scanShared(path, out) {
             if (ts.isShorthandPropertyAssignment(q)) continue
             if (!ts.isPropertyAssignment(q) || !ts.isIdentifier(q.name)) { report('CONFIG_SET', q, `config.set's object has a member that is not a plain name (${short(q)})`); continue }
             if (!isPlain(q.initializer)) report('CONFIG_SET', q, `config.set's ${q.name.text} is not plain (${short(q.initializer)}): write a literal or a name, not an expression`)
+          }
+        }
+      }
+      // Client({ key, module, props }), the call form: the same reads as the element
+      if ((ts.isIdentifier(callee) && callee.text === 'Client') || (ts.isPropertyAccessExpression(callee) && callee.name.text === 'Client')) {
+        const shortText = n => n.getText(sf).replace(/\s+/g, ' ').slice(0, 44)
+        const a = node.arguments[0]
+        if (!a || !ts.isObjectLiteralExpression(a)) report('IMPORT', node, `a Client call whose props are not one object written in the call (${a ? shortText(a) : 'nothing'})`)
+        else {
+          const mod = a.properties.find(q => ts.isPropertyAssignment(q) && ts.isIdentifier(q.name) && (q.name.text === 'module' || q.name.text === 'path'))
+          if (!mod || !isLiteralText(mod.initializer)) report('IMPORT', node, `a Client call whose module is not a fixed string (${mod ? shortText(mod.initializer) : 'no module'})`)
+          for (const q of a.properties) {
+            if (ts.isSpreadAssignment(q)) { out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(q)}`, text: 'a Client call with a spread member; the directory may read it as a computed path', blocking: false }); continue }
+            if (ts.isShorthandPropertyAssignment(q) || !ts.isPropertyAssignment(q) || !ts.isIdentifier(q.name) || q.name.text === 'module') continue
+            if (!isPlain(q.initializer)) out.push({ kind: 'CLIENT', at: `${rel}:${lineOf(q)}`, text: `a Client call's ${q.name.text} is not written as a literal or plain names (${shortText(q.initializer)}); the directory may read it as a computed path`, blocking: false })
           }
         }
       }
