@@ -399,7 +399,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "keywords": [
         "games",
         "fun",
@@ -437,7 +437,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "876fd86",
+      "commit": "396a82f",
       "reach": [
         "hooks tool calls"
       ],
@@ -845,7 +845,7 @@
         "desktop"
       ],
       "modelCalls": "none",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "keywords": [
         "review",
         "diff",
@@ -875,7 +875,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "6d7e139",
+      "commit": "e5902aa",
       "reach": [
         "runs commands",
         "hooks tool calls"
