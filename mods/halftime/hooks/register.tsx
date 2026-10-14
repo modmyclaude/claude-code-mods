@@ -43,7 +43,7 @@ const REASON_TEXT: Record<HalftimeReason, string> = {
 const loopOf = (id: unknown) => (typeof id === 'string' && id.length > 0 ? id : '')
 
 /** The main conversation's turns only: a subagent's carry its `agentId` and change nothing. */
-const isMain = (e: object) => loopOf((e as { agentId?: unknown }).agentId) === ''
+const isMain = (input: object) => loopOf((input as { agentId?: unknown }).agentId) === ''
 
 const resumable = (run: HalftimeRun | null) => run !== null && run.status !== 'over'
 
@@ -86,28 +86,28 @@ async function apply($: EngineInterface, change: (s: HalftimeSession, now: numbe
   // A transition that changes nothing hands back the same object: no write, so nothing redraws.
   if (change(current, now) === current) return current
   let before = current
-  const next = await update($, session, s => {
+  const after = await update($, session, s => {
     before = s
     return change(s, now)
   })
-  await followUp($, before, next)
-  return next
+  await followUp($, before, after)
+  return after
 }
 
-async function followUp($: EngineInterface, before: HalftimeSession, next: HalftimeSession) {
+async function followUp($: EngineInterface, before: HalftimeSession, after: HalftimeSession) {
   // The 3-2-1 is the only timer the hooks module runs during a run, and only while counting.
-  const counting = next.phase === 'board' && next.run?.status === 'countdown'
+  const counting = after.phase === 'board' && after.run?.status === 'countdown'
   if (counting && !mod.countdown) mod.countdown = $.clock.every(1000, () => countdownTicked($))
   if (!counting && mod.countdown) {
     mod.countdown.cancel()
     mod.countdown = null
   }
-  if (next.run && next.run.id !== before.run?.id) {
-    await remember($, next.run.game)
+  if (after.run && after.run.id !== before.run?.id) {
+    await remember($, after.run.game)
   }
-  if (unsaved(next) && next.run) await saveResult($, next.run.id)
-  const leftPlay = before.run?.status === 'live' && next.run?.status !== 'live'
-  if (next.owed[2] > 0 || next.owed[0] >= FLUSH_EVERY_MS || (leftPlay && next.owed[0] > 0)) await flush($)
+  if (unsaved(after) && after.run) await saveResult($, after.run.id)
+  const leftPlay = before.run?.status === 'live' && after.run?.status !== 'live'
+  if (after.owed[2] > 0 || after.owed[0] >= FLUSH_EVERY_MS || (leftPlay && after.owed[0] > 0)) await flush($)
 }
 
 async function remember($: EngineInterface, game: HalftimeGameId) {

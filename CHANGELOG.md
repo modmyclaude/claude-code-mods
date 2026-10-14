@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- halftime 0.1.4: no name a hook takes is used for anything else in its hooks module, as the plugin directory's permission check asks; nothing it does changed.
 - halftime 0.1.3: the plugin directory's source checks pass. The whistle passes Claude Code's permission answer on without reading it, so a prompt one of your own hooks settles before a dialog shows still pauses play until that step's tools finish. The line that said the board could not run on a surface is gone, with the hook it needed, which the directory's list of events lacks. The board's grid size is spelled out, and the tests write each settings change in full.
 - ant-farm 0.3.5: a mission map on the desktop app: a still picture of who spawned whom, each node named by its mission number and task, a halo on the running ones, done and failed in their colours, the full tasks in its alt text; `m` hides or shows it. Drawn as a picture so it never flickers.
 - cloakroom 0.1.4: the audit's running count goes by its own name, no longer the name of the function that runs the audit, so the plugin directory can follow it; nothing it does changed.
