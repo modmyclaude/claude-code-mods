@@ -13,7 +13,8 @@ import type { World } from './world'
 const OFF = 'Second Wind is off. /mods or /config turns it on.'
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'second-wind.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  const previous = !value
+  return $.config.set({ key: 'second-wind.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 /** What each surface's band draws: its texts, and whether the desktop guide is there. */

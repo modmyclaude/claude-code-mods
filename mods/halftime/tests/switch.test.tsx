@@ -14,7 +14,8 @@ const OFF = 'Halftime is off. /mods or /config turns it on.'
 const MAIN_TURN = { text: 'refactor the parser', turnId: 'main-1' }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'halftime.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  const previous = !value
+  return $.config.set({ key: 'halftime.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 const band = ($: Engine, surface: 'terminal' | 'desktop') =>

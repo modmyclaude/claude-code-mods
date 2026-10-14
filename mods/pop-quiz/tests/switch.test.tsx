@@ -15,7 +15,8 @@ const OFF = 'Pop Quiz is off. /mods or /config turns it on.'
 const REFUSED = { deny: 'pop-quiz stays off: you switch it on in the /config menu or the modmyclaude hub' }
 
 function flip($: Engine, value: boolean, origin: ConfigOrigin = { kind: 'composer' }) {
-  return $.config.set({ key: 'pop-quiz.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin })
+  const previous = !value
+  return $.config.set({ key: 'pop-quiz.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin })
 }
 
 test('flipped live: off clears the quiz and makes no call, over /pop-quiz on; on brings it back', async ($, on) => {

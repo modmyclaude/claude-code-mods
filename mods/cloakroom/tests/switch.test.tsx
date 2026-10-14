@@ -59,7 +59,8 @@ async function band($: Engine, surface: RenderSurface) {
 }
 
 function flip($: Engine, value: boolean, origin: ConfigOrigin = { kind: 'composer' }) {
-  return $.config.set({ key: 'cloakroom.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin })
+  const previous = !value
+  return $.config.set({ key: 'cloakroom.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin })
 }
 
 const NOTHING_DRAWN = { texts: ["another mod's band"], buttons: [] }

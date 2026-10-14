@@ -17,7 +17,8 @@ const OFF = 'Umpire is off. /mods or /config turns it on.'
 const REFUSED = { deny: 'umpire stays off: you switch it on in the /config menu or the modmyclaude hub' }
 
 function flip($: Engine, value: boolean, origin: ConfigOrigin = { kind: 'composer' }) {
-  return $.config.set({ key: 'umpire.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin })
+  const previous = !value
+  return $.config.set({ key: 'umpire.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin })
 }
 
 test('flipped live: off clears the line and runs nothing, over /umpire on; on brings them back', async ($, on) => {

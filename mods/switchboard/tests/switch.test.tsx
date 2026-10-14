@@ -27,7 +27,8 @@ function switchboard($: Engine) {
 }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'switchboard.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  const previous = !value
+  return $.config.set({ key: 'switchboard.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 /** Counts the poll timer's periods (one `clock.every` dispatch each); hooked above the mocked clock. */

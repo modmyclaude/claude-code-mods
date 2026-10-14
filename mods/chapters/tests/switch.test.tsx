@@ -30,7 +30,8 @@ const STUB = {
 }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'chapters.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  const previous = !value
+  return $.config.set({ key: 'chapters.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 /** Counts the detached start of a review (`$.clock.after(0)`); registered before the world, so above its clock. */

@@ -18,7 +18,8 @@ function headway($: Engine, args: string) {
 }
 
 function flip($: Engine, value: boolean) {
-  return $.config.set({ key: 'headway.enabled', value, previous: !value, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
+  const previous = !value
+  return $.config.set({ key: 'headway.enabled', value, previous, provider: { plugin: 'engine', tier: 'core' }, origin: { kind: 'composer' } })
 }
 
 test('switched off: no line, no pane, no tool lent, no timer, and tool calls pass untouched', { options: { enabled: false } }, async ($, on) => {
