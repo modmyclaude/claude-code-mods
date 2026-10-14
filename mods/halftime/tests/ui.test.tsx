@@ -278,7 +278,9 @@ test('terminal and desktop keep the engine\'s command row', async ($, on) => {
   world(on)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: 'halftime', surface, component: 'CommandOutput', props: { command: 'halftime', args: '', text: 'x', isErrored: false } })
-    expect(await ui.drawn()).toEqual(ENGINE_BAND)
+    // From Claude Code 2.1.299 the kit stamps the tree a plugin drew with that plugin's name (`part`), so
+    // the row is matched on the fields the engine's stand-in drew rather than compared whole.
+    expect(await ui.drawn()).toMatchObject(ENGINE_BAND)
   }
 })
 
