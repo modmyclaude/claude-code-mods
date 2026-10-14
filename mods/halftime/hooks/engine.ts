@@ -28,8 +28,11 @@ export const EMPTY_SESSION: HalftimeSession = {
   phase: 'off', practice: false, run: null, whistle: null, asking: [], turn: null, nextId: 1, owed: [0, 0, 0],
 }
 
-/** What the board posts: its instance id, its arming count, its input queue, and whether a frame ticked. */
-export type BoardMsg = { iid: string; arm: number; ev: [number, string][]; tick: boolean }
+/**
+ * What the board posts: its instance id, its arming count, its input queue, whether a frame
+ * ticked, and the run and epoch it was drawn for (a post from an earlier one is dropped).
+ */
+export type BoardMsg = { iid: string; arm: number; ev: [number, string][]; tick: boolean; rid?: unknown; ep?: unknown }
 
 /** Board posts come from code: anything off-shape is dropped, never trusted. */
 export function parseMsg(data: unknown): BoardMsg | null {
@@ -43,7 +46,8 @@ export function parseMsg(data: unknown): BoardMsg | null {
     if (!Array.isArray(item) || typeof item[0] !== 'number' || !Number.isInteger(item[0]) || typeof item[1] !== 'string' || item[1].length > 32) return null
     ev.push([item[0], item[1]])
   }
-  return { iid: d.iid, arm: d.arm, ev, tick: d.tick === true }
+  // The run and epoch are only ever compared with the run's own (onMessage): any other value drops the post.
+  return { iid: d.iid, arm: d.arm, ev, tick: d.tick === true, ...(d.rid === undefined ? {} : { rid: d.rid }), ...(d.ep === undefined ? {} : { ep: d.ep }) }
 }
 
 const turnActive = (s: HalftimeSession) => s.turn !== null
@@ -240,6 +244,8 @@ export const SHARED_KEYS: Readonly<Record<string, string>> = { p: 'pause', r: 'a
 /** Applies one board post: arming, then queued keys and clicks in order, then the frame's tick. */
 export function onMessage(s: HalftimeSession, msg: BoardMsg, now: number): HalftimeSession {
   if (s.phase !== 'board' || !s.run) return s
+  // A board drawn for another run, or before the keys last left, is not the one on screen now.
+  if ((msg.rid !== undefined && msg.rid !== s.run.id) || (msg.ep !== undefined && msg.ep !== s.run.epoch)) return s
   const game = gameOf(s.run.game)
   const same = msg.iid === s.run.input.iid
   const lastSeq = same ? s.run.input.seq : 0

@@ -156,6 +156,7 @@ function findClient(node: unknown): Node | undefined {
 export type BoardSeen = {
   key: string
   rid: number
+  epoch: number
   live: boolean
   tick: number
   keys: string[]

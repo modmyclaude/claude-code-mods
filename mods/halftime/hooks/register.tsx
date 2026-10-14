@@ -405,10 +405,10 @@ export const register: Register = (on, options) => {
     const wanted = gameOf(run.game).rows + 3
     const roomy = e.props.maxRows >= wanted || result !== null || run.status !== 'live'
     const boardRows = Math.max(4, e.props.maxRows - (roomy ? 1 : 0) - (hasBelow ? 1 : 0))
-    const props = boardView(run, st, cols, boardRows, now)
+    const { rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells } = boardView(run, st, cols, boardRows, now, e.surface === 'desktop')
     return stack(
       <Box flexDirection="column">
-        <Client key={`board-${run.id}-${run.epoch}`} module="./board.tsx" props={{ ...props, cells: e.surface === 'desktop' }} />
+        <Client key="board" module="./board.tsx" props={{ rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells }} />
         {roomy ? (
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
             {result ? <Text wrap="truncate-end">{result.share}</Text> : null}

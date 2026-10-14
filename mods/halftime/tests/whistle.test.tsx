@@ -44,8 +44,8 @@ for (const surface of SURFACES) {
     await $.classic.PostToolBatch({ tool_calls: [] })
     const back = await boardOf(ui)
     expect(back?.rid).toBe(before?.rid)
-    // A fresh board (the keys went back to the prompt), showing the same run.
-    expect(back?.key).not.toBe(before?.key)
+    // A fresh board (the keys went back to the prompt), showing the same run: a new epoch.
+    expect(back?.epoch).toBeGreaterThan(before!.epoch)
     expect(back?.live).toBe(false)
     expect(back?.wait).toBe('back in 3...')
     expect(fieldText(back!)).toEqual(fieldText(before!))
@@ -58,6 +58,12 @@ for (const surface of SURFACES) {
     expect(live?.live).toBe(true)
     // Live again but not yet ticking: the keys went back to the prompt, so it waits for a click.
     await play(clock, ui, 600)
+    expect(fieldText((await boardOf(ui))!)).toEqual(fieldText(before!))
+    // Whatever the board drawn before the whistle still posts (armed, ticking) changes nothing.
+    for (let i = 0; i < 10; i += 1) {
+      await ui.post({ iid: 'before-the-whistle', arm: 9, ev: [], tick: true, rid: before!.rid, ep: before!.epoch })
+      await clock.advance(60)
+    }
     expect(fieldText((await boardOf(ui))!)).toEqual(fieldText(before!))
     await ui.pointer({ type: 'down', x: 3, y: 2, button: 'left' })
     await play(clock, ui, 600)

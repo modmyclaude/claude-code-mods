@@ -242,11 +242,24 @@ test('board posts that are not the board\'s shape are dropped', async ($, on) =>
   await $.command.run(halftime('merge'))
   const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
   const before = await boardOf(ui)
-  const junk = [null, 'left', { iid: 'x' }, { iid: 'x', arm: 1, ev: 'left' }, { iid: '', arm: 1, ev: [] }, { iid: 'x', arm: -1, ev: [] }, { iid: 'x', arm: 1, ev: [['1', 'left']] }]
+  const junk = [null, 'left', { iid: 'x' }, { iid: 'x', arm: 1, ev: 'left' }, { iid: '', arm: 1, ev: [] }, { iid: 'x', arm: -1, ev: [] }, { iid: 'x', arm: 1, ev: [['1', 'left']] }, { iid: 'x', arm: 1, ev: [], rid: -1 }, { iid: 'x', arm: 1, ev: [], ep: 1.5 }]
   for (const data of junk) await ui.post(data as never)
   const after = await boardOf(ui)
   expect(after?.live).toBe(false)
   expect(fieldText(after!)).toEqual(fieldText(before!))
+})
+
+test('a post from a board drawn for another run, or for another epoch, changes nothing', async ($, on) => {
+  world(on)
+  await $.command.run(halftime('merge'))
+  const ui = await $.ui.mount({ plugin: 'halftime', surface: 'terminal', component: 'AbovePrompt', props: BAND, viewport: VIEWPORT })
+  const board = (await boardOf(ui))!
+  await ui.post({ iid: 'another-run', arm: 1, ev: [], tick: false, rid: board.rid + 1, ep: board.epoch })
+  await ui.post({ iid: 'another-epoch', arm: 1, ev: [], tick: false, rid: board.rid, ep: board.epoch + 1 })
+  expect((await boardOf(ui))?.live).toBe(false)
+  // The same post from the board on screen is the person taking the keys.
+  await ui.post({ iid: 'this-board', arm: 1, ev: [], tick: false, rid: board.rid, ep: board.epoch })
+  expect((await boardOf(ui))?.live).toBe(true)
 })
 
 for (const surface of ['vscode', 'mobile'] as const) {

@@ -13,6 +13,7 @@ type Seg = [string, string, string, number]
 type Grid = { x: number; cw: number; ox: number; oy: number; width: number; height: number; vw?: number }
 type Props = {
   rid: number
+  epoch: number
   live: boolean
   tick: number
   keys: string[]
@@ -31,6 +32,9 @@ type Props = {
 
 /** What this instance remembers between calls; dropped with the instance. */
 type Local = {
+  /** The run and epoch this instance last drew; a change starts it over (see Board). */
+  rid: number
+  epoch: number
   iid: string
   seq: number
   arm: number
@@ -60,7 +64,7 @@ function newId(): string {
 
 /** Every post carries the whole unacknowledged queue: a post a later one replaces loses nothing. */
 function send(surface: Surface, local: Local, tick: boolean) {
-  surface.post({ iid: local.iid, arm: local.arm, ev: local.ev, tick })
+  surface.post({ iid: local.iid, arm: local.arm, ev: local.ev, tick, rid: local.rid, ep: local.epoch })
 }
 
 /** The frame clock runs only while the run is in play and this board holds the keys. */
@@ -92,7 +96,7 @@ function take(surface: Surface, local: Local, key: string) {
 }
 
 function start(surface: Surface, props: Props): Local {
-  const local: Local = { iid: newId(), seq: 0, arm: 0, armed: false, viaPad: false, ev: [], props, stop: null }
+  const local: Local = { rid: props.rid, epoch: props.epoch, iid: newId(), seq: 0, arm: 0, armed: false, viaPad: false, ev: [], props, stop: null }
   surface.setState(local)
   surface.onKey((event: ClientKeyEvent) => {
     const key = keyName(event.key)
@@ -132,8 +136,22 @@ function start(surface: Surface, props: Props): Local {
   return local
 }
 
+/**
+ * A new run, or the keys having left (a whistle, a survey, typing): this instance starts over
+ * as a fresh board, unarmed and not ticking, with a new id, as a newly mounted one would. Its
+ * key in the band stays fixed, so the surface may hand back the same instance.
+ */
+function startOver(local: Local, props: Props) {
+  if (local.stop) {
+    local.stop()
+    local.stop = null
+  }
+  Object.assign(local, { rid: props.rid, epoch: props.epoch, iid: newId(), seq: 0, arm: 0, armed: false, viaPad: false, ev: [] })
+}
+
 export default function Board(props: Props, surface: Surface) {
   const local = surface.state ?? start(surface, props)
+  if (local.rid !== props.rid || local.epoch !== props.epoch) startOver(local, props)
   local.props = props
   // Drop what the hooks module has applied; a new instance id starts its own count.
   if (props.ack[0] === local.iid) local.ev = local.ev.filter(([n]) => n > props.ack[1])

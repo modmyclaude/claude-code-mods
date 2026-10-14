@@ -9,6 +9,8 @@ import { SHARED_KEYS } from './engine'
 /** The props the board's surface module draws from (plain data). */
 export type BoardProps = {
   rid: number
+  /** Moves on each time the keys leave the board: the board starts over as a fresh one. */
+  epoch: number
   /** In play: the board ticks (realtime games) once it holds the keys. */
   live: boolean
   tick: number
@@ -26,6 +28,8 @@ export type BoardProps = {
   showHint: boolean
   /** The keyboard pad: [letter, word], one per action, for a terminal that sends no clicks. */
   pad: [string, string][]
+  /** The desktop app: the board draws the field one code-font cell per character. */
+  cells: boolean
 }
 
 const PAD_ORDER = 'wasdxfpr'
@@ -89,7 +93,7 @@ function waitText(run: HalftimeRun): string {
 }
 
 /** The board for a run, sized to the band's body: `cols` across, `rows` for the whole board. */
-export function boardView(run: HalftimeRun, stats: HalftimeStats, cols: number, rows: number, now: number): BoardProps {
+export function boardView(run: HalftimeRun, stats: HalftimeStats, cols: number, rows: number, now: number, cells: boolean): BoardProps {
   const game = gameOf(run.game)
   // The field comes first: in a tight band the hint line goes before any field row does.
   const showHint = rows >= game.rows + 2
@@ -105,6 +109,7 @@ export function boardView(run: HalftimeRun, stats: HalftimeStats, cols: number, 
   ])
   return {
     rid: run.id,
+    epoch: run.epoch,
     live: run.status === 'live',
     tick: game.realtime ? game.tickMs : 0,
     keys: keysFor(run),
@@ -117,5 +122,6 @@ export function boardView(run: HalftimeRun, stats: HalftimeStats, cols: number, 
     wait: waitText(run),
     needClick: run.status === 'countdown',
     showHint,
+    cells,
   }
 }
