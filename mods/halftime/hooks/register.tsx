@@ -408,7 +408,7 @@ export const register: Register = (on, options) => {
     const { rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells } = boardView(run, st, cols, boardRows, now, e.surface === 'desktop')
     return stack(
       <Box flexDirection="column">
-        <Client key="board" module="./board.tsx" props={{ rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells }} />
+        {Client({ key: 'board', module: './board.tsx', props: { rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells } })}
         {roomy ? (
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
             {result ? <Text wrap="truncate-end">{result.share}</Text> : null}
