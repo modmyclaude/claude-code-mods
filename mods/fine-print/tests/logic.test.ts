@@ -156,7 +156,7 @@ describe('describeToolUse', () => {
 describe('maskSecrets hides secret-shaped text', () => {
   const hidden: [string, string, string][] = [
     // [input, a secret that must be gone, text that must remain]
-    ['curl -H "Authorization: Bearer sk-live-SECRET123456" https://api.example.com', 'SECRET123456', 'https://api.example.com'],
+    ['curl -H "Authorization: Bearer sk-xxxxxxxxxxxxxxxxxxxx" https://api.example.com', 'xxxxxxxxxxxxxxxxxxxx', 'https://api.example.com'],
     ['curl -u x --oauth2-bearer abcdef123456789 https://a.io', 'abcdef123456789', 'https://a.io'],
     ['echo "DB_PASSWORD=hunter2" >> .env', 'hunter2', '>> .env'],
     ['PGPASSWORD=s3cr3t psql -h db', 's3cr3t', 'psql -h db'],

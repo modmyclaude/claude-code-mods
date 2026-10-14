@@ -30,7 +30,7 @@ const LONG_REPLY = Array.from(
 ).join(' ')
 const SHORT_REPLY = 'Done. All tests pass and the branch is pushed.'
 // A file's contents, which must never reach the model.
-const SECRET = 'TOKEN=hunter2-never-send-this'
+const SECRET = 'TOKEN=EXAMPLE-never-send-this'
 
 const MESSAGES: SessionMessage[] = [
   { role: 'user', text: 'an earlier prompt', toolUses: [] },
@@ -229,14 +229,14 @@ test('a secret in a command is masked before it reaches the model', async ($, on
     {
       role: 'assistant',
       text: LONG_REPLY,
-      toolUses: [{ tool_use_id: 'c', tool: 'Bash', input: { command: 'curl -H "Authorization: Bearer sk-live-SECRET123456" https://api.example.com' } }],
+      toolUses: [{ tool_use_id: 'c', tool: 'Bash', input: { command: 'curl -H "Authorization: Bearer sk-xxxxxxxxxxxxxxxxxxxx" https://api.example.com' } }],
     },
   ]
   const seen = world(on, ['{"flag": false}'], { messages: rows })
   await endTurn($, seen, turn(LONG_REPLY))
 
   expect(seen.calls[0]?.prompt).toContain('Bash (command: curl -H "Authorization: [hidden]" https://api.example.com)')
-  expect(seen.calls[0]?.prompt).not.toContain('SECRET123456')
+  expect(seen.calls[0]?.prompt).not.toContain('xxxxxxxxxxxxxxxxxxxx')
 })
 
 test('the turn ends before the model is asked', async ($, on) => {
