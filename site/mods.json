@@ -128,7 +128,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "7450f1b",
+      "commit": "876fd86",
       "reach": [
         "writes files",
         "reads files",
@@ -214,7 +214,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "7450f1b",
+      "commit": "876fd86",
       "reach": [
         "calls a model",
         "hooks prompts"
@@ -437,7 +437,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "7450f1b",
+      "commit": "876fd86",
       "reach": [
         "hooks tool calls"
       ],
@@ -589,7 +589,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "7450f1b",
+      "commit": "876fd86",
       "reach": [
         "hooks tool calls"
       ],
@@ -1128,7 +1128,7 @@
       "license": "MIT",
       "added": "2026-10-09",
       "updated": "2026-10-13",
-      "commit": "7450f1b",
+      "commit": "876fd86",
       "reach": [
         "hooks prompts"
       ],
