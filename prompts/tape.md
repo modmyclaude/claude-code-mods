@@ -2,7 +2,7 @@
 mod: tape
 title: Tape
 tagline: A ticker tape above the prompt: live stock, index, gold, FX and crypto prices, keyless by default.
-category: visibility
+category: fun
 surfaces: [terminal, desktop]
 model_calls: none
 draft: true
