@@ -82,6 +82,31 @@ that comes back after any of these waits for your click.
   paused or closed game ticks and redraws nothing. Auto mode sets one 10-second
   timer per turn.
 
+## What its hooks do
+
+Halftime decides nothing for you and changes no setting. Each hook watches and
+passes the event on unchanged:
+
+- **The On switch** (`config.set`, `halftime.enabled` only): passes the change on
+  to Claude Code, then reads the outcome to stop or restart its own drawing and
+  timers. It never refuses a change and touches no other setting.
+- **Permission prompts, input requests and notifications**
+  (`classic.PermissionRequest`, `classic.Elicitation`, `classic.Notification`):
+  blow the whistle, pausing the game, when Claude needs you. They decide no
+  permission and answer nothing.
+- **A question Claude asks you** (`tool.call`, `AskUserQuestion` only): pauses
+  the game while the question is on screen. It never answers or denies it.
+- **Claude moving on** (`classic.PostToolBatch`): starts the 3-2-1 back to your
+  game once the loop that needed you is working again.
+- **`/halftime`** is answered inside the mod; no script or process runs.
+- **The game board** (`hooks/board.tsx`, drawn as a `Client`): paints the board
+  and hands your keys and clicks back to the hooks module. It reads
+  `globalThis.crypto` only to make a random id for the board on screen, reads
+  no credential or environment variable, and sends nothing anywhere.
+- **The tests** (`tests/`) stand in for Claude Code and for you: they run
+  `/halftime`, answer a question or a settings change as you would, and switch
+  Halftime off and on. None of that runs when Halftime is installed.
+
 ## Limits
 
 - In the desktop app, a `/halftime` sent as the very first prompt of a new session may show "/halftime isn't a command here." The app checks the command before mods have registered theirs; the command still runs, and later ones show no such line.
