@@ -10,7 +10,7 @@
 // Watch only: it never focuses, answers or types into another session.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderNode, Timer } from 'claude-code'
+import type { EngineInterface, FsEntry, Register, RenderNode, Timer } from 'claude-code'
 
 import type { SwitchboardRow, SwitchboardWhere } from '../types'
 import {
@@ -177,7 +177,7 @@ async function readOthers($: EngineInterface): Promise<void> {
   isReading = true
   try {
     const now = await $.clock.now()
-    let entries: Awaited<ReturnType<typeof $.fs.list>> = []
+    let entries: FsEntry[] = []
     try {
       entries = await $.fs.list(dir)
     } catch {
