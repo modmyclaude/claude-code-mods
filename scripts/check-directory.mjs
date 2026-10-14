@@ -25,8 +25,10 @@
 //              enclosing hook's or test's first parameter (a test helper's `$`
 //              is not followed; a top-level function's is, in hooks)
 //              (MOD_CONFIG_SET_UNREAD)                                (blocking)
-//   EVENT      a hook on an event the directory's list lacks, `ui.fault`
-//              so far (MOD_HOOKS_UNKNOWN_EVENT)                       (blocking)
+//   EVENT      a hook on an event the directory refused (`ui.fault`,
+//              `prompt.mention`: its list is read from an older Claude Code)
+//              (MOD_HOOKS_UNKNOWN_EVENT)                              (blocking;
+//              an event outside the set the directory has accepted is a hint)
 //   IMPORT     a Client element or call whose module is not a fixed string,
 //              a Client taken out of `$.ui.resolve(e)` by name (the directory
 //              reads it as a file loaded by that call, `e` as its path: hold
@@ -212,7 +214,10 @@ function scanModule(path, out) {
 }
 
 // ---- hooks and tests alike: permission answers, config.set calls, unknown events, computed paths
-const UNKNOWN_EVENTS = new Set(['ui.fault'])
+// Events the directory refused (its list is read from an older Claude Code), and the events it has
+// accepted so far (every event the ten submitted mods hook); one outside both is unverified.
+const REFUSED_EVENTS = new Set(['ui.fault', 'prompt.mention'])
+const ACCEPTED_EVENTS = new Set(['agent.spawn', 'classic.Elicitation', 'classic.Notification', 'classic.PermissionRequest', 'classic.PostModelSwitch', 'classic.PostToolBatch', 'classic.SessionStart', 'command.run', 'config.set', 'prompt.submit', 'session.attach', 'session.compact', 'session.detach', 'session.end', 'session.measure', 'session.start', 'tool.call', 'turn.complete', 'turn.start', 'turn.step', 'ui.close', 'ui.message', 'ui.render', 'ui.scroll'])
 function scanShared(path, out) {
   const text = readFileSync(path, 'utf8')
   const sf = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
@@ -259,7 +264,8 @@ function scanShared(path, out) {
       // on('event', ..., hook)
       if (ts.isIdentifier(callee) && callee.text === 'on' && node.arguments[0] && isLiteralText(node.arguments[0])) {
         const ev = node.arguments[0].text
-        if (UNKNOWN_EVENTS.has(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list; Claude Code at that list's version refuses to load the mod`)
+        if (REFUSED_EVENTS.has(ev)) report('EVENT', node, `on('${ev}') is not on the directory's event list; Claude Code at that list's version refuses to load the mod (drop the hook or cover it with an accepted event)`)
+        else if (!ACCEPTED_EVENTS.has(ev)) warn('EVENT', node, `on('${ev}') has not been seen accepted by the directory yet (its list is read from an older Claude Code); one validation decides it, and a refusal blocks the whole mod`)
         const fn = node.arguments[node.arguments.length - 1]
         if (ev === 'classic.PermissionRequest' && fn && isFn(fn)) checkAnswer(fn, 'classic.PermissionRequest')
         if ((ev === 'classic.PermissionRequest' || ev === 'tool.check') && fn && isFn(fn)) permHooks.push({ fn, ev })
