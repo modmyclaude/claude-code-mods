@@ -19,10 +19,9 @@
 //              the name as another function's parameter is a hint)
 //   CONFIG_SET a `config.set(...)` call, in hooks or tests, whose argument is
 //              not one object literal with a fixed-text key and a value, or
-//              carries a cast, or a member that is not plain (a literal or a
-//              name: `!value` is not) (MOD_CONFIG_SET_UNREAD)         (blocking;
-//              members beyond key and value, and a value that is a name and
-//              not a literal, are hints until wardrobe's validation is read)
+//              carries a cast, or a member that is not plain: a literal or a
+//              name (`!value` is not; members beyond key and value, and a
+//              value that is a name, pass: wardrobe) (MOD_CONFIG_SET_UNREAD) (blocking)
 //   EVENT      a hook on an event the directory's list lacks, `ui.fault`
 //              so far (MOD_HOOKS_UNKNOWN_EVENT)                       (blocking)
 //   IMPORT     a Client element whose path is not a fixed string, or an
@@ -251,9 +250,6 @@ function scanShared(path, out) {
             if (!ts.isPropertyAssignment(q) || !ts.isIdentifier(q.name)) { report('CONFIG_SET', q, `config.set's object has a member that is not a plain name (${short(q)})`); continue }
             if (!isPlain(q.initializer)) report('CONFIG_SET', q, `config.set's ${q.name.text} is not plain (${short(q.initializer)}): write a literal or a name, not an expression`)
           }
-          const extra = a.properties.filter(q => (ts.isPropertyAssignment(q) || ts.isShorthandPropertyAssignment(q)) && ts.isIdentifier(q.name) && q.name.text !== 'key' && q.name.text !== 'value').map(q => q.name.text)
-          if (extra.length) warn('CONFIG_SET', a, `config.set carries members beyond key and value (${extra.join(', ')}); whether the directory reads past those two is open until wardrobe's validation`)
-          if (value && !(ts.isPropertyAssignment(value) && isLiteralValue(value.initializer))) warn('CONFIG_SET', value, `config.set's value is a name, not a literal (${short(value)}); whether the directory reads a name as plain is open until wardrobe's validation`)
         }
       }
       // import(expr)
