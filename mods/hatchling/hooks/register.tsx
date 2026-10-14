@@ -59,7 +59,7 @@ const petState = atom({ plugin: 'hatchling', key: 'pet' } as const, null)
 const animState = atom({ plugin: 'hatchling', key: 'anim' } as const, IDLE)
 const workingState = atom({ plugin: 'hatchling', key: 'working' } as const, false)
 
-type $ = EngineInterface
+type Dollar = EngineInterface
 type Tags = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
 const HELP = 'Try /pet, /pet name <name>, /pet hide, /pet show or /pet card.'
@@ -80,7 +80,7 @@ let queue: Promise<unknown> = Promise.resolve()
  * (another open session may have written since), and runs one at a time so
  * parallel tool calls never lose an update.
  */
-function commit($: $, change: (pet: HatchlingPet, now: number) => Change): Promise<Change> {
+function commit($: Dollar, change: (pet: HatchlingPet, now: number) => Change): Promise<Change> {
   async function job() {
     const now = await $.clock.now()
     const result = change(normalizePet(await $.store.get(STORE_KEY), now), now)
@@ -103,7 +103,7 @@ function same(pet: HatchlingPet): Change {
  * True while a surface that draws the band is attached. Not isInteractive:
  * that is false under the SDK, which is how the desktop app runs a session.
  */
-async function isDrawn($: $): Promise<boolean> {
+async function isDrawn($: Dollar): Promise<boolean> {
   const surfaces = await $.session.surfaces().catch(() => [])
   return surfaces.some(surface => surface === 'terminal' || surface === 'desktop')
 }
@@ -118,7 +118,7 @@ function stopTimers(): void {
 }
 
 /** The frame timer runs only while a mood plays or Claude is working. */
-async function syncTicker($: $) {
+async function syncTicker($: Dollar) {
   const seq = ++tickerSeq
   const pet = await read($, petState)
   const anim = await read($, animState)
@@ -133,7 +133,7 @@ async function syncTicker($: $) {
   }
 }
 
-async function step($: $) {
+async function step($: Dollar) {
   try {
     quietTicks += 1
     if (quietTicks === STALL_TICKS) {
@@ -155,7 +155,7 @@ async function step($: $) {
 }
 
 /** Starts the 5 minute countdown to sleep, unless working or hidden. */
-async function armSleep($: $) {
+async function armSleep($: Dollar) {
   const seq = ++sleepSeq
   sleeper?.cancel()
   sleeper = undefined
@@ -169,7 +169,7 @@ async function armSleep($: $) {
   })
 }
 
-async function fallAsleep($: $) {
+async function fallAsleep($: Dollar) {
   try {
     const pet = await read($, petState)
     if (pet === null || pet.hidden || (await read($, workingState))) return
@@ -182,7 +182,7 @@ async function fallAsleep($: $) {
 }
 
 /** Anything happened: wake up and restart the countdown to sleep. */
-async function touch($: $) {
+async function touch($: Dollar) {
   quietTicks = 0
   await update($, animState, anim => (anim.mood === 'sleep' ? { ...IDLE, tick: anim.tick } : anim))
   await armSleep($)
@@ -190,7 +190,7 @@ async function touch($: $) {
 
 // ------------------------------------------------------------ moods
 
-async function setMood($: $, mood: HatchlingMood, line: string, from?: HatchlingStage) {
+async function setMood($: Dollar, mood: HatchlingMood, line: string, from?: HatchlingStage) {
   // Only a mood that is really playing (its timer running) holds its place,
   // so a mood set where nothing draws can never freeze the band later.
   await update($, animState, anim =>
@@ -202,7 +202,7 @@ async function setMood($: $, mood: HatchlingMood, line: string, from?: Hatchling
 }
 
 /** Turns a saved change into a reaction: hatch, evolve, or a mood. */
-async function react($: $, change: Change, mood?: 'happy' | 'sweat' | 'cheer', tool = '') {
+async function react($: Dollar, change: Change, mood?: 'happy' | 'sweat' | 'cheer', tool = '') {
   const pet = change.pet
   const name = nameOf(pet)
   if (change.isHatched && pet.hatch !== undefined) {

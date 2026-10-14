@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-13
 
+- hatchling 0.1.2: the engine handle's type has a name of its own, so nothing in the hooks module shares the name a hook's first parameter carries, as the plugin directory's source check asks. The pet is unchanged.
 - play-by-play 0.1.2: the engine handle's type has a name of its own, so nothing in the hooks module shares the name a hook's first parameter carries, as the plugin directory's source check asks. The replay is unchanged.
 - halftime 0.1.4: the plugin directory's source checks pass. The game board has one fixed name and starts over by itself when a new run begins or play comes back after a pause, and the game ignores anything a board drawn before that still sends, so a run can no longer creep forward while it is frozen. No name a hook takes is used for anything else in its hooks module.
 - halftime 0.1.3: the plugin directory's source checks pass. The whistle passes Claude Code's permission answer on without reading it, so a prompt one of your own hooks settles before a dialog shows still pauses play until that step's tools finish. The line that said the board could not run on a surface is gone, with the hook it needed, which the directory's list of events lacks. The board's grid size is spelled out, and the tests write each settings change in full.
