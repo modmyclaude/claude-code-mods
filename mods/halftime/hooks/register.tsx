@@ -305,7 +305,10 @@ export const register: Register = (on, options) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     const s = await read($, session)
     if (s.phase === 'off') return next(e)
-    const { Box, Text, Button, Client } = $.ui.resolve(e)
+    // The board is built from the element table itself, not from a name taken out of it: the
+    // plugin directory's reader takes a `Client` destructured here as a file loaded by this call.
+    const elements = $.ui.resolve(e)
+    const { Box, Text, Button } = elements
     // Stack with what other mods draw here instead of replacing it. Their
     // lines sit above ours, so a tight band clips the game, never another mod's prompt.
     const below = await next(e)
@@ -408,7 +411,7 @@ export const register: Register = (on, options) => {
     const { rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells } = boardView(run, st, cols, boardRows, now, e.surface === 'desktop')
     return stack(
       <Box flexDirection="column">
-        {Client({ key: 'board', module: './board.tsx', props: { rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells } })}
+        {elements.Client({ key: 'board', module: './board.tsx', props: { rid, epoch, live, tick, keys, ack, title, rows, grid, hint, wait, needClick, showHint, pad, cells } })}
         {roomy ? (
           <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
             {result ? <Text wrap="truncate-end">{result.share}</Text> : null}
