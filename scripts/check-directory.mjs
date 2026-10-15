@@ -47,6 +47,8 @@
 //              wardrobe's pass `$` to methods and validated clean)  (blocking;
 //              a property read `$.noun.field` with no call is a hint)
 //   RUN        a download-and-run command in a shipped file           (warning)
+//   REPO       what stops the fetch before any scan: OS metadata files, symlinks, submodules,
+//              special files in the commit (blocking); untracked OS files one git add -A away (warning)
 // Usage: node scripts/check-directory.mjs [mod ...]   (every mod when none is named)
 // Exit 1 on any blocking finding. Approximations, read from the directory's
 // own fix texts; a pass here is not a pass there, a finding here is one there.
@@ -70,7 +72,7 @@ function loadTypescript() {
 }
 const ts = loadTypescript()
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = process.env.CHECK_DIRECTORY_ROOT ? process.env.CHECK_DIRECTORY_ROOT.replace(/\/?$/, '/') : new URL('..', import.meta.url).pathname
 const SECRET = [
   /AKIA[0-9A-Z]{16}/, /ghp_[A-Za-z0-9]{20,}/, /github_pat_[A-Za-z0-9_]{20,}/, /sk-[A-Za-z0-9_-]{20,}/, /sk_(?:live|test)_[A-Za-z0-9]{10,}/,
   /xox[abprs]-[A-Za-z0-9-]{10,}/, /-----BEGIN [A-Z ]*PRIVATE KEY/, /AIza[0-9A-Za-z_-]{35}/, /glpat-[A-Za-z0-9_-]{20}/, /wJalrXUtnFEMI\/K7MDENG/,
@@ -474,6 +476,40 @@ function scanJsxNames(path, out) {
   walk(sf)
 }
 
+// ---- the repository as the directory fetches it: what stops the unpack before any scan
+// The directory refuses a commit outright ("Fetch failed", nothing scanned) for OS metadata files
+// (.DS_Store, Thumbs.db, __MACOSX), symbolic links that leave the repository, submodules it cannot
+// reach, special files, or a plugin folder over its size limit (the limit is not published). Read
+// from the commit (git ls-tree HEAD), since that is what the directory unpacks; untracked OS files
+// are a hint, one `git add -A` away from the next commit.
+const OS_METADATA = /(^|\/)(?:\.DS_Store|Thumbs\.db|ehthumbs\.db|desktop\.ini|__MACOSX|\.Spotlight-V100|\.Trashes|\.fseventsd|\.AppleDouble|\._[^/]+)(\/|$)/
+function scanRepository() {
+  const out = []
+  let tree
+  try { tree = execFileSync('git', ['ls-tree', '-r', '-l', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }) } catch { return { out, note: 'not a git checkout: the repository rules were not read' } }
+  const sizes = new Map()
+  for (const line of tree.split('\n')) {
+    const m = /^(\d{6}) (\w+) [0-9a-f]+\s+(-|\d+)\t(.+)$/.exec(line)
+    if (!m) continue
+    const [, mode, type, size, path] = m
+    if (mode === '120000') out.push({ kind: 'REPO', at: path, text: 'a symbolic link in the commit; the directory refuses the commit when a link leaves the repository, and follows none', blocking: true })
+    else if (mode === '160000' || type === 'commit') out.push({ kind: 'REPO', at: path, text: 'a submodule; the directory refuses the commit when it cannot reach it', blocking: true })
+    else if (mode !== '100644' && mode !== '100755') out.push({ kind: 'REPO', at: path, text: `mode ${mode}: not a regular file; the directory calls it a special file and refuses the commit`, blocking: true })
+    if (OS_METADATA.test(path)) out.push({ kind: 'REPO', at: path, text: 'an OS metadata file in the commit; the directory refuses the whole commit (git rm --cached it and add it to .gitignore)', blocking: true })
+    const top = path.startsWith('mods/') ? path.split('/').slice(0, 2).join('/') : 'outside mods/'
+    sizes.set(top, (sizes.get(top) || 0) + (size === '-' ? 0 : Number(size)))
+  }
+  try {
+    const others = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: ROOT, encoding: 'utf8' }).split('\n')
+    for (const p of others) if (p && OS_METADATA.test(p)) out.push({ kind: 'REPO', at: p, text: 'an untracked OS metadata file that .gitignore does not cover; git add -A would commit it and the directory would refuse that commit', blocking: false })
+  } catch {}
+  const folders = [...sizes].filter(([k]) => k.startsWith('mods/')).sort((a, b) => b[1] - a[1])
+  const total = [...sizes.values()].reduce((a, b) => a + b, 0)
+  const kb = n => `${Math.round(n / 1024)} KB`
+  const note = folders.length ? `${kb(total)} in the commit; the largest plugin folder is ${folders[0][0]} at ${kb(folders[0][1])}` : `${kb(total)} in the commit`
+  return { out, note }
+}
+
 // A mod by name under mods/, or by path (a probe copy anywhere).
 const names = process.argv.slice(2)
 const isMod = dir => { try { return statSync(join(dir, '.claude-plugin', 'plugin.json')).isFile() } catch { return false } }
@@ -481,6 +517,13 @@ const mods = (names.length ? names.map(n => n.replace(/\/$/, '')) : readdirSync(
   .map(n => isMod(n) ? { name: n, dir: n } : { name: n.replace(/^mods\//, ''), dir: join(ROOT, 'mods', n.replace(/^mods\//, '')) })
   .filter(m => isMod(m.dir))
 let blocking = 0, warnings = 0
+{
+  const { out, note } = scanRepository()
+  const b = out.filter(f => f.blocking).length, w = out.length - b
+  blocking += b; warnings += w
+  console.log(`${b ? '!!' : 'ok'}  repository: ${b} blocking, ${w} warning${w === 1 ? '' : 's'} (${note})`)
+  for (const f of out) console.log(`    ${f.blocking ? 'BLOCK' : 'warn '} ${f.kind.padEnd(10)} ${f.at}  ${f.text}`)
+}
 for (const { name: mod, dir } of mods) {
   const out = []
   for (const path of shipped(dir)) {
