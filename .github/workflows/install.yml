@@ -28,4 +28,4 @@ jobs:
           node-version: 22
       - run: npm install -g @anthropic-ai/claude-code@${{ matrix.claude }}
       - name: Both documented install paths work from GitHub
-        run: CLAUDE_BIN=claude scripts/smoke-github.sh
+        run: CLAUDE_BIN=claude bash scripts/smoke-github.sh

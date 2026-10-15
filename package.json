@@ -10,8 +10,8 @@
   },
   "scripts": {
     "versions": "node scripts/check-versions.mjs",
-    "check": "scripts/check.sh",
-    "smoke": "scripts/smoke-install.sh",
+    "check": "bash scripts/check.sh",
+    "smoke": "bash scripts/smoke-install.sh",
     "links": "node scripts/check-links.mjs",
     "catalog": "node scripts/build-catalog.mjs",
     "catalog:check": "node scripts/build-catalog.mjs --check"

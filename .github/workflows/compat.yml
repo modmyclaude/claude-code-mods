@@ -29,6 +29,6 @@ jobs:
       - name: Which release this run tests
         run: claude --version
       - name: Validate (strict) and test every mod
-        run: STRICT=1 CLAUDE_BIN=claude scripts/check.sh
+        run: STRICT=1 CLAUDE_BIN=claude bash scripts/check.sh
       - name: Every mod installs from the marketplace
-        run: CLAUDE_BIN=claude scripts/smoke-install.sh
+        run: CLAUDE_BIN=claude bash scripts/smoke-install.sh

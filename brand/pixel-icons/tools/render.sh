@@ -4,8 +4,8 @@ set -e
 cd "$(dirname "$0")"
 OUT="$(cd .. && pwd)"
 python3 build.py
-./shot.sh "$PWD/contact-raw.png" 1300 1400 "file://$PWD/contact-sheet.html"
-./shot.sh "$PWD/ba-raw.png" 1000 800 "file://$PWD/before-after.html"
+bash ./shot.sh "$PWD/contact-raw.png" 1300 1400 "file://$PWD/contact-sheet.html"
+bash ./shot.sh "$PWD/ba-raw.png" 1000 800 "file://$PWD/before-after.html"
 python3 - "$OUT" <<'PY'
 import sys
 from PIL import Image
