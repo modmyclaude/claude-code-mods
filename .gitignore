@@ -1,6 +1,11 @@
 # Local working notes (not part of the project)
 _internal/
+# OS metadata: the plugin directory refuses a commit that carries any of these
 .DS_Store
+Thumbs.db
+desktop.ini
+__MACOSX/
+._*
 node_modules/
 # Engine-written API types (laid locally by scripts/check.sh; not ours to publish)
 .cache/
