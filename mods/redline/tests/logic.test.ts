@@ -12,13 +12,19 @@ import {
   busiest,
   clean,
   EMPTY_GAUGE,
+  fmtClock,
   fmtDuration,
   fmtPace,
+  fmtReset,
+  fmtSpan,
   fmtTokens,
   fmtUsd,
   gaugeLine,
+  gaugeParts,
   levelOf,
   levelWord,
+  limitFigure,
+  limitLevel,
   limitText,
   paceEta,
   percentOf,
@@ -162,23 +168,23 @@ describe('plan run-out', () => {
     const r = runOut({ kind: 'five_hour', percentUsed: 80, resetsAt: at(3) }, NOW)
     expect(r?.kind).toBe('at')
     expect(r?.kind === 'at' ? Math.round(r.ms / MIN) : -1).toBe(30)
-    expect(limitText({ kind: 'five_hour', percentUsed: 80, resetsAt: at(3) }, NOW)).toBe('5h 80% out in ~30m')
+    expect(limitText({ kind: 'five_hour', percentUsed: 80, resetsAt: at(3) }, NOW)).toBe('5h ████░ 80% AMBER, out in ~30m')
   })
   test('a window used slowly resets first', () => {
     const l = { kind: 'seven_day', percentUsed: 10, resetsAt: at(24 * 6) }
     expect(runOut(l, NOW)).toEqual({ kind: 'resets-first', basis: 'average' })
-    expect(limitText(l, NOW)).toBe('7d 10%')
+    expect(limitText(l, NOW)).toBe('week █░░░░ 10%')
   })
   test('a late burst warns at the recent rate, which the average would hide', () => {
     // Opened 4.5h ago, 50% used, resets in 30 min: the average says it resets first.
     const l = { kind: 'five_hour', percentUsed: 50, resetsAt: at(0.5) }
-    expect(limitText(l, NOW)).toBe('5h 50%')
+    expect(limitText(l, NOW)).toBe('5h ███░░ 50%')
     // But it went 20% -> 50% in the last 10 minutes: 3 points a minute, dry in ~17m.
     const burst = [{ t: NOW - 10 * MIN, tokens: 20 }, { t: NOW, tokens: 50 }]
     const r = runOut(l, NOW, burst)
     expect(r).toMatchObject({ kind: 'at', basis: 'recent' })
     expect(r?.kind === 'at' ? Math.round(r.ms / MIN) : -1).toBe(17)
-    expect(limitText(l, NOW, burst)).toBe('5h 50% out in ~17m')
+    expect(limitText(l, NOW, burst)).toBe('5h ███░░ 50% AMBER, out in ~17m')
   })
   test('a window that held still lately falls back to its average pace', () => {
     const flat = [{ t: NOW - 10 * MIN, tokens: 80 }, { t: NOW, tokens: 80 }]
@@ -202,7 +208,7 @@ describe('plan run-out', () => {
   test('a spent window is out', () => {
     expect(runOut({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toEqual({ kind: 'out' })
     // Spent: the one-line gauge says when it comes back.
-    expect(limitText({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toBe('5h OUT, resets in ~1h')
+    expect(limitText({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toBe('5h OUT, resets in 1h')
     expect(limitText({ kind: 'five_hour', percentUsed: 100 }, NOW)).toBe('5h OUT')
   })
   test('a window past its reset time reads reset, not a stale figure', () => {
@@ -474,5 +480,90 @@ describe('a gauge kept by an earlier version', () => {
     expect(g.spend.prompt?.requests).toBe(1)
     expect(g.byModel['claude-opus-5-5']?.requests).toBe(1)
     expect(detailLines(g, NOW).find(l => l.key === 'spend-prompt')?.value).toContain('1 req')
+  })
+})
+
+describe('the one-line gauge reads at a glance', () => {
+  const at = (hoursLeft: number) => new Date(NOW + hoursLeft * HOUR).toISOString()
+  // Moments built from local parts, so the clock-time cases hold in every zone.
+  const local = (day: number, hour: number, minute = 0) => new Date(2026, 9, day, hour, minute).getTime()
+  const THU = local(15, 13, 20)
+
+  test('a span reads to the minute under ten hours and to the hour from there', () => {
+    expect(fmtSpan(9 * HOUR + 43 * MIN)).toBe('9h 43m')
+    expect(fmtSpan(20 * HOUR + 43 * MIN)).toBe('21h')
+    expect(fmtSpan(23 * HOUR + 40 * MIN)).toBe('1d')
+    expect(fmtSpan(2 * 24 * HOUR + 19 * HOUR + 20 * MIN)).toBe('2d 19h')
+  })
+
+  test('clock time: today by the hour, this week by the day, further out as a span', () => {
+    expect(fmtClock(local(15, 15, 30), THU)).toBe('3:30pm')
+    expect(fmtClock(local(15, 0, 5), THU)).toBe('12:05am')
+    expect(fmtClock(local(17, 10), THU)).toBe('Sat 10am')
+    expect(fmtClock(local(18, 12), THU)).toBe('Sun 12pm')
+    expect(fmtClock(local(22, 13, 20), THU)).toBe('in 7d')
+  })
+
+  test('a reset under ten hours away is a span, further out the clock time', () => {
+    expect(fmtReset(THU + 48 * MIN, THU)).toBe('in 48m')
+    expect(fmtReset(THU + 9 * HOUR + 59 * MIN, THU)).toBe('in 9h 59m')
+    expect(fmtReset(local(16, 9), THU)).toBe('Fri 9am')
+  })
+
+  test("a plan window's level follows whether it hits its wall, never its percentage alone", () => {
+    // 83% used, opened 6 days ago, resets in a day: 17 points left at 0.58 an hour lasts 30 hours, so it resets first.
+    expect(limitLevel({ kind: 'seven_day', percentUsed: 83, resetsAt: at(24) }, NOW)).toBe('normal')
+    // The same figure with two days to go: the same pace empties it in ~25 hours, before the reset.
+    expect(limitLevel({ kind: 'seven_day', percentUsed: 83, resetsAt: at(48) }, NOW)).toBe('amber')
+    // Opened 2h ago, 80% used, resets in 3h: dry in 30 minutes.
+    expect(limitLevel({ kind: 'five_hour', percentUsed: 80, resetsAt: at(3) }, NOW)).toBe('amber')
+    // 40% used but a burst of 30 points in 10 minutes, half an hour before the reset: dry in 20 minutes.
+    const burst = [{ t: NOW - 10 * MIN, tokens: 10 }, { t: NOW, tokens: 40 }]
+    expect(limitLevel({ kind: 'five_hour', percentUsed: 40, resetsAt: at(0.5) }, NOW, burst)).toBe('amber')
+    expect(limitLevel({ kind: 'five_hour', percentUsed: 100, resetsAt: at(1) }, NOW)).toBe('red')
+    expect(limitLevel({ kind: 'five_hour', percentUsed: 100, resetsAt: at(-0.1) }, NOW)).toBe('unknown')
+  })
+
+  test('a window reads as a bar, or in words where the band has no room for one', () => {
+    const l = { kind: 'seven_day', percentUsed: 83, resetsAt: at(24) }
+    expect(limitText(l, NOW)).toBe('week ████░ 83%')
+    expect(limitText(l, NOW, [], 0)).toBe('week 83% used')
+    expect(limitFigure(l, NOW)).toMatchObject({ key: 'limit-seven_day', label: 'week', bar: '████░', value: '83%', level: 'normal', isDim: false })
+    expect(limitFigure(l, NOW).clause).toBeUndefined()
+  })
+
+  test('a run-out binds to its window with a comma; a spent window says when it comes back, as clock time when far', () => {
+    expect(limitText({ kind: 'five_hour', percentUsed: 80, resetsAt: at(3) }, NOW, [], 0)).toBe('5h 80% used AMBER, out in ~30m')
+    // 90% used, opened 5 days ago, resets in 2 days: 10 points left at 0.75 an hour, dry in ~13h.
+    expect(limitText({ kind: 'seven_day', percentUsed: 90, resetsAt: at(48) }, NOW)).toBe('week █████ 90% AMBER, out in ~13h')
+    expect(limitText({ kind: 'seven_day', percentUsed: 100, resetsAt: new Date(local(17, 10)).toISOString() }, THU)).toBe('week OUT, resets Sat 10am')
+    expect(limitText({ kind: 'five_hour', percentUsed: 100, resetsAt: new Date(THU + 48 * MIN).toISOString() }, THU)).toBe('5h OUT, resets in 48m')
+  })
+
+  test('the figures read in order: the context with its pace, each window, the dollars, the rate while tokens flow', () => {
+    const limits = [{ kind: 'five_hour', percentUsed: 11, resetsAt: at(3) }, { kind: 'seven_day', percentUsed: 83, resetsAt: at(24) }]
+    let g = reduce({ ...EMPTY_GAUGE, window: 200_000 }, { now: NOW - 4 * MIN, ledgerUsd: 53.86, limits, request: { turnId: 't', usage: usage('claude-opus-5-5', 90_000) } }).gauge
+    g = reduce(g, { now: NOW, ledgerUsd: 53.86, limits, request: { turnId: 't', usage: usage('claude-opus-5-5', 98_000) } }).gauge
+    const { figures } = gaugeParts(g, NOW)
+    expect(figures.map(f => f.key)).toEqual(['context', 'limit-five_hour', 'limit-seven_day', 'cost', 'rate'])
+    // +8k context in 4 minutes: 102k left at 2k a minute.
+    expect(figures[0]).toMatchObject({ label: 'context', bar: '█████░░░░░', value: '49%', level: 'normal', clause: 'full in ~51m', isDim: false })
+    // On a plan the dollars are a footnote.
+    expect(figures[3]).toMatchObject({ key: 'cost', label: '', value: '≈$53.86', isDim: true })
+    expect(gaugeLine(g, NOW)).toBe('context █████░░░░░ 49%, full in ~51m · 5h █░░░░ 11% · week ████░ 83% · ≈$53.86 · 1.1k tokens/min')
+    // Idle ten minutes later: no pace, no rate, nothing that reads like a fault.
+    expect(gaugeLine(g, NOW + 11 * MIN)).toBe('context █████░░░░░ 49% · 5h █░░░░ 11% · week ████░ 83% · ≈$53.86')
+    // With an API key there are no windows: the dollars are the limit, drawn plain.
+    const api = reduce({ ...EMPTY_GAUGE, window: 200_000 }, { now: NOW, ledgerUsd: 2, request: { turnId: 't', usage: usage('claude-opus-5-5', 98_000) } }).gauge
+    expect(gaugeParts(api, NOW).figures.find(f => f.key === 'cost')).toMatchObject({ value: '≈$2.00', isDim: false })
+  })
+
+  test('the narrow band halves the context bar and puts the windows in words', () => {
+    const limits = [{ kind: 'seven_day', percentUsed: 83, resetsAt: at(24) }]
+    const g = reduce({ ...EMPTY_GAUGE, window: 200_000 }, { now: NOW, ledgerUsd: 2, limits, contextTokens: 170_000 }).gauge
+    const narrow = gaugeParts(g, NOW, { context: 5, limit: 0 }).figures
+    expect(narrow[0]).toMatchObject({ bar: '████░', value: '85%', level: 'red' })
+    expect(narrow[1]).toMatchObject({ value: '83% used', level: 'normal' })
+    expect(narrow[1]?.bar).toBeUndefined()
   })
 })

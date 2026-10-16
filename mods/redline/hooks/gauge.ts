@@ -132,7 +132,7 @@ export function tokensPerMinute(flow: readonly RedlineSample[], now: number, sin
 // runs; any other kind (a gateway's spend_limit) is shown with no run-out.
 const LIMIT_WINDOWS: Record<string, { label: string; short: string; ms: number }> = {
   five_hour: { label: '5-hour', short: '5h', ms: 5 * HOUR },
-  seven_day: { label: 'weekly', short: '7d', ms: 7 * 24 * HOUR },
+  seven_day: { label: 'weekly', short: 'week', ms: 7 * 24 * HOUR },
 }
 
 export const limitLabel = (kind: string): string => LIMIT_WINDOWS[kind]?.label ?? kind.replace(/_/g, ' ')
@@ -371,6 +371,34 @@ export function fmtDuration(ms: number): string {
   return h === 0 ? `${d}d` : h === 24 ? `${d + 1}d` : `${d}d ${h}h`
 }
 
+/** A span as the one-line gauge writes it: to the minute under ten hours, to the hour from there (`21h`, not `20h 43m`). */
+export function fmtSpan(ms: number): string {
+  return ms < 10 * HOUR ? fmtDuration(ms) : fmtDuration(Math.round(ms / HOUR) * HOUR)
+}
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/**
+ * A moment as clock time, in the machine's own zone: `3:30pm` today, `Sat 10am`
+ * on another day of the coming week, and a span (`in 7d`) further out, where a
+ * weekday would be ambiguous.
+ */
+export function fmtClock(at: number, now: number): string {
+  const d = new Date(at)
+  const n = new Date(now)
+  const h = d.getHours()
+  const m = d.getMinutes()
+  const time = `${h % 12 === 0 ? 12 : h % 12}${m === 0 ? '' : `:${String(m).padStart(2, '0')}`}${h < 12 ? 'am' : 'pm'}`
+  if (d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()) return time
+  if (at - now >= 6 * 24 * HOUR) return `in ${fmtSpan(at - now)}`
+  return `${DAYS[d.getDay()] ?? ''} ${time}`
+}
+
+/** When a window resets, as the words after "resets": `in 48m` under ten hours away, else the clock time (`Sat 10am`). */
+export function fmtReset(at: number, now: number): string {
+  return at - now < 10 * HOUR ? `in ${fmtDuration(at - now)}` : fmtClock(at, now)
+}
+
 export function fmtPace(ms: number | undefined): string | undefined {
   if (ms === undefined) return undefined
   if (ms <= 0) return 'full now'
@@ -394,55 +422,117 @@ export const levelWord = (level: Level): string => (level === 'red' ? 'RED' : le
 export function costText(g: RedlineGauge): string {
   if (g.ledgerUsd !== null) return fmtUsd(g.ledgerUsd)
   if (g.unpriced.length === 0) return fmtUsd(sumTokens(g.tableUsd))
-  return `${fmtTokens(sumTokens(g.totals))} tok`
+  return `${fmtTokens(sumTokens(g.totals))} tokens`
 }
 
-/** A run-out in words: `out in ~1h 20m`, `resets first`, `OUT`, or nothing. */
+/** A run-out in words: `out in ~1h 20m` (`~21h` from ten hours), `resets first`, `OUT`, or nothing. */
 export function fmtRunOut(r: RunOut | undefined): string | undefined {
   if (r === undefined) return undefined
   if (r.kind === 'out') return 'OUT'
   if (r.kind === 'resets-first') return 'resets first'
-  return r.ms < MINUTE ? 'out in <1m' : `out in ~${fmtDuration(r.ms)}`
-}
-
-/** One plan window for the one-line gauge: `5h 46%`, its run-out when due first. */
-export function limitText(l: RedlineLimit, now: number, history: readonly RedlineSample[] = []): string {
-  const short = limitShort(l.kind)
-  const reset = Date.parse(l.resetsAt ?? '')
-  // Past its reset the reading is stale until the next response says more.
-  if (!Number.isNaN(reset) && reset <= now) return `${short} reset`
-  const r = runOut(l, now, history)
-  // A spent window: when it comes back is the one figure that matters.
-  if (r?.kind === 'out') return Number.isNaN(reset) ? `${short} OUT` : `${short} OUT, resets in ~${fmtDuration(reset - now)}`
-  const head = `${short} ${Math.round(l.percentUsed)}%`
-  // On the one line only a window that runs dry before it resets earns words.
-  return r && r.kind === 'at' ? `${head} ${fmtRunOut(r)}` : head
-}
-
-/** The pieces every view of the gauge draws, computed once. */
-export function gaugeParts(g: RedlineGauge, now: number) {
-  const percent = percentOf(g)
-  return {
-    percent,
-    level: levelOf(percent),
-    context: percent === undefined ? 'ctx --' : `ctx ${percent}%`,
-    cost: costText(g),
-    rate: `${fmtTokens(tokensPerMinute(g.flow, now, g.trackingSince))} tok/min`,
-    pace: fmtPace(paceEta(g.samples, g.window, now)),
-    // Carries the engine's window kinds: each view cleans what it draws.
-    limits: g.limits.map(l => limitText(l, now, g.limitHistory[l.kind])),
-  }
+  return r.ms < MINUTE ? 'out in <1m' : `out in ~${fmtSpan(r.ms)}`
 }
 
 /**
- * The status line: plain text, the level spelled out since it has no colour,
+ * A plan window's level, by whether it is set to hit its wall: red when spent,
+ * amber when it is projected to run out before it resets, normal otherwise,
+ * unknown once its reset time has passed (the figure is stale until the next
+ * reply). A percentage alone says nothing here: a week at 83% is fine when it
+ * resets first, and a week at 40% is not when a burst will empty it by tonight.
+ */
+export function limitLevel(l: RedlineLimit, now: number, history: readonly RedlineSample[] = []): Level {
+  const reset = Date.parse(l.resetsAt ?? '')
+  if (!Number.isNaN(reset) && reset <= now) return 'unknown'
+  const r = runOut(l, now, history)
+  return r?.kind === 'out' ? 'red' : r?.kind === 'at' ? 'amber' : 'normal'
+}
+
+/**
+ * One figure of the one-line gauge: a label, a bar where there is room, the
+ * readout, its level (the band's colour, the status line's word), and a clause
+ * bound to it with a comma (`, full in ~7m`, `, out in ~21h`, `, resets Sat 10am`).
+ * Every string is already cleaned: a window's kind is the engine's.
+ */
+export type Figure = {
+  key: string
+  label: string
+  bar?: string
+  value: string
+  level: Level
+  clause?: string
+  /** Drawn dim in the band: the dollars on a plan, the rate. */
+  isDim: boolean
+}
+
+/**
+ * A plan window as a figure: `week ████░ 83%`, or `week 83% used` where the
+ * band has no room for a bar (the bar says "used" on its own); its run-out
+ * when it runs dry before it resets; when it comes back once spent.
+ */
+export function limitFigure(l: RedlineLimit, now: number, history: readonly RedlineSample[] = [], cells = 5): Figure {
+  const key = `limit-${l.kind}`
+  const label = clean(limitShort(l.kind))
+  const level = limitLevel(l, now, history)
+  const reset = Date.parse(l.resetsAt ?? '')
+  // Past its reset the reading is stale until the next response says more.
+  if (level === 'unknown') return { key, label, value: 'reset', level, isDim: true }
+  const r = runOut(l, now, history)
+  // A spent window: when it comes back is the one figure that matters.
+  if (r?.kind === 'out') return { key, label, value: 'OUT', level, isDim: false, ...(Number.isNaN(reset) ? {} : { clause: `resets ${fmtReset(reset, now)}` }) }
+  const pct = Math.round(l.percentUsed)
+  const readout = cells > 0 ? { bar: bar(Math.min(100, pct), cells), value: `${pct}%` } : { value: `${pct}% used` }
+  // On the one line only a window that runs dry before it resets earns words.
+  return { key, label, ...readout, level, isDim: false, ...(r?.kind === 'at' ? { clause: fmtRunOut(r) ?? '' } : {}) }
+}
+
+/**
+ * A figure as plain text, for the status line: `week ████░ 83% AMBER, out in ~21h`.
+ * The level word follows the readout, except where the readout spells it out (OUT).
+ */
+export function figureText(f: Figure): string {
+  const word = f.value === 'OUT' ? '' : levelWord(f.level)
+  const head = [f.label, f.bar, `${f.value}${word ? ` ${word}` : ''}`].filter(s => s !== undefined && s !== '').join(' ')
+  return f.clause ? `${head}, ${f.clause}` : head
+}
+
+/** One plan window as the status line writes it. */
+export const limitText = (l: RedlineLimit, now: number, history: readonly RedlineSample[] = [], cells = 5): string =>
+  figureText(limitFigure(l, now, history, cells))
+
+/** How many cells each bar of the one-line gauge gets; 0 draws the readout in words. */
+export type Cells = { context: number; limit: number }
+export const FULL_CELLS: Cells = { context: 10, limit: 5 }
+export const NARROW_CELLS: Cells = { context: 5, limit: 0 }
+
+/**
+ * The figures every view of the gauge draws, computed once, in reading order:
+ * the context with its pace, each plan window, the dollars, the rate while
+ * tokens flow. On a plan the windows are the limits and the dollars a
+ * footnote (nobody pays them); with an API key the dollars are the limit.
+ */
+export function gaugeParts(g: RedlineGauge, now: number, cells: Cells = FULL_CELLS) {
+  const percent = percentOf(g)
+  const level = levelOf(percent)
+  const pace = fmtPace(paceEta(g.samples, g.window, now))
+  const figures: Figure[] = [
+    percent === undefined
+      ? { key: 'context', label: 'context', value: '--', level, isDim: false }
+      : { key: 'context', label: 'context', bar: bar(percent, cells.context), value: `${percent}%`, level, isDim: false, ...(pace ? { clause: pace } : {}) },
+    ...g.limits.map(l => limitFigure(l, now, g.limitHistory[l.kind], cells.limit)),
+    { key: 'cost', label: '', value: costText(g), level: 'normal', isDim: g.limits.length > 0 },
+  ]
+  const rate = tokensPerMinute(g.flow, now, g.trackingSince)
+  // An idle session shows no rate: "0 tokens/min" reads like a fault.
+  if (rate > 0) figures.push({ key: 'rate', label: '', value: `${fmtTokens(rate)} tokens/min`, level: 'normal', isDim: true })
+  return { percent, level, figures }
+}
+
+/**
+ * The status line: plain text, each level spelled out since it has no colour,
  * cleaned since a plan window's kind is the engine's string.
  */
 export function gaugeLine(g: RedlineGauge, now: number): string {
-  const p = gaugeParts(g, now)
-  const word = levelWord(p.level)
-  const head = p.percent === undefined ? p.context : `${p.context} ${bar(p.percent, 10)}${word ? ` ${word}` : ''}`
-  return clean([head, p.cost, p.rate, p.pace, ...p.limits].filter(Boolean).join(' · '))
+  return clean(gaugeParts(g, now).figures.map(figureText).join(' · '))
 }
 
 /** The 80% toast: redline's own words and a number, no outside text. */

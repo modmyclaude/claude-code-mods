@@ -14,13 +14,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput, ThemeKey, Timer } from 'claude-code'
 
+import type { BoxProps, ElementConstructor, RenderElement, TextProps } from 'claude-code'
+
 import { boltSprite } from './bolt-draw'
 import { glyphRow } from './cells'
 import { boltPose, detailChunks, detailLines } from './detail'
 import type { DetailLine, Tone } from './detail'
-import { bar, clean, EMPTY_GAUGE, gaugeLine, gaugeParts, levelWord, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
+import { EMPTY_GAUGE, FULL_CELLS, gaugeLine, gaugeParts, levelWord, NARROW_CELLS, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
 import { kindsCarried } from './spend'
-import type { Level, Reading } from './gauge'
+import type { Figure, Level, Reading } from './gauge'
 import type { RedlineGauge } from '../types'
 
 const PANE = 'redline'
@@ -35,6 +37,34 @@ const isBandOn = atom({ plugin: 'redline', key: 'isBandOn' } as const, false)
 const carried = new Map<string, string[]>()
 
 const LEVEL_COLOR: Record<Level, ThemeKey> = { unknown: 'inactive', normal: 'success', amber: 'warning', red: 'error' }
+
+type Elements = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
+
+/**
+ * One figure of the band as coloured spans: its bar in the level's colour, the
+ * readout and the level word coloured once the level is amber or red (plain
+ * or dim otherwise), its clause bound with a comma. The bar is drawn apart on
+ * the desktop (glyphs change a Text's font there), inline on the terminal.
+ */
+function figureSpans({ Box, Text }: Elements, surface: string, f: Figure): RenderElement[] {
+  const isHot = f.level === 'amber' || f.level === 'red'
+  const color = LEVEL_COLOR[f.level]
+  const word = f.value === 'OUT' ? '' : levelWord(f.level)
+  const words: TextProps = isHot ? { color } : f.isDim ? { dimColor: true } : {}
+  // The readout carries the space after a bar, so the bar's Text holds glyphs alone.
+  const readout = (
+    <Text {...words} {...(f.value === 'OUT' ? { bold: true } : {})}>
+      {`${f.bar === undefined ? '' : ' '}${f.value}`}
+    </Text>
+  )
+  const tail = [
+    word ? <Text color={color} bold>{` ${word}`}</Text> : null,
+    f.clause ? <Text {...(isHot ? { color } : { dimColor: true })}>{`, ${f.clause}`}</Text> : null,
+  ]
+  const label = f.label ? <Text {...words}>{`${f.label} `}</Text> : null
+  const bar = f.bar === undefined ? null : surface === 'desktop' ? glyphRow({ Box, Text }, surface, f.bar, { color }) : <Text color={color}>{f.bar}</Text>
+  return [label, bar, readout, ...tail].filter((s): s is RenderElement => s !== null)
+}
 
 /** What `$.session.usage()` and `session.measure` share, as a reading. */
 const fromUsage = (u: Pick<SessionMeasureInput, 'context' | 'rateLimits' | 'cost'>) => ({
@@ -251,12 +281,15 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || !(await read($, isBandOn))) return next(e)
     const g = await read($, gauge)
-    const p = gaugeParts(g, await $.clock.now())
+    // Narrower than 80 columns the context bar halves and the plan windows read in words.
+    const p = gaugeParts(g, await $.clock.now(), e.props.bodyColumns >= 80 ? FULL_CELLS : NARROW_CELLS)
     const { Box, Text, Button } = $.ui.resolve(e)
-    const cells = e.props.bodyColumns >= 80 ? 10 : 5
-    const word = levelWord(p.level)
-    // The plan windows' kinds are the engine's strings: cleaned before drawing.
-    const rest = clean([p.cost, p.rate, p.pace, ...p.limits].filter(Boolean).join(' · '))
+    // Each figure in its own colour, ` · ` between them; the figures are already cleaned.
+    const spans: RenderElement[] = []
+    p.figures.forEach((f, i) => {
+      if (i > 0) spans.push(<Text dimColor>{' · '}</Text>)
+      spans.push(...figureSpans({ Box, Text }, e.surface, f))
+    })
     // What the other mods (and the engine) draw in the band comes first.
     const below = await next(e).catch(() => null)
     return (
@@ -264,25 +297,20 @@ export const register: Register = on => {
         {below}
         <Box flexDirection="row" gap={1}>
           {e.surface === 'desktop' ? (
-            // The desktop draws a Text with block characters in the code font, words and all
-            //: the bar sits in its own one-cell glyphs between the words.
+            // The desktop draws a Text with block characters in the code font, words and all:
+            // each bar sits in its own one-cell glyphs between the words, and the line's tail truncates.
             <Box key="gauge" flexDirection="row" flexShrink={1}>
               <Text>
-                <Text bold>redline</Text> {p.context}{' '}
+                <Text bold>redline</Text>{' '}
               </Text>
-              {p.percent === undefined ? null : glyphRow({ Box, Text }, e.surface, bar(p.percent, cells), { color: LEVEL_COLOR[p.level] })}
-              <Text wrap="truncate-end">
-                {word ? <Text color={LEVEL_COLOR[p.level]} bold>{` ${word}`}</Text> : null}
-                <Text dimColor>{` · ${rest}`}</Text>
-              </Text>
+              {spans.slice(0, -1)}
+              <Text wrap="truncate-end">{spans[spans.length - 1]}</Text>
             </Box>
           ) : (
             <Box key="gauge" flexShrink={1}>
               <Text wrap="truncate-end">
-                <Text bold>redline</Text> {p.context}{' '}
-                <Text color={LEVEL_COLOR[p.level]}>{p.percent === undefined ? '' : bar(p.percent, cells)}</Text>
-                {word ? <Text color={LEVEL_COLOR[p.level]} bold>{` ${word}`}</Text> : null}
-                <Text dimColor>{` · ${rest}`}</Text>
+                <Text bold>redline</Text>{' '}
+                {spans}
               </Text>
             </Box>
           )}

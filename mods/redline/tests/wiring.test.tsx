@@ -94,6 +94,8 @@ async function request($: Engine, ctx: number, opts: { turnId?: string; agentId?
 }
 
 const pct = (p: number) => Math.round((WINDOW * p) / 100)
+/** The status line's context figure at p%: its bar, then the readout. */
+const ctxAt = (p: number) => new RegExp(`^context [█░]+ ${p}%`)
 
 /** A compaction leaves at least one message: its summary. */
 const SUMMARY = { role: 'user' as const, text: 'Summary of the conversation so far', toolUses: [] }
@@ -117,14 +119,14 @@ describe('status line', () => {
     const w = world(on)
     await request($, pct(30))
     // Claude Code's ledger is an estimate at list prices, not a bill: marked ≈.
-    expect(w.status()).toMatch(/^ctx 30% ███░░░░░░░ · ≈\$1\.25 · /)
+    expect(w.status()).toMatch(/^context ███░░░░░░░ 30% · ≈\$1\.25 · /)
     expect(w.status()).not.toMatch(/AMBER|RED/)
     await request($, pct(60))
-    expect(w.status()).toMatch(/^ctx 60% ██████░░░░ AMBER · /)
+    expect(w.status()).toMatch(/^context ██████░░░░ 60% AMBER · /)
     await request($, pct(79))
-    expect(w.status()).toContain('ctx 79% ████████░░ AMBER')
+    expect(w.status()).toContain('context ████████░░ 79% AMBER')
     await request($, pct(80))
-    expect(w.status()).toContain('ctx 80% ████████░░ RED')
+    expect(w.status()).toContain('context ████████░░ 80% RED')
     expect(w.statuses).toHaveLength(4)
   })
 
@@ -132,7 +134,7 @@ describe('status line', () => {
     const w = world(on)
     await request($, pct(40))
     await request($, pct(95), { agentId: 'sub-1', turnId: 's1' })
-    expect(w.status()).toContain('ctx 40%')
+    expect(w.status()).toMatch(ctxAt(40))
     expect(w.toasts).toHaveLength(0)
   })
 
@@ -141,19 +143,19 @@ describe('status line', () => {
     // Claude Code has measured this very request and says 81 (159k computes to 80).
     w.usage = { ...w.usage, context: { window: WINDOW, tokens: 159_000, percent: 81 } }
     await request($, 159_000)
-    expect(w.status()).toContain('ctx 81%')
+    expect(w.status()).toMatch(ctxAt(81))
     // Its figure lags the next request: the gauge computes from that request.
     await request($, pct(90))
-    expect(w.status()).toContain('ctx 90%')
+    expect(w.status()).toMatch(ctxAt(90))
     // The turn's measurement brings Claude Code's figure back.
     await $.session.measure({ context: { window: WINDOW, tokens: 180_000, percent: 89 }, rateLimits: [], cost: { usd: 2 }, changed: ['context'] })
-    expect(w.status()).toContain('ctx 89%')
+    expect(w.status()).toMatch(ctxAt(89))
   })
 
   test('the window comes from Claude Code, so a 1M model reads lower', async ($, on) => {
     const w = world(on, { context: { window: 1_000_000 } })
     await request($, 500_000)
-    expect(w.status()).toContain('ctx 50%')
+    expect(w.status()).toMatch(ctxAt(50))
   })
 
   test('shows tokens per minute and the pace of the last 10 minutes', async ($, on) => {
@@ -164,7 +166,7 @@ describe('status line', () => {
     // +20k context in 4 minutes: 80k left at 5k/min.
     expect(w.status()).toContain('full in ~16m')
     // New tokens: 2 requests x (1500 + 2500 + 800), over the 4 minutes tracked.
-    expect(w.status()).toContain('2.4k tok/min')
+    expect(w.status()).toContain('2.4k tokens/min')
   })
 
   test('no growth and shrinking context give no pace', async ($, on) => {
@@ -200,9 +202,9 @@ describe('status line', () => {
     ]
     const w = world(on, { rateLimits: limits })
     await request($, pct(20))
-    expect(w.status()).toContain('5h 80% out in ~30m')
-    expect(w.status()).toContain('7d 12%')
-    expect(w.status()).not.toContain('7d 12% out')
+    expect(w.status()).toContain('5h ████░ 80% AMBER, out in ~30m')
+    expect(w.status()).toContain('week █░░░░ 12%')
+    expect(w.status()).not.toContain('12%,')
   })
 
   test('a late burst on a plan window warns on the line, at the recent rate', async ($, on) => {
@@ -211,11 +213,11 @@ describe('status line', () => {
     const measure = (percentUsed: number) =>
       $.session.measure({ context: { window: WINDOW, tokens: pct(20), percent: 20 }, rateLimits: [{ kind: 'five_hour', percentUsed, resetsAt }], cost: { usd: 2 }, changed: ['rateLimits'] })
     await measure(20)
-    expect(w.status()).toContain('5h 20%')
+    expect(w.status()).toContain('5h █░░░░ 20%')
     await w.clock.advance(10 * MIN)
     await measure(50)
     // 30 points in 10 minutes: dry in ~17m, before the reset in 20m.
-    expect(w.status()).toContain('5h 50% out in ~17m')
+    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ~17m')
   })
 
   test('session.measure updates the gauge between requests (a plan window moved)', async ($, on) => {
@@ -227,7 +229,7 @@ describe('status line', () => {
       cost: { usd: 2 },
       changed: ['rateLimits', 'cost'],
     })
-    expect(w.status()).toContain('5h 41%')
+    expect(w.status()).toContain('5h ██░░░ 41%')
     expect(w.status()).toContain(' · ≈$2.00 · ')
   })
 })
@@ -245,7 +247,7 @@ describe('never in the way', () => {
     expect(chunks).toEqual([{ kind: 'stop', stopReason: 'end_turn', usage: usageOf(pct(50)) }])
     expect(response).toEqual({ turnId: 't1', index: 0, answer: '', toolUses: [], stopReason: 'end_turn', usage: usageOf(pct(50)) })
     // The request still counted; with no window known the fill reads unknown.
-    expect(w.status()).toMatch(/^ctx -- · ≈\$0\.05 · /)
+    expect(w.status()).toMatch(/^context -- · ≈\$0\.05 · /)
   })
 
   test('a request with no usage (interrupted) changes nothing', async ($, on) => {
@@ -281,7 +283,7 @@ describe('the 80% toast', () => {
     await request($, pct(85))
     expect(w.toasts).toHaveLength(1)
     await $.session.compact({ trigger: 'manual', messages: [SUMMARY] })
-    expect(w.status()).toContain('ctx 20%')
+    expect(w.status()).toMatch(ctxAt(20))
     await request($, pct(83))
     expect(w.toasts).toHaveLength(2)
   })
@@ -294,14 +296,14 @@ describe('the 80% toast', () => {
     await $.session.compact({ trigger: 'precompute', messages: [SUMMARY] })
     await $.session.compact({ trigger: 'manual', messages: [SUMMARY] })
     expect(w.statuses).toHaveLength(before)
-    expect(w.status()).toContain('ctx 85%')
+    expect(w.status()).toMatch(ctxAt(85))
   })
 
   test('/clear starts the gauge over and re-arms it', async ($, on) => {
     const w = world(on)
     await request($, pct(85))
     await $.session.end({ reason: 'clear', sessionId: 'abc', resume: { id: 'abc' } })
-    expect(w.status()).toMatch(/^ctx -- /)
+    expect(w.status()).toMatch(/^context -- /)
     await request($, pct(81), { turnId: 't2' })
     expect(w.toasts).toHaveLength(2)
   })
@@ -312,7 +314,7 @@ describe('the 80% toast', () => {
     await $.session.end({ reason: 'resume', sessionId: 'abc', resume: { id: 'abc' } })
     await w.clock.advance(2 * MIN)
     await request($, 400_000, { turnId: 't2' })
-    expect(w.status()).toContain('ctx 40%')
+    expect(w.status()).toMatch(ctxAt(40))
     expect(w.status()).not.toContain('full in')
   })
 
@@ -321,7 +323,7 @@ describe('the 80% toast', () => {
     on('session.compact', () => ({ messages: [SUMMARY], tokensAfter: 1_000 }))
     await request($, pct(85))
     await $.session.compact({ trigger: 'auto', agentId: 'sub-1', messages: [SUMMARY] })
-    expect(w.status()).toContain('ctx 85%')
+    expect(w.status()).toMatch(ctxAt(85))
   })
 
   test('a measurement with no count after a compaction keeps the compacted size', async ($, on) => {
@@ -330,7 +332,7 @@ describe('the 80% toast', () => {
     await request($, pct(85))
     await $.session.compact({ trigger: 'manual', messages: [SUMMARY] })
     await $.session.measure({ context: { window: WINDOW }, rateLimits: [], cost: { usd: 2 }, changed: ['cost'] })
-    expect(w.status()).toContain('ctx 20%')
+    expect(w.status()).toMatch(ctxAt(20))
   })
 })
 
@@ -338,7 +340,7 @@ describe('a spent window, idle past its reset', () => {
   test('the line and the pane stop saying OUT once the reset time passes, with no reply to prompt it', async ($, on) => {
     const w = world(on, { rateLimits: [{ kind: 'five_hour', percentUsed: 100, resetsAt: new Date(T0 + 80 * MIN).toISOString() }] })
     await request($, pct(20))
-    expect(w.status()).toContain('5h OUT, resets in ~1h 20m')
+    expect(w.status()).toContain('5h OUT, resets in 1h 20m')
     await w.clock.advance(90 * MIN) // rate-limited: no reply, no measurement
     expect(w.status()).not.toContain('OUT')
     expect(w.status()).toContain('5h reset')
@@ -425,7 +427,7 @@ describe('idle', () => {
     await w.clock.advance(6 * MIN)
     expect(w.statuses).toHaveLength(painted + 1)
     expect(w.status()).not.toContain('full in')
-    expect(w.status()).toContain('0 tok/min')
+    expect(w.status()).not.toContain('tokens/min') // idle: no rate at all, never a 0
     await w.clock.advance(60 * MIN) // one shot: nothing ticks while idle
     expect(w.statuses).toHaveLength(painted + 1)
   })
@@ -438,7 +440,7 @@ describe('/redline', () => {
     expect(w.registered).toEqual(['redline'])
     // Runs at once mid-turn: checking the gauge while Claude works is the point.
     expect(w.specs[0]).toMatchObject({ name: 'redline', argumentHint: '[band]', immediate: true })
-    expect(w.status()).toMatch(/^ctx -- /)
+    expect(w.status()).toMatch(/^context -- /)
     const band = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
     expect(await band.find({ key: 'gauge' })).toBeDefined()
   })
@@ -493,13 +495,13 @@ describe('outside text is cleaned before it is drawn', () => {
     await request($, pct(85), { model: 'claude-opus-5-5\u001b[2J\u009b31m' })
     await request($, 10_000, { model: 'claude-nova\u0007-1', turnId: 's1', agentId: 'sub\u001b-1' })
     expect(w.status()).not.toMatch(CONTROL)
-    expect(w.status()).toContain('ctx 85%')
-    expect(w.status()).toContain('spend limit\ufffd 40%')
+    expect(w.status()).toMatch(ctxAt(85))
+    expect(w.status()).toContain('spend limit\ufffd ██░░░ 40%')
     expect(w.toasts[0]).not.toMatch(CONTROL)
     await runCommand($, 'band')
     for (const surface of SURFACES) {
       const band = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
-      expect((await band.find({ key: 'gauge' }))?.text).toContain('spend limit\ufffd 40%')
+      expect((await band.find({ key: 'gauge' }))?.text).toContain('spend limit\ufffd ██░░░ 40%')
       for (const el of await band.findAll({})) expect(el.text).not.toMatch(CONTROL)
       await band.unmount()
       const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
@@ -520,7 +522,7 @@ describe('band shares the slot', () => {
     await runCommand($, 'band')
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
-      expect((await ui.find({ key: 'gauge' }))?.text).toContain('ctx 85%')
+      expect((await ui.find({ key: 'gauge' }))?.text).toMatch(/context.*85%/)
       expect((await ui.find({ key: 'other-band' }))?.text).toBe("another mod's band")
       // The other band comes first, so a long gauge never pushes its buttons out of view.
       const keys = (await ui.findAll({})).map(el => el.key).filter(k => k === 'other-band' || k === 'gauge')
@@ -567,7 +569,7 @@ describe('band shares the slot', () => {
     await runCommand($, 'band')
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
-      expect((await ui.find({ key: 'gauge' }))?.text).toContain('ctx 85%')
+      expect((await ui.find({ key: 'gauge' }))?.text).toMatch(/context.*85%/)
       expect(engineNodeConcealers(await ui.drawn())).toEqual([[]])
       await ui.unmount()
     }
@@ -627,7 +629,7 @@ describe('band above the prompt', () => {
       expect(w.toasts[w.toasts.length - 1]).toContain('Band is on')
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
       const gauge = await ui.find({ key: 'gauge' })
-      expect(gauge?.text).toContain('ctx 85%')
+      expect(gauge?.text).toMatch(/context.*85%/)
       expect(gauge?.text).toContain('RED')
       expect(gauge?.text).toContain(' · ≈$1.25 · ')
       // The bar and the level word are coloured by level (the innermost Texts).
@@ -767,7 +769,7 @@ describe('repaint at every plan window reset', () => {
     const resetMs = T0 + 30 * 24 * 60 * MIN
     const w = world(on, { rateLimits: [{ kind: 'spend_limit', percentUsed: 100, resetsAt: new Date(resetMs).toISOString() }] })
     await request($, pct(20))
-    expect(w.status()).toContain('spend OUT, resets in ~30d')
+    expect(w.status()).toContain('spend OUT, resets in 30d')
     await w.clock.advance(11 * MIN) // the idle repaint fires and re-arms from +10m
     const painted = w.statuses.length
     const capFire = 10 * MIN + 1000 + MAX_DELAY
@@ -784,7 +786,7 @@ describe('repaint at every plan window reset', () => {
   test('a reset due before the idle repaint is armed by the reading itself', async ($, on) => {
     const w = world(on, { rateLimits: [FIVE_OUT(5)] })
     await request($, pct(20))
-    expect(w.status()).toContain('5h OUT, resets in ~5m')
+    expect(w.status()).toContain('5h OUT, resets in 5m')
     await w.clock.advance(6 * MIN) // before the 10-minute idle repaint
     expect(w.status()).toContain('5h reset')
   })
@@ -793,8 +795,8 @@ describe('repaint at every plan window reset', () => {
     const w = world(on, { rateLimits: [FIVE_OUT(80), { kind: 'seven_day', percentUsed: 60, resetsAt: new Date(T0 + 30 * MIN).toISOString() }] })
     await request($, pct(20))
     await w.clock.advance(31 * MIN)
-    expect(w.status()).toContain('7d reset')
-    expect(w.status()).toContain('5h OUT, resets in ~50m')
+    expect(w.status()).toContain('week reset')
+    expect(w.status()).toContain('5h OUT, resets in 50m')
     await w.clock.advance(50 * MIN)
     expect(w.status()).not.toContain('OUT')
     expect(w.status()).toContain('5h reset')
@@ -805,10 +807,10 @@ describe('repaint at every plan window reset', () => {
       rateLimits: [{ kind: 'five_hour', percentUsed: 30, resetsAt: new Date(T0 + 120 * MIN).toISOString() }, { kind: 'seven_day', percentUsed: 100, resetsAt: new Date(T0 + 3 * 24 * 60 * MIN).toISOString() }],
     })
     await request($, pct(20))
-    expect(w.status()).toContain('7d OUT, resets in ~3d')
+    expect(w.status()).toMatch(/week OUT, resets (Sun|Mon) \d{1,2}(:\d\d)?[ap]m/) // three days off: the clock time, not arithmetic
     await w.clock.advance(3 * 24 * 60 * MIN + MIN)
     expect(w.status()).not.toContain('OUT')
-    expect(w.status()).toContain('7d reset')
+    expect(w.status()).toContain('week reset')
   })
 })
 
@@ -826,7 +828,7 @@ describe('the recent rate everywhere', () => {
   test('the pane judges the run-out on the recent rate too, and says so', async ($, on) => {
     const w = world(on)
     await burst($, w)
-    expect(w.status()).toContain('5h 50% out in ~17m')
+    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ~17m')
     for (const surface of SURFACES) {
       const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
       expect((await pane.find({ key: 'limit-five_hour' }))?.text).toContain('out in ~17m (recent rate)')
@@ -837,7 +839,7 @@ describe('the recent rate everywhere', () => {
   test('a /clear keeps the plan windows readings (they belong to the account)', async ($, on) => {
     const w = world(on)
     await burst($, w, () => $.session.end({ reason: 'clear', sessionId: 'abc', resume: { id: 'abc' } }))
-    expect(w.status()).toContain('5h 50% out in ~17m')
+    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ~17m')
   })
 })
 
@@ -970,7 +972,7 @@ describe('Bolt beside the context row', () => {
     const w = world(on)
     await runCommand($, 'band')
     await request($, pct(100))
-    expect(w.status()).toMatch(/^ctx 100% ██████████ RED · /)
+    expect(w.status()).toMatch(/^context ██████████ 100% RED · /)
     for (const surface of SURFACES) {
       const band = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
       expect(await band.find({ key: 'gauge' })).toBeDefined()
@@ -1016,7 +1018,7 @@ describe('the pane follows the UI standard', () => {
       // A plan window: its figure, its reset, no pace clause, and words that wrap.
       const weekly = (await ui.find({ key: 'limit-seven_day' }))?.text ?? ''
       expect(weekly).toContain('84%')
-      expect(weekly).toContain('resets in 17h 23m')
+      expect(weekly).toMatch(/resets (Thu|Fri) \d{1,2}:\d\d[ap]m/) // ten hours or more away: clock time
       expect(weekly).not.toContain('on pace')
       // The jargon lives in the one footnote, in subtle.
       const notes = texts.filter(n => textOf(n).includes('cache reads are not counted'))
@@ -1060,7 +1062,7 @@ describe('where the money went', () => {
       expect(await text('spend-rule')).toContain('split evenly')
       await ui.unmount()
     }
-    expect(w.status()).toContain('ctx') // the band and the status line are as before
+    expect(w.status()).toContain('context') // the band and the status line are as before
   })
 
   test('an aborted turn leaves nothing behind: a turn started again carries no tool calls from before', async ($, on) => {
@@ -1094,5 +1096,77 @@ describe('where the money went', () => {
       expect(t, key).not.toMatch(/[^≈]\$/)
     }
     await ui.unmount()
+  })
+})
+
+describe('the band reads at a glance', () => {
+  const LIMITS: SessionRateLimit[] = [
+    // Opened 2h ago, 80% used, resets in 3h: dry in 30 minutes, before the reset.
+    { kind: 'five_hour', percentUsed: 80, resetsAt: new Date(T0 + 180 * MIN).toISOString() },
+    // Opened 2 days ago, 12% used: resets first.
+    { kind: 'seven_day', percentUsed: 12, resetsAt: new Date(T0 + 5 * 24 * 60 * MIN).toISOString() },
+  ]
+
+  test('each figure wears its own colour: a window set to run dry is amber, a calm one plain, the dollars dim on a plan', async ($, on) => {
+    world(on, { rateLimits: LIMITS })
+    await request($, pct(30))
+    await runCommand($, 'band')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      const texts = await ui.findAll({ type: 'Text' })
+      const propsOf = (text: string) => texts.find(t => t.text === text)?.props ?? {}
+      // The context is calm: its readout plain, its bar in success.
+      expect(propsOf(' 30%').color, surface).toBeUndefined()
+      // The 5-hour window runs dry first: the readout, the word and the clause in warning, bound with a comma.
+      expect(propsOf(' 80%').color, surface).toBe('warning')
+      expect(propsOf(' AMBER'), surface).toMatchObject({ color: 'warning', bold: true })
+      expect(propsOf(', out in ~30m').color, surface).toBe('warning')
+      // The weekly resets first: plain, no word, no clause.
+      expect(propsOf(' 12%').color, surface).toBeUndefined()
+      if (surface === 'terminal') {
+        // Each bar in its own level's colour (the desktop's cells are checked by the glyph tests).
+        expect(propsOf('███░░░░░░░').color).toBe('success')
+        expect(propsOf('████░').color).toBe('warning')
+        expect(propsOf('█░░░░').color).toBe('success')
+      }
+      // The dollars are a footnote on a plan.
+      expect(propsOf('≈$1.25').dimColor, surface).toBe(true)
+      const gauge = (await ui.find({ key: 'gauge' }))?.text ?? ''
+      expect(gauge, surface).toContain('AMBER, out in ~30m')
+      expect(gauge, surface).toContain('week')
+      expect(gauge, surface).not.toContain('7d')
+      expect(gauge, surface).not.toContain('ctx')
+      await ui.unmount()
+    }
+  })
+
+  test('narrower than 80 columns the windows read in words and the context bar halves', async ($, on) => {
+    world(on, { rateLimits: LIMITS })
+    await request($, pct(30))
+    await runCommand($, 'band')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: { ...BAND_PROPS, bodyColumns: 60 } })
+      const gauge = (await ui.find({ key: 'gauge' }))?.text ?? ''
+      expect(gauge, surface).toContain('80% used AMBER, out in ~30m')
+      expect(gauge, surface).toContain('week 12% used')
+      expect(barOf(await ui.findAll({ type: 'Text' })), surface).toBe('██░░░')
+      await ui.unmount()
+    }
+  })
+
+  test('with an API key the dollars lead after the context, drawn plain; idle, the rate goes', async ($, on) => {
+    const w = world(on)
+    await request($, pct(30))
+    await runCommand($, 'band')
+    expect(w.status()).toMatch(/^context ███░░░░░░░ 30% · ≈\$1\.25 · [\d.]+k? tokens\/min$/)
+    await w.clock.advance(11 * MIN)
+    expect(w.status()).toBe('context ███░░░░░░░ 30% · ≈$1.25')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
+      const texts = await ui.findAll({ type: 'Text' })
+      expect(texts.find(t => t.text === '≈$1.25')?.props.dimColor, surface).toBeUndefined()
+      expect((await ui.find({ key: 'gauge' }))?.text, surface).not.toContain('tokens/min')
+      await ui.unmount()
+    }
   })
 })

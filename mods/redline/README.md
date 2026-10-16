@@ -5,7 +5,7 @@
 Context fill, session cost and pace on one line, with a warning before the red line.
 
 ```
-ctx 82% ████████░░ RED · ≈$4.12 · 3.9k tok/min · full in ~7m · 5h 46% · 7d 13%
+context ████████░░ 82% RED, full in ~7m · 5h █░░░░ 11% · week ████░ 83% AMBER, out in ~21h · ≈$4.12 · 3.9k tokens/min
 ```
 
 ## Install
@@ -16,16 +16,15 @@ ctx 82% ████████░░ RED · ≈$4.12 · 3.9k tok/min · full i
 
 ## Use it
 
-- **Status line** (under the prompt), updated on every model request:
-  - context fill as a percentage with a 10-cell bar, and the level as a word: nothing under 60%, `AMBER` from 60%, `RED` from 80% (the status line has no colour, so the word carries it);
-  - the session cost so far, marked `≈`: Claude Code's own estimate (what `/cost` shows) where it keeps one, otherwise redline's price table;
-  - new tokens per minute over the last 10 minutes;
-  - the pace: when the context hits 100% at the rate it grew over the last 10 minutes (`full in ~25m`);
-  - your plan's 5-hour and weekly windows (`5h 46%`, `7d 13%`), with `out in ~40m` added when a window will run dry before it resets. A spent window says when it comes back (`5h OUT, resets in ~1h 20m`), and `5h reset` once that time has passed.
+- **Status line** (under the prompt), updated on every model request. Each figure is a label, a bar and a readout (filled is used), in reading order, and anything that follows a comma belongs to the figure before it:
+  - `context ████████░░ 82%`: how full the conversation's context window is, as Claude Code measures it, with the level as a word from 60% (`AMBER`) and 80% (`RED`), since the status line has no colour. While the context grows, its pace follows: `, full in ~7m` is when it would hit 100% at the rate of the last 10 minutes.
+  - `5h █░░░░ 11%` and `week ████░ 83%`: your plan's 5-hour and weekly windows, as `/usage` reports them. A window that will run dry before it resets says so, in amber: `week ████░ 83% AMBER, out in ~21h`. A spent window says when it comes back: `5h OUT, resets in 48m`, or `week OUT, resets Sat 10am` once that is ten hours or more away; `5h reset` after that time has passed, until the next reply brings a new figure.
+  - `≈$4.12`: the session so far at API list prices, Claude Code's own estimate (what `/cost` shows) where it keeps one, otherwise redline's price table. On a plan nobody pays it, so it comes after the windows; with an API key it is the limit and comes right after the context.
+  - `3.9k tokens/min`: new tokens over the last 10 minutes, shown only while tokens flow. An idle session shows no rate and no pace, never a `0`.
 - **Toast at 80%**: one toast suggesting `/compact` or a fresh session (`/clear`), once per crossing. It re-arms only after the context drops under 75% (a compaction, a fresh session), so it never nags on every redraw.
 - **`/redline`** opens the detail view in a pane, laid out to the collection's UI standard: a hero line with the context fill in its colour and the bar beneath; label and value rows (pace, throughput, tokens, cost, session, requests) with the figures at the right edge and the breakdowns dim beneath them; each plan window as a bar with its reset time and run-out; the five busiest turns; and one footnote for the caveats. The cost headline is Claude Code's own estimate (what `/cost` shows) when it keeps one, else the price table's, both marked `≈`. Rows that would read zero before the first request are not drawn. Buttons: show or hide the band, close. Where no surface places the pane, the same view goes to the transcript as dim rows of its own, which the model does not read.
 - **`/redline spend`** opens the same pane for its **Where the money went** section: this session's cost split by the kind of work each model request carried, one row per kind (prompt, reading, editing, shell, search, planning, subagents, answering, an MCP server's tools by its name) with a share bar, the request count and the cache share, then the same by model. The rule, stated under the rows: a request is charged to the kinds of the tool results it carried (the previous reply's tool calls), split evenly when it carried several; a turn's first request is the prompt; a subagent's requests are subagents. Every figure is a list-price estimate, marked `≈`; nothing new is stored, and the band does not change.
-- **`/redline band`** toggles a band above the prompt with the same gauge, in colour (green, amber, red), for people who hide the status line. Its `Hide` button turns it off. The choice is remembered across sessions. It shares the band: whatever other mods draw there stays, drawn first, with the gauge on the line after it. It steps aside while a survey holds that space.
+- **`/redline band`** toggles a band above the prompt with the same gauge, in colour, for people who hide the status line: each figure in its own colour (green, amber, red, by its own level), the dollars dim on a plan. Under 80 columns the context bar halves and the windows read in words (`week 83% used`). Its `Hide` button turns it off. The choice is remembered across sessions. It shares the band: whatever other mods draw there stays, drawn first, with the gauge on the line after it. It steps aside while a survey holds that space.
 
 ## Settings
 
@@ -43,7 +42,7 @@ None. The thresholds (60%, 80%, re-arm under 75%) and the 10-minute window are f
 - **Context fill**: Claude Code's own figures (`context.tokens` and `context.percent`, the status line's used percentage) whenever it has measured the latest request. Between its measurements the gauge counts the main conversation's last request itself, input side (uncached + cache read + cache write), the same way, so it moves on every request. Subagent requests count toward tokens and cost, never toward the session's context.
 - **Session cost**: Claude Code's own total (`cost.usd`, what `/cost` shows), labelled as its estimate and marked `≈`: it is summed at list prices over the session's responses, not a bill (on a subscription nobody pays it). Where Claude Code keeps no ledger, redline's built-in price table prices the requests it counted, and a model the table does not know shows tokens only, never a guessed price.
 - **Price table** (`hooks/prices.ts`): list prices per model family as of 2026-10-08, used for the per-category and per-turn estimates. It leaves out long-context premiums, fast mode, 1-hour cache writes, batch and regional pricing, so every figure from it is marked `≈`.
-- **Plan run-out**: the window's current rate, how far it moved over the last 15 minutes of readings, so a late burst warns even when the average looks calm. When it has not moved in that time, the average pace since the window opened (its reset time less its length) stands in; the detail view says which of the two it used. A gateway's spend limit gets an estimate only from its recent rate.
+- **Plan run-out**: the window's current rate, how far it moved over the last 15 minutes of readings, so a late burst warns even when the average looks calm. When it has not moved in that time, the average pace since the window opened (its reset time less its length) stands in; the detail view says which of the two it used. A gateway's spend limit gets an estimate only from its recent rate. A window's colour follows this, never its percentage alone: amber when it is set to run out before it resets, red when spent. Spans of ten hours or more round to the hour (`~21h`), and a reset that far off reads as clock time in your machine's zone.
 
 ## Limits
 

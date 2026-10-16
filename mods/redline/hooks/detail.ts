@@ -12,12 +12,14 @@ import {
   EMPTY_GAUGE,
   fmtDuration,
   fmtPace,
+  fmtReset,
   fmtRunOut,
   fmtTokens,
   fmtUsd,
   levelOf,
   levelWord,
   limitLabel,
+  limitLevel,
   paceEta,
   percentOf,
   runOut,
@@ -133,11 +135,14 @@ export function detailLines(kept: RedlineGauge, now: number, barCells = 10): Det
     const reset = Date.parse(l.resetsAt ?? '')
     // Past its reset the figure is stale: say so, and judge no run-out on it.
     const isPast = !Number.isNaN(reset) && reset <= now
-    const resets = Number.isNaN(reset) ? '' : isPast ? ` · reset ${fmtDuration(now - reset)} ago, a new figure after the next reply` : ` · resets in ${fmtDuration(reset - now)}`
+    // The reset as clock time once it is ten hours or more away: "Sat 10am" reads at once, "2d 19h" needs arithmetic.
+    const resets = Number.isNaN(reset) ? '' : isPast ? ` · reset ${fmtDuration(now - reset)} ago, a new figure after the next reply` : ` · resets ${fmtReset(reset, now)}`
     const r = isPast ? undefined : runOut(l, now, g.limitHistory[l.kind])
     const basis = r !== undefined && r.kind !== 'out' ? (r.basis === 'recent' ? ' (recent rate)' : ' (average)') : ''
     const out = r === undefined ? '' : r.kind === 'at' ? ` · ${fmtRunOut(r)}${basis}` : r.kind === 'out' ? ' · used up' : ` · resets first${basis}`
-    const tone: Tone = r?.kind === 'out' || r?.kind === 'at' ? 'red' : isPast ? 'dim' : levelOf(pct)
+    // The same rule as the band: red when spent, amber when it runs out before it resets, else calm.
+    const level = limitLevel(l, now, g.limitHistory[l.kind])
+    const tone: Tone = level === 'unknown' ? 'dim' : level
     add(`limit-${l.kind}`, 'bar', tone, { label: limitLabel(l.kind), bar: bar(Math.min(100, pct), 10), value: `${pct}%${resets}${out}` })
   }
 
