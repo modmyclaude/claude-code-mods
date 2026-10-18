@@ -65,6 +65,8 @@ Set `CLAUDE_BIN` if your `claude` on the PATH is older than 2.1.287.
 
 Never hand-edit `.claude-plugin/marketplace.json`, `site/mods.json` or the README between the catalogue and badge markers: they are generated. Setting `draft: true` in a prompt's frontmatter keeps its mod out of the catalogue while it is in progress.
 
+The repository has no `.gitattributes`, on purpose: the plugin directory stopped fetching every commit that carried one (even plain `text=auto`, `eol` and `binary` lines), so line endings are set in `.editorconfig` instead. `node scripts/check-directory.mjs` runs the directory's source checks locally, that rule included, and reports a `.gitattributes` as blocking.
+
 `tsc` needs the mods API types that Claude Code writes into `<mod>/.claude-plugin/types/` the first time it loads your mod from a folder (for example with `claude --plugin-dir mods/<mod>`). Point `CLAUDE_TYPES` at `.claude-plugin/types/claude-code/index.d.ts` if they live elsewhere.
 
 CI runs all of the above on every pull request, on a pinned Claude Code and on the latest release.

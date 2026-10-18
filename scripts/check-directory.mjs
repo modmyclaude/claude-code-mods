@@ -496,6 +496,11 @@ function scanRepository() {
     else if (mode === '160000' || type === 'commit') out.push({ kind: 'REPO', at: path, text: 'a submodule; the directory refuses the commit when it cannot reach it', blocking: true })
     else if (mode !== '100644' && mode !== '100755') out.push({ kind: 'REPO', at: path, text: `mode ${mode}: not a regular file; the directory calls it a special file and refuses the commit`, blocking: true })
     if (OS_METADATA.test(path)) out.push({ kind: 'REPO', at: path, text: 'an OS metadata file in the commit; the directory refuses the whole commit (git rm --cached it and add it to .gitignore)', blocking: true })
+    // Seen 2026-10-14: every commit carrying the root .gitattributes (text=auto eol=lf, binary and
+    // linguist lines, nothing that rewrites content) stopped fetching under the OS-metadata message,
+    // and the next commit without it fetched. The directory's checklist bans content-rewriting
+    // attributes; in practice the file itself is the trigger. Line endings live in .editorconfig.
+    if (/(^|\/)\.gitattributes$/.test(path)) out.push({ kind: 'REPO', at: path, text: 'a .gitattributes in the commit; the directory stopped fetching every commit that carried one (even plain text=auto, eol and binary lines): remove it and keep line endings in .editorconfig', blocking: true })
     const top = path.startsWith('mods/') ? path.split('/').slice(0, 2).join('/') : 'outside mods/'
     sizes.set(top, (sizes.get(top) || 0) + (size === '-' ? 0 : Number(size)))
   }
