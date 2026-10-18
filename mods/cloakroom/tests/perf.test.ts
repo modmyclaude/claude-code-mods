@@ -3,23 +3,28 @@
 // every few characters, quotes that never close), with real secrets mixed in,
 // goes through the real tool.call door in linear time: five times the text
 // takes about five times as long, not twenty-five. Linearity is checked as a
-// ratio of two sizes timed in the same run, which a slow or busy machine does
-// not skew; the absolute ceiling is only a backstop.
+// ratio of two sizes timed in the same run, turn and turn about, keeping the
+// fastest run of each: a slow machine does not skew the ratio, and a burst of
+// load lands on both sizes rather than inflating the larger one alone. Past
+// the scan budget the text is withheld (the fail-closed backstop), so a run
+// that long says the machine was saturated, not that the code is slow.
 
 import { expect, test } from 'claude-code/testing'
 
+import { SCAN_BUDGET_MS } from '../hooks/vault'
 import { alnum } from './corpus'
 import { bash, ROOT, runBash, start, stdoutOf, TICKET, world } from './world'
 
 const MB = 1024 * 1024
-/** Linear is 5x for five times the text, quadratic 25x: 8x leaves room for noise. */
-const MAX_RATIO = 8
 /**
- * A backstop only. A hook's own budget is 10 s and one scan is cut off at 4 s
- * (SCAN_BUDGET_MS); 5 MB takes about 0.6 s on an idle laptop and up to about
- * 5 s on a slow CI runner, so a tighter number fails on the machine, not the code.
+ * Linear is 5x for five times the text, quadratic 25x. Measured this way the
+ * clean scan reads 4.4x to 5.1x alone and up to 6x with four suites at once,
+ * and a scan with a quadratic part half its linear cost reads 11x: 9x tells
+ * the two apart with room for a busy machine.
  */
-const CEILING_MS = 15_000
+const MAX_RATIO = 9
+/** Rounds of the two sizes timed turn about; the same again when the first read as slow. */
+const ROUNDS = 3
 
 function repeat(piece: string, bytes: number): string {
   return piece.repeat(Math.ceil(bytes / piece.length)).slice(0, bytes)
@@ -62,21 +67,42 @@ function harmless(bytes: number): string {
   ].join('\n')
 }
 
-/** The fastest of three runs: load and garbage collection only ever add time. */
-async function bestOfThree(run: () => Promise<void>): Promise<number> {
-  let best = Infinity
-  for (let i = 0; i < 3; i++) {
-    const began = performance.now()
-    await run()
-    best = Math.min(best, performance.now() - began)
-  }
-  return best
+/** The fastest run of each size, its time and what came back from it. */
+type Timing = { small: number; large: number; ratio: number; smallOut: string; largeOut: string }
+
+async function timed(run: () => Promise<string>): Promise<{ ms: number; out: string }> {
+  const began = performance.now()
+  const out = await run()
+  return { ms: performance.now() - began, out }
 }
 
-function expectLinear(small: number, large: number): void {
-  const took = `1 MB: ${Math.round(small)} ms, 5 MB: ${Math.round(large)} ms`
-  expect(large / small, took).toBeLessThan(MAX_RATIO)
-  expect(large, took).toBeLessThan(CEILING_MS)
+/**
+ * The fastest run of each size, the two sizes timed turn and turn about so a
+ * burst of load on the machine lands on both. Load and garbage collection only
+ * ever add time, so the fastest run is the closest to the code's own cost. The
+ * first scan is not timed: it pays for compiling the patterns. Three rounds,
+ * and three more only when the first three still read as slow: a quadratic
+ * scan reads as slow in every round, a busy machine does not.
+ */
+async function slowdown(small: () => Promise<string>, large: () => Promise<string>, limit: number): Promise<Timing> {
+  await small()
+  let best = { small: Infinity, large: Infinity, smallOut: '', largeOut: '' }
+  const round = async () => {
+    const s = await timed(small)
+    if (s.ms < best.small) best = { ...best, small: s.ms, smallOut: s.out }
+    const l = await timed(large)
+    if (l.ms < best.large) best = { ...best, large: l.ms, largeOut: l.out }
+  }
+  for (let i = 0; i < ROUNDS; i++) await round()
+  if (best.large / best.small >= limit) for (let i = 0; i < ROUNDS; i++) await round()
+  return { ...best, ratio: best.large / best.small }
+}
+
+function expectLinear(t: Timing): void {
+  const took = `1 MB: ${Math.round(t.small)} ms, 5 MB: ${Math.round(t.large)} ms`
+  const saturated = `${took}; the 5 MB scan reached the ${SCAN_BUDGET_MS} ms scan budget and was cut off, so the machine was saturated: run cloakroom's tests alone`
+  expect(t.large, saturated).toBeLessThan(SCAN_BUDGET_MS)
+  expect(t.ratio, took).toBeLessThan(MAX_RATIO)
 }
 
 test('adversarial text is scanned in linear time, and still hides', { timeoutMs: 180_000 }, async ($, on) => {
@@ -84,57 +110,53 @@ test('adversarial text is scanned in linear time, and still hides', { timeoutMs:
   const w = world(on, { [`${ROOT}/.env`]: `DB_PASSWORD=${known}\n` })
   await start($)
   const secret = ['sk', '_live_', alnum(24, 78)].join('')
-  let seen = ''
-  const timeFor = (bytes: number) => {
+  const scan = (bytes: number) => {
     const text = adversarial(secret, bytes) + `\n${known}\n`
     expect(text.length).toBeGreaterThanOrEqual(bytes)
-    w.answer.Bash = () => bash(text)
-    return bestOfThree(async () => {
-      seen = stdoutOf(await runBash($, 'cat hostile.log'))
-    })
+    return async () => {
+      w.answer.Bash = () => bash(text)
+      return stdoutOf(await runBash($, 'cat hostile.log'))
+    }
   }
 
-  const small = await timeFor(MB)
-  const large = await timeFor(5 * MB)
+  const t = await slowdown(scan(MB), scan(5 * MB), MAX_RATIO)
 
-  expect(seen.includes(secret)).toBe(false)
-  expect(seen.includes(known)).toBe(false)
-  expect(seen).toMatch(TICKET)
-  expectLinear(small, large)
+  expectLinear(t)
+  for (const seen of [t.smallOut, t.largeOut]) {
+    expect(seen.includes(secret)).toBe(false)
+    expect(seen.includes(known)).toBe(false)
+    expect(seen).toMatch(TICKET)
+  }
 })
 
 test('hostile text with nothing to hide passes through unchanged, in linear time', { timeoutMs: 180_000 }, async ($, on) => {
   const w = world(on)
   await start($)
-  let unchanged = true
-  const timeFor = (bytes: number) => {
-    const text = harmless(bytes)
+  const scan = (text: string) => async () => {
     w.answer.Bash = () => bash(text)
-    return bestOfThree(async () => {
-      unchanged &&= stdoutOf(await runBash($, 'cat hostile.log')) === text
-    })
+    return stdoutOf(await runBash($, 'cat hostile.log'))
   }
+  const smallText = harmless(MB)
+  const largeText = harmless(5 * MB)
 
-  const small = await timeFor(MB)
-  const large = await timeFor(5 * MB)
+  const t = await slowdown(scan(smallText), scan(largeText), MAX_RATIO)
 
-  expect(unchanged).toBe(true)
-  expectLinear(small, large)
+  expectLinear(t)
+  expect(t.smallOut === smallText).toBe(true)
+  expect(t.largeOut === largeText).toBe(true)
 })
 
 test('the scan is linear: four times the hostile text takes about four times as long, not sixteen', { timeoutMs: 60_000 }, async ($, on) => {
   const w = world(on)
   await start($)
   const piece = ['key:a:', 'token=', 'eyJ' + 'a'.repeat(300) + ' ', '"' + 'a'.repeat(600), 'ab://c:d', '--password '].join('\n')
-  const timeFor = async (bytes: number) => {
+  const scan = (bytes: number) => {
     const text = repeat(piece, bytes)
-    w.answer.Bash = () => bash(text)
-    const began = performance.now()
-    await runBash($, 'cat hostile.log')
-    return performance.now() - began
+    return async () => {
+      w.answer.Bash = () => bash(text)
+      return stdoutOf(await runBash($, 'cat hostile.log'))
+    }
   }
-  await timeFor(256 * 1024) // warm up
-  const small = await timeFor(MB)
-  const large = await timeFor(4 * MB)
-  expect(large / small, `1 MB: ${Math.round(small)} ms, 4 MB: ${Math.round(large)} ms`).toBeLessThan(9)
+  const t = await slowdown(scan(MB), scan(4 * MB), 9)
+  expect(t.ratio, `1 MB: ${Math.round(t.small)} ms, 4 MB: ${Math.round(t.large)} ms`).toBeLessThan(9)
 })
