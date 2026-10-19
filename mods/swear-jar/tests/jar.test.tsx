@@ -97,7 +97,8 @@ describe('counting', () => {
     const w = world(on)
     await start($)
     await reply($, THREE)
-    expect(w.statuses.at(-1)).toBe('swear-jar 5')
+    // The engine prefixes the status line with the mod's name, so the words never repeat it.
+    expect(w.statuses.at(-1)).toBe('5 tics')
     const drawn = await band($, 'terminal')
     expect(drawn.line).toBeUndefined()
     expect(drawn.other).toBe("another mod's line")
@@ -196,5 +197,57 @@ describe('the nudge', () => {
     await start($)
     expect((await $.prompt.compose(COMPOSE)).sections.map(s => s.id)).toEqual(['system', 'swear-jar:plain-words'])
     expect((await pane($, 'terminal')).whole).toContain('Plain-words nudge on')
+  })
+})
+
+describe('two open sessions share one jar', () => {
+  test("each reply adds to what the store holds now, not to what this session read at start, so another session's tallies survive", async ($, on) => {
+    const w = world(on, { store: { allTime: { delve: 1 } } })
+    await start($)
+    await reply($, 'Certainly!')
+    expect(w.store.get('allTime')).toEqual({ delve: 1, certainly: 1 })
+    // The other session wrote in between: its tallies are in the store, this session's atom is behind.
+    w.store.set('allTime', { delve: 1, certainly: 1, 'great question': 4 })
+    await reply($, 'Certainly!')
+    expect(w.store.get('allTime')).toEqual({ delve: 1, certainly: 2, 'great question': 4 })
+    // The pane reads the store afresh when it opens, so it shows the jar as it is, even with no
+    // reply of this session's in between.
+    w.store.set('allTime', { delve: 20 })
+    await run($, '')
+    expect((await pane($, 'terminal')).whole).toContain('All time: 20')
+  })
+
+  test("a reset all in the other session sticks: this session's next tic starts the jar from empty", async ($, on) => {
+    const w = world(on)
+    await start($)
+    await reply($, THREE)
+    expect(w.store.get('allTime')).toEqual({ 'absolutely right': 2, 'great question': 1, 'i apologize': 1, 'let me know if': 1 })
+    w.store.delete('allTime') // the other session ran /swear-jar reset all
+    await reply($, 'Certainly!')
+    expect(w.store.get('allTime')).toEqual({ certainly: 1 })
+    await run($, '')
+    expect((await pane($, 'terminal')).whole).toContain('All time: 1')
+  })
+
+  test('the status line reads one tic as one, and never the name twice', { options: { show: 'status' } }, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await reply($, 'Certainly!')
+    expect(w.statuses.at(-1)).toBe('1 tic')
+    expect(w.statuses.at(-1)).not.toContain('swear-jar')
+  })
+})
+
+describe('the last reply', () => {
+  test('a reply without tics clears the last reply in the pane', async ($, on) => {
+    world(on)
+    await start($)
+    await reply($, THREE)
+    await run($, '')
+    expect((await pane($, 'terminal')).whole).toContain("You're absolutely right")
+    await reply($, 'Nothing to see here.')
+    const { whole } = await pane($, 'terminal')
+    expect(whole).toContain('no tics in the last reply')
+    expect(whole).not.toContain("You're absolutely right")
   })
 })

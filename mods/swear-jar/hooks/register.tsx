@@ -99,7 +99,10 @@ export const register: Register = (on, options) => {
         if (hits.length > 0) {
           const now = merge(await read($, session), counts)
           await update($, session, () => now)
-          const all = merge(await read($, allTime), counts)
+          // The store is shared by every open session and the last write wins, so the all-time
+          // counts are read back from it just before this reply's are added: two sessions keep
+          // both tallies, and a `reset all` in one is not undone by the other's next tic.
+          const all = merge(countsOf(await $.store.get(ALL_TIME)), counts)
           await update($, allTime, () => all)
           await $.store.set(ALL_TIME, all)
           await update($, last, () => hits)
@@ -123,6 +126,11 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'swear-jar' }, async ($, e) => {
     const [verb, arg] = e.args.trim().toLowerCase().split(/\s+/).filter(Boolean)
     if (verb === undefined) {
+      // Another session may have added to the jar, or emptied it, since this one last wrote.
+      await safely($, async () => {
+        const stored = countsOf(await $.store.get(ALL_TIME))
+        await update($, allTime, () => stored)
+      })
       const opened = await $.ui.open({ id: PANE, title: 'Swear jar', closeOnEscape: true })
       if (!opened.isPlaced) $.ui.log(scoreboardText(await read($, session), await read($, allTime), await read($, last), await read($, nudge)))
       return {}

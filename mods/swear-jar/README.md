@@ -46,7 +46,7 @@ Every setting has a default, so the notice at install about options not yet set 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `tics` | you're absolutely right, you are absolutely right, great question, excellent question, i apologize, certainly!, absolutely!, as an ai, it's worth noting, i hope this helps, let me know if, delve, em dash | The phrases to count, whole and regardless of case. The words `em dash` mean the character. Your list replaces the built-in one; an empty list brings it back. |
-| `show` | `band` | Where the running count shows: `band` (the line above the prompt), `status` (the status line, as `swear-jar 16`), `both`, or `off`. The scoreboard pane works whatever you pick. |
+| `show` | `band` | Where the running count shows: `band` (the line above the prompt), `status` (the status line, as `16 tics`, which the engine shows as `swear-jar: 16 tics`), `both`, or `off`. The scoreboard pane works whatever you pick. |
 
 ## What it can touch
 

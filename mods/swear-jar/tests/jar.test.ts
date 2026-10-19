@@ -59,7 +59,7 @@ describe('the words', () => {
     const counts = { delve: 2, 'great question': 5, 'em dashes': 2, certainly: 1 }
     expect(rowsOf(counts).map(r => r.label)).toEqual(['great question', 'delve', 'em dashes', 'certainly'])
     expect(bandWords(counts)).toBe('swear-jar: great question 5 · delve 2 · em dashes 2')
-    expect(statusWords(counts)).toBe('swear-jar 10')
+    expect(statusWords(counts)).toBe('10 tics')
     expect(total(counts)).toBe(10)
   })
 
@@ -81,5 +81,18 @@ describe('the words', () => {
     expect(text.split('\n')).toEqual(['Swear jar: 1 this session, 3 all time', '  delve 1', 'Worst offender: delve (3)', 'Last reply: delve', 'Plain-words nudge on'])
     expect(clean('a\u001b[31mb\u0000c  d')).toBe('ab�c d')
     expect(NUDGE_TEXT.split(' ').length).toBeLessThan(25)
+  })
+})
+
+describe('the edges', () => {
+  test('a tic glued to the letters before it is not a tic: undelve and redelve are not delve', () => {
+    expect(countReply('Please undelve it, then redelve it; or just delve.', DEFAULT_TICS).counts).toEqual({ delve: 1 })
+    expect(countReply('A regreat question is no great question.', DEFAULT_TICS).counts).toEqual({ 'great question': 1 })
+  })
+
+  test('the status line never repeats the name the engine prefixes it with, and reads one tic as one', () => {
+    expect(statusWords({ delve: 1 })).toBe('1 tic')
+    expect(statusWords({ delve: 2, 'great question': 3 })).toBe('5 tics')
+    expect(statusWords({ delve: 1 })).not.toContain('swear-jar')
   })
 })

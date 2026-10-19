@@ -123,7 +123,8 @@ export function bandWords(c: SwearJarCounts): string {
     .join(' · ')}`
 }
 
-export const statusWords = (c: SwearJarCounts): string => `swear-jar ${total(c)}`
+/** The status line's words. The engine prefixes the line with the mod's name, so the words never repeat it: `swear-jar: 16 tics`. */
+export const statusWords = (c: SwearJarCounts): string => `${total(c)} ${total(c) === 1 ? 'tic' : 'tics'}`
 
 /** The worst offender all time, or this session's while the jar is new. */
 export function worst(all: SwearJarCounts, session: SwearJarCounts): { label: string; count: number } | undefined {
