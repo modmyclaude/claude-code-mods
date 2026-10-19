@@ -60,13 +60,17 @@ export function labelCells(lines: readonly Pick<DetailLine, 'kind' | 'label'>[])
 }
 
 // Model ids, plan window kinds and prompts are outside text: cleaned here, at the one
-// place every line passes, before the pane or the command draws it.
+// place every line passes, before the pane or the command draws it. Block glyphs are
+// the bars' own: in a word (a progress bar pasted into a prompt) they would switch the
+// desktop's font and clip the row, so there they read as `#`.
+const GLYPHS = /[▀-▟]/gu
+const words = (s: string): string => clean(s).replace(GLYPHS, '#')
 const cleaned = (d: Draft): Draft => ({
   ...d,
-  ...(d.label === undefined ? {} : { label: clean(d.label) }),
-  ...(d.value === undefined ? {} : { value: clean(d.value) }),
-  ...(d.figures === undefined ? {} : { figures: d.figures.map(clean) }),
-  ...(d.clauses === undefined ? {} : { clauses: d.clauses.map(clean) }),
+  ...(d.label === undefined ? {} : { label: words(d.label) }),
+  ...(d.value === undefined ? {} : { value: words(d.value) }),
+  ...(d.figures === undefined ? {} : { figures: d.figures.map(words) }),
+  ...(d.clauses === undefined ? {} : { clauses: d.clauses.map(words) }),
 })
 
 const toneOf = (level: Level): Tone => (level === 'unknown' ? 'dim' : level)
@@ -179,10 +183,14 @@ function spendView(g: RedlineGauge, now: number): Draft[] {
     add({ key: 'spend-total', kind: 'hero', tone: 'dim', head: true, value: 'Nothing spent yet' })
     add({ key: 'spend-none', kind: 'line', tone: 'dim', head: true, value: "Each kind of work shows up here after Claude's next reply." })
   } else {
-    // Redline's own count, as the table prices it (tokens once a model had no price), and since when it counts.
+    // Redline's own count, as the table prices it (tokens once a model had no price), and since when it
+    // counts, when that is not the session's start: a clock time this week, else a span (`over the last 9d`).
     const total = g.unpriced.length === 0 ? fmtUsd(sumTokens(g.tableUsd)) : `${fmtTokens(sumTokens(g.totals))} tokens`
-    const isLate = g.trackingSince !== null && (g.sessionStartedAt === null || g.trackingSince - g.sessionStartedAt > 60_000)
-    const since = isLate && g.trackingSince !== null ? ` · since ${fmtSince(g.trackingSince, now)}` : ''
+    let since = ''
+    if (g.trackingSince !== null && (g.sessionStartedAt === null || g.trackingSince - g.sessionStartedAt > 60_000)) {
+      const at = fmtSince(g.trackingSince, now)
+      since = at.endsWith(' ago') ? ` · over the last ${at.slice(0, -' ago'.length)}` : ` · since ${at}`
+    }
     add({ key: 'spend-total', kind: 'hero', tone: 'plain', head: true, value: `${total} in ${requests} ${requests === 1 ? 'request' : 'requests'}${since}` })
   }
 

@@ -486,6 +486,11 @@ describe('where the money went', () => {
     expect(modelLabel('claude-haiku-4-5@20251001')).toBe('Haiku 4.5')
     expect(modelLabel('claude-opus-5')).toBe('Opus 5')
     expect(modelLabel('claude-fable-5-1')).toBe('Fable 5.1')
+    // The older ids put the version before the family; the date after it is never the version.
+    expect(modelLabel('claude-3-5-haiku-20241022')).toBe('Haiku 3.5')
+    expect(modelLabel('claude-3-7-sonnet-20250219')).toBe('Sonnet 3.7')
+    expect(modelLabel('claude-3-opus-20240229')).toBe('Opus 3')
+    expect(modelLabel('anthropic.claude-3-5-sonnet-20241022-v2:0')).toBe('Sonnet 3.5')
     expect(modelLabel('claude-nova-1-20270101')).toBe('nova-1')
     expect(modelLabel('claude-nova-1@20270101')).toBe('nova-1')
     expect(modelLabel('claude-some-very-long-model-name')).toBe('some-very-lo')
@@ -610,11 +615,11 @@ describe('the pane on one screen', () => {
   const FIVE = { kind: 'five_hour', percentUsed: 14, resetsAt: new Date(SAT + 48 * MIN).toISOString() }
   const WEEK = { kind: 'seven_day', percentUsed: 84, resetsAt: new Date(local(20, 9)).toISOString() }
   /**
-   * The founder's state: context 14% of 1M filling in ≈30m; the 5-hour window 14%, resetting in 48m; the week 84%,
+   * A sample state: context 14% of 1M filling in ≈30m; the 5-hour window 14%, resetting in 48m; the week 84%,
    * up a point in the last ten minutes, so set to run out in ≈2h 44m before it resets Tue 9am; ≈$57.62 since Wed 2pm;
    * redline counted 9 requests (≈$2.36, shell and prompt) since 1:47pm, all in one turn.
    */
-  const founder = (): RedlineGauge => ({
+  const sample = (): RedlineGauge => ({
     ...EMPTY_GAUGE,
     sessionStartedAt: local(14, 14),
     trackingSince: SAT - 13 * MIN,
@@ -628,12 +633,12 @@ describe('the pane on one screen', () => {
     tableUsd: { input: 2.364, output: 0, cacheRead: 0, cacheWrite: 0 },
     spend: { prompt: spend(0.946, 4), shell: spend(1.418, 5) },
     byModel: { 'claude-fable-5-1': spend(2.364, 9) },
-    turns: [turn('t1', 'Has our 3rd party astra bot been added to the harness yet...', 2.364, 9)],
+    turns: [turn('t1', 'Has the nightly build been added to the release checklist yet...', 2.364, 9)],
     model: 'claude-fable-5-1',
   })
 
   test('the overview: a hero naming the limit closest to its wall, three aligned bars with one readout each, Started and Cost, one footnote', () => {
-    const g = founder()
+    const g = sample()
     const lines = detailLines(g, SAT)
     // The windows draw in a fixed order, the 5-hour before the week, whatever order they were reported in.
     expect(lines.map(l => l.key)).toEqual(['title', 'state', 'context', 'limit-five_hour', 'limit-seven_day', 'session', 'cost', 'note', 'spend-link'])
@@ -668,14 +673,14 @@ describe('the pane on one screen', () => {
   })
 
   test('the spend view: what redline counted and since when, the share by kind, the costliest turns; by model only when several answered', () => {
-    const g = founder()
+    const g = sample()
     const lines = detailLines(g, SAT, 'spend')
     expect(lines.map(l => l.key)).toEqual(['title', 'spend-total', 'spend-shell', 'spend-prompt', 'busiest-title', 'busiest-1', 'spend-rule', 'limits-link'])
     expect(lines.find(l => l.key === 'spend-total')).toMatchObject({ kind: 'hero', tone: 'plain', head: true, value: '≈$2.36 in 9 requests · since 1:47pm' })
     expect(lines.find(l => l.key === 'spend-shell')).toMatchObject({ kind: 'bar', tone: 'plain', head: true, label: 'Shell', bar: '██████░░░░', figures: ['≈$1.42', '60%'], clauses: [] })
     expect(lines.find(l => l.key === 'spend-prompt')).toMatchObject({ label: 'Prompt', bar: '████░░░░░░', figures: ['≈$0.95', '40%'] })
     expect(lines.find(l => l.key === 'busiest-title')).toMatchObject({ kind: 'title', tone: 'title', gap: true, value: 'Costliest turns' })
-    expect(lines.find(l => l.key === 'busiest-1')).toMatchObject({ kind: 'row', tone: 'plain', label: '1. Has our 3rd party astra bot been added to the harness yet...', value: '≈$2.36' })
+    expect(lines.find(l => l.key === 'busiest-1')).toMatchObject({ kind: 'row', tone: 'plain', label: '1. Has the nightly build been added to the release checklist yet...', value: '≈$2.36' })
     expect(lines.find(l => l.key === 'spend-rule')).toMatchObject({ kind: 'note', tone: 'dim', gap: true, value: 'Each request counts toward what it sent Claude. Dollars are API list prices.' })
     expect(boltPose(g, SAT, 'spend')).toBe('idle')
     expect(detailText(g, SAT, 'spend')).toBe(
@@ -686,19 +691,20 @@ describe('the pane on one screen', () => {
         'Prompt   ████░░░░░░   ≈$0.95   40%',
         '',
         'Costliest turns',
-        '1. Has our 3rd party astra bot been added to the harness yet...  ≈$2.36',
+        '1. Has the nightly build been added to the release checklist yet...  ≈$2.36',
         '',
         'Each request counts toward what it sent Claude. Dollars are API list prices.',
         'Context and plan limits: /redline',
       ].join('\n'),
     )
-    // Redline that saw the session from its start says no "since".
+    // Redline that saw the session from its start says no "since"; counting for six days or more, it says a span.
     expect(detailLines({ ...g, trackingSince: g.sessionStartedAt }, SAT, 'spend').find(l => l.key === 'spend-total')?.value).toBe('≈$2.36 in 9 requests')
+    expect(detailLines({ ...g, sessionStartedAt: SAT - 10 * 24 * HOUR, trackingSince: SAT - 9 * 24 * HOUR }, SAT, 'spend').find(l => l.key === 'spend-total')?.value).toBe('≈$2.36 in 9 requests · over the last 9d')
   })
 
   test('five or more kinds fold into the three costliest and the rest, three or more models into the costliest and the rest, and the turns take the rows left under the cap', () => {
     const g: RedlineGauge = {
-      ...founder(),
+      ...sample(),
       spend: { reading: spend(7.54, 40), shell: spend(4.05, 30), editing: spend(3.13, 20), prompt: spend(1.5, 10), search: spend(1.18, 8), answering: spend(1, 5), 'mcp:github': spend(0.5, 2) },
       byModel: { 'claude-opus-5-5': spend(16.19, 100), 'claude-haiku-4-5': spend(2.21, 10), 'claude-sonnet-5-5': spend(0.5, 5) },
       tableUsd: { input: 18.9, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -726,7 +732,7 @@ describe('the pane on one screen', () => {
   })
 
   test('the hero ranks the walls: used up, context full, context red, the soonest amber wall, else within limits', () => {
-    const g = founder()
+    const g = sample()
     expect(verdict(g, SAT)).toEqual({ text: 'Week runs out in ≈2h 44m', level: 'amber' })
     // The same week resetting before it runs dry: nothing is near a wall, and the row is calm.
     const calm: RedlineGauge = { ...g, limits: [FIVE, { ...WEEK, resetsAt: new Date(SAT + 60 * MIN).toISOString() }], limitHistory: {} }
@@ -738,6 +744,8 @@ describe('the pane on one screen', () => {
     expect(detailLines(out, SAT).find(l => l.key === 'limit-five_hour')).toMatchObject({ tone: 'red', bar: '██████████', figures: ['OUT'], clauses: ['resets in 48m'] })
     expect(boltPose(out, SAT)).toBe('sleep')
     expect(verdict({ ...g, limits: [{ kind: 'five_hour', percentUsed: 100 }] }, SAT)).toEqual({ text: '5-hour ran out', level: 'red' })
+    // A used-up window with no reset time counts as resetting last: it is the wall over one with a known reset.
+    expect(verdict({ ...g, limits: [{ ...WEEK, percentUsed: 100 }, { kind: 'spend_limit', percentUsed: 100 }] }, SAT)).toEqual({ text: 'Spend ran out', level: 'red' })
     // A used-up window outranks a full context, which outranks a red one, which outranks an amber window.
     const full: RedlineGauge = { ...g, contextTokens: 1_000_000, samples: [] }
     expect(verdict({ ...full, limits: [{ ...FIVE, percentUsed: 100 }] }, SAT)).toEqual({ text: '5-hour ran out · resets in 48m', level: 'red' })
@@ -761,14 +769,14 @@ describe('the pane on one screen', () => {
 
   test('every line is a title, hero, line, bar, row or note; a line stands only in an empty state; a row is followed by a row or a new block; seven rows and one footnote at most; no word holds a glyph', () => {
     const rich: RedlineGauge = {
-      ...founder(),
+      ...sample(),
       unpriced: ['claude-nova-1'],
       spend: { prompt: spend(1, 2), shell: spend(2, 3), reading: { ...spend(0, 1), usd: null } },
       byModel: { 'claude-fable-5-1': spend(3, 5), 'claude-nova-1': { ...spend(0, 1), usd: null } },
       turns: [turn('a', 'one', 2, 3), turn('b', 'two', null, 2)],
     }
     for (const view of ['overview', 'spend'] as const) {
-      for (const g of [rich, founder(), { ...rich, ledgerUsd: null }, EMPTY_GAUGE]) {
+      for (const g of [rich, sample(), { ...rich, ledgerUsd: null }, EMPTY_GAUGE]) {
         const lines = detailLines(g, SAT, view)
         for (const l of lines) expect(['title', 'hero', 'line', 'bar', 'row', 'note'], `${view} ${l.key}`).toContain(l.kind)
         for (const l of lines.filter(l => l.kind === 'line' && !l.textOnly)) expect(['empty', 'limits-none', 'spend-none'], `${view} ${l.key}`).toContain(l.key)
@@ -794,6 +802,9 @@ describe('the pane on one screen', () => {
     expect(spendLines.find(l => l.key === 'spend-reading')).toMatchObject({ figures: ['--', '--'], bar: '░░░░░░░░░░' })
     expect(spendLines.find(l => l.key === 'model-claude-nova-1')).toMatchObject({ label: 'nova-1', figures: ['--', '--'] })
     expect(spendLines.find(l => l.key === 'busiest-2')).toMatchObject({ label: '2. two', value: '1.0k tokens' })
+    // A block glyph pasted into a prompt reads as # in its row: words never hold a glyph, so the desktop keeps one font.
+    const pasted = detailLines({ ...rich, turns: [turn('p', 'progress ███░░ 60% done', 3, 1)] }, SAT, 'spend')
+    expect(pasted.find(l => l.key === 'busiest-1')?.label).toBe('1. progress ##### 60% done')
   })
 
   test('an API key after the first reply: within limits, the context bar, a line that limits appear on a plan, the session rows, one sentence; nothing spent: no rows', () => {
@@ -824,13 +835,13 @@ describe('the pane on one screen', () => {
   })
 
   test("a prompt's label ends at a word, never mid-word, and fits a row; the label column follows the longest label, 7 to 12 cells", () => {
-    expect(labelOf('Has our third party astra bot been added to the harness yet and is it answering in the channel')).toBe('Has our third party astra bot been added to the harness...')
+    expect(labelOf('Has the nightly build been added to the release checklist yet and is it green on the main branch')).toBe('Has the nightly build been added to the release checklist...')
     expect(labelOf('x'.repeat(70))).toBe(`${'x'.repeat(57)}...`)
     expect(labelOf(`${'y'.repeat(30)} ${'z'.repeat(40)}`)).toBe(`${'y'.repeat(30)} ${'z'.repeat(26)}...`)
     expect(labelOf('a'.repeat(60))).toBe('a'.repeat(60))
     expect(labelOf('  first line  \nsecond')).toBe('first line')
-    expect(labelCells(detailLines({ ...founder(), limits: [{ kind: 'a_very_long_window_kind', percentUsed: 5 }] }, SAT))).toBe(12)
-    expect(detailLines({ ...founder(), limits: [{ kind: 'a_very_long_window_kind', percentUsed: 5 }] }, SAT).find(l => l.key === 'limit-a_very_long_window_kind')).toMatchObject({ label: 'A very long window kind', figures: ['5%'], clauses: [] })
-    expect(labelCells(detailLines({ ...founder(), spend: { other: spend(1, 1) } }, SAT, 'spend'))).toBe(11)
+    expect(labelCells(detailLines({ ...sample(), limits: [{ kind: 'a_very_long_window_kind', percentUsed: 5 }] }, SAT))).toBe(12)
+    expect(detailLines({ ...sample(), limits: [{ kind: 'a_very_long_window_kind', percentUsed: 5 }] }, SAT).find(l => l.key === 'limit-a_very_long_window_kind')).toMatchObject({ label: 'A very long window kind', figures: ['5%'], clauses: [] })
+    expect(labelCells(detailLines({ ...sample(), spend: { other: spend(1, 1) } }, SAT, 'spend'))).toBe(11)
   })
 })

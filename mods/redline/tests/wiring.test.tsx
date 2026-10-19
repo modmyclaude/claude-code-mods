@@ -1093,7 +1093,7 @@ describe('the pane follows the UI standard', () => {
     const weekAt = new Date(T0 + (2 * 24 + 19) * 60 * MIN).toISOString()
     const limitsAt = (week: number): SessionRateLimit[] => [{ kind: 'five_hour', percentUsed: 14, resetsAt: fiveAt }, { kind: 'seven_day', percentUsed: week, resetsAt: weekAt }]
     const w = world(on, { context: { window: 1_000_000 }, rateLimits: limitsAt(83.0244), cost: { usd: 57.62 } })
-    // The founder's state: the week up a point in ten minutes (dry in ≈2h 44m), the context filling in ≈30m.
+    // A sample state: the week up a point in ten minutes (dry in ≈2h 44m), the context filling in ≈30m.
     await $.session.measure({ context: { window: 1_000_000 }, rateLimits: limitsAt(83.0244), cost: { usd: 57.62 }, changed: ['rateLimits'] })
     await w.clock.advance(6 * MIN)
     await request($, 25_333)
@@ -1126,7 +1126,12 @@ describe('the pane follows the UI standard', () => {
           const key = String(keyOf(row))
           const children = ((row.children ?? []) as unknown[]).filter((c): c is Node => c !== null && typeof c === 'object')
           expect(row.props?.columnGap, key).toBe(1)
-          const fixed = children.reduce((n, c) => n + (typeof c.props?.width === 'number' ? c.props.width : 0), 0) + 10
+          // The bar is its own child that never shrinks, ten glyphs wide; the other fixed cells are the label and figure widths.
+          const barNode = children.find(c => keyOf(c) === 'bar')
+          expect(barNode?.props?.flexShrink, `${at} ${key}`).toBe(0)
+          const glyphCount = [...glyphTexts(barNode).map(t => t.text).join('')].length
+          expect(glyphCount, `${at} ${key}`).toBe(10)
+          const fixed = children.reduce((n, c) => n + (typeof c.props?.width === 'number' ? c.props.width : 0), 0) + glyphCount
           expect(fixed + (children.length - 1), `${at} ${key}`).toBeLessThanOrEqual(view === 'overview' ? 24 : 40)
           const when = children.find(c => keyOf(c) === 'when')
           if (when) expect(when.props, `${at} ${key}`).toMatchObject({ flexShrink: 1, flexWrap: 'wrap', rowGap: 0 })

@@ -393,7 +393,10 @@ export const register: Register = on => {
                   {line.label ?? ''}
                 </Text>
               </Box>
-              {glyphRow(elements, e.surface, line.bar ?? '', barPaint(line.tone))}
+              {/* The bar never shrinks: on the terminal a bare Text would be squeezed before the clauses wrap. */}
+              <Box key="bar" flexShrink={0}>
+                {glyphRow(elements, e.surface, line.bar ?? '', barPaint(line.tone))}
+              </Box>
               {(line.figures ?? []).map((f, i) => (
                 <Box key={`figure-${i}`} width={FIGURE_CELLS[view][i] ?? 4} flexShrink={0} justifyContent="flex-end">
                   <Text {...figurePaint(line.tone)} {...(f === 'OUT' ? { bold: true } : {})}>
@@ -404,7 +407,9 @@ export const register: Register = on => {
               {clauses.length > 0 ? (
                 <Box key="when" flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={0} flexShrink={1}>
                   {clauses.map((c, i) => (
-                    <Text {...clausePaint(line.tone)}>{i < clauses.length - 1 ? `${c},` : c}</Text>
+                    <Text key={`clause-${i}`} {...clausePaint(line.tone)}>
+                      {i < clauses.length - 1 ? `${c},` : c}
+                    </Text>
                   ))}
                 </Box>
               ) : null}
@@ -438,7 +443,9 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {e.props.bodyColumns >= boltMin ? (
           <Box key="head" flexDirection="row" columnGap={2}>
-            {boltSprite(elements, e.surface, { size: 'small', pose: boltPose(g, now, view) })}
+            <Box key="bolt-cell" flexShrink={0}>
+              {boltSprite(elements, e.surface, { size: 'small', pose: boltPose(g, now, view) })}
+            </Box>
             <Box key="head-lines" flexDirection="column" flexShrink={1}>
               {head.map(draw)}
             </Box>

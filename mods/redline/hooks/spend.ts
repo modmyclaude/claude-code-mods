@@ -62,20 +62,22 @@ export function spendLabel(kind: string): string {
 
 // claude-opus-4-1-20250805, us.anthropic.claude-sonnet-4-5-20250929-v1:0,
 // claude-haiku-4-5@20251001, claude-opus-5: the family, then the major, then a
-// one-digit minor when one follows (a date is never a minor).
-const MODEL_ID = /(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d)(?!\d))?/
+// one-digit minor when one follows (a date is never a major or a minor).
+const MODEL_ID = /(opus|sonnet|haiku|fable|mythos)-(\d{1,2})(?!\d)(?:-(\d)(?!\d))?/
+// claude-3-5-haiku-20241022, claude-3-opus-20240229: the version before the family.
+const OLDER_MODEL_ID = /claude-(\d)(?:-(\d))?-(opus|sonnet|haiku)/
 
 /**
  * A model's row label, read from its id: the family and version (`Fable 5.1`,
- * `Opus 4.6`, `Sonnet 5.5`). An id of another shape loses its `claude-` and a
- * trailing date (`nova-1`), cut to the column.
+ * `Opus 4.6`, `Sonnet 5.5`, `Haiku 3.5`). An id of another shape loses its
+ * `claude-` and a trailing date (`nova-1`), cut to the column.
  */
 export function modelLabel(model: string): string {
-  const m = MODEL_ID.exec(model.toLowerCase())
-  if (m) {
-    const family = m[1] ?? ''
-    return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${m[2] ?? ''}${m[3] === undefined ? '' : `.${m[3]}`}`
-  }
+  const id = model.toLowerCase()
+  const m = MODEL_ID.exec(id)
+  const older = m ? null : OLDER_MODEL_ID.exec(id)
+  const [family, major, minor] = m ? [m[1], m[2], m[3]] : older ? [older[3], older[1], older[2]] : []
+  if (family !== undefined && major !== undefined) return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${major}${minor === undefined ? '' : `.${minor}`}`
   return model
     .replace(/^claude-/, '')
     .replace(/@.*$/, '')
