@@ -206,7 +206,7 @@
       "name": "redline",
       "source": "./mods/redline",
       "description": "Context fill, session cost and pace on one line, with a warning before the red line.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "category": "cost",
       "keywords": [
         "context",
