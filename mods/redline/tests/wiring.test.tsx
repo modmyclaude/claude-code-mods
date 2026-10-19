@@ -164,7 +164,7 @@ describe('status line', () => {
     await w.clock.advance(4 * MIN)
     await request($, 120_000)
     // +20k context in 4 minutes: 80k left at 5k/min.
-    expect(w.status()).toContain('full in ~16m')
+    expect(w.status()).toContain('full in ≈16m')
     // New tokens: 2 requests x (1500 + 2500 + 800), over the 4 minutes tracked.
     expect(w.status()).toContain('2.4k tokens/min')
   })
@@ -202,7 +202,7 @@ describe('status line', () => {
     ]
     const w = world(on, { rateLimits: limits })
     await request($, pct(20))
-    expect(w.status()).toContain('5h ████░ 80% AMBER, out in ~30m')
+    expect(w.status()).toContain('5h ████░ 80% AMBER, out in ≈30m')
     expect(w.status()).toContain('week █░░░░ 12%')
     expect(w.status()).not.toContain('12%,')
   })
@@ -216,8 +216,8 @@ describe('status line', () => {
     expect(w.status()).toContain('5h █░░░░ 20%')
     await w.clock.advance(10 * MIN)
     await measure(50)
-    // 30 points in 10 minutes: dry in ~17m, before the reset in 20m.
-    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ~17m')
+    // 30 points in 10 minutes: dry in ≈17m, before the reset in 20m.
+    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ≈17m')
   })
 
   test('session.measure updates the gauge between requests (a plan window moved)', async ($, on) => {
@@ -348,7 +348,8 @@ describe('a spent window, idle past its reset', () => {
       const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
       const text = (await pane.find({ key: 'limit-five_hour' }))?.text ?? ''
       expect(text).toContain('reset 10m ago')
-      expect(text).not.toContain('used up')
+      expect(text).not.toContain('OUT')
+      expect((await pane.find({ key: 'state' }))?.text).toBe('Within limits')
       await pane.unmount()
     }
   })
@@ -407,7 +408,7 @@ describe('idle', () => {
     await request($, 120_000)
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
-      expect((await ui.find({ key: 'gauge' }))?.text).toContain('full in ~16m')
+      expect((await ui.find({ key: 'gauge' }))?.text).toContain('full in ≈16m')
       await ui.unmount()
     }
     const ui = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
@@ -420,7 +421,7 @@ describe('idle', () => {
     await request($, 100_000)
     await w.clock.advance(4 * MIN)
     await request($, 120_000)
-    expect(w.status()).toContain('full in ~16m')
+    expect(w.status()).toContain('full in ≈16m')
     const painted = w.statuses.length
     await w.clock.advance(5 * MIN) // still inside the window: nothing repaints
     expect(w.statuses).toHaveLength(painted)
@@ -439,7 +440,7 @@ describe('/redline', () => {
     await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
     expect(w.registered).toEqual(['redline'])
     // Runs at once mid-turn: checking the gauge while Claude works is the point.
-    expect(w.specs[0]).toMatchObject({ name: 'redline', argumentHint: '[band]', immediate: true })
+    expect(w.specs[0]).toMatchObject({ name: 'redline', argumentHint: '[spend|band]', immediate: true })
     expect(w.status()).toMatch(/^context -- /)
     const band = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'AbovePrompt', props: BAND_PROPS })
     expect(await band.find({ key: 'gauge' })).toBeDefined()
@@ -452,12 +453,15 @@ describe('/redline', () => {
     expect(await runCommand($, '')).toEqual({})
     expect(w.opened).toEqual(['redline'])
     w.isPanePlaced = false
-    // Still {}: command text is read by the model, and the busiest-turns rows carry prompt words.
+    // Still {}: command text is read by the model, and the spend view's turn rows carry prompt words.
     expect(await runCommand($, '')).toEqual({})
+    expect(await runCommand($, 'spend')).toEqual({})
     const printed = w.logs.join('\n')
-    expect(printed).toContain('Redline - context, cost and pace')
-    expect(printed).toContain('50%')
-    expect(printed).toContain('rotate the deploy key')
+    expect(printed).toContain('Redline - context, plan limits and cost')
+    expect(printed).toContain('Context  █████░░░░░   50%')
+    expect(printed).toContain('Where the money went: /redline spend')
+    expect(printed).toContain('Redline - where the money went')
+    expect(printed).toContain('1. rotate the deploy key before noon')
     for (const row of w.logs) expect(row.length).toBeLessThanOrEqual(1900)
   })
 
@@ -505,10 +509,15 @@ describe('outside text is cleaned before it is drawn', () => {
       for (const el of await band.findAll({})) expect(el.text).not.toMatch(CONTROL)
       await band.unmount()
       const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
-      expect((await pane.find({ key: 'context-used' }))?.text).toContain('claude-opus-5-5')
-      expect((await pane.find({ key: 'busiest-1' }))?.text).toContain('look at this now')
+      expect((await pane.find({ key: 'context' }))?.text).toContain('85%')
       for (const el of await pane.findAll({})) expect(el.text).not.toMatch(CONTROL)
       await pane.unmount()
+      await runCommand($, 'spend')
+      const spend = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+      expect((await spend.find({ key: 'busiest-1' }))?.text).toContain('look at this now')
+      for (const el of await spend.findAll({})) expect(el.text).not.toMatch(CONTROL)
+      await spend.unmount()
+      await runCommand($, '')
     }
     w.isPanePlaced = false
     expect((await runCommand($, '')).text?.replace(/\n/g, ' ')).not.toMatch(CONTROL)
@@ -670,6 +679,7 @@ describe('detail view', () => {
       await $.turn.start({ text: `small ${i}`, turnId: `small-${i}` })
       await request($, 10_000 + i, { turnId: `small-${i}` })
     }
+    await runCommand($, 'spend')
     for (const surface of SURFACES) {
       const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
       expect((await pane.find({ key: 'busiest-1' }))?.text).toContain('the big one')
@@ -677,7 +687,7 @@ describe('detail view', () => {
     }
   })
 
-  test('shows context, tokens, cost, session time, plan limits and the busiest turns on both surfaces', async ($, on) => {
+  test('the overview shows the hero, the context, the plan window and this session; the Spending button shows the costliest turns, on both surfaces', async ($, on) => {
     const w = world(on, {
       rateLimits: [{ kind: 'five_hour', percentUsed: 80, resetsAt: new Date(T0 + 180 * MIN).toISOString() }],
     })
@@ -691,38 +701,50 @@ describe('detail view', () => {
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
       const text = async (key: string) => (await ui.find({ key }))?.text ?? `(no ${key})`
-      expect(await text('context')).toContain('46%')
-      expect(await text('context-used')).toContain('92k of 200k tokens')
-      expect(await text('tokens')).toMatch(/^Tokens\s*\d+(\.\d)?k$/)
-      expect(await text('tokens-detail')).toMatch(/input 6\.0k · output 3\.2k · cache read 2\d\dk · cache write 10k/)
-      expect(await text('cost')).toMatch(/^Cost\s*≈\$1\.25$/)
-      expect(await text('cost-table')).toMatch(/^Claude Code's estimate for the whole session \(as \/cost shows it\); ≈\$\d+\.\d\d for the requests redline counted, by redline's price table \(Opus 5\.5\)/)
-      expect(await text('session')).toContain('30m')
-      expect(await text('limit-five_hour')).toContain('80%')
-      expect(await text('limit-five_hour')).toContain('out in ~30m')
+      // The 5-hour window runs dry before it resets: the hero names it, in the band's words.
+      expect(await text('state')).toBe('5-hour runs out in ≈30m')
+      expect(await text('context')).toMatch(/^Context.*46%$/)
+      expect(await text('limit-five_hour')).toMatch(/^5-hour.*80%.*out in ≈30m,.*resets in 3h$/)
       expect(await ui.find({ key: 'limits-none' })).toBeUndefined()
-      expect(await text('busiest-1')).toContain('refactor the auth module')
-      expect(await text('busiest-1')).toContain('2 req')
+      expect(await text('session')).toMatch(/^Started\s*(\w{3} )?\d{1,2}(:\d\d)?[ap]m$/)
+      expect(await text('cost')).toMatch(/^Cost\s*≈\$1\.25$/)
+      expect(await text('note')).toBe('Dollars are API list prices, not a bill. Times with ≈ assume your pace holds.')
+      for (const key of ['tokens', 'tokens-detail', 'rate', 'pace', 'requests', 'cost-table', 'busiest-1', 'spend-prompt']) expect(await ui.find({ key }), key).toBeUndefined()
+      await ui.press({ key: 'view' })
+      expect(await ui.find({ key: 'state' })).toBeUndefined()
+      // Redline started counting after the session began, so its hero says since when.
+      expect(await text('spend-total')).toMatch(/^≈\$\d\.\d\d in 4 requests · since \d{1,2}(:\d\d)?[ap]m$/)
+      expect(await text('busiest-1')).toMatch(/^1\. refactor the auth module\s*≈\$\d\.\d\d$/)
       expect(await text('busiest-2')).toContain('fix the typo')
       expect(await text('busiest-3')).toContain('subagent agent-ab')
+      expect(await text('model-claude-opus-5-5')).toMatch(/^Opus 5\.5.*≈\$.*\d+%$/)
+      expect(await text('model-claude-haiku-4-5')).toMatch(/^Haiku 4\.5.*≈\$.*\d+%$/)
+      await ui.press({ key: 'view' })
+      expect(await text('state')).toBe('5-hour runs out in ≈30m')
       await ui.unmount()
     }
     expect(w.toasts).toHaveLength(0)
   })
 
-  test('says so when no plan limits are reported, and when a model has no price', async ($, on) => {
+  test('says so when no plan limits are reported, and counts tokens when a model has no price', async ($, on) => {
     world(on, { cost: undefined })
     await request($, 30_000, { model: 'claude-nova-1' })
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
-      expect((await ui.find({ key: 'limits-none' }))?.text).toContain('none reported')
-      expect((await ui.find({ key: 'cost-table' }))?.text).toContain('no price for claude-nova-1 - tokens only')
-      expect((await ui.find({ key: 'cost' }))?.text).toMatch(/^Cost\s*no price$/)
+      expect((await ui.find({ key: 'state' }))?.text).toBe('Within limits')
+      expect((await ui.find({ key: 'limits-none' }))?.text).toBe('On a Claude plan, 5-hour and week limits appear after a reply.')
+      expect((await ui.find({ key: 'cost' }))?.text).toMatch(/^Cost\s*31k tokens$/)
+      expect(await ui.find({ key: 'cost-table' })).toBeUndefined()
+      expect(await ui.find({ key: 'note' })).toBeUndefined() // no dollars, no estimate: nothing to caveat
+      await ui.press({ key: 'view' })
+      expect((await ui.find({ key: 'spend-total' }))?.text).toMatch(/^31k tokens in 1 request/)
+      expect((await ui.find({ key: 'spend-prompt' }))?.text).toMatch(/^Prompt.*--.*--$/)
+      await ui.press({ key: 'view' })
       await ui.unmount()
     }
   })
 
-  test('its buttons toggle the band and close the pane', async ($, on) => {
+  test('its buttons switch the view, toggle the band and close the pane', async ($, on) => {
     const w = world(on)
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
@@ -730,6 +752,14 @@ describe('detail view', () => {
       await ui.press({ key: 'band' })
       expect((await ui.find({ key: 'band' }))?.text).toBe('Hide band')
       await ui.press({ key: 'band' })
+      expect((await ui.find({ key: 'view' }))?.text).toBe('Spending')
+      await ui.press({ key: 'view' })
+      expect((await ui.find({ key: 'view' }))?.text).toBe('Back')
+      expect(await ui.find({ key: 'spend-total' })).toBeDefined()
+      expect(await ui.find({ key: 'state' })).toBeUndefined()
+      await ui.press({ key: 'view' })
+      expect((await ui.find({ key: 'view' }))?.text).toBe('Spending')
+      expect(await ui.find({ key: 'state' })).toBeDefined()
       await ui.press({ key: 'close' })
       await ui.unmount()
     }
@@ -760,7 +790,7 @@ describe('repaint at every plan window reset', () => {
     for (const pane of panes) {
       const text = (await pane.find({ key: 'limit-five_hour' }))?.text ?? ''
       expect(text).toContain('reset <1m ago')
-      expect(text).not.toContain('used up')
+      expect(text).not.toContain('OUT')
     }
   })
 
@@ -828,10 +858,13 @@ describe('the recent rate everywhere', () => {
   test('the pane judges the run-out on the recent rate too, and says so', async ($, on) => {
     const w = world(on)
     await burst($, w)
-    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ~17m')
+    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ≈17m')
     for (const surface of SURFACES) {
       const pane = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
-      expect((await pane.find({ key: 'limit-five_hour' }))?.text).toContain('out in ~17m (recent rate)')
+      const row = (await pane.find({ key: 'limit-five_hour' }))?.text ?? ''
+      expect(row).toContain('out in ≈17m')
+      expect(row).not.toContain('recent rate')
+      expect((await pane.find({ key: 'state' }))?.text).toBe('5-hour runs out in ≈17m')
       await pane.unmount()
     }
   })
@@ -839,15 +872,15 @@ describe('the recent rate everywhere', () => {
   test('a /clear keeps the plan windows readings (they belong to the account)', async ($, on) => {
     const w = world(on)
     await burst($, w, () => $.session.end({ reason: 'clear', sessionId: 'abc', resume: { id: 'abc' } }))
-    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ~17m')
+    expect(w.status()).toContain('5h ███░░ 50% AMBER, out in ≈17m')
   })
 })
 
-describe('Bolt beside the context row', () => {
-  // Bolt: idle beside the context row of the detail pane, crashed once the
-  // context is full or a 5-hour or weekly window is spent, and out of the way in a
-  // narrow pane. A Raster on the terminal, one code-font cell per character on the
-  // desktop. The status line and the band never show it.
+describe('Bolt beside the head', () => {
+  // Bolt: small, idle beside the pane's head, asleep while nothing is measured or a
+  // 5-hour or weekly window is spent, and out of the way in a narrow pane. A Raster
+  // on the terminal, one code-font cell per character on the desktop. The status
+  // line and the band never show it.
   type Drawn = { type?: unknown; key?: unknown; props?: Record<string, unknown>; children?: unknown[] }
   const under = (node: unknown, key: string): Drawn | undefined => {
     if (node === null || typeof node !== 'object') return undefined
@@ -879,76 +912,95 @@ describe('Bolt beside the context row', () => {
       line.map(c => `Box1:${c.fg === undefined && c.bg === undefined ? ' ' : `${c.ch}|${c.fg ?? ''}|${c.bg ?? ''}`}`),
     )
   }
-  const IDLE: BoltPick = { size: 'tiny', pose: 'idle' }
-  const CRASH: BoltPick = { size: 'tiny', pose: 'crash' }
+  const IDLE: BoltPick = { size: 'small', pose: 'idle' }
+  const SLEEP: BoltPick = { size: 'small', pose: 'sleep' }
   const pane = ($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 100) =>
     $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: { ...PANE_PROPS, bodyColumns } })
 
-  test('Bolt idles beside the context row on both surfaces, the figures intact; a narrow pane leaves it out', async ($, on) => {
+  test('Bolt idles beside the head on both surfaces, the figures intact; under 60 columns a head of bars leaves him out, a head of words keeps him to 40', async ($, on) => {
     world(on)
     await request($, pct(30))
     for (const surface of SURFACES) {
       const ui = await pane($, surface)
       const tree = await ui.drawn()
-      expect(drawnBolt(under(under(tree, 'context-row'), 'bolt')), surface).toEqual(boltAs(surface, IDLE))
+      expect(drawnBolt(under(under(tree, 'head'), 'bolt')), surface).toEqual(boltAs(surface, IDLE))
       expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
-      expect(under(under(tree, 'context-row'), 'context')).toBeDefined()
+      expect(under(under(tree, 'head-lines'), 'state')).toBeDefined()
+      expect(under(under(tree, 'head-lines'), 'context')).toBeDefined()
       expect((await ui.find({ key: 'context' }))?.text).toContain('30%')
-      expect((await ui.find({ key: 'context-used' }))?.text).toContain('60k of 200k tokens')
-      expect((await ui.find({ key: 'pace' }))?.text).toContain('Pace')
       await ui.unmount()
-      const narrow = await pane($, surface, 39)
+      const narrow = await pane($, surface, 59)
       expect(await narrow.find({ key: 'bolt' }), surface).toBeUndefined()
-      expect(await narrow.find({ key: 'context-row' })).toBeUndefined()
+      expect(await narrow.find({ key: 'head' })).toBeUndefined()
       expect((await narrow.find({ key: 'context' }))?.text).toContain('30%')
       await narrow.unmount()
     }
+    // Nothing measured: a head of words alone keeps Bolt, asleep, down to 40 columns.
+    await $.session.end({ reason: 'clear', sessionId: 'abc', resume: { id: 'abc' } })
+    for (const surface of SURFACES) {
+      const words = await pane($, surface, 40)
+      expect(drawnBolt(await words.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, SLEEP))
+      expect((await words.find({ key: 'state' }))?.text).toBe('Nothing measured yet')
+      expect((await words.find({ key: 'empty' }))?.text).toContain('after Claude')
+      expect(await words.find({ key: 'context' })).toBeUndefined()
+      await words.unmount()
+      const tight = await pane($, surface, 39)
+      expect(await tight.find({ key: 'bolt' }), surface).toBeUndefined()
+      await tight.unmount()
+    }
   })
 
-  test('Bolt crashes once the context is full, and stands again after a /compact', async ($, on) => {
+  test('a full context keeps Bolt up: the hero says it, red, and calms after a /compact', async ($, on) => {
     world(on)
     on('session.compact', () => ({ messages: [SUMMARY], tokensBefore: pct(100), tokensAfter: pct(10) }))
     await request($, pct(99))
     for (const surface of SURFACES) {
       const ui = await pane($, surface)
       expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      expect((await ui.find({ key: 'state' }))?.text).toBe('Context 99%')
       await ui.unmount()
     }
     await request($, pct(100))
     for (const surface of SURFACES) {
       const ui = await pane($, surface)
-      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, CRASH))
-      expect((await ui.find({ key: 'context' }))?.text).toContain('100% RED')
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      expect((await ui.find({ key: 'state' }))?.text).toBe('Context full · run /compact')
+      expect((await ui.find({ key: 'context' }))?.text).toContain('100%')
+      expect((await ui.find({ key: 'context' }))?.text).not.toContain('RED')
       await ui.unmount()
     }
     await $.session.compact({ trigger: 'manual', messages: [SUMMARY] })
     for (const surface of SURFACES) {
       const ui = await pane($, surface)
-      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      expect((await ui.find({ key: 'state' }))?.text).toBe('Within limits')
+      expect((await ui.find({ key: 'context' }))?.text).toContain('10%')
       await ui.unmount()
     }
   })
 
-  test('Bolt crashes while a 5-hour or weekly window is OUT, and stands at its reset in a pane left open', async ($, on) => {
+  test('Bolt sleeps while a 5-hour or weekly window is OUT, the hero says which, and he wakes at its reset in a pane left open', async ($, on) => {
     const w = world(on, { rateLimits: [FIVE_OUT(80)] })
     await request($, pct(20))
     const panes = []
     for (const surface of SURFACES) {
       const ui = await pane($, surface)
-      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, CRASH))
-      expect((await ui.find({ key: 'limit-five_hour' }))?.text).toContain('used up')
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, SLEEP))
+      expect((await ui.find({ key: 'state' }))?.text).toBe('5-hour ran out · resets in 1h 20m')
+      expect((await ui.find({ key: 'limit-five_hour' }))?.text).toMatch(/^5-hour.*OUT.*resets in 1h 20m$/)
       panes.push([surface, ui] as const)
     }
-    await w.clock.advance(81 * MIN) // the reset passes with no reply: the repaint brings Bolt back up
+    await w.clock.advance(81 * MIN) // the reset passes with no reply: the repaint wakes Bolt
     for (const [surface, ui] of panes) {
       expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, IDLE))
+      expect((await ui.find({ key: 'state' }))?.text).toBe('Within limits')
       await ui.unmount()
     }
     w.usage = { ...w.usage, rateLimits: [{ kind: 'seven_day', percentUsed: 100, resetsAt: new Date(T0 + 3 * 24 * 60 * MIN).toISOString() }] }
     await request($, pct(20))
     for (const surface of SURFACES) {
       const ui = await pane($, surface)
-      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, CRASH))
+      expect(drawnBolt(await ui.find({ key: 'bolt' })), surface).toEqual(boltAs(surface, SLEEP))
+      expect((await ui.find({ key: 'state' }))?.text).toMatch(/^Week ran out · resets (Sat|Sun|Mon) \d{1,2}(:\d\d)?[ap]m$/)
       await ui.unmount()
     }
   })
@@ -966,6 +1018,9 @@ describe('Bolt beside the context row', () => {
     expect(w.status()).toContain('spend OUT')
     const ui = await pane($, 'terminal')
     expect(drawnBolt(await ui.find({ key: 'bolt' }))).toEqual(boltAs('terminal', IDLE))
+    // The hero still names it: a gateway's limit is a wall too, just not one Bolt sleeps on.
+    expect((await ui.find({ key: 'state' }))?.text).toBe('Spend ran out · resets in 30d')
+    expect((await ui.find({ key: 'limit-spend_limit' }))?.text).toMatch(/^Spend.*OUT.*resets in 30d$/)
   })
 
   test('the status line and the band never draw Bolt', async ($, on) => {
@@ -994,7 +1049,7 @@ describe('the pane follows the UI standard', () => {
   const textOf = (n: Node) => (n.children ?? []).filter((c): c is string => typeof c === 'string').join('')
   const keyOf = (n: Node) => (n.key ?? n.props?.key) as string | undefined
 
-  test('a coloured hero, values at the right edge, nothing cut at 40 columns, plain limit rows, one footnote, on both surfaces', async ($, on) => {
+  test('a coloured hero, values at the right edge, nothing cut at 40 columns, a calm limit row, one footnote, no level words, on both surfaces', async ($, on) => {
     world(on, { rateLimits: [{ kind: 'seven_day', percentUsed: 84, resetsAt: new Date(T0 + (17 * 60 + 23) * MIN).toISOString() }] })
     await request($, pct(30))
     for (const surface of SURFACES) {
@@ -1003,32 +1058,126 @@ describe('the pane follows the UI standard', () => {
       const texts = nodes.filter(n => n.type === 'Text')
       // The engine draws the title bar: the title line is for the text view only.
       expect(texts.some(n => textOf(n).startsWith('Redline - context')), surface).toBe(false)
-      // The hero: the state, bold and in the level's colour.
-      expect(texts.find(n => textOf(n) === 'Context 30%')?.props, surface).toMatchObject({ bold: true, color: 'success' })
+      // The hero: the state, bold and in its colour.
+      expect(texts.find(n => textOf(n) === 'Within limits')?.props, surface).toMatchObject({ bold: true, color: 'success' })
       // Nothing is cut: no Text truncates.
-      for (const n of texts) expect(n.props?.wrap, `${surface}: ${textOf(n)}`).not.toBe('truncate-end')
+      for (const n of texts) expect(n.props?.wrap, `${surface}: ${textOf(n)}`).not.toMatch(/^truncate/)
       // Rows: a subtle label that takes the room, and the value pushed to the right edge.
-      for (const key of ['pace', 'rate', 'session']) {
+      for (const key of ['session', 'cost']) {
         const parts = (nodes.find(n => n.type === 'Box' && keyOf(n) === key)?.children ?? []) as Node[]
         expect(parts.map(keyOf), key).toEqual(['label', 'value'])
         expect(parts[0]?.props, key).toMatchObject({ flexGrow: 1 })
         expect(parts[1]?.props, key).toMatchObject({ justifyContent: 'flex-end', flexShrink: 0 })
         expect(walk(parts[0]).find(n => n.type === 'Text')?.props?.color, key).toBe('subtle')
       }
-      // A plan window: its figure, its reset, no pace clause, and words that wrap.
+      // A plan window that resets before it runs dry: its figure and its reset, calm, no run-out.
       const weekly = (await ui.find({ key: 'limit-seven_day' }))?.text ?? ''
       expect(weekly).toContain('84%')
       expect(weekly).toMatch(/resets (Thu|Fri) \d{1,2}:\d\d[ap]m/) // ten hours or more away: clock time
-      expect(weekly).not.toContain('on pace')
-      // The jargon lives in the one footnote, in subtle.
-      const notes = texts.filter(n => textOf(n).includes('cache reads are not counted'))
+      expect(weekly).not.toContain('out in')
+      // The one footnote, in subtle: the dollars' sentence alone, since no estimate is on screen.
+      const notes = texts.filter(n => textOf(n).includes('Dollars are API list prices, not a bill.'))
       expect(notes, surface).toHaveLength(1)
       expect(notes[0]?.props?.color).toBe('subtle')
-      expect((await ui.find({ key: 'pace' }))?.text).toContain('not enough data yet')
+      expect(textOf(notes[0] as Node)).not.toContain('assume your pace holds')
+      // The level words belong to the status line, which has no colour; the pane says the state in its hero.
+      for (const n of texts) expect(textOf(n), surface).not.toMatch(/\b(RED|AMBER)\b/)
       expect((await ui.find({ key: 'cost' }))?.text).toMatch(/^Cost\s*≈\$/)
-      expect(await ui.find({ key: 'rate-note' })).toBeUndefined()
+      for (const key of ['pace', 'rate', 'tokens', 'context-used', 'cost-table', 'limits-title', 'spend-title', 'rate-note']) expect(await ui.find({ key }), key).toBeUndefined()
       await ui.unmount()
     }
+  })
+
+  test('nothing clips at 40 columns: the fixed cells of a bar row leave the clauses 16 cells on the overview, gaps are 1 cell, clauses wrap whole, Bolt steps out, glyphs sit in cells', async ($, on) => {
+    const fiveAt = new Date(T0 + 48 * MIN).toISOString()
+    const weekAt = new Date(T0 + (2 * 24 + 19) * 60 * MIN).toISOString()
+    const limitsAt = (week: number): SessionRateLimit[] => [{ kind: 'five_hour', percentUsed: 14, resetsAt: fiveAt }, { kind: 'seven_day', percentUsed: week, resetsAt: weekAt }]
+    const w = world(on, { context: { window: 1_000_000 }, rateLimits: limitsAt(83.0244), cost: { usd: 57.62 } })
+    // The founder's state: the week up a point in ten minutes (dry in ≈2h 44m), the context filling in ≈30m.
+    await $.session.measure({ context: { window: 1_000_000 }, rateLimits: limitsAt(83.0244), cost: { usd: 57.62 }, changed: ['rateLimits'] })
+    await w.clock.advance(6 * MIN)
+    await request($, 25_333)
+    await w.clock.advance(4 * MIN)
+    await request($, 140_000)
+    await $.session.measure({ context: { window: 1_000_000, tokens: 140_000, percent: 14 }, rateLimits: limitsAt(84), cost: { usd: 57.62 }, changed: ['rateLimits'] })
+    const glyphTexts = (node: unknown, cell = false, out: { text: string; cell: boolean }[] = []): { text: string; cell: boolean }[] => {
+      if (node === null || typeof node !== 'object') return out
+      const n = node as Node
+      const here = cell || (n.type === 'Box' && n.props?.width === 1)
+      if (n.type === 'Text' && /[▀-▟]/u.test(textOf(n))) out.push({ text: textOf(n), cell: here })
+      for (const c of n.children ?? []) glyphTexts(c, here, out)
+      return out
+    }
+    for (const surface of SURFACES) {
+      for (const view of ['overview', 'spend'] as const) {
+        await runCommand($, view === 'spend' ? 'spend' : '')
+        const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: { ...PANE_PROPS, bodyColumns: 40 } })
+        const at = `${surface} ${view}`
+        const nodes = walk(await ui.drawn())
+        if (view === 'overview') {
+          expect((await ui.find({ key: 'state' }))?.text, at).toBe('Week runs out in ≈2h 44m')
+          expect((await ui.find({ key: 'context' }))?.text, at).toContain('full in ≈30m')
+          expect((await ui.find({ key: 'limit-seven_day' }))?.text, at).toMatch(/out in ≈2h 44m,.*resets (Sat|Sun|Mon) \d{1,2}(:\d\d)?[ap]m$/)
+        }
+        expect(await ui.find({ key: 'bolt' }), at).toBeUndefined()
+        const bars = nodes.filter(n => n.type === 'Box' && n.props?.flexDirection === 'row' && /^(context$|limit-|spend-|model-)/.test(String(keyOf(n) ?? '')))
+        expect(bars.length, at).toBeGreaterThanOrEqual(view === 'overview' ? 3 : 1)
+        for (const row of bars) {
+          const key = String(keyOf(row))
+          const children = ((row.children ?? []) as unknown[]).filter((c): c is Node => c !== null && typeof c === 'object')
+          expect(row.props?.columnGap, key).toBe(1)
+          const fixed = children.reduce((n, c) => n + (typeof c.props?.width === 'number' ? c.props.width : 0), 0) + 10
+          expect(fixed + (children.length - 1), `${at} ${key}`).toBeLessThanOrEqual(view === 'overview' ? 24 : 40)
+          const when = children.find(c => keyOf(c) === 'when')
+          if (when) expect(when.props, `${at} ${key}`).toMatchObject({ flexShrink: 1, flexWrap: 'wrap', rowGap: 0 })
+          if (view === 'overview') expect(when, `${at} ${key}`).toBeDefined()
+        }
+        for (const n of nodes.filter(n => n.type === 'Text')) expect(n.props?.wrap, `${at}: ${textOf(n)}`).not.toMatch(/^truncate/)
+        const glyphs = glyphTexts(await ui.drawn())
+        expect(glyphs.length, at).toBeGreaterThan(0)
+        if (surface === 'desktop') for (const g of glyphs) expect(g.cell && [...g.text].length === 1, `${at} ${g.text}`).toBe(true)
+        await ui.unmount()
+      }
+    }
+    // Both sentences of the footnote: dollars on screen, and estimates marked ≈.
+    const ui = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'Pane', requestId: 'redline', props: { ...PANE_PROPS, bodyColumns: 40 } })
+    await ui.press({ key: 'view' })
+    expect((await ui.find({ key: 'note' }))?.text).toBe('Dollars are API list prices, not a bill. Times with ≈ assume your pace holds.')
+    await ui.unmount()
+  })
+
+  test('each button sits in a wrapper the desktop remounts every drawing, so a press answers after a redraw; the terminal keeps them bare', async ($, on) => {
+    world(on)
+    await request($, pct(30))
+    const wrappers = (tree: unknown): Map<string, Node> => {
+      const out = new Map<string, Node>()
+      for (const n of walk(tree)) {
+        const button = ((n.children ?? []) as Node[]).find(c => c?.type === 'Button')
+        if (n.type === 'Box' && button) out.set(String(keyOf(button)), n)
+      }
+      return out
+    }
+    const desktop = await $.ui.mount({ plugin: 'redline', surface: 'desktop', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+    const before = wrappers(await desktop.drawn())
+    expect([...before.keys()].sort()).toEqual(['band', 'close', 'view'])
+    for (const [k, box] of before) expect(keyOf(box), k).toMatch(new RegExp(`^press-${k}-\\d+$`))
+    await request($, pct(31)) // a reading redraws the pane: every wrapper key moves with the drawing
+    const after = wrappers(await desktop.drawn())
+    for (const [k, box] of before) {
+      const moved = after.get(k)
+      expect(moved, k).toBeDefined()
+      expect(keyOf(moved as Node), k).toMatch(new RegExp(`^press-${k}-\\d+$`))
+      expect(keyOf(moved as Node), `${k} after a redraw`).not.toBe(keyOf(box))
+    }
+    await desktop.press({ key: 'view' })
+    expect((await desktop.find({ key: 'view' }))?.text).toBe('Back')
+    await desktop.unmount()
+    await runCommand($, '')
+    const terminal = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+    const bare = wrappers(await terminal.drawn())
+    expect([...bare.keys()].sort()).toEqual(['band', 'close', 'view'])
+    for (const [k, box] of bare) expect(keyOf(box) ?? '', k).not.toMatch(/^press-/)
+    await terminal.unmount()
   })
 })
 
@@ -1044,22 +1193,28 @@ describe('where the money went', () => {
     await request($, 22_000, { turnId: 'sub', agentId: 'agent-1', index: 1, tools: [], model: 'claude-haiku-4-5' })
     await request($, pct(18), { turnId: 't1', index: 4, tools: [] }) // nothing carried: the model answered
     for (const surface of SURFACES) {
+      await runCommand($, 'spend')
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
       const text = async (key: string) => (await ui.find({ key }))?.text ?? `(no ${key})`
-      expect(await text('spend-prompt')).toMatch(/^prompt.*≈\$\d\.\d\d · \d+% · 1 req · cache 80%$/)
-      expect(await text('spend-reading')).toMatch(/^reading.*≈\$.* · 1 req · cache/)
-      expect(await text('spend-editing')).toMatch(/^editing.*≈\$.* · 1 req · cache/)
-      expect(await text('spend-shell')).toMatch(/^shell.*≈\$.* · 1 req/)
-      expect(await text('spend-mcp:github')).toMatch(/^github.*MCP · ≈\$.* · 1 req/)
-      expect(await text('spend-subagents')).toMatch(/^subagents.*≈\$.* · 2 req/)
-      expect(await text('spend-answering')).toMatch(/^answering.*≈\$.* · 1 req/)
-      expect(await ui.find({ key: 'spend-none' })).toBeUndefined()
-      // Reading and editing split one request evenly: the same cost, the same tokens.
-      const half = (t: string) => /≈\$([\d.]+) · (\d+)%/.exec(t)?.slice(1)
-      expect(half(await text('spend-reading'))).toEqual(half(await text('spend-editing')))
-      expect(await text('model-claude-opus-5-5')).toMatch(/^Opus 5\.5.*≈\$.* · \d+% · 5 req/)
-      expect(await text('model-claude-haiku-4-5')).toMatch(/^Haiku 4\.5.*≈\$.* · \d+% · 2 req/)
-      expect(await text('spend-rule')).toContain('split evenly')
+      expect(await text('spend-total')).toMatch(/^≈\$\d\.\d\d in 7 requests · since \d{1,2}(:\d\d)?[ap]m$/)
+      // Seven kinds: the three costliest (one request each, at a growing context) and the rest folded; labels in sentence case, dollars and a share, no counts.
+      expect(await text('spend-answering')).toMatch(/^Answering.*≈\$\d\.\d\d.*\d+%$/)
+      expect(await text('spend-mcp:github')).toMatch(/^github.*≈\$\d\.\d\d.*\d+%$/)
+      expect(await text('spend-shell')).toMatch(/^Shell.*≈\$\d\.\d\d.*\d+%$/)
+      expect(await text('spend-rest')).toMatch(/^The rest.*≈\$\d\.\d\d.*\d+%$/)
+      for (const key of ['spend-prompt', 'spend-reading', 'spend-editing', 'spend-subagents', 'spend-none']) expect(await ui.find({ key }), key).toBeUndefined()
+      for (const key of ['spend-answering', 'spend-rest']) expect(await text(key), key).not.toMatch(/req|cache|MCP/)
+      // The row's texts run together: the share is what follows the dollars' two decimals.
+      const share = (t: string) => Number(/\.\d\d(\d+)%$/.exec(t)?.[1])
+      const total = [await text('spend-answering'), await text('spend-mcp:github'), await text('spend-shell'), await text('spend-rest')].map(share).reduce((a, b) => a + b, 0)
+      expect(total).toBeGreaterThanOrEqual(98)
+      expect(total).toBeLessThanOrEqual(102)
+      expect(await text('model-claude-opus-5-5')).toMatch(/^Opus 5\.5.*≈\$.*\d+%$/)
+      expect(await text('model-claude-haiku-4-5')).toMatch(/^Haiku 4\.5.*≈\$.*\d+%$/)
+      // Four kind rows and two model rows leave one turn.
+      expect(await text('busiest-1')).toContain('refactor the auth module')
+      expect(await ui.find({ key: 'busiest-2' })).toBeUndefined()
+      expect(await text('spend-rule')).toBe('Each request counts toward what it sent Claude. Dollars are API list prices.')
       await ui.unmount()
     }
     expect(w.status()).toContain('context') // the band and the status line are as before
@@ -1071,31 +1226,42 @@ describe('where the money went', () => {
     await request($, pct(10), { turnId: 't1', index: 0, tools: ['Read', 'Edit'] }) // aborted here: no request followed
     await $.turn.start({ text: 'again', turnId: 't1' })
     await request($, pct(11), { turnId: 't1', index: 1, tools: [] })
+    await runCommand($, 'spend')
     const ui = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
-    expect((await ui.find({ key: 'spend-answering' }))?.text).toMatch(/1 req/)
+    expect((await ui.find({ key: 'spend-answering' }))?.text).toMatch(/^Answering/)
+    expect((await ui.find({ key: 'spend-total' }))?.text).toContain('in 2 requests')
     expect(await ui.find({ key: 'spend-reading' })).toBeUndefined()
     expect(await ui.find({ key: 'spend-editing' })).toBeUndefined()
     await ui.unmount()
   })
 
-  test('nothing yet before a request; /redline spend opens the pane; every cost reads as an estimate', async ($, on) => {
+  test('nothing yet before a request; /redline spend opens the pane on the spend view and /redline on the overview; every cost reads as an estimate', async ($, on) => {
     const w = world(on, { cost: undefined })
-    for (const surface of SURFACES) {
-      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
-      expect((await ui.find({ key: 'spend-none' }))?.text).toBe('nothing yet')
-      await ui.unmount()
-    }
     expect(await runCommand($, 'spend')).toEqual({})
     expect(w.opened).toEqual(['redline'])
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+      expect((await ui.find({ key: 'spend-total' }))?.text).toBe('Nothing spent yet')
+      expect((await ui.find({ key: 'spend-none' }))?.text).toBe("Each kind of work shows up here after Claude's next reply.")
+      expect((await ui.find({ key: 'view' }))?.text).toBe('Back')
+      expect(await ui.find({ key: 'spend-rule' })).toBeUndefined()
+      await ui.unmount()
+    }
     await request($, pct(20), { index: 0, tools: ['Read'] })
     await request($, pct(22), { index: 1, tools: [] })
     const ui = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
-    for (const key of ['spend-prompt', 'spend-reading', 'model-claude-opus-5-5']) {
+    for (const key of ['spend-total', 'spend-prompt', 'spend-reading', 'busiest-1']) {
       const t = (await ui.find({ key }))?.text ?? ''
       expect(t, key).toMatch(/≈\$/)
       expect(t, key).not.toMatch(/[^≈]\$/)
     }
+    expect(await ui.find({ key: 'model-claude-opus-5-5' })).toBeUndefined() // one model answered: a row at 100% says nothing
     await ui.unmount()
+    expect(await runCommand($, '')).toEqual({})
+    const over = await $.ui.mount({ plugin: 'redline', surface: 'terminal', component: 'Pane', requestId: 'redline', props: PANE_PROPS })
+    expect((await over.find({ key: 'state' }))?.text).toBe('Within limits')
+    expect((await over.find({ key: 'view' }))?.text).toBe('Spending')
+    await over.unmount()
   })
 })
 
@@ -1120,7 +1286,7 @@ describe('the band reads at a glance', () => {
       // The 5-hour window runs dry first: the readout, the word and the clause in warning, bound with a comma.
       expect(propsOf(' 80%').color, surface).toBe('warning')
       expect(propsOf(' AMBER'), surface).toMatchObject({ color: 'warning', bold: true })
-      expect(propsOf(', out in ~30m').color, surface).toBe('warning')
+      expect(propsOf(', out in ≈30m').color, surface).toBe('warning')
       // The weekly resets first: plain, no word, no clause.
       expect(propsOf(' 12%').color, surface).toBeUndefined()
       if (surface === 'terminal') {
@@ -1132,7 +1298,7 @@ describe('the band reads at a glance', () => {
       // The dollars are a footnote on a plan.
       expect(propsOf('≈$1.25').dimColor, surface).toBe(true)
       const gauge = (await ui.find({ key: 'gauge' }))?.text ?? ''
-      expect(gauge, surface).toContain('AMBER, out in ~30m')
+      expect(gauge, surface).toContain('AMBER, out in ≈30m')
       expect(gauge, surface).toContain('week')
       expect(gauge, surface).not.toContain('7d')
       expect(gauge, surface).not.toContain('ctx')
@@ -1147,7 +1313,7 @@ describe('the band reads at a glance', () => {
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: { ...BAND_PROPS, bodyColumns: 60 } })
       const gauge = (await ui.find({ key: 'gauge' }))?.text ?? ''
-      expect(gauge, surface).toContain('80% used AMBER, out in ~30m')
+      expect(gauge, surface).toContain('80% used AMBER, out in ≈30m')
       expect(gauge, surface).toContain('week 12% used')
       expect(barOf(await ui.findAll({ type: 'Text' })), surface).toBe('██░░░')
       await ui.unmount()

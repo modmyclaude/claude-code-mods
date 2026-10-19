@@ -138,6 +138,14 @@ const LIMIT_WINDOWS: Record<string, { label: string; short: string; ms: number }
 export const limitLabel = (kind: string): string => LIMIT_WINDOWS[kind]?.label ?? kind.replace(/_/g, ' ')
 export const limitShort = (kind: string): string => LIMIT_WINDOWS[kind]?.short ?? kind.replace(/_limit$/, '').replace(/_/g, ' ')
 
+/** A plan window as the pane names it, a row label and the hero's subject: `5-hour`, `Week`, else its short name capitalised (`Spend`). */
+export function limitRowLabel(kind: string): string {
+  if (kind === 'five_hour') return '5-hour'
+  if (kind === 'seven_day') return 'Week'
+  const short = limitShort(kind)
+  return short.charAt(0).toUpperCase() + short.slice(1)
+}
+
 /** What a run-out was judged on: the last 15 minutes, or the window's average. */
 export type RunOutBasis = 'recent' | 'average'
 
@@ -223,11 +231,17 @@ export const tokensOf = (u: TurnUsage): RedlineTokens => ({
   cacheWrite: u.cache_creation_input_tokens,
 })
 
-/** A prompt's first line, cut to fit a row. */
+/**
+ * A prompt's first line, cut to fit a row: past 60 characters it ends at the
+ * last space at or before the 57th and `...`, never mid-word unless that space
+ * sits before the 40th.
+ */
 export function labelOf(text: string): string {
   const line = text.trim().split('\n')[0]?.trim() ?? ''
   if (line === '') return '(no prompt text)'
-  return line.length > 60 ? `${line.slice(0, 59)}...` : line
+  if (line.length <= 60) return line
+  const space = line.lastIndexOf(' ', 57)
+  return `${line.slice(0, space >= 40 ? space : 57)}...`
 }
 
 function withTurn(turns: readonly RedlineTurn[], id: string, make: () => RedlineTurn, change: (t: RedlineTurn) => RedlineTurn): RedlineTurn[] {
@@ -322,6 +336,13 @@ export function reduce(g: RedlineGauge, r: Reading): { gauge: RedlineGauge; fire
 export const busiest = (g: RedlineGauge, n = 5): RedlineTurn[] =>
   [...g.turns].filter(t => t.requests > 0).sort((a, b) => sumTokens(b.tokens) - sumTokens(a.tokens)).slice(0, n)
 
+/** The costliest turns first, by the price table (a turn with no price last), then by tokens: the spend view's list. */
+export const costliest = (g: RedlineGauge, n = 3): RedlineTurn[] =>
+  [...g.turns]
+    .filter(t => t.requests > 0)
+    .sort((a, b) => (b.usd ?? -1) - (a.usd ?? -1) || sumTokens(b.tokens) - sumTokens(a.tokens))
+    .slice(0, n)
+
 // --------------------------------------------------------------- formatting
 
 // ANSI sequences: CSI (7-bit ESC [ or 8-bit U+009B) and OSC (ESC ] ... BEL or ST).
@@ -399,12 +420,21 @@ export function fmtReset(at: number, now: number): string {
   return at - now < 10 * HOUR ? `in ${fmtDuration(at - now)}` : fmtClock(at, now)
 }
 
+/**
+ * A past moment as clock time: `1:47pm` today, `Wed 2pm` within the last six
+ * days, and a span (`9d ago`) further back, where a weekday would be ambiguous.
+ */
+export function fmtSince(at: number, now: number): string {
+  return now - at >= 6 * 24 * HOUR ? `${fmtSpan(now - at)} ago` : fmtClock(at, now)
+}
+
+/** The context's pace in words, an estimate marked `≈`: `full in ≈25m`. */
 export function fmtPace(ms: number | undefined): string | undefined {
   if (ms === undefined) return undefined
   if (ms <= 0) return 'full now'
   if (ms < MINUTE) return 'full in <1m'
   if (ms > 24 * HOUR) return 'full in >1d'
-  return `full in ~${fmtDuration(ms)}`
+  return `full in ≈${fmtDuration(ms)}`
 }
 
 export function bar(percent: number | undefined, cells: number): string {
@@ -425,12 +455,12 @@ export function costText(g: RedlineGauge): string {
   return `${fmtTokens(sumTokens(g.totals))} tokens`
 }
 
-/** A run-out in words: `out in ~1h 20m` (`~21h` from ten hours), `resets first`, `OUT`, or nothing. */
+/** A run-out in words, an estimate marked `≈`: `out in ≈1h 20m` (`≈21h` from ten hours), `resets first`, `OUT`, or nothing. */
 export function fmtRunOut(r: RunOut | undefined): string | undefined {
   if (r === undefined) return undefined
   if (r.kind === 'out') return 'OUT'
   if (r.kind === 'resets-first') return 'resets first'
-  return r.ms < MINUTE ? 'out in <1m' : `out in ~${fmtSpan(r.ms)}`
+  return r.ms < MINUTE ? 'out in <1m' : `out in ≈${fmtSpan(r.ms)}`
 }
 
 /**
@@ -533,6 +563,78 @@ export function gaugeParts(g: RedlineGauge, now: number, cells: Cells = FULL_CEL
  */
 export function gaugeLine(g: RedlineGauge, now: number): string {
   return clean(gaugeParts(g, now).figures.map(figureText).join(' · '))
+}
+
+// ------------------------------------------------------------------ the pane
+
+/** The pane's bars are this wide. */
+export const BAR_CELLS = 10
+
+/** One bar row of the pane: its level (the colour), ten cells, the figure for the right-aligned column, and the words after it. */
+export type Readout = { level: Level; bar: string; figure: string; clauses: string[] }
+
+/** The context as a bar row: its fill and, while it grows, its pace; `--` and `no reading yet` before the first count. */
+export function contextReadout(g: RedlineGauge, now: number): Readout {
+  const percent = percentOf(g)
+  if (percent === undefined) return { level: 'unknown', bar: bar(undefined, BAR_CELLS), figure: '--', clauses: ['no reading yet'] }
+  const pace = fmtPace(paceEta(g.samples, g.window, now))
+  return { level: levelOf(percent), bar: bar(percent, BAR_CELLS), figure: `${percent}%`, clauses: pace ? [pace] : [] }
+}
+
+/**
+ * A plan window as a bar row, coloured by the band's rule (`limitLevel`), never
+ * by its percentage: `OUT` and its reset once spent; its run-out then its reset
+ * when it runs dry first; its reset alone when calm; `--` and `reset 10m ago`
+ * once its reset time has passed, until the next reply brings a new figure.
+ */
+export function limitReadout(l: RedlineLimit, now: number, history: readonly RedlineSample[] = []): Readout {
+  const level = limitLevel(l, now, history)
+  const reset = Date.parse(l.resetsAt ?? '')
+  if (level === 'unknown') return { level, bar: bar(undefined, BAR_CELLS), figure: '--', clauses: [`reset ${fmtDuration(now - reset)} ago`] }
+  const resets = Number.isNaN(reset) ? [] : [`resets ${fmtReset(reset, now)}`]
+  const r = runOut(l, now, history)
+  if (r?.kind === 'out') return { level, bar: bar(100, BAR_CELLS), figure: 'OUT', clauses: resets }
+  const pct = Math.round(l.percentUsed)
+  const out = r?.kind === 'at' ? [fmtRunOut(r) ?? ''] : []
+  return { level, bar: bar(Math.min(100, pct), BAR_CELLS), figure: `${pct}%`, clauses: [...out, ...resets] }
+}
+
+export type Verdict = { text: string; level: Level }
+
+/**
+ * The pane's hero: the limit closest to its wall, in the band's own words. The
+ * first that applies wins: a window used up (of several, the one that resets
+ * last); the context full; the context red; the soonest amber wall, a window's
+ * run-out or the context's pace; else `Within limits`. Unknown while nothing is
+ * measured: no context reading and no window with a current figure.
+ */
+export function verdict(g: RedlineGauge, now: number): Verdict {
+  const percent = percentOf(g)
+  const windows = g.limits
+    .map(l => ({ l, level: limitLevel(l, now, g.limitHistory[l.kind]), reset: Date.parse(l.resetsAt ?? '') }))
+    .filter(w => w.level !== 'unknown')
+  if (percent === undefined && windows.length === 0) return { text: 'Nothing measured yet', level: 'unknown' }
+  // Used up: the window that resets last is the wall; one with no reset time counts as last.
+  const resetAt = (w: { reset: number }): number => (Number.isNaN(w.reset) ? Number.MAX_SAFE_INTEGER : w.reset)
+  const out = windows.filter(w => w.level === 'red').sort((a, b) => resetAt(b) - resetAt(a))[0]
+  if (out) {
+    const label = limitRowLabel(out.l.kind)
+    return { text: Number.isNaN(out.reset) ? `${label} ran out` : `${label} ran out · resets ${fmtReset(out.reset, now)}`, level: 'red' }
+  }
+  if (percent !== undefined && percent >= 100) return { text: 'Context full · run /compact', level: 'red' }
+  const eta = paceEta(g.samples, g.window, now)
+  const pace = fmtPace(eta)
+  const context = `Context ${percent ?? 0}%${pace ? ` · ${pace}` : ''}`
+  if (percent !== undefined && percent >= RED_AT) return { text: context, level: 'red' }
+  // Amber: whichever wall comes first, a window's run-out or the context's pace; no estimate sorts last.
+  const walls: { at: number; text: string }[] = []
+  for (const w of windows) {
+    const r = runOut(w.l, now, g.limitHistory[w.l.kind])
+    if (r?.kind === 'at') walls.push({ at: r.ms, text: `${limitRowLabel(w.l.kind)} runs ${fmtRunOut(r)}` })
+  }
+  if (percent !== undefined && percent >= AMBER_AT) walls.push({ at: eta ?? Number.POSITIVE_INFINITY, text: context })
+  const first = walls.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))[0]
+  return first ? { text: first.text, level: 'amber' } : { text: 'Within limits', level: 'normal' }
 }
 
 /** The 80% toast: redline's own words and a number, no outside text. */

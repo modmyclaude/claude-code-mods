@@ -8,7 +8,7 @@
 //   the model's window (`context.window`, so redline keeps no window table),
 //   the session cost (`cost.usd`, what /cost shows), and the plan's 5-hour
 //   and weekly windows (`rateLimits`: kind, percentUsed, resetsAt);
-// - `turn.start` for each turn's prompt (the busiest-turns list),
+// - `turn.start` for each turn's prompt (the costliest-turns list),
 //   `session.compact` and a /clear (`session.end`) to start the gauge over.
 
 import { atom, read, update } from 'claude-code'
@@ -18,23 +18,27 @@ import type { BoxProps, ElementConstructor, RenderElement, TextProps } from 'cla
 
 import { boltSprite } from './bolt-draw'
 import { glyphRow } from './cells'
-import { boltPose, detailChunks, detailLines } from './detail'
+import { boltPose, detailChunks, detailLines, FIGURE_CELLS, labelCells } from './detail'
 import type { DetailLine, Tone } from './detail'
 import { EMPTY_GAUGE, FULL_CELLS, gaugeLine, gaugeParts, levelWord, NARROW_CELLS, percentOf, RED_AT, reduce, SPAN_MS, TOAST_TEXT } from './gauge'
 import { kindsCarried } from './spend'
 import type { Figure, Level, Reading } from './gauge'
-import type { RedlineGauge } from '../types'
+import type { RedlineGauge, RedlineView } from '../types'
 
 const PANE = 'redline'
-/** Narrower than this, the detail pane keeps every column for the figures and Bolt steps out. */
-const BOLT_MIN_COLUMNS = 40
-/** The label column of a plan window's bar row. */
-const LIMIT_LABEL_CELLS = 12
+/** From this width the pane's bar rows and buttons get 2-cell gaps, and Bolt stands beside a head that holds bars. */
+const WIDE_COLUMNS = 60
+/** From this width Bolt stands beside a head of words alone (the empty states). */
+const BOLT_WORDS_COLUMNS = 40
 const BAND_STORE_KEY = 'isBandOn'
 const gauge = atom({ plugin: 'redline', key: 'gauge' } as const, EMPTY_GAUGE)
 const isBandOn = atom({ plugin: 'redline', key: 'isBandOn' } as const, false)
+/** Which view the pane shows; this session's only. `/redline` opens the overview, `/redline spend` and the Spending button the other. */
+const paneView = atom({ plugin: 'redline', key: 'view' } as const, 'overview' as RedlineView)
 /** The tools the main loop's last response called, per turn: what its next request carries. Cleared at each turn's start. */
 const carried = new Map<string, string[]>()
+/** One more per pane drawing: the desktop remounts a Button whose wrapper's key changed, so its press stays live after a redraw. */
+let drawing = 0
 
 const LEVEL_COLOR: Record<Level, ThemeKey> = { unknown: 'inactive', normal: 'success', amber: 'warning', red: 'error' }
 
@@ -65,6 +69,23 @@ function figureSpans({ Box, Text }: Elements, surface: string, f: Figure): Rende
   const bar = f.bar === undefined ? null : surface === 'desktop' ? glyphRow({ Box, Text }, surface, f.bar, { color }) : <Text color={color}>{f.bar}</Text>
   return [label, bar, readout, ...tail].filter((s): s is RenderElement => s !== null)
 }
+
+/**
+ * The pane's colour for a tone: amber and red by level, dim parts in subtle, a
+ * calm part in `calm` (the hero and the bars in success, a clause in subtle, a
+ * figure in the default text), and a spend row's parts in the default text.
+ */
+type Paint = Pick<TextProps, 'color'>
+function paintOf(tone: Tone, calm: ThemeKey | undefined): Paint {
+  if (tone === 'amber') return { color: 'warning' }
+  if (tone === 'red') return { color: 'error' }
+  if (tone === 'dim' || tone === 'unknown') return { color: 'subtle' }
+  return tone === 'normal' && calm !== undefined ? { color: calm } : {}
+}
+const heroPaint = (tone: Tone): Paint => paintOf(tone, 'success')
+const barPaint = (tone: Tone): Paint => paintOf(tone, 'success')
+const figurePaint = (tone: Tone): Paint => paintOf(tone, undefined)
+const clausePaint = (tone: Tone): Paint => paintOf(tone, 'subtle')
 
 /** What `$.session.usage()` and `session.measure` share, as a reading. */
 const fromUsage = (u: Pick<SessionMeasureInput, 'context' | 'rateLimits' | 'cost'>) => ({
@@ -147,8 +168,8 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'redline',
-      description: 'Context, tokens, cost, pace and plan limits in detail; "/redline band" toggles the gauge above the prompt',
-      argumentHint: '[band]',
+      description: 'Context, plan limits and cost in detail; "/redline spend" for where the money went, "/redline band" for the gauge above the prompt',
+      argumentHint: '[spend|band]',
       // Checking the gauge mid-turn is the point: run at once, never queued
       // behind the turn. The hook reads only the gauge, never turn state.
       immediate: true,
@@ -262,13 +283,16 @@ export const register: Register = on => {
       return {}
     }
     if (arg !== '' && arg !== 'spend') {
-      $.ui.toast('/redline opens the detail view (with where the money went); /redline band toggles the gauge above the prompt.')
+      $.ui.toast('Use /redline, /redline spend or /redline band.')
       return {}
     }
-    const opened = await $.ui.open({ id: PANE, title: 'Redline', closeOnEscape: true })
+    const view: RedlineView = arg === 'spend' ? 'spend' : 'overview'
+    await update($, paneView, () => view)
+    // Tall enough inline for either view at 40 columns without scrolling; the dock ignores it.
+    const opened = await $.ui.open({ id: PANE, title: 'Redline', closeOnEscape: true, rows: 18 })
     if (opened.isPlaced) return {}
     // Nothing places the pane here: the same view as transcript rows, never as command text.
-    for (const chunk of detailChunks(await read($, gauge), await $.clock.now())) $.ui.log(chunk)
+    for (const chunk of detailChunks(await read($, gauge), await $.clock.now(), view)) $.ui.log(chunk)
     return {}
   }).catch($ => {
     $.ui.toast('Could not open its detail view (run with --debug for the reason).')
@@ -320,103 +344,119 @@ export const register: Register = on => {
     )
   })
 
-  // The /redline detail view.
+  // The /redline pane: one of its two views, laid out after brand/UI-STANDARD.md.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const g = await read($, gauge)
     const band = await read($, isBandOn)
+    const view = await read($, paneView)
     const now = await $.clock.now()
     const elements = $.ui.resolve(e)
     const { Box, Text, Button } = elements
-    const lines = detailLines(g, now, 10)
-    const paint = (tone: Tone): { bold?: boolean; color?: ThemeKey } =>
-      tone === 'title' ? { bold: true } : tone === 'dim' ? { color: 'subtle' } : tone === 'plain' ? {} : { color: LEVEL_COLOR[tone] }
-    // Each line by its kind, after brand/UI-STANDARD.md: the hero in colour; label and value rows,
-    // the value pushed to the right edge; a bar drawn apart from its words, which wrap; sub-lines
-    // and items indented and wrapping; one footnote. The engine draws the pane's title bar, so
-    // the title line is left to the text view.
-    const draw = (line: DetailLine) => {
+    const lines = detailLines(g, now, view)
+    const labelWidth = labelCells(lines)
+    const wide = e.props.bodyColumns >= WIDE_COLUMNS
+    const gap = wide ? 2 : 1
+    const head = lines.filter(l => l.head)
+    const body = lines.filter(l => !l.head && !l.textOnly)
+    // Bolt stands beside the head from 60 columns when it holds bars (their clauses need the room), from 40 when it holds words alone.
+    const boltMin = head.some(l => l.kind === 'bar') ? WIDE_COLUMNS : BOLT_WORDS_COLUMNS
+    drawing += 1
+    const press = (name: string): { key?: string } => (e.surface === 'desktop' ? { key: `press-${name}-${drawing}` } : {})
+    const top = (l: DetailLine): { marginTop?: number } => (l.gap ? { marginTop: 1 } : {})
+    // Each line by its kind: the hero bold in its colour; a bar row as a label column, the glyphs apart
+    // from the words, right-aligned figure columns and clauses that wrap whole; a label and value row
+    // with the value pushed to the right edge; lines and the footnote in subtle. The engine draws the
+    // pane's title bar, so the title line is left to the text view, as are the links (buttons here).
+    const draw = (line: DetailLine): RenderElement | null => {
+      if (line.textOnly) return null
       switch (line.kind) {
         case 'title':
-          return line.key === 'title' ? null : (
-            <Box key={line.key} marginTop={1}>
+          return (
+            <Box key={line.key} {...top(line)}>
               <Text bold>{line.value ?? ''}</Text>
             </Box>
           )
         case 'hero':
           return (
             <Box key={line.key}>
-              <Text bold {...paint(line.tone)}>
+              <Text bold wrap="wrap" {...heroPaint(line.tone)}>
                 {line.value ?? ''}
               </Text>
             </Box>
           )
-        case 'bar':
+        case 'bar': {
+          const clauses = line.clauses ?? []
           return (
-            <Box key={line.key} flexDirection="row" gap={1}>
-              {line.label ? (
-                <Box key="label" width={LIMIT_LABEL_CELLS} flexShrink={0}>
-                  <Text color="subtle">{line.label}</Text>
-                </Box>
-              ) : null}
-              {line.bar ? glyphRow(elements, e.surface, line.bar, paint(line.tone)) : null}
-              <Box key="words" flexShrink={1}>
-                <Text wrap="wrap" {...paint(line.tone)}>
-                  {line.value ?? ''}
+            <Box key={line.key} flexDirection="row" columnGap={gap} {...top(line)}>
+              <Box key="label" width={labelWidth} flexShrink={0}>
+                <Text color="subtle" wrap="wrap">
+                  {line.label ?? ''}
                 </Text>
               </Box>
+              {glyphRow(elements, e.surface, line.bar ?? '', barPaint(line.tone))}
+              {(line.figures ?? []).map((f, i) => (
+                <Box key={`figure-${i}`} width={FIGURE_CELLS[view][i] ?? 4} flexShrink={0} justifyContent="flex-end">
+                  <Text {...figurePaint(line.tone)} {...(f === 'OUT' ? { bold: true } : {})}>
+                    {f}
+                  </Text>
+                </Box>
+              ))}
+              {clauses.length > 0 ? (
+                <Box key="when" flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={0} flexShrink={1}>
+                  {clauses.map((c, i) => (
+                    <Text {...clausePaint(line.tone)}>{i < clauses.length - 1 ? `${c},` : c}</Text>
+                  ))}
+                </Box>
+              ) : null}
             </Box>
           )
+        }
         case 'row':
           return (
-            <Box key={line.key} flexDirection="row" gap={1}>
+            <Box key={line.key} flexDirection="row" gap={1} {...top(line)}>
               <Box key="label" flexGrow={1} flexShrink={1}>
-                <Text color="subtle">{line.label ?? ''}</Text>
+                <Text color="subtle" wrap="wrap">
+                  {line.label ?? ''}
+                </Text>
               </Box>
               <Box key="value" flexShrink={0} justifyContent="flex-end">
-                <Text {...paint(line.tone)}>{line.value ?? ''}</Text>
+                <Text {...figurePaint(line.tone)}>{line.value ?? ''}</Text>
               </Box>
-            </Box>
-          )
-        case 'note':
-          return (
-            <Box key={line.key} marginTop={1}>
-              <Text wrap="wrap" color="subtle">
-                {line.value ?? ''}
-              </Text>
             </Box>
           )
         default:
           return (
-            <Box key={line.key} paddingLeft={2} flexShrink={1}>
-              <Text wrap="wrap" {...paint(line.tone)}>
+            <Box key={line.key} {...top(line)}>
+              <Text wrap="wrap" color="subtle">
                 {line.value ?? ''}
               </Text>
             </Box>
           )
       }
     }
-    // Bolt keeps watch beside the hero: a static sprite, crashed once the context is full
-    // or a plan window is spent; only where the pane has room.
-    const at = lines.findIndex(line => line.key === 'context')
-    const end = lines[at + 1]?.key === 'context-used' ? at + 2 : at + 1
-    const roomy = e.props.bodyColumns >= BOLT_MIN_COLUMNS
     return (
       <Box flexDirection="column">
-        {roomy
-          ? [
-              ...lines.slice(0, at).map(draw),
-              <Box key="context-row" flexDirection="row" gap={2}>
-                <Box flexDirection="column" flexShrink={1}>
-                  {lines.slice(at, end).map(draw)}
-                </Box>
-                {boltSprite(elements, e.surface, { size: 'tiny', pose: boltPose(g, now) })}
-              </Box>,
-              ...lines.slice(end).map(draw),
-            ]
-          : lines.map(draw)}
-        <Box flexDirection="row" gap={1} marginTop={1}>
-          <Button key="band" label={band ? 'Hide band' : 'Show band'} onPress={() => setBand($, was => !was)} />
-          <Button key="close" label="Close" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
+        {e.props.bodyColumns >= boltMin ? (
+          <Box key="head" flexDirection="row" columnGap={2}>
+            {boltSprite(elements, e.surface, { size: 'small', pose: boltPose(g, now, view) })}
+            <Box key="head-lines" flexDirection="column" flexShrink={1}>
+              {head.map(draw)}
+            </Box>
+          </Box>
+        ) : (
+          head.map(draw)
+        )}
+        {body.map(draw)}
+        <Box key="actions" flexDirection="row" flexWrap="wrap" columnGap={gap} rowGap={0} marginTop={1}>
+          <Box {...press('view')}>
+            <Button key="view" label={view === 'overview' ? 'Spending' : 'Back'} onPress={() => update($, paneView, v => (v === 'overview' ? 'spend' : 'overview'))} />
+          </Box>
+          <Box {...press('band')}>
+            <Button key="band" label={band ? 'Hide band' : 'Show band'} onPress={() => setBand($, was => !was)} />
+          </Box>
+          <Box {...press('close')}>
+            <Button key="close" label="Close" role="dismiss" onPress={() => $.ui.close({ id: PANE })} />
+          </Box>
         </Box>
       </Box>
     )

@@ -4,19 +4,17 @@
 // stream redline already watches; the first request of a turn carries the prompt,
 // a subagent's requests are one kind. Nothing is guessed from the transcript.
 
-import { priceRow } from './prices'
-
-/** The kinds, in the words the pane uses. */
+/** The kinds, as the pane labels their rows. */
 export const KIND_WORDS: Readonly<Record<string, string>> = {
-  prompt: 'prompt',
-  reading: 'reading',
-  editing: 'editing',
-  shell: 'shell',
-  search: 'search',
-  planning: 'planning',
-  subagents: 'subagents',
-  answering: 'answering',
-  other: 'other',
+  prompt: 'Prompt',
+  reading: 'Reading',
+  editing: 'Editing',
+  shell: 'Shell',
+  search: 'Search',
+  planning: 'Planning',
+  subagents: 'Subagents',
+  answering: 'Answering',
+  other: 'Other tools',
 }
 
 const READING = new Set(['Read', 'Grep', 'Glob', 'LS', 'NotebookRead'])
@@ -53,13 +51,34 @@ export function kindsCarried(index: number, agentId: string | undefined, previou
   return kinds.length > 0 ? kinds : ['answering']
 }
 
-/** A kind's row label and the words that lead its value (`MCP · ` for a server). */
-export function spendLabel(kind: string): { label: string; prefix: string } {
-  if (kind.startsWith('mcp:')) return { label: kind.slice(4).slice(0, 12), prefix: 'MCP · ' }
-  return { label: KIND_WORDS[kind] ?? kind, prefix: '' }
+/** A label column holds this many cells at most. */
+const LABEL_CELLS = 12
+
+/** A kind's row label: a word in sentence case (`Shell`, `Other tools`), or an MCP server's own name, cut to the column. */
+export function spendLabel(kind: string): string {
+  if (kind.startsWith('mcp:')) return kind.slice(4).slice(0, LABEL_CELLS)
+  return KIND_WORDS[kind] ?? kind
 }
 
-/** A model's row label: its price-table family, else the id without its vendor prefix. */
+// claude-opus-4-1-20250805, us.anthropic.claude-sonnet-4-5-20250929-v1:0,
+// claude-haiku-4-5@20251001, claude-opus-5: the family, then the major, then a
+// one-digit minor when one follows (a date is never a minor).
+const MODEL_ID = /(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d)(?!\d))?/
+
+/**
+ * A model's row label, read from its id: the family and version (`Fable 5.1`,
+ * `Opus 4.6`, `Sonnet 5.5`). An id of another shape loses its `claude-` and a
+ * trailing date (`nova-1`), cut to the column.
+ */
 export function modelLabel(model: string): string {
-  return priceRow(model)?.label ?? model.replace(/^claude-/, '').slice(0, 12)
+  const m = MODEL_ID.exec(model.toLowerCase())
+  if (m) {
+    const family = m[1] ?? ''
+    return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${m[2] ?? ''}${m[3] === undefined ? '' : `.${m[3]}`}`
+  }
+  return model
+    .replace(/^claude-/, '')
+    .replace(/@.*$/, '')
+    .replace(/-\d{8}$/, '')
+    .slice(0, LABEL_CELLS)
 }

@@ -86,8 +86,11 @@ export type RedlineGauge = {
   isArmed: boolean
 }
 
+/** Which of the pane's two views is open: the limits, or where the money went. */
+export type RedlineView = 'overview' | 'spend'
+
 declare module 'claude-code' {
   interface PluginState {
-    redline: { gauge: RedlineGauge; isBandOn: boolean }
+    redline: { gauge: RedlineGauge; isBandOn: boolean; view: RedlineView }
   }
 }
