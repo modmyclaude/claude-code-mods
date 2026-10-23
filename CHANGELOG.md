@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-23
 
+- chapters 0.2.0: out of draft and into the catalogue. A diff, told in ordered chapters with risk marks, and a pane that walks you through them.
 - pop-quiz 0.2.0: out of draft and into the catalogue. Two short questions about Claude's latest code change, answers one press away. Off by default.
 - mulligan 0.2.0: out of draft and into the catalogue. A do-over for risky shell commands: it saves your files first, and /mulligan puts them back.
 - swear-jar 0.2.0: out of draft and into the catalogue. Counts the model's verbal tics, from "You're absolutely right" to the em dash.

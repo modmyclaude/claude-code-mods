@@ -5,7 +5,6 @@ tagline: A diff, told in ordered chapters with risk marks, and a pane that walks
 category: review
 surfaces: [terminal, desktop]
 model_calls: one per review you ask for (two for a big diff)
-draft: true
 ---
 
 # Chapters
