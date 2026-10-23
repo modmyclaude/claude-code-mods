@@ -5,7 +5,6 @@ tagline: A do-over for risky shell commands: it saves your files first, and /mul
 category: safety
 surfaces: [terminal, desktop]
 model_calls: none
-draft: true
 ---
 
 # Mulligan

@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-23
 
+- mulligan 0.2.0: out of draft and into the catalogue. A do-over for risky shell commands: it saves your files first, and /mulligan puts them back.
 - swear-jar 0.2.0: out of draft and into the catalogue. Counts the model's verbal tics, from "You're absolutely right" to the em dash.
 - bouncer 0.2.0: out of draft and into the catalogue. Checks each mod at the door and lists what it can reach, from Claude Code's own validator.
 ## 2026-10-13
