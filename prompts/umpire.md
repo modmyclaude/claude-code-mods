@@ -5,7 +5,6 @@ tagline: Runs your tests after Claude edits code and makes the call. Off by defa
 category: workflow
 surfaces: [terminal, desktop]
 model_calls: none
-draft: true
 ---
 
 # Umpire

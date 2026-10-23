@@ -1,6 +1,6 @@
 {
   "name": "umpire",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Runs your tests after Claude edits code and makes the call. Off by default.",
   "homepage": "https://modmyclaude.com/mods/umpire",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
