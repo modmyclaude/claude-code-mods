@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-10-23
 
+- rain-check 0.2.0: out of draft and into the catalogue. Hit your usage limit? Your prompt waits and goes out when the limit resets.
 - umpire 0.2.0: out of draft and into the catalogue. Runs your tests after Claude edits code and makes the call. Off by default.
 - chapters 0.2.0: out of draft and into the catalogue. A diff, told in ordered chapters with risk marks, and a pane that walks you through them.
 - pop-quiz 0.2.0: out of draft and into the catalogue. Two short questions about Claude's latest code change, answers one press away. Off by default.

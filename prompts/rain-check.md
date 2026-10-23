@@ -5,7 +5,6 @@ tagline: Hit your usage limit? Your prompt waits and goes out when the limit res
 category: workflow
 surfaces: [terminal, desktop]
 model_calls: none
-draft: true
 ---
 
 # Rain Check
