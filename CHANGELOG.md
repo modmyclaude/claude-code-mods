@@ -2,6 +2,9 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-10-23
+
+- bouncer 0.2.0: out of draft and into the catalogue. Checks each mod at the door and lists what it can reach, from Claude Code's own validator.
 ## 2026-10-13
 
 - cloakroom 0.1.5: an `@`-mentioned file is no longer read and copied by cloakroom before Claude Code reads it; it is scrubbed as the attachment Claude Code makes of it, its line count kept, so `#L10-20` still names the same lines. That ends the hook on `prompt.mention` (an event the plugin directory refuses), the copy under `$TMPDIR`, every file write and the `TMPDIR`, `TEMP` and `TMP` reads. Everything else it hides and holds is as before.

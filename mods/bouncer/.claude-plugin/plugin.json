@@ -1,6 +1,6 @@
 {
   "name": "bouncer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Checks each mod at the door and lists what it can reach, from Claude Code's own validator.",
   "homepage": "https://modmyclaude.com/mods/bouncer",
   "repository": "https://github.com/modmyclaude/claude-code-mods",

@@ -5,7 +5,6 @@ tagline: Checks each mod at the door and lists what it can reach, from Claude Co
 category: safety
 surfaces: [terminal, desktop]
 model_calls: none
-draft: true
 ---
 
 # Bouncer
