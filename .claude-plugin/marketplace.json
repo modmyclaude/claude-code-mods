@@ -24,6 +24,35 @@
       ]
     },
     {
+      "name": "bouncer",
+      "source": "./mods/bouncer",
+      "description": "Checks each mod at the door and lists what it can reach, from Claude Code's own validator.",
+      "version": "0.2.0",
+      "category": "safety",
+      "keywords": [
+        "safety",
+        "security",
+        "trust",
+        "plugins",
+        "validator",
+        "pane"
+      ]
+    },
+    {
+      "name": "chapters",
+      "source": "./mods/chapters",
+      "description": "A diff, told in ordered chapters with risk marks, and a pane that walks you through them.",
+      "version": "0.2.0",
+      "category": "review",
+      "keywords": [
+        "review",
+        "diff",
+        "git",
+        "pane",
+        "small-model"
+      ]
+    },
+    {
       "name": "cloakroom",
       "source": "./mods/cloakroom",
       "description": "Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it.",
@@ -144,6 +173,20 @@
       ]
     },
     {
+      "name": "mulligan",
+      "source": "./mods/mulligan",
+      "description": "A do-over for risky shell commands: it saves your files first, and /mulligan puts them back.",
+      "version": "0.2.0",
+      "category": "safety",
+      "keywords": [
+        "undo",
+        "snapshot",
+        "safety",
+        "bash",
+        "restore"
+      ]
+    },
+    {
       "name": "noted",
       "source": "./mods/noted",
       "description": "Turns your corrections into permanent rules, without duplicates.",
@@ -187,6 +230,20 @@
       ]
     },
     {
+      "name": "pop-quiz",
+      "source": "./mods/pop-quiz",
+      "description": "Two short questions about Claude's latest code change, answers one press away. Off by default.",
+      "version": "0.2.0",
+      "category": "insight",
+      "keywords": [
+        "learning",
+        "quiz",
+        "understanding",
+        "band",
+        "small-model"
+      ]
+    },
+    {
       "name": "porthole",
       "source": "./mods/porthole",
       "description": "A live preview of the app you are building, right beside the chat.",
@@ -200,6 +257,20 @@
         "localhost",
         "kitty-graphics",
         "pane"
+      ]
+    },
+    {
+      "name": "rain-check",
+      "source": "./mods/rain-check",
+      "description": "Hit your usage limit? Your prompt waits and goes out when the limit resets.",
+      "version": "0.2.0",
+      "category": "workflow",
+      "keywords": [
+        "rate-limit",
+        "usage-limit",
+        "queue",
+        "resume",
+        "band"
       ]
     },
     {
@@ -235,6 +306,34 @@
       ]
     },
     {
+      "name": "swear-jar",
+      "source": "./mods/swear-jar",
+      "description": "Counts the model's verbal tics, from \"You're absolutely right\" to the em dash.",
+      "version": "0.2.0",
+      "category": "fun",
+      "keywords": [
+        "fun",
+        "insight",
+        "band",
+        "scoreboard",
+        "writing"
+      ]
+    },
+    {
+      "name": "switchboard",
+      "source": "./mods/switchboard",
+      "description": "Every Claude Code session on your machine in one pane, and which one needs you.",
+      "version": "0.2.0",
+      "category": "visibility",
+      "keywords": [
+        "sessions",
+        "multitasking",
+        "needs-you",
+        "pane",
+        "visibility"
+      ]
+    },
+    {
       "name": "thermostat",
       "source": "./mods/thermostat",
       "description": "Shows when your prompt cache goes cold, and stops the expensive send.",
@@ -246,6 +345,20 @@
         "status-line",
         "keep-warm",
         "guard"
+      ]
+    },
+    {
+      "name": "umpire",
+      "source": "./mods/umpire",
+      "description": "Runs your tests after Claude edits code and makes the call. Off by default.",
+      "version": "0.2.0",
+      "category": "workflow",
+      "keywords": [
+        "tests",
+        "ci",
+        "watch",
+        "band",
+        "status"
       ]
     },
     {

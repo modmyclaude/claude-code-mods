@@ -81,6 +81,161 @@
       ]
     },
     {
+      "name": "bouncer",
+      "title": "Bouncer",
+      "tagline": "Checks each mod at the door and lists what it can reach, from Claude Code's own validator.",
+      "category": "safety",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.2.0",
+      "keywords": [
+        "safety",
+        "security",
+        "trust",
+        "plugins",
+        "validator",
+        "pane"
+      ],
+      "prompt": "Build me a Claude Code mod called \"bouncer\": it checks every installed mod at the door.\n\nWhen a session starts, run Claude Code's own plugin validator on each loaded mod and read what it reports: whether the mod can touch files, run programs, reach the network or call the model, whether it can type for me, and which tool calls or prompts it hooks with a hook that can refuse or rewrite them. Find the plugin folders from the plugin registry files under my Claude Code folder and from the mods the engine names as they join; never read a mod's source yourself.\n\nShow one line above the prompt only when a mod is new to me or its report changed, naming the mod and the notable reach, with a Show button; draw it under other mods' lines and never over a safety hold. Remember what I have seen in your store as mod name and a short hash of the reach, so the line fires on first sight and on change only.\n\nGive me a /bouncer pane with one row per mod: name, version, new or changed, loaded when the engine named it, and the reach in plain words with the warning colour on runs programs, reaches the network, can type for you and can change tool calls; a details press unfolds the validator's own lines for that mod. /bouncer check runs it again; /bouncer ok clears the line. Say plainly that these are facts from the validator, not a verdict, and that nothing leaves the machine. Never block, unload or change a mod, never claim a mod is safe. The command answers nothing the model reads.\n\nTerminal and desktop app. Say in the README exactly which files are read and which command is run.",
+      "media": null,
+      "readme": "# Bouncer\n\nChecks every installed mod at the door. When a session starts, Bouncer runs Claude Code's own plugin validator on each plugin folder it can name and reads what the report says the mod can reach: files, programs, the network, the model, your prompts, tool calls. One line above the prompt when a mod is new to you or its report changed; a `/bouncer` pane with a row per mod. Facts from the validator, never a verdict.\n\n```\nbouncer: 1 new mod: switchboard (runs programs)   [Show]\n```\n\n```\nBouncer\nChecked 19 mods at 09:12. Facts from the validator, not a verdict; nothing leaves the machine.\n\nswitchboard  0.1.0  new  loaded  reads and writes files, runs programs, reads the conversation   [details]\ncloakroom    0.1.0       loaded  reads files, can change tool calls, can hold your prompts\npager        0.1.0       loaded  reaches the network, plays sound, reads environment variables\nheadway      0.1.0       loaded  adds a tool for Claude\nwardrobe     0.1.0       loaded  reads settings, changes your settings\nzen          0.3.0               nothing declared\n```\n\n## Install\n\n```\n/plugin install bouncer --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n- **At session start** the validator runs once per plugin folder, in the background. Nothing is drawn while every mod is already known and its report unchanged.\n- **The line above the prompt** appears when a mod is new to you or its report changed, naming the mod and what is notable (runs programs, runs tools, reaches the network, calls MCP tools, calls the API as you, starts subagents, can type for you, can change tool calls, messages other sessions, changes your settings). **Show** opens the pane; `/bouncer ok` clears the line. Either way the line is gone for good once you have looked, until a mod is new or changed again.\n- **`/bouncer`** opens the pane: one row per mod with its name, version, `new` or `changed`, `loaded` when the engine named it joining this session, and its reach in words. The warning colour marks reach worth a second look. **details** unfolds the validator's own lines for that mod. Two folders with one name (a copy under development beside the installed one) are two rows, each showing its folder.\n- **`/bouncer check`** runs the validator again now.\n\nWhat the words mean, each read off the validator's list of what the mod calls and hooks: *reads files*, *reads and writes files*, *runs programs*, *runs tools* (it can run Claude's own tools, Bash and file writes among them, through the normal permission path), *reaches the network*, *calls MCP tools*, *calls the API as you* (it can spend your login on API calls), *calls the model*, *starts subagents*, *can type for you* (it can start a turn or fill the prompt box), *can change tool calls* (it hooks tool calls with a hook that can refuse or rewrite them), *can hold your prompts*, *changes the system prompt*, *adds a tool for Claude* (a tool or a subagent type Claude can call), *adds to the conversation*, *reads the conversation*, *messages other sessions*, *can stop a turn*, *plays sound*, *reads environment variables*, *sets environment variables*, *reads settings*, *changes your settings*, *writes your clipboard*, and *nothing declared*. Every call that acts outside the mod's own state has a word; a call that only draws, keeps the mod's own state or reads where the session is has none.\n\n## Settings\n\nEvery setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.\n\n| Setting | Default | What it does |\n| --- | --- | --- |\n| `claudeBin` | `claude` | The command the validator runs through: a name on your PATH or an absolute path. |\n\n## What it can touch\n\n- **Runs:** `claude plugin validate --json <plugin folder>` once per plugin folder, at session start and on `/bouncer check`, through the binary the `claudeBin` setting names; nothing else. The validator reads the mod's manifest and source itself; Bouncer reads only its report.\n- **Reads:** `~/.claude/plugins/installed_plugins.json` and `~/.claude/plugins/known_marketplaces.json` (under `CLAUDE_CONFIG_DIR` when that is set), the `.claude-plugin/marketplace.json` of each marketplace that lives in a local folder, and each plugin folder's `.claude-plugin/plugin.json` for its name and version. Never a mod's source. The engine also names each mod as it joins the session, and those folders are checked too.\n- **Writes:** one value in its own store: for each plugin folder, the mod's name there and a short hash of its reach, so the line fires on first sight and on change only. An update that installs into a new folder is compared with the old folder's hash, and the old entry goes. Nothing else.\n- **Session state:** the rows as last checked, the line, which row is unfolded, when the check ran.\n- **Network, model calls:** none. Nothing leaves the machine.\n\nIt never blocks, unloads or changes a mod, and never claims a mod is safe: a clean row means the validator found no reach to report, not that the mod is harmless.\n\n## Limits\n\n- The validator must be reachable: with no `claude` on the PATH (the desktop app's own binary is not), set `claudeBin` to its path, or every row says `could not check`.\n- Folders come from the registry files and from mods the engine names as they join; a mod loaded another way (a `--plugin-dir` folder in a session that does not name it) is not checked. A folder the registry lists is checked whether or not this session loaded it; `loaded` marks the ones the engine confirmed.\n- At most 60 folders are checked. Each run of the validator takes about a second; the check runs in the background and the pane says when it is done.\n- The reach words are read from the validator's list of calls and hooks. A mod that reaches the world through another mod's tool, or through a settings hook, is not seen here.\n- A mod whose first check failed reads as `new` when a later check passes. A mod seen before keeps its last hash through a failed check.\n- The band, the pane and the transcript lines are checked through the engine's test kit on the terminal and desktop surfaces.\n\n## Built from a prompt\n\nThis mod was built from [the Bouncer prompt](../../prompts/bouncer.md).\n",
+      "commands": [
+        {
+          "name": "bouncer",
+          "description": "What every installed mod can reach, from the validator: the pane, check again, ok"
+        }
+      ],
+      "settings": [
+        {
+          "key": "claudeBin",
+          "type": "string",
+          "default": "claude",
+          "description": "The claude command the validator runs through: a name on your PATH or an absolute path."
+        }
+      ],
+      "tests": {
+        "count": 24,
+        "surfaces": [
+          "terminal",
+          "desktop"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "b83b6fd",
+      "reach": [
+        "reads files",
+        "runs commands"
+      ],
+      "touches": {
+        "files": "read",
+        "commands": true,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "plugin.register"
+        ]
+      },
+      "events": [
+        "plugin.register",
+        "session.start",
+        "command.run /bouncer",
+        "ui.render AbovePrompt",
+        "ui.render Pane"
+      ]
+    },
+    {
+      "name": "chapters",
+      "title": "Chapters",
+      "tagline": "A diff, told in ordered chapters with risk marks, and a pane that walks you through them.",
+      "category": "review",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "one per review you ask for (two for a big diff)",
+      "version": "0.2.0",
+      "keywords": [
+        "review",
+        "diff",
+        "git",
+        "pane",
+        "small-model"
+      ],
+      "prompt": "Build me a Claude Code mod called \"chapters\": a readable review of a diff.\n\n/chapters takes my uncommitted changes against the last commit (new untracked files included), /chapters staged the staged ones, /chapters branch [base] this branch against main, and /chapters last the edits Claude made in the last turn. Read the diff with read-only git plumbing only (diff-index, diff-tree, merge-base, ls-files) with GIT_OPTIONAL_LOCKS=0; outside git, use the last turn's Edit and Write inputs.\n\nAsk one model call (haiku by default, a setting can name another) for an ordered list of short chapters as JSON followed by an END line: each with a title, the files and lines it covers, what changed, why it matters, a risk level (none, low, high) with a reason, and one question I should check. Send only the diff and its paths, with anything that looks like a secret redacted and secrets files (env files, keys, credentials, registry logins, Terraform values) named but never read, sent or drawn, capped at about 12,000 tokens a call; split a bigger diff in two calls at most, then cut it and say how many files were left out. Retry once on a reply that does not parse, then say \"no review this time\".\n\nOpen a pane that walks me through them: the chapter list with risk marks (never colour alone) and read ticks, the open chapter's text, its hunks drawn with the Code element in diff format, prev, next, mark read, and \"ask Claude\", which fills my prompt box with the chapter's question after anything I typed and never sends it. A progress count in the header. While a review waits unread and the pane is closed, one dim line above the prompt with the chapter count and how many are risky.\n\nIt never applies, reverts or edits anything. A new review runs only when I type the command. Say in the README what a review costs at list prices, always as \"about\". Terminal and desktop app.",
+      "media": null,
+      "readme": "# Chapters\n\nA readable review of a diff: `/chapters` asks the model for ordered chapters with risk marks, and a pane walks you through them beside the hunks.\n\n```\nuncommitted changes · 1 of 3 read\n! 1. Retry on 429                      read\n~ 2. Config loader\n· 3. Docs\n\nChapter 2 of 3: Config loader\nWhat: settings now load from .apprc before the environment.\nWhy it matters: a stale .apprc overrides a fresh variable.\n~ low risk: the order changed for every setting\nCheck: should the environment still win?\n\nsrc/config.ts\n@@ -12,4 +12,6 @@\n[prev] [next] [mark read] [ask Claude]\n```\n\n## Install\n\n```\n/plugin install chapters --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nType `/chapters` when you want to read what changed before you commit or push. One model call (two for a big diff) turns the diff into short chapters, most important first. Each has:\n\n- what changed, and why it matters,\n- a risk mark (`!` high, `~` low, `·` none seen) with one reason,\n- one question worth checking,\n- and the matching hunks, drawn as a diff beside it.\n\n**prev** and **next** move between chapters, **mark read** ticks one and moves on, and the header counts how many you have read. **ask Claude** puts the chapter's question in your prompt box (\"About chapter 2, Config loader: should the environment still win?\") after anything you have typed; you decide whether to send it. While a review waits unread and its pane is closed, one dim line above the prompt says so.\n\n| Command | What it reviews |\n| --- | --- |\n| `/chapters` | Your uncommitted changes against the last commit, new files included (outside git: the last turn's edits) |\n| `/chapters staged` | What is staged for the next commit |\n| `/chapters branch [base]` | This branch against `main` (or the base you name, or the one in settings) |\n| `/chapters last` | The edits Claude made in the last turn, from its own tools |\n\nWith a review on screen, `/chapters` alone opens it again. A new review runs only when you type the command yourself: in the terminal, the desktop app or Remote Control, or a program of yours driving Claude Code through its SDK (the desktop app sends that way). Another mod, a peer session or Claude running it is refused.\n\n## Settings\n\nEvery setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.\n\n- **On:** on by default. Off, Chapters calls no model, runs no git, draws no line or pane and notes none of Claude's edits. A review being written when it goes off stops there and is never drawn. `/chapters` says it is off. `/config` or the modmyclaude hub flips it, live.\n- **Model:** `haiku` by default. Any alias or id Claude Code takes (`sonnet`, say) writes a deeper review at that model's price.\n- **Branch to compare against:** `main` by default, for `/chapters branch`.\n\n## What it can touch\n\n- **Runs:** read-only git plumbing in your project: `git rev-parse`, `git diff-index`, `git diff-tree`, `git merge-base`, `git ls-files`, all with git's optional locks off, so it never touches the index under Claude. Never `git diff`, never anything that writes.\n- **Reads:** the new files git does not track yet (each up to 60,000 characters, the first 30), to show them as additions; never a secrets file (below). The inputs of Claude's Edit, Write and NotebookEdit calls, for `/chapters last` and projects outside git.\n- **Model calls:** one per review, two for a diff past about 12,000 tokens (the rest is left out, and the pane says how many files). It is sent the diff and its file paths, nothing else: not the transcript, not your prompts. Anything in the diff that looks like a secret is replaced with `[REDACTED]` first (the same rules crossroads uses). A secrets file goes by its name alone, never its contents, and its hunks are not drawn either: env files, keys and keystores, SSH keys, credentials files, registry and database logins (`.npmrc`, `.netrc`, `.pgpass`, `.pypirc`), Terraform values (`.tfvars`) and `secrets.*` files. A reply that does not read is asked once more. About $0.0013 per review of 500 changed lines at small-model list prices.\n- **Writes:** its own session state (the review, which chapters are read). The prompt box, only when you press **ask Claude**, and never sent.\n- **Network, files written:** none beyond the model call. It never applies, reverts or edits a change.\n\n## Limits\n\n- It reads and explains only. Accepting or reverting a hunk from the pane is not in this version.\n- The model's chapters can be wrong or miss something; the hunks beside them are the truth.\n- A diff past the cap is split in two calls, then cut; the pane names how many files were not reviewed. A diff longer than git's output can be read in one go (4 MB) is read up to its last whole file, and the pane says so.\n- Outside git, an edit's place in its file is not known, so its hunk starts at line 1.\n- The review lives as long as the session (or until the mod reloads).\n- The pane and the band are checked through the engine's test kit on the terminal and desktop surfaces, with git and the model stood in for.\n\n## Built from a prompt\n\nThis mod was built from [the Chapters prompt](../../prompts/chapters.md).\n",
+      "commands": [
+        {
+          "name": "chapters",
+          "description": "A readable review of your changes, in chapters with risk marks"
+        }
+      ],
+      "settings": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": true,
+          "description": "Switch chapters off without uninstalling it. The modmyclaude hub flips this too."
+        },
+        {
+          "key": "model",
+          "type": "string",
+          "default": "haiku",
+          "description": "The model that writes the review: haiku (the default, about $0.0013 per 500 changed lines) or any alias or id Claude Code takes, such as sonnet, at that model's price."
+        },
+        {
+          "key": "base",
+          "type": "string",
+          "default": "main",
+          "description": "What /chapters branch compares this branch with when you name none."
+        }
+      ],
+      "tests": {
+        "count": 35,
+        "surfaces": [
+          "terminal",
+          "desktop"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "0f5ef73",
+      "reach": [
+        "reads files",
+        "runs commands",
+        "calls a model",
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "read",
+        "commands": true,
+        "network": false,
+        "model": true,
+        "sound": false,
+        "hooks": [
+          "config.set",
+          "tool.call"
+        ]
+      },
+      "events": [
+        "config.set \"chapters.enabled\"",
+        "session.start",
+        "tool.call",
+        "turn.start",
+        "turn.complete",
+        "command.run /chapters",
+        "ui.render AbovePrompt",
+        "ui.render Pane"
+      ]
+    },
+    {
       "name": "cloakroom",
       "title": "Cloakroom",
       "tagline": "Check your secrets at the door. Claude gets a ticket; the real value only comes back where you allow it.",
@@ -685,6 +840,96 @@
       ]
     },
     {
+      "name": "mulligan",
+      "title": "Mulligan",
+      "tagline": "A do-over for risky shell commands: it saves your files first, and /mulligan puts them back.",
+      "category": "safety",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.2.0",
+      "keywords": [
+        "undo",
+        "snapshot",
+        "safety",
+        "bash",
+        "restore"
+      ],
+      "prompt": "",
+      "media": null,
+      "readme": "# Mulligan\n\nA do-over for risky shell commands: it saves your files first, and `/mulligan` puts them back.\n\n```\nmulligan: saved a do-over before \"rm -rf dist\" (dist) · /mulligan restore 3\n\n3 do-overs for this project\n#3  rm -rf dist                                   [Restore] [Diff]\n    dist · 4.2 MB · just now\n#2  git reset --hard                              [Restore] [Diff]\n    tracked changes · 2h ago\n```\n\n## Install\n\n```\n/plugin install mulligan --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nNothing to set up. Claude Code's `/rewind` puts back the files Claude edited with its own tools; it does not undo what a shell command did. Mulligan covers that:\n\n- **Before a destructive Bash command runs**, it saves what that command can destroy:\n  - `rm -r`, `find ... -delete`, `xargs rm` and a redirect over a file (`> notes.md`): the paths they name.\n  - `git reset --hard`, `git checkout` or `git restore` over changes: your tracked files as they are, as a git commit object (`git stash create`, which moves no branch and leaves the stash list alone).\n  - `git clean`: the untracked files git lists (not the ignored ones).\n  - A target only known as it runs (`rm -rf \"$OUT\"`, `rm -rf **`): the whole project, without `.git` and `node_modules`.\n- **Once the command ran**, a dim line says a do-over exists for a few seconds. A command that another mod held or refused leaves no snapshot.\n- **`/mulligan`** lists this project's snapshots, newest first, with what each holds and when.\n- **Restore** asks first: **Yes, restore** writes the saved files back over what is there now, and deletes nothing newer. Claude is then told the files changed under it and to re-read any file before editing it.\n- **Diff** shows what differs now from a snapshot: files deleted since, and files changed.\n\nThe same commands last-look holds take a snapshot, and nothing else: a listing, a test run, a single-file `rm`, a push or a branch delete never does.\n\n| Command | What it does |\n| --- | --- |\n| `/mulligan` | The list, in a pane |\n| `/mulligan restore <n>` | Snapshot `n`, waiting on your confirm press |\n| `/mulligan diff <n>` | What differs now from snapshot `n` |\n| `/mulligan drop <n>` | Forget snapshot `n` and empty its archive (only when you type it) |\n\n\"Only when you type it\" means typed by you in the terminal, the desktop app or Remote Control. A program you run that drives Claude Code through its SDK counts as you too, since the desktop app sends that way; another mod, a peer session or Claude running the command is refused.\n\n## Settings\n\nEvery setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.\n\n- **On:** on by default. Off, Mulligan saves nothing before any command (no git, no tar, no file written) and draws no line; `/mulligan` says it is off. `/mulligan restore <n>` still puts back a do-over saved while it was on, after the same confirm: those are your files, and turning it on just to reach them would start saving again, which can reuse the oldest slot. A flip never deletes a do-over. `/config` or the modmyclaude hub flips it, live.\n- **Always save before commands matching:** a pattern (a regular expression, case-insensitive; `|` between several) for commands that should save the whole project first, such as `prisma migrate|npm uninstall`.\n- **Never save before commands matching:** a pattern for commands that never take a snapshot, such as `rm -rf (dist|build)`.\n- **Largest snapshot (MB):** default 200. A bigger one is skipped, and the line says the command ran without a do-over.\n\n## What it can touch\n\n- **Writes:** archives and a small index (each snapshot's command text, time and size) under `~/.claude/mulligan/<project key>/` (or under `CLAUDE_CONFIG_DIR` when set): ten slots per project, reused in turn, never more. The key is a hash of the project's path. Each archive holds copies of your project's files, so anything in them (a `.env` among them) sits there too, in your home folder only.\n- **Runs:** `git rev-parse`, `git stash create`, `git ls-files`, `git diff` and, on a restore you confirmed, `git restore --overlay`, all with git's optional locks off, so it never takes the index lock under Claude. `tar` to make, list and unpack archives, and `mkdir` and `mv` inside its own folder. It never runs `rm`, never moves a branch, never touches `.git` beyond the objects `git stash create` adds.\n- **Reads:** each Bash command's text (to see whether it destroys files), the shell's current folder, your project's files when it saves them.\n- **Tells Claude:** after a restore, one note that the files changed and to re-read before editing. Nothing else: `/mulligan` answers in a pane and toasts.\n- **Network, model calls:** none.\n\n## Limits\n\n- **Files in this project only.** A database, a remote, a package registry or anything outside the project folder is not covered, and it says so when a command reaches outside.\n- Ignored files are not saved by `git clean -x`; the line says so.\n- A command that fails, or one git refused, still keeps its snapshot: a failing `rm -rf` can delete most of what it named before it stops.\n- A restore puts back what the snapshot holds. A file the command created is not removed, and edits made since to a restored file are written over (Diff shows them first).\n- Restoring tracked changes needs git 2.23 or newer (`git restore`).\n- Saving reads the files it copies before the command runs; a large tree can add up to 20 seconds to that command, and a tree over the size limit is skipped.\n- Snapshots of tracked changes are git objects no branch points to. git keeps them for two weeks by default before a cleanup may remove them.\n- The pane, the line and the restore are checked through the engine's test kit on the terminal and desktop surfaces, with git and tar stood in for; a real restore on a scratch project is part of the overnight check.\n\n## Built from a prompt\n\nThis mod was built from [the Mulligan prompt](../../prompts/mulligan.md).\n",
+      "commands": [
+        {
+          "name": "mulligan",
+          "description": "List the do-overs saved before destructive commands, and put one back"
+        }
+      ],
+      "settings": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": true,
+          "description": "Switch mulligan off without uninstalling it. The modmyclaude hub flips this too."
+        },
+        {
+          "key": "always",
+          "type": "string",
+          "default": "",
+          "description": "A pattern (a regular expression, case-insensitive; | between several) for commands that should always save the whole project first, such as 'prisma migrate|npm uninstall'. Leave empty for none."
+        },
+        {
+          "key": "ignore",
+          "type": "string",
+          "default": "",
+          "description": "A pattern for commands that never take a snapshot, such as 'rm -rf (dist|build)'. Leave empty for none."
+        },
+        {
+          "key": "capMB",
+          "type": "number",
+          "default": 200,
+          "description": "A snapshot of files larger than this is skipped, and the command runs without a net. 1 to 5000."
+        }
+      ],
+      "tests": {
+        "count": 91,
+        "surfaces": [
+          "terminal",
+          "desktop"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "e39bd57",
+      "reach": [
+        "writes files",
+        "reads files",
+        "runs commands",
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "read-write",
+        "commands": true,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "config.set",
+          "tool.call"
+        ]
+      },
+      "events": [
+        "config.set \"mulligan.enabled\"",
+        "session.start",
+        "tool.call",
+        "ui.render AbovePrompt",
+        "ui.render Pane",
+        "command.run /mulligan"
+      ]
+    },
+    {
       "name": "noted",
       "title": "Noted",
       "tagline": "Turns your corrections into permanent rules, without duplicates.",
@@ -899,6 +1144,93 @@
       ]
     },
     {
+      "name": "pop-quiz",
+      "title": "Pop Quiz",
+      "tagline": "Two short questions about Claude's latest code change, answers one press away. Off by default.",
+      "category": "insight",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "one small-model call per quiz (opt-in)",
+      "version": "0.2.0",
+      "keywords": [
+        "learning",
+        "quiz",
+        "understanding",
+        "band",
+        "small-model"
+      ],
+      "prompt": "",
+      "media": null,
+      "readme": "# Pop Quiz\n\nA learning mode, off by default: after a turn that changed code, two short questions about the change, each answer one press away.\n\n```\npop quiz on the last change\n1. Why does the migration add an index on user_id?     [show answer]\n2. What does retry() now do on a 429?                   [show answer]\n[skip]  No grading. It clears when you send your next prompt.\n```\n\n## Install\n\n```\n/plugin install pop-quiz --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nType `/pop-quiz on`. From then on, every third turn in which Claude changed files with its own tools (Edit, Write, NotebookEdit), a small model writes two questions you could answer from the change alone, and they wait above your prompt:\n\n- **show answer** swaps a question for its one-line answer.\n- **skip** clears the quiz. Sending your next prompt clears it too.\n- There is no grading. It only helps you keep up with code you did not type.\n\n| Command | What it does |\n| --- | --- |\n| `/pop-quiz on` | Start quizzing in this session (only when you type it) |\n| `/pop-quiz off` | Stop |\n| `/pop-quiz every <n>` | Quiz every n-th changed turn, 1 to 20 (default 3) |\n| `/pop-quiz ask` | Quiz the last changed turn now (only when you type it) |\n| `/pop-quiz score` | Asked, shown and skipped, this session and all time, and what this session's quizzes cost |\n\n\"Only when you type it\" means typed by you in the terminal, the desktop app or Remote Control. A program you run that drives Claude Code through its SDK counts as you too, since the desktop app sends that way; another mod, a peer session or Claude running the command is refused.\n\n## Settings\n\nEvery setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.\n\n- **On:** on by default. Off, Pop Quiz asks and draws nothing, and every `/pop-quiz` command says it is off; switched on again, `/pop-quiz on` (or the setting below) decides, as before. `/config` or the modmyclaude hub flips it, live. A quiz costs money, so another mod cannot switch it on; anyone can switch it off.\n- **On from the start:** quiz in every session without `/pop-quiz on`. Off by default.\n- **Quiz every n changed turns:** 3 by default.\n\n## What it can touch\n\n- **Model calls:** one small-model call (`haiku`, low effort, at most 800 output tokens and 20 seconds) per quiz, only while it is on, only on the turns it quizzes, and only when the terminal or the desktop app is there to show it. A reply that does not parse is asked once more; then nothing shows. If your setup refuses the `haiku` alias, it tries the small model your environment names (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_SMALL_FAST_MODEL`) instead. About $0.0004 a quiz at small-model list prices; `/pop-quiz score` shows the session's estimate.\n- **What is sent:** the names of the changed files and a short diff of the change (at most 2,000 characters, each file with its share), never the transcript, your prompts or any other file. Anything that looks like a secret is replaced with `[REDACTED]` first (the same rules crossroads uses), and some files are sent by name only, never their contents: env files, keys and keystores, SSH keys, credentials files, registry and database logins (`.npmrc`, `.netrc`, `.pgpass`, `.pypirc`), Terraform values (`.tfvars`) and `secrets.*` files. A source file named that way (`secrets.ts`, `credentials.py`) goes by name only too: the safe side.\n- **Reads:** the inputs of Claude's Edit, Write and NotebookEdit calls, once they ran, to know what changed.\n- **Writes:** its own session state (the quiz, on or off, the pace, the score, the cost) and the all-time score in its own store. The band and toasts. `/pop-quiz` answers with no text for Claude.\n- **Files, processes, network:** none beyond the model call.\n\n## Limits\n\n- Changes a shell command made (a formatter, a codegen script, `sed -i`) are not seen: only Claude's own file tools count.\n- The questions are as good as the small model and the 2,000 characters it sees; a large change is quizzed on its first part of each file.\n- The quiz shows in the terminal and the desktop app; elsewhere no call is made.\n- The band and the presses are checked through the engine's test kit on the terminal and desktop surfaces, with the model stood in for.\n\n## Built from a prompt\n\nThis mod was built from [the Pop Quiz prompt](../../prompts/pop-quiz.md).\n",
+      "commands": [
+        {
+          "name": "pop-quiz",
+          "description": "A quiz on what Claude changed: on, off, every <n>, ask, score"
+        }
+      ],
+      "settings": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": true,
+          "description": "Switch pop-quiz off without uninstalling it. The modmyclaude hub flips this too."
+        },
+        {
+          "key": "startOn",
+          "type": "boolean",
+          "default": false,
+          "description": "Quiz in every session without typing /pop-quiz on. Each quiz is one small-model call (about $0.0004 at list prices)."
+        },
+        {
+          "key": "every",
+          "type": "number",
+          "default": 3,
+          "description": "1 quizzes every turn that changed files; 3 (the default) every third. 1 to 20."
+        }
+      ],
+      "tests": {
+        "count": 32,
+        "surfaces": [
+          "terminal",
+          "desktop",
+          "vscode"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "fa9f233",
+      "reach": [
+        "calls a model",
+        "hooks tool calls",
+        "hooks prompts"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": true,
+        "sound": false,
+        "hooks": [
+          "config.set",
+          "tool.call",
+          "prompt.submit"
+        ]
+      },
+      "events": [
+        "config.set \"pop-quiz.enabled\"",
+        "session.start",
+        "tool.call",
+        "turn.start",
+        "turn.complete",
+        "prompt.submit",
+        "ui.render AbovePrompt",
+        "command.run /pop-quiz"
+      ]
+    },
+    {
       "name": "porthole",
       "title": "Porthole",
       "tagline": "A live preview of the app you are building, right beside the chat.",
@@ -970,6 +1302,79 @@
         "ui.close porthole",
         "session.end",
         "ui.render Pane"
+      ]
+    },
+    {
+      "name": "rain-check",
+      "title": "Rain Check",
+      "tagline": "Hit your usage limit? Your prompt waits and goes out when the limit resets.",
+      "category": "workflow",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.2.0",
+      "keywords": [
+        "rate-limit",
+        "usage-limit",
+        "queue",
+        "resume",
+        "band"
+      ],
+      "prompt": "Build me a Claude Code mod called \"rain-check\" for when I hit my usage limit.\n\nBackground: on a subscription, Claude Code has a 5-hour and a weekly usage window. When one runs out, every prompt fails until it resets, and I have to come back at the right moment and send it again.\n\nWhat it does\n- Once Claude Code refuses a turn because a usage limit ran out, show one line above my prompt: \"Usage limit reached · resets 2pm · in 5h\", with \"Continue then\" (pick the cut-off turn up at the reset) and \"Dismiss\".\n- While the limit holds, a prompt I send waits instead of failing. The line shows when it goes out (\"Sends 2:01pm · in 3h 12m\") and its first words, with \"Send now\" and \"Cancel\". A second prompt joins the first.\n- One minute after the reset, send what waits as a normal prompt, and say so in a toast. If the limit refuses it again, it waits for the next reset.\n- /rain-check shows what waits; /rain-check now sends it; /rain-check cancel drops it. Commands answer in toasts, never as text the model reads.\n\nRules\n- Hold only after a real refusal (the turn's error is rate_limit), never on a 100% reading alone: extra usage can still let requests through. A refusal with no window near full is a passing one: hold nothing.\n- Never send anything I did not write or ask for. Never hold slash commands, ! shell lines, prompts from other plugins or prompts queued mid-turn.\n- If anything in the mod fails, my prompt goes through as normal.\n- Times as Claude Code writes them (2pm, 2:01pm, Tue 8am), time left rounded up and never \"0m\".\n- Terminal and desktop app. Other mods' lines above the prompt come first.\n\nTests: the full flow on both surfaces with a mocked clock, every way out, and what it never holds.",
+      "media": null,
+      "readme": "# Rain Check\n\nHit your usage limit? Your prompt waits and goes out when the limit resets.\n\n```\nSends 2:01pm · in 3h 12m   [Send now] [Cancel]\n\"run the tests, then update the changelog\"\n```\n\n## Install\n\n```\n/plugin install rain-check --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nNothing to set up. It stays out of the way until Claude Code refuses a turn because a usage limit (your 5-hour or weekly window) has run out. Then:\n\n- **A line above your prompt** says when the limit resets: `Usage limit reached · resets 2pm · in 5h`. **Continue then** picks the cut-off turn up at the reset. **Dismiss** stops waiting, so what you send goes straight out again.\n- **Anything you send now waits.** Instead of failing, your prompt is held, and the line shows when it goes out and the first words of it. It goes out by itself one minute after the reset, so it lands in the new window. Send a second prompt and it joins the first; they go out together.\n- **Send now** sends it at once (if the limit lifted early, or you have extra usage). If the limit still refuses it, it simply waits again.\n- **Cancel** drops what waits and puts your words back in the prompt box, after anything you have typed since.\n\nSlash commands and `!` shell lines are never held: they do not use your model limit.\n\n| Command | What it does |\n| --- | --- |\n| `/rain-check` | What waits, and when it goes out |\n| `/rain-check now` | Send what waits at once |\n| `/rain-check cancel` | Drop what waits; your words go back in the prompt box |\n\n## Settings\n\n- **On:** on by default. Off, Rain Check holds nothing, draws nothing and sends nothing, and forgets the limit it saw; a prompt already waiting goes back to the prompt box (or the transcript, where no box takes it), never out. `/rain-check` says it is off. `/config` or the modmyclaude hub flips it, live.\n\n## What it can touch\n\n- **Reads:** the usage windows Claude Code reports after each response (kind, percent used, reset time), the kind of error that ends a turn (only to see a `rate_limit`), and each prompt you send while a limit has refused you (to hold it). Before any refusal it reads your prompts only to let them pass. When it gives your words back, it reads what is already in the prompt box, so they go after your draft.\n- **Writes:** its own session state (the limit, the waiting prompt, the countdown's clock, and the last prompt it sent), the line above the prompt, and toasts. Nothing is kept across sessions.\n- **On disk:** nothing, with one exception. When your words come back (you cancel, the send is blocked, or you switch Rain Check off) and the prompt box cannot take them, they are shown in full in one dim line in the transcript, so they are not lost. Claude is not sent that line, but Claude Code's debug log (a file, when debug logging is on) keeps a copy.\n- **Sends:** at the reset, the prompt you wrote, or \"Continue where you left off. Your usage limit has reset.\" if you pressed Continue then. It sends nothing you did not write or ask for.\n- **Processes and network:** none. **Model calls:** none of its own.\n\n## Limits\n\n- It starts holding only after a real refusal in this session, and checks your usage again at that moment. Near a cap but not at it (95% to 99%), one refusal may be a passing one, so it holds only after a second within 10 minutes. A window that reads 100% is not enough on its own, because extra usage can still let requests through. So the first prompt at the limit fails as usual, and what follows waits.\n- It waits only while the session is open. Quit Claude Code and the waiting prompt is gone; it is not saved to disk.\n- The waiting prompt is text only: files you attached are not kept, and the hold says so.\n- If another hook or a settings rule blocks the send at the reset, your words come back to the prompt box with the reason; nothing is sent later behind your back.\n- If the computer sleeps through the reset, the prompt goes out within a minute of waking.\n- A turn refused for a passing reason (a short-lived rate limit, or an API key with no usage windows) holds nothing: Claude Code retries those itself.\n- `/clear` drops a waiting \"Continue then\" (the old conversation is gone) but keeps a prompt you wrote.\n- The line is checked through the engine's test kit on the terminal and desktop surfaces.\n\n## Built from a prompt\n\nThis mod was built from [the Rain Check prompt](../../prompts/rain-check.md).\n",
+      "commands": [
+        {
+          "name": "rain-check",
+          "description": "See the prompt waiting for your usage limit; /rain-check now sends it, /rain-check cancel drops it"
+        }
+      ],
+      "settings": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": true,
+          "description": "Switch rain-check off without uninstalling it. The modmyclaude hub flips this too."
+        }
+      ],
+      "tests": {
+        "count": 40,
+        "surfaces": [
+          "terminal",
+          "desktop"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "742f596",
+      "reach": [
+        "hooks prompts"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "config.set",
+          "classic.StopFailure",
+          "prompt.submit"
+        ]
+      },
+      "events": [
+        "config.set \"rain-check.enabled\"",
+        "session.start",
+        "session.measure",
+        "classic.StopFailure",
+        "prompt.submit",
+        "turn.complete",
+        "session.end",
+        "command.run /rain-check",
+        "ui.render AbovePrompt"
       ]
     },
     {
@@ -1154,6 +1559,176 @@
       ]
     },
     {
+      "name": "swear-jar",
+      "title": "Swear jar",
+      "tagline": "Counts the model's verbal tics, from \"You're absolutely right\" to the em dash.",
+      "category": "fun",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.2.0",
+      "keywords": [
+        "fun",
+        "insight",
+        "band",
+        "scoreboard",
+        "writing"
+      ],
+      "prompt": "Build me a Claude Code mod called \"swear-jar\": a counter for the model's verbal tics.\n\nCount every reply Claude writes against a list of phrases I can edit in the settings, starting with \"You're absolutely right\", \"Great question\", \"I apologize\", \"Certainly!\", \"As an AI\", \"It's worth noting\", \"I hope this helps\", \"delve\", and every em dash. Count the text of each response as Claude Code receives it from the model, once per response, whole phrases, any case; skip subagents. Never rewrite Claude's words, never hold a tool call, never read files.\n\nShow the top three counts for this session in one dim line above the prompt, drawn under whatever other mods draw there, nothing when every count is zero, and nothing at all while another mod's safety hold is waiting for me. Offer the status line as an alternative in the settings.\n\nGive me a /swear-jar pane with the scoreboard for this session and all time, the worst offender, and the last reply's hits shown in their sentences with the tic in bold. /swear-jar reset empties this session; /swear-jar reset all empties the jar for good. The command answers with no output, so nothing of the scoreboard reaches the model.\n\nAdd an opt-in nudge, off by default and remembered, that adds one short line to the system prompt asking for plain words and no praise openers; say in the README what it costs in tokens.\n\nWorks on the terminal and the desktop app. Tests on both surfaces: counting, the band under other mods and never over a hold, the status line, the pane, the commands, the nudge on and off.",
+      "media": null,
+      "readme": "# Swear jar\n\nA jar that counts the model's verbal tics (\"You're absolutely right\", \"Great question\", the em dash) in one dim line above the prompt and a scoreboard. It never rewrites a reply.\n\n```\nswear-jar: absolutely right 3 · great question 1 · em dashes 12\n```\n\n```\nSwear jar\nThis session: 16\n  em dashes            12\n  absolutely right      3\n  great question        1\nAll time: 140\n  em dashes            98\n  absolutely right     31\n  i apologize          11\nWorst offender: em dashes (98)\nLast reply\n  You're absolutely right, the cache key was wrong.\nPlain-words nudge off (/swear-jar nudge on|off).\n```\n\n## Install\n\n```\n/plugin install swear-jar --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\n- **The band**: one dim line above the prompt with this session's top three tics, drawn under whatever other mods draw there. Nothing is drawn while every count is zero, and nothing at all while another mod's safety hold waits for your answer.\n- **`/swear-jar`** opens the scoreboard: this session, all time, the worst offender, and the last reply's hits in their sentences with the tic in bold.\n- **`/swear-jar reset`** empties this session's jar; **`/swear-jar reset all`** empties it for good.\n- **`/swear-jar nudge on`** adds one short line to the system prompt asking for plain words and no praise openers; **`nudge off`** removes it. Off by default; the switch is remembered.\n\nCounting is per response: every time Claude Code receives a reply from the model in the main conversation, the reply's text is searched for the tics, whole phrases, case aside. \"You're absolutely right\" and \"You are absolutely right\" share one jar. Every em dash counts.\n\n## Settings\n\nEvery setting has a default, so the notice at install about options not yet set is expected. Change them in `/config` (or on the install screen).\n\n| Setting | Default | What it does |\n| --- | --- | --- |\n| `tics` | you're absolutely right, you are absolutely right, great question, excellent question, i apologize, certainly!, absolutely!, as an ai, it's worth noting, i hope this helps, let me know if, delve, em dash | The phrases to count, whole and regardless of case. The words `em dash` mean the character. Your list replaces the built-in one; an empty list brings it back. |\n| `show` | `band` | Where the running count shows: `band` (the line above the prompt), `status` (the status line, as `16 tics`, which the engine shows as `swear-jar: 16 tics`), `both`, or `off`. The scoreboard pane works whatever you pick. |\n\n## What it can touch\n\n- **Reads:** the text of each main-conversation response as Claude Code receives it from the model, counted once and kept in memory; its two settings; its own store. Not subagents' responses, not the transcript file, never your prompts.\n- **Writes:** two small values in its own store (the all-time counts, the nudge switch), the band, the status line, the pane, toasts, and a transcript row where no pane can be placed (the model does not read it).\n- **Model calls:** none of its own. With the nudge on, one line of about 30 tokens joins every request's system prompt, on the session side of the cache; with it off, nothing. `/swear-jar` answers with no command output, so the model never reads the scoreboard.\n- **No files, no processes, no network.** It never changes a reply's text and never holds a tool call.\n\n## Limits\n\n- Whole phrases in English, case aside: \"You're absolutely, completely right\" is not caught, and neither is a tic split across lines.\n- A reply that only called tools has no text and counts nothing. A reply cut short counts what came back.\n- Counts are a mirror, not a judgment: some \"I apologize\" are earned.\n- The band, the pane and the status line are checked through the engine's test kit on the terminal and desktop surfaces.\n\n## Built from a prompt\n\nThis mod was built from [the Swear jar prompt](../../prompts/swear-jar.md).\n",
+      "commands": [
+        {
+          "name": "swear-jar",
+          "description": "The jar for the model's verbal tics: scoreboard, reset, nudge on|off"
+        }
+      ],
+      "settings": [
+        {
+          "key": "tics",
+          "type": "string",
+          "default": [
+            "you're absolutely right",
+            "you are absolutely right",
+            "great question",
+            "excellent question",
+            "i apologize",
+            "certainly!",
+            "absolutely!",
+            "as an ai",
+            "it's worth noting",
+            "i hope this helps",
+            "let me know if",
+            "delve",
+            "em dash"
+          ],
+          "description": "The phrases to count, whole and regardless of case. The words 'em dash' count every em dash. Replaces the built-in list."
+        },
+        {
+          "key": "show",
+          "type": "string",
+          "default": "band",
+          "description": "Where the running count shows: band (a dim line above the prompt), status (the status line), both, or off. The scoreboard pane works either way."
+        }
+      ],
+      "tests": {
+        "count": 33,
+        "surfaces": [
+          "terminal",
+          "desktop"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "e9b3468",
+      "reach": [
+        "display only"
+      ],
+      "touches": {
+        "files": "none",
+        "commands": false,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": []
+      },
+      "events": [
+        "session.start",
+        "turn.step",
+        "prompt.compose",
+        "command.run /swear-jar",
+        "ui.render AbovePrompt",
+        "ui.render Pane"
+      ]
+    },
+    {
+      "name": "switchboard",
+      "title": "Switchboard",
+      "tagline": "Every Claude Code session on your machine in one pane, and which one needs you.",
+      "category": "visibility",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.2.0",
+      "keywords": [
+        "sessions",
+        "multitasking",
+        "needs-you",
+        "pane",
+        "visibility"
+      ],
+      "prompt": "Build me a Claude Code mod called \"switchboard\": a pane that lists every Claude Code session on this machine and tells me which one is waiting on me.\n\nHow sessions find each other: each session running the mod writes one small JSON file about itself to ~/.claude/switchboard/<session id>.json (under CLAUDE_CONFIG_DIR when set): its name, its state, where it runs (terminal, desktop or nothing attached), what a dialog waits on, when that state began, when it last had a turn, a heartbeat time, and its cost so far when Claude Code reports one. Never any message text. It rewrites the file when its state changes and every 30 seconds; a file not rewritten for 90 seconds means the session is closed.\n\nThe name: the title in the desktop sidebar (a custom-title line in the session's transcript), else the one Claude Code writes (ai-title), else the folder. Read it with `tail -c 262144` on the session's own transcript when it starts and at most every two minutes at a turn's end, keeping only the title lines.\n\nStates, from the session's own events: working (a turn started), needs you (Claude Code's own \"waiting on you\" notification; say what for: \"a permission for Bash\" from the tool the turn last called, \"a question\", \"a plan to approve\"), error (the turn ended on an error), idle (the turn ended), closed (inferred from a stale file). After a dialog is answered and its tool runs, it is working again. A /clear marks the old conversation gone and carries on under the new id.\n\nWhat I see\n- /switchboard opens a pane: \"N need you\" in amber (or \"Nothing needs you\" in green), then \"You are here: <name> (<where>)\", then one row per session, who needs me first: a mark and a colour per state (! waiting, ✕ error, ● working, ○ idle, - closed, never colour alone), the name, the state in words (\"waiting on a permission for Bash · 2m\", \"idle for 9m\", \"closed 2m ago\"), where it runs, and the cost when it is a cent or more.\n- Idle sessions with no turn in the last hour fold into one line (\"26 quiet sessions\") with a Show button. Closed ones sit dimmed at the bottom.\n- While another session needs me: one line above my prompt saying which and where, with Show, and a count in the footer (\"1 needs you\"). Never for this session's own dialog.\n- A toast the moment another session starts needing me, once per change, never on the first read, saying where it is.\n\nRules\n- Read the other files every 5 seconds only while I am looking at this session, the newest 60 at most, and only the files that changed; redraw only when what is on screen changed.\n- Watch only: never focus, answer or type into another session. No network, no model calls; the only command it runs is that tail.\n- Clean every name to one line with no control characters. Skip half-written or unknown files.\n- Terminal and desktop app. Other mods' lines above the prompt come first.\n\nTests: this session's own record through its events, the title from a transcript tail, the pane, band and footer from fake sessions in every state, the quiet fold, exactly one toast per change, no redraw on unchanged reads, and every file touched inside the switchboard folder.",
+      "media": null,
+      "readme": "# Switchboard\n\nEvery Claude Code session on your machine in one pane, and which one needs you.\n\n```\n2 need you\nYou are here: api-server (terminal)\n\n! Fix the login                                           desktop\n    waiting on a permission for Bash · 2m\n✕ tests           stopped on an error 5m ago             terminal\n● docs            working for 2m                          terminal   ≈$0.49\n○ web             idle for 12m                            terminal\n○ 26 quiet sessions: idle, no turn in the last hour       [Show]\n- old             closed 2m ago                           terminal\n```\n\n## Install\n\n```\n/plugin install switchboard --marketplace modmyclaude/claude-code-mods\n```\n\nInstall it in every session you run (a user-scope install does that): each session shows up once Switchboard runs in it.\n\n## Use it\n\n- **`/switchboard`** opens the pane. The first line says how many sessions need you, and the next one says which session you are in and where.\n- **One row per session**, who needs you first: a mark and a colour for its state, its name (the title in the desktop sidebar, or the one Claude Code gives it, else its folder), what it is doing in words, where it runs, and its cost so far when Claude Code keeps that figure.\n  - `!` **waiting on** a permission (and for which tool), a subagent's permission, a question, a plan to approve, or an answer\n  - `✕` **stopped on an error**\n  - `●` **working**\n  - `○` **idle** (or **new**, opened and not prompted yet)\n  - `-` **closed** (it stopped reporting; listed for an hour)\n- **Quiet sessions** (idle, with no turn in the last hour) fold into one line. **Show** unfolds them; each new start of the session folds them again.\n- A session waiting on you says what for on a line of its own. On a narrow pane the names shorten first, so the state and where always show.\n- **While another session needs you**, a line above your prompt says which and where (`! Fix the login needs you (desktop)`, with **Show** to open the pane), and the footer counts them (`1 needs you`). Never for this session's own dialog, which is already in front of you.\n- **A toast** the moment another session starts needing you, once per change: `Fix the login needs you (desktop).`\n\nIt only watches. It never switches to, answers or types into another session: go to that session to answer it.\n\n## Settings\n\n- **On:** on by default. Off, Switchboard writes no record, reads no other session's and draws no line, footer count or rows; switched off while it runs, its record says closed one last time, so other sessions stop showing this one working or waiting on you. `/switchboard` says it is off. `/config` or the modmyclaude hub flips it, live.\n\n## What it can touch\n\n- **Writes:** one small file for this session, `~/.claude/switchboard/<session id>.json` (or under `CLAUDE_CONFIG_DIR` when that is set), rewritten when its state changes and every 30 seconds, and once more, as closed, when you switch Switchboard off. It holds the session's name, state, where it runs, what a dialog waits on (a tool's name, such as `Bash`), three times (when its state began, when it last had a turn, and when the file was written), whether it is new (not prompted yet), and its cost figure. The name is the session's title, which Claude Code writes as a short summary of your first prompt (or you set in the desktop sidebar), else the folder's name. Nothing else of your prompts, Claude's replies or your files.\n- **Reads:** the other files in that folder, every 5 seconds while you are looking at this session (a terminal or the desktop app attached) and whenever this session's own state or title changes, only the ones that changed since the last read. Its own session's events: turns starting and ending, the tool a turn calls, Claude Code's own \"waiting on you\" notice, the session title, and the cost figure.\n- **Runs:** `tail` on this session's own transcript (its last 256 KB) to find the session's title: when it starts, and at a turn's end at most every two minutes. Until the session has a title it also looks at every turn's end, at Claude Code's \"waiting on you\" notice, at a /clear or resume, and at the first prompt, so a new session gets its name quickly. Only the title lines are kept; the rest is never stored or shown.\n- **Session state:** the rows as last read, and whether the quiet ones are unfolded.\n- **Network, model calls:** none.\n\n## Limits\n\n- A session shows up only once Switchboard runs in it. Sessions started before you installed it appear after their next restart, or at once where Claude Code hot-loads the mod into them.\n- A dialog shows as waiting about six seconds after it opens, when Claude Code raises its own notice; once you answer it, the row says working again after the tool it asked about has run.\n- A closed session is inferred: one that has not rewritten its file for 90 seconds is shown as closed. A computer waking from sleep shows its sessions as closed for up to half a minute.\n- A brand-new session shows its folder's name until Claude Code titles it, usually after the first prompt. On a host with no `tail` (Windows), the title comes only with your next prompt.\n- Files of old sessions stay in the folder (a few hundred bytes each): Claude Code gives mods no way to delete a file. They are never read once older than an hour, and you can delete the folder at any time.\n- Two sessions with the same name get the first characters of their ids to tell them apart.\n- An older session that has had no turn since Switchboard loaded into it counts as quiet, since its last turn is unknown.\n- The pane, the line and the footer are checked through the engine's test kit on the terminal and desktop surfaces.\n\n## Built from a prompt\n\nThis mod was built from [the Switchboard prompt](../../prompts/switchboard.md).\n",
+      "commands": [
+        {
+          "name": "switchboard",
+          "description": "Every Claude Code session on this machine, and which one needs you"
+        }
+      ],
+      "settings": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": true,
+          "description": "Switch switchboard off without uninstalling it. The modmyclaude hub flips this too."
+        }
+      ],
+      "tests": {
+        "count": 48,
+        "surfaces": [
+          "terminal",
+          "desktop"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "d1cbb8d",
+      "reach": [
+        "writes files",
+        "reads files",
+        "runs commands",
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "read-write",
+        "commands": true,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "config.set",
+          "classic.SessionStart",
+          "classic.UserPromptSubmit",
+          "classic.Notification",
+          "tool.call"
+        ]
+      },
+      "events": [
+        "config.set \"switchboard.enabled\"",
+        "session.start",
+        "classic.SessionStart",
+        "classic.UserPromptSubmit",
+        "turn.start",
+        "turn.complete",
+        "classic.Notification",
+        "tool.call",
+        "session.measure",
+        "session.end",
+        "session.attach",
+        "command.run /switchboard",
+        "ui.render SessionMode",
+        "ui.render AbovePrompt",
+        "ui.render Pane"
+      ]
+    },
+    {
       "name": "thermostat",
       "title": "Thermostat",
       "tagline": "Shows when your prompt cache goes cold, and stops the expensive send.",
@@ -1238,6 +1813,97 @@
         "command.run /thermostat",
         "ui.render Pane",
         "ui.render SessionMode"
+      ]
+    },
+    {
+      "name": "umpire",
+      "title": "Umpire",
+      "tagline": "Runs your tests after Claude edits code and makes the call. Off by default.",
+      "category": "workflow",
+      "surfaces": [
+        "terminal",
+        "desktop"
+      ],
+      "modelCalls": "none",
+      "version": "0.2.0",
+      "keywords": [
+        "tests",
+        "ci",
+        "watch",
+        "band",
+        "status"
+      ],
+      "prompt": "Build me a Claude Code mod called \"umpire\": it runs my tests after Claude edits code and shows the call. It is off until I say /umpire on.\n\nFind the test command once per session: my setting first, else one I set for this project with /umpire command (kept per project in the mod's store), else package.json's test script (through pnpm, yarn, bun or npm by lockfile, never npm's \"no test specified\" placeholder), pytest, go test ./... or cargo test. Run it at the end of any main turn in which Claude's Edit, Write or NotebookEdit changed a file: one run at a time in the project root with CI=1 and colour off, a time limit I can set, started off the turn's clock (never inside a hook's wait); a turn that ends during a run queues exactly one more.\n\nRead the result from Jest, Vitest, pytest, go test and cargo test summaries (passed, failed, the failing names), else from the exit code. Show one line above the prompt with the counts, the first three failing names (+N more) and the run time, in the error colour when failing; a toast only when the result flips; a status-line entry with the counts. /umpire show opens a pane with the call, a history mark per run, the failing names and the output's end. \"tell Claude\" fills my prompt box with the failing names and the last 30 lines, secrets redacted, after anything I typed; never send anything yourself. on, run, command and tell run only when I type them.\n\nNever change files, never run anything but the test command, never run outside the project. Keep the last ten runs' output in memory only. Terminal and desktop app, under other mods' lines.",
+      "media": null,
+      "readme": "# Umpire\n\nRuns your tests after Claude edits code and makes the call: passed and failed counts above the prompt, a toast when it flips. Off by default.\n\n```\numpire: 142 passed · 2 failed · auth.test.ts, user.test.ts · 8.3 s\n```\n\n## Install\n\n```\n/plugin install umpire --marketplace modmyclaude/claude-code-mods\n```\n\n## Use it\n\nType `/umpire on`. From then on, at the end of every turn in which Claude changed files with its own tools (Edit, Write, NotebookEdit), umpire runs your project's tests once, and:\n\n- **A line above the prompt** makes the call: passed and failed counts, the first three failing tests or files (`+2 more` past that) and how long it took, in the error colour when something fails. While the tests run it says so.\n- **A toast** only when the call flips: the tests started failing, or they pass again. Never on every run.\n- **The status line** keeps the count: `tests 142/144`.\n- **`/umpire show`** opens the last run: the call, a mark per run for the last ten, the failing names, and the end of the output. **tell Claude** puts the failing names and the output's last 30 lines in your prompt box, after anything you typed, with anything that looks like a secret redacted. You decide whether to send it.\n- **A hold** when a file that says what the tests run changes: `package.json`, `pyproject.toml`, `pytest.ini`, `go.mod` or `Cargo.toml`. Claude editing one anywhere in the project, or anything changing one at the project root (a shell command, you), stops the runs that start on their own, and the line says which file. They wait until you start a run with `/umpire run` or **run again**, so a test command Claude just changed waits for you to start it.\n\nIt finds the test command once per session: your setting, else the one you set for this project with `/umpire command`, else `package.json`'s test script (through pnpm, yarn, bun or npm, by lockfile), pytest, `go test ./...` or `cargo test`. It understands the summaries of Jest, Vitest, pytest, go test and cargo test; for anything else, the exit code makes the call.\n\n| Command | What it does |\n| --- | --- |\n| `/umpire on` | Run the tests after each turn that changes files (only when you type it) |\n| `/umpire off` | Stop |\n| `/umpire run` | Run them now (only when you type it) |\n| `/umpire show` | The last run, in a pane |\n| `/umpire command <cmd>` | Set this project's test command, as you would type it (only when you type it) |\n| `/umpire tell` | Put the failures in your prompt box (only when you type it) |\n\n\"Only when you type it\" means typed by you in the terminal, the desktop app or Remote Control. A program you run that drives Claude Code through its SDK counts as you too, since the desktop app sends that way; another mod, a peer session or Claude running the command is refused.\n\n## Settings\n\nEvery setting has a default, so the notice at install about options not yet set is expected; change them in `/config`.\n\n- **On:** on by default. Off, Umpire runs nothing and draws nothing, and every `/umpire` command says it is off; switched on again, `/umpire on` (or the setting below) decides, as before. `/config` or the modmyclaude hub flips it, live. It runs commands, so another mod cannot switch it on; anyone can switch it off.\n- **On from the start:** run in every session without `/umpire on`. Off by default.\n- **Test command:** the command to run, as you would type it. Empty: found from the project.\n- **Time limit (seconds):** 120 by default; a longer run is stopped and called timed out.\n\n## What it can touch\n\n- **Runs:** the one test command, in the project root, with `CI=1` and colour off so test runners do not wait in watch mode, stopped at the time limit. A command you typed (the setting or `/umpire command`) runs through `sh` as you wrote it. Nothing else.\n- **Reads:** the project's `package.json`, `pyproject.toml`, `pytest.ini`, `go.mod` and `Cargo.toml`, and whether a lockfile or `tests/` exists, to find the command and to see when one of those files changes. The paths of the files Claude's tools edit, to hold the runs when one of them is such a file.\n- **Keeps:** the last ten runs' output, a million characters at most, in the mod's memory only. The command you set per project in its own store, keyed by a hash of the project's path.\n- **Writes:** its session state (on or off, the runs' calls, the hold), the line, the status line, toasts, and your prompt box when you press tell Claude, never sent.\n- **Network, model calls:** none of its own. Your tests may do anything your tests do.\n\n## Limits\n\n- Changes a shell command made (a formatter, a codegen script) do not trigger a run; only Claude's own file tools do. `/umpire run` covers the rest.\n- One run at a time: a turn that ends during a run queues exactly one more, run when the first is done.\n- Counts come from the test runner's summary line; go test without `-v` names failing tests but counts no passes.\n- The run's output is shown as the runner printed it, without colour. Long output keeps its end. Past 4 MB the engine stops keeping it: the call then says `output cut at 4 MB` and may have no counts.\n- The hold covers the files that say what the command runs. The tests themselves are code, and Claude may have written them: umpire runs them as your test runner would, so turn it on only where you would run the tests yourself. A command you set that reads another file (a Makefile) is not held when that file changes.\n- The line, the pane and the presses are checked through the engine's test kit on the terminal and desktop surfaces, with the test runner stood in for.\n\n## Built from a prompt\n\nThis mod was built from [the Umpire prompt](../../prompts/umpire.md).\n",
+      "commands": [
+        {
+          "name": "umpire",
+          "description": "Runs your tests after Claude edits code: on, off, run, show, command, tell"
+        }
+      ],
+      "settings": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": true,
+          "description": "Switch umpire off without uninstalling it. The modmyclaude hub flips this too."
+        },
+        {
+          "key": "startOn",
+          "type": "boolean",
+          "default": false,
+          "description": "Run the tests after every turn that changes files, in every session, without typing /umpire on."
+        },
+        {
+          "key": "command",
+          "type": "string",
+          "default": "",
+          "description": "The command to run, as you would type it (run through sh). Empty: found from the project (package.json's test script, pytest, go test, cargo test)."
+        },
+        {
+          "key": "maxSeconds",
+          "type": "number",
+          "default": 120,
+          "description": "A run longer than this is stopped and called timed out. 5 to 600."
+        }
+      ],
+      "tests": {
+        "count": 36,
+        "surfaces": [
+          "terminal",
+          "desktop"
+        ]
+      },
+      "license": "MIT",
+      "added": "2026-10-12",
+      "updated": "2026-10-23",
+      "commit": "8da3430",
+      "reach": [
+        "reads files",
+        "runs commands",
+        "hooks tool calls"
+      ],
+      "touches": {
+        "files": "read",
+        "commands": true,
+        "network": false,
+        "model": false,
+        "sound": false,
+        "hooks": [
+          "config.set",
+          "tool.call"
+        ]
+      },
+      "events": [
+        "config.set \"umpire.enabled\"",
+        "session.start",
+        "tool.call",
+        "turn.start",
+        "turn.complete",
+        "ui.render AbovePrompt",
+        "ui.render Pane",
+        "command.run /umpire"
       ]
     },
     {
