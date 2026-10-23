@@ -120,7 +120,7 @@ const PUBLISHED = (() => {
 
 function testsOf(modDir, name) {
   const dir = join(modDir, 'tests')
-  const files = existsSync(dir) ? readdirSync(dir).filter(f => /\.test\.tsx?$/.test(f)) : []
+  const files = existsSync(dir) ? readdirSync(dir).filter(f => /\.tsx?$/.test(f)) : []
   const text = files.map(f => readFileSync(join(dir, f), 'utf8')).join('\n')
   const surfaces = ['terminal', 'desktop', 'vscode', 'mobile'].filter(s => text.includes(`'${s}'`) || text.includes(`"${s}"`))
   let count = PUBLISHED[name] ?? null
