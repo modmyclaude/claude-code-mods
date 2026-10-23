@@ -1,6 +1,6 @@
 {
   "name": "swear-jar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Counts the model's verbal tics, from \"You're absolutely right\" to the em dash.",
   "homepage": "https://modmyclaude.com/mods/swear-jar",
   "repository": "https://github.com/modmyclaude/claude-code-mods",

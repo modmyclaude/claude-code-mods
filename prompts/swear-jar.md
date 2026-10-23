@@ -5,7 +5,6 @@ tagline: Counts the model's verbal tics, from "You're absolutely right" to the e
 category: fun
 surfaces: [terminal, desktop]
 model_calls: none
-draft: true
 ---
 
 # Swear jar
