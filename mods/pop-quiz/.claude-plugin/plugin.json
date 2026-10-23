@@ -1,6 +1,6 @@
 {
   "name": "pop-quiz",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Two short questions about Claude's latest code change, answers one press away. Off by default.",
   "homepage": "https://modmyclaude.com/mods/pop-quiz",
   "repository": "https://github.com/modmyclaude/claude-code-mods",

@@ -5,7 +5,6 @@ tagline: Two short questions about Claude's latest code change, answers one pres
 category: insight
 surfaces: [terminal, desktop]
 model_calls: one small-model call per quiz (opt-in)
-draft: true
 ---
 
 # Pop Quiz
