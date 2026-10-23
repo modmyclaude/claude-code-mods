@@ -5,7 +5,6 @@ tagline: Every Claude Code session on your machine in one pane, and which one ne
 category: visibility
 surfaces: [terminal, desktop]
 model_calls: none
-draft: true
 ---
 
 # Switchboard
