@@ -28,7 +28,10 @@
 // lists them and counts the blocking ones as findings.
 // The README judged is the plugin folder's; a collection's mod with none is judged by docs/<mod>.md,
 // docs/mods.md or the repository README, narrowed to the section whose heading names the mod when
-// there is one; --readme names the file to use instead.
+// there is one; --readme names the file to use instead. Only the mod's own text (its section, that
+// file's text outside every section, its description) can name a program, a host or a file read; the
+// repository README's shared text counts for the reach rows alone. A bare code span names a program
+// after a verb of running or needing (runs, needs, uses, by); as a label ("tagged `sh`") it does not.
 // Nothing here loads the mod. --test runs its tests through the engine CLAUDE_BIN names, so cage
 // that engine for a stranger's code. Exit 0: pass. Exit 1: findings. Exit 2: the check itself could
 // not run. CLAUDE_BIN names the Claude Code binary (2.1.287 or newer); otherwise `claude` on PATH.
@@ -472,7 +475,7 @@ const HASH_COMMENTS = /\.(py|pyi|rb|sh|bash|zsh|toml|ya?ml|ini|cfg|conf|pl)$/i
 const META_FILE = /(^|\/)(package(-lock)?\.json|marketplace\.json|pyproject\.toml|Cargo\.(toml|lock)|go\.(mod|sum)|tsconfig[^/]*\.json|[^/]*\.lock|yarn\.lock|pnpm-lock\.yaml|deno\.jsonc?|bun\.lockb?|\.editorconfig|LICENSE[^/]*|CHANGELOG[^/]*)$/i
 const TOOLING = /(^|\/)(\.github|\.changeset|\.husky|\.vscode|\.idea|\.circleci|\.gitlab|scripts?|tools?|ci|benchmarks?|bench)(\/|$)/i
 const VENDORED = /(^|\/)(vendor|vendored|third[-_]party|bundle|bundles|dist|build|lib|libs|renderer|external|generated)(\/|$)|\.min\.[cm]?js$|\.bundle\.[cm]?js$|generated-/i
-const JS_SEND = /\.http\.fetch\s*\(([\s\S]{0,600}?)\)\s*[;\n]/g
+const JS_SEND = /\.http\s*\.\s*fetch\s*\(([\s\S]{0,600}?)\)\s*[;\n]/g
 const OTHER_SEND = /\b(requests|httpx|session|client|urllib3|http)\.(post|put|patch)\s*\(|method\s*=\s*['"](POST|PUT|PATCH)['"]|urlopen\([^)]*\bdata\s*=|\bfetch\([^)]*method\s*:\s*['"`](POST|PUT|PATCH)/i
 
 // String constants across the mod's source, to resolve a program or a shell string given by name.
@@ -559,12 +562,14 @@ function scanSource(dir, root) {
   for (const rel of files) {
     const text = texts.get(rel)
     if (text === undefined) continue
-    const callRe = /\.process\.(run|spawn)\s*\(\s*/g
+    const callRe = /\.process\s*\.\s*(run|spawn)\s*\(\s*/g
     let m
     while ((m = callRe.exec(text))) {
       const at = m.index + m[0].length
       const where = `${rel}:${lineOf(text, m.index)}`
       let argv = null, how = ''
+      const tail = text.slice(at, at + 400)
+      const stdinGiven = /^\[[\s\S]*?\]\s*,\s*\{[^}]*\b(stdin|input)\s*:/.test(tail) || /^[A-Za-z_$][\w$]*\s*,\s*\{[^}]*\b(stdin|input)\s*:/.test(tail)
       if (text[at] === '[') argv = readArray(text, at).items
       else if (text[at] === '"' || text[at] === "'" || text[at] === '`') {
         // a command line as one string: its words are the argv
@@ -598,12 +603,12 @@ function scanSource(dir, root) {
       function record(items, at) {
         const c = classify(items)
         if (!c.program) { const id = items[0]?.expr; const near = candidatesNear(text, m.index); runtime.push({ at, candidates: near }); notes.push(`program named at run time (${id ?? 'a template'}${id && unresolved.has(id) ? `: ${unresolved.get(id)}` : ''}) at ${at}${near.length ? `; literals in that function: ${near.join(', ')}` : ''}`); return }
-        programs.push({ program: c.program, at, shellText: c.shellText, network: c.network, sends: c.sends, opensUrl: c.opensUrl, interpreter: c.interpreter })
+        programs.push({ program: c.program, at, shellText: c.shellText, network: c.network, sends: c.sends || Boolean(c.network && stdinGiven), opensUrl: c.opensUrl, interpreter: c.interpreter, stdin: stdinGiven })
         for (const sp of c.shellPrograms) if (sp !== c.program) programs.push({ program: sp, at: `${at} (in the shell string)`, shellText: null, network: null, sends: false, opensUrl: false, interpreter: INTERPRETERS.test(sp), viaShell: true })
         if (c.shellText && c.shellText.startsWith('<')) notes.push(`shell command text named at run time ${c.shellText} at ${at}`)
       }
     }
-    const toolRe = /\.tool\.call\s*\(\s*\{([\s\S]{0,600}?)\}\s*[,)]/g
+    const toolRe = /\.tool\s*\.\s*call\s*\(\s*\{([\s\S]{0,600}?)\}\s*[,)]/g
     while ((m = toolRe.exec(text))) {
       const body = m[1]
       const tool = /\btool\s*:\s*['"`]([\w-]+)['"`]/.exec(body)?.[1] ?? 'a tool named at run time'
@@ -860,7 +865,8 @@ function checkPlugin(root, dir, commitDays) {
   const scan = scanSource(dir, root)
   const tests = testCheck(dir, root)
 
-  const saidRaw = `${readme?.text ?? ''}\n${readme?.general ?? ''}\n${readme?.also?.text ?? ''}\n${manifest.description ?? ''}`
+  const saidOwn = `${readme?.text ?? ''}\n${readme?.general ?? ''}\n${manifest.description ?? ''}`
+  const saidRaw = `${saidOwn}\n${readme?.also?.text ?? ''}`
   const said = saidRaw.toLowerCase()
   const readmeLines = (readme?.text ?? '').split('\n')
   const firstScreenRaw = readmeLines.slice(0, FIRST_SCREEN_LINES).join('\n')
@@ -869,11 +875,30 @@ function checkPlugin(root, dir, commitDays) {
   // HOME and USERPROFILE are named by `~/` or "home folder" as well as by name.
   const names = n => saidRaw.includes(n) || ((n === 'HOME' || n === 'USERPROFILE') && /~\/|home (folder|directory)/i.test(saidRaw))
   const nameSaid = name => new RegExp(`(^|[^a-z0-9_.-])${esc(name)}([^a-z0-9_]|$)`, 'i').test(saidRaw)
-  const nameLine = name => { const re = new RegExp(`(^|[^a-z0-9_.-])${esc(name)}([^a-z0-9_]|$)`, 'i'); const i = readmeLines.findIndex(l => re.test(l)); if (i >= 0) return `line ${i + 1 + (readme?.offset ?? 0)}`; if (readme?.general && re.test(readme.general)) return 'the general text'; if (readme?.also && re.test(readme.also.text)) return `the repository's ${readme.also.path}`; if (manifest.description && re.test(manifest.description)) return 'the description'; return null }
-  const programSaid = name => nameSaid(name) || (ALIASES[name]?.test(saidRaw) ?? false)
+  const nameLine = name => { const i = readmeLines.findIndex(l => programSaidIn(name, l)); if (i >= 0) return `line ${i + 1 + (readme?.offset ?? 0)}`; if (readme?.general && programSaidIn(name, readme.general)) return 'the general text'; if (manifest.description && programSaidIn(name, manifest.description)) return 'the description'; if (readme?.also && programSaidIn(name, readme.also.text)) return `only the repository's ${readme.also.path}, which does not count for a program`; return null }
+  // A program is named by its word in prose, by a code span holding more than the bare word (`sh -c`,
+  // `tail -c 16384`), or by a bare code span after a verb of running; a bare code span used as a label
+  // ("tagged `sh`") does not name it.
+  const programSaidIn = (name, text) => {
+    if (ALIASES[name]?.test(text)) return true
+    const word = new RegExp(`(^|[^a-z0-9_.-])${esc(name)}([^a-z0-9_]|$)`, 'i')
+    if (word.test(text.replace(/`[^`\n]*`/g, ' '))) return true
+    for (const line of text.split('\n')) {
+      for (const span of line.match(/`[^`]*`/g) ?? []) {
+        if (!word.test(span)) continue
+        if (span.slice(1, -1).trim().split(/\s+/).length > 1) return true
+        // a verb of running or needing, then up to 40 characters with no label word, then the span
+        if (new RegExp(`(?<!\\b(?:starts?|begins?|ends?|tagged|labell?ed|marked|prefixed|shown|displayed|sorted|grouped)\\s)\\b(run|runs|running|ran|needs?|requires?|requiring|uses?|using|depends? on|launch(es)?|spawn(s|ed)?|execut(e|es|ed)|calls?|calling|invoke(s|d)?|install(s|ed)?|through|via|with|by|shell(s)? out to)\\b(?:(?!\\b(?:tagged|tag|labell?ed|label|named|name|called|marked|mark|prefixed|prefix|shown as|displayed as|press|key|shortcut)\\b)[^\`]){0,40}${esc(span).replace(/\\\\/g, '\\\\')}`, 'i').test(line)) return true
+      }
+    }
+    return false
+  }
+  const programSaid = name => programSaidIn(name, saidOwn)
   const soft = name => PROBE.test(name) || FILE_UTILS.test(name)
   const hostLabel = host => { const parts = host.split('.'); return parts.length >= 3 && /^(co|com|org|net|gov|ac|edu)$/.test(parts[parts.length - 2]) ? parts[parts.length - 3] : parts[parts.length - 2] ?? host }
-  const hostSaid = host => said.includes(host) || nameSaid(hostLabel(host))
+  const saidOwnLower = saidOwn.toLowerCase()
+  const nameSaidOwn = name => new RegExp(`(^|[^a-z0-9_.-])${esc(name)}([^a-z0-9_]|$)`, 'i').test(saidOwn)
+  const hostSaid = host => saidOwnLower.includes(host) || nameSaidOwn(hostLabel(host))
   const hostLine = host => { const i = readmeLines.findIndex(l => l.toLowerCase().includes(host) || new RegExp(`(^|[^a-z0-9_.-])${esc(hostLabel(host))}([^a-z0-9_]|$)`, 'i').test(l)); return i < 0 ? null : i + 1 + (readme?.offset ?? 0) }
   const sendsData = scan.sends.length > 0 || scan.programs.some(p => p.sends)
   const netWords = REACH.find(r => r.id === 'network').words
@@ -926,6 +951,14 @@ function checkPlugin(root, dir, commitDays) {
     const declared = g.words.test(said)
     gateRows.push({ id: g.id, hooks, declared })
     if (!declared) finding(1, `gate not in the README: ${g.id} (${hooks.join(', ')})`)
+  }
+  const FILE_READERS = /^(tail|cat|head|less|more|grep|egrep|rg|find|stat|wc|awk|sed|cut|sort|uniq|diff|file|readlink|realpath|ls|du|strings|xxd|od)$/
+  const readers = scan.programs.filter(p => FILE_READERS.test(p.program))
+  if (readers.length) {
+    const words = REACH.find(r => r.id === 'files read').words
+    const declared = words.test(saidOwnLower)
+    if (!reachRows.some(r => r.id === 'files read')) reachRows.push({ id: 'files read', check: 1, calls: uniq(readers.map(p => `${p.program} at ${p.at}`)), declared, line: declared ? lineSaying(words) : null, onFirstScreen: null })
+    if (!declared) finding(1, `files read through programs (${uniq(readers.map(p => p.program)).join(', ')} at ${readers[0].at}) is not in the mod's own README text`)
   }
   const unnamedEnv = reach.envReads.filter(n => !names(n))
   if (unnamedEnv.length) warn(1, `environment variables read but not named in the README: ${unnamedEnv.join(', ')}`)
@@ -1018,7 +1051,7 @@ function checkPlugin(root, dir, commitDays) {
     gates: reach.gates,
     programs: scan.programs.map(p => ({ ...p, said: nameLine(p.program) ?? (ALIASES[p.program]?.test(saidRaw) ? 'by another word' : null) })),
     runtimePrograms: scan.runtime,
-    hosts: scan.hosts.map(h => ({ ...h, said: said.includes(h.host) ? nameLine(h.host) ?? 'the general text' : nameLine(hostLabel(h.host)) })),
+    hosts: scan.hosts.map(h => ({ ...h, said: saidOwnLower.includes(h.host) ? nameLine(h.host) ?? 'the general text' : nameLine(hostLabel(h.host)) })),
     sends: scan.sends,
     sourceFiles: scan.files,
     reach: reachRows,
