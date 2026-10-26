@@ -55,6 +55,10 @@ jobs:
           node-version: 22
       - name: Links and images resolve
         run: node scripts/check-links.mjs
+      - name: Community list renders and every listed repository is still there
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/community-list.mjs --check --repos
       - name: Sound packs are in spec
         run: node scripts/check-sounds.mjs
       - name: House style (no em or en dashes)

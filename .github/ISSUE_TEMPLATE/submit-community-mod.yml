@@ -1,0 +1,97 @@
+name: Submit a community mod
+description: Ask us to list and check a Claude Code mod you made or use
+labels: [community]
+body:
+  - type: markdown
+    attributes:
+      value: Read [COMMUNITY.md](https://github.com/modmyclaude/claude-code-mods/blob/main/COMMUNITY.md) first. We run the six checks it describes and answer here. Listing is not an endorsement or a security audit.
+  - type: input
+    id: repo
+    attributes:
+      label: Repository
+      description: The GitHub repository that holds the mod.
+      placeholder: https://github.com/owner/repo
+    validations:
+      required: true
+  - type: input
+    id: path
+    attributes:
+      label: Path inside the repository
+      description: Leave empty when the mod is the whole repository.
+      placeholder: plugins/my-mod
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or tag to check
+      description: We check one exact revision; a later commit is unchecked until we check it.
+      placeholder: v1.2.0 or a 40-character commit sha
+    validations:
+      required: true
+  - type: input
+    id: summary
+    attributes:
+      label: One sentence on what it does
+      description: What changes in Claude Code. Plain words.
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Are you the author?
+      options: ["Yes", "No, I use it"]
+    validations:
+      required: true
+  - type: textarea
+    id: reach
+    attributes:
+      label: What it can reach
+      description: What it reads, writes, runs and changes; every network host and model call with what is sent, when, why and what it may cost. Write "none" where that is true.
+    validations:
+      required: true
+  - type: dropdown
+    id: surfaces
+    attributes:
+      label: Where you have tested it
+      multiple: true
+      options: [Terminal, Desktop app (Code tab), VS Code, Mobile]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Claude Code version you tested on
+      placeholder: 2.1.310
+    validations:
+      required: true
+  - type: input
+    id: tests
+    attributes:
+      label: How to run the tests
+      placeholder: claude plugin test .
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: Licence
+      placeholder: MIT
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Known limits
+      description: What it does not handle. We quote this on the listing.
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before we start
+      options:
+        - label: The README says what the mod reaches, and the mod does nothing beyond that.
+          required: true
+        - label: The repository holds no real secrets and no secret-shaped strings.
+          required: true
+        - label: The licence allows linking to and using the mod.
+          required: true
+        - label: I understand listing is not an endorsement or a security audit, and a listed mod can be removed if a later check fails.
+          required: true

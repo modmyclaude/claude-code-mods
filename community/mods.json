@@ -1,0 +1,306 @@
+{
+  "schema": 1,
+  "about": "Mods for Claude Code made by other people, listed and checked by modmyclaude. Criteria and what \"checked\" means: COMMUNITY.md in this repo.",
+  "repo": "modmyclaude/claude-code-mods",
+  "updated": "2026-10-26",
+  "mods": [
+    {
+      "name": "context-bar",
+      "title": "Context Bar",
+      "summary": "One bar above the prompt, split by what fills the context window.",
+      "author": "hamzafer",
+      "repo": "hamzafer/claude-code-mods",
+      "path": "mods/context-bar",
+      "commit": "afdf834da210b082bb6446a03315df3d4ca28018",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "One bar split by what fills the window; reads the cache lifetime from the session transcript (docs/mods.md).",
+      "reach": [
+        "reads env",
+        "reads files (the session transcript)",
+        "draws a band"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "23 of 23",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "image-view",
+      "title": "Image View",
+      "summary": "Thumbnails of pasted images above the prompt, made on your machine.",
+      "author": "jarrodwatts",
+      "repo": "jarrodwatts/claude-image-view",
+      "path": ".",
+      "commit": "370b8e7bc0708bebe9762e63534f7ca18bc3e802",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "Local only, no network; reads the prompt box and Claude Code's temp image cache; runs sips for non-PNG pastes and writes one PNG thumbnail (README, Security).",
+      "reach": [
+        "reads env and files",
+        "runs programs (sips, id)",
+        "reads the prompt",
+        "writes one thumbnail file"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "19 of 19",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "filetree",
+      "title": "Filetree",
+      "summary": "An IDE-style file tree pane with git status, Quick Look and open-in-editor.",
+      "author": "data-goblin",
+      "repo": "data-goblin/claude-code-filetree",
+      "path": ".",
+      "commit": "2489b4e4e7ffc3f5fac39aff108071380cae1f09",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "git status and git or gh operations, Quick Look on macOS, open with the default app or your editor in tmux or herdr (README).",
+      "reach": [
+        "runs programs (git, gh, find, du, tmux, herdr, qlmanage, osascript)",
+        "writes and removes temp marker files",
+        "sees every tool call and prompt"
+      ],
+      "notes": "The README does not yet name osascript, which it uses to bring Quick Look forward.",
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "93 of 93",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "flightdeck",
+      "title": "Flightdeck",
+      "summary": "An agent dashboard pane: tool calls, subagents and compaction as they happen.",
+      "author": "scasella",
+      "repo": "scasella/claude-flightdeck",
+      "path": ".",
+      "commit": "6150b9f40b0a36e42c22d39f03ddb81aaefe1844",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "State and drawing only (README, What it can reach).",
+      "reach": [
+        "state and drawing only",
+        "sees tool calls, subagents and compaction"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "28 of 28",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "hal-grammar-check",
+      "title": "HAL Grammar Check",
+      "summary": "A grammar check of your prompt as you type, through Claude Haiku on your own account or a local Ollama.",
+      "author": "vinta",
+      "repo": "vinta/hal-9000",
+      "path": "plugins/hal-grammar-check",
+      "commit": "a7d05e966e7c5eaa13bf520cabc9a6bbe47f7436",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "The first 500 characters of your draft go to the model: claude/haiku through your Claude account, or ollama/ to localhost:11434 only (README, Privacy).",
+      "reach": [
+        "model calls (Claude Haiku on your account, or a local Ollama)",
+        "runs curl to the local Ollama",
+        "sees your prompt as you type"
+      ],
+      "notes": "Tests are thin: two.",
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "2 of 2",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "prismantis",
+      "title": "Prismantis",
+      "summary": "Themeable rendering of Claude's replies, with optional LaTeX and a clipboard helper.",
+      "author": "NahumLitvin",
+      "repo": "NahumLitvin/prismantis",
+      "path": ".",
+      "commit": "86492531383be01074ac066b2e3c9734e6837918",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "No network calls; runs a program only when you click html (clipboard helper) or turn on LaTeX; its settings live under its own keys (README).",
+      "reach": [
+        "changes its own settings",
+        "reads env, files and the transcript",
+        "runs programs (RaTeX, clipboard helper) when you ask",
+        "sees tool calls and prompts"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "877 of 877",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "after",
+      "title": "After",
+      "summary": "A prompt queue: the next task goes in when a turn ends; plain-language edits to the queue are read by Haiku.",
+      "author": "midudev",
+      "repo": "midudev/after-for-claude-code",
+      "path": "plugins/after",
+      "commit": "57aa28511c8d66b68d26460985c5ef5996902600",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "The queue moves when a turn completes and submits the next task; plain-language edits are read by Haiku (README).",
+      "reach": [
+        "model calls (Haiku)",
+        "submits prompts for you",
+        "stores the queue"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "20 of 20",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "token-meter",
+      "title": "Token Meter",
+      "summary": "A token meter in the prompt hint.",
+      "author": "midudev",
+      "repo": "midudev/after-for-claude-code",
+      "path": "plugins/token-meter",
+      "commit": "57aa28511c8d66b68d26460985c5ef5996902600",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "A token meter in the prompt hint (README).",
+      "reach": [
+        "state and drawing only"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "4 of 4",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "think-hard",
+      "title": "Think Hard",
+      "summary": "Start a prompt with + and that turn runs at max effort; the + is removed first.",
+      "author": "midudev",
+      "repo": "midudev/after-for-claude-code",
+      "path": "plugins/think-hard",
+      "commit": "57aa28511c8d66b68d26460985c5ef5996902600",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "Start a prompt with + and that turn thinks at max effort; the + is removed before Claude sees it (README).",
+      "reach": [
+        "rewrites the prompt (drops the +)",
+        "sets max effort for that turn"
+      ],
+      "notes": "Max effort uses more of your limits.",
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-23",
+        "claudeCode": "2.1.309",
+        "tests": "3 of 3",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    }
+  ]
+}
