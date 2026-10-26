@@ -249,7 +249,7 @@ No. This is an independent community project. It uses only Claude Code's mods AP
 
 ## Community mods
 
-Mods by other people that passed our checks are listed in [COMMUNITY.md](COMMUNITY.md), with what each one can reach and the commit we checked. They carry the mark **Community, checked by modmyclaude**; the mods above are **Built by modmyclaude**. Made one? Open a [Submit a community mod](https://github.com/modmyclaude/claude-code-mods/issues/new?template=submit-community-mod.yml) issue.
+Mods by other people go through six checks and are listed in [COMMUNITY.md](COMMUNITY.md) once they pass, with what each one can reach and the commit we checked. A listed one carries the mark **Community, checked by modmyclaude**; the mods above are **Built by modmyclaude**. Made one? Open a [Submit a community mod](https://github.com/modmyclaude/claude-code-mods/issues/new?template=submit-community-mod.yml) issue.
 
 ## Contributing
 

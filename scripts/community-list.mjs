@@ -50,15 +50,22 @@ function link(m) {
 }
 function row(m) {
   const notes = m.notes ? ` ${m.notes}` : ''
-  const status = m.status === 'checked' ? 'checked' : 'candidate'
-  return `| [**${m.title}**](${link(m)})<br>by [${m.author}](https://github.com/${m.author}) | ${m.summary}${notes} | ${m.reach.join('; ')} | ${status}, ${m.checked.date} on Claude Code ${m.checked.claudeCode}, tests ${m.checked.tests ?? 'n/a'} |`
+  return `| [**${m.title}**](${link(m)})<br>by [${m.author}](https://github.com/${m.author}) | ${m.summary}${notes} | ${m.reach.join('; ')} | ${m.checked.date} on Claude Code ${m.checked.claudeCode}, tests ${m.checked.tests ?? 'n/a'} |`
 }
+// Only a mod that passed all six checks gets a row. A candidate (the install check still to run) is counted,
+// never named here, marked or linked: the page lists checked mods, and the JSON carries the rest with its status.
+const all = list.mods ?? []
+const listed = all.filter(m => m.status === 'checked')
+const waiting = all.length - listed.length
+const note = waiting
+  ? `${waiting} more ${waiting === 1 ? 'mod is' : 'mods are'} in community/mods.json as candidates: five of the six checks passed, and the install check on a real terminal and desktop app is still to run. A candidate is not listed, marked or endorsed until it passes.`
+  : ''
 const table = [
-  '| Mod | What it does | What it can reach | Status |',
-  '|---|---|---|---|',
-  ...(list.mods ?? []).map(row),
+  listed.length
+    ? ['| Mod | What it does | What it can reach | Checked |', '|---|---|---|---|', ...listed.map(row)].join('\n')
+    : 'No mod has passed all six checks yet.',
   '',
-  `${(list.mods ?? []).length} mods, list updated ${list.updated}.`,
+  [`${listed.length} listed, list updated ${list.updated}.`, note].filter(Boolean).join(' '),
 ].join('\n')
 
 const mdPath = join(ROOT, 'COMMUNITY.md')
