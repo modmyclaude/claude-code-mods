@@ -58,7 +58,7 @@ const all = list.mods ?? []
 const listed = all.filter(m => m.status === 'checked')
 const waiting = all.length - listed.length
 const note = waiting
-  ? `${waiting} more ${waiting === 1 ? 'mod is' : 'mods are'} in community/mods.json as candidates: five of the six checks passed, and the install check on a real terminal and desktop app is still to run. A candidate is not listed, marked or endorsed until it passes.`
+  ? `${waiting} more ${waiting === 1 ? 'mod is' : 'mods are'} in community/mods.json as candidates: five of the six checks passed, and the install check on a real terminal and desktop app is still to run. A candidate is not listed or marked until it passes.`
   : ''
 const table = [
   listed.length

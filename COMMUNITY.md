@@ -13,7 +13,7 @@ The list is also machine-readable: [community/mods.json](community/mods.json). T
 <!-- community:start -->
 No mod has passed all six checks yet.
 
-0 listed, list updated 2026-10-26. 15 more mods are in community/mods.json as candidates: five of the six checks passed, and the install check on a real terminal and desktop app is still to run. A candidate is not listed, marked or endorsed until it passes.
+0 listed, list updated 2026-10-26. 15 more mods are in community/mods.json as candidates: five of the six checks passed, and the install check on a real terminal and desktop app is still to run. A candidate is not listed or marked until it passes.
 <!-- community:end -->
 
 ## What "checked" means
