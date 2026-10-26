@@ -6,7 +6,7 @@ Two marks keep this clear everywhere we show mods: **Built by modmyclaude** (our
 
 Scope: mods, meaning plugins with a hooks module that Claude Code's validator can read. Status-line commands, classic-hook plugins and installers are out of scope for now.
 
-The list is also machine-readable: [community/mods.json](community/mods.json). That file also carries candidates, mods that passed five of the six checks and wait on the install check; a candidate is not listed, marked or endorsed until it passes.
+The list is also machine-readable: [community/mods.json](community/mods.json). That file also carries candidates, mods that passed five of the six checks and wait on the install check; a candidate is not listed or marked until it passes.
 
 ## The list
 
