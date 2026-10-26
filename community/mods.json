@@ -301,6 +301,217 @@
           "installs on the current Claude Code, terminal and desktop"
         ]
       }
+    },
+    {
+      "name": "prayer-times",
+      "title": "Prayer Times",
+      "summary": "Prayer times for the coordinates you set, computed on your computer.",
+      "author": "hamzafer",
+      "repo": "hamzafer/claude-code-mods",
+      "path": "mods/prayer-times",
+      "commit": "afdf834da210b082bb6446a03315df3d4ca28018",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "Latitude and longitude stay in your local settings; times are computed on your computer from the sun's position, so nothing is sent anywhere (docs/mods.md).",
+      "reach": [
+        "reads env and files (the band order file)",
+        "draws a band",
+        "no network, no programs"
+      ],
+      "notes": "One test assumes a London clock and fails in other time zones; the mod itself is fine.",
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-26",
+        "claudeCode": "2.1.310",
+        "tests": "18 of 19",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "open-paths",
+      "title": "Open Paths",
+      "summary": "Clickable file paths in replies that open in your editor or default app.",
+      "author": "kiankhooban",
+      "repo": "kiankhooban/open-paths",
+      "path": ".",
+      "commit": "dad28e23010500d228a70ad1e048e0888d402a17",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "Sends nothing; reads file metadata only; stores settings and up to 500 paths; runs only the named openers and editors, on a click (README, What it reads, runs and sends; PRIVACY.md).",
+      "reach": [
+        "runs programs (uname, open or xdg-open, your editor) on a click",
+        "reads file metadata",
+        "stores up to 500 paths",
+        "sees Read, Write and Edit tool calls",
+        "redraws reply rows"
+      ],
+      "notes": "Opening an .html or .svg runs its scripts in your browser, as the README warns.",
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-26",
+        "claudeCode": "2.1.310",
+        "tests": "76 of 76",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "mdview",
+      "title": "Mdview",
+      "summary": "Renders Markdown files named in the conversation in a pane, with an edit bar.",
+      "author": "xuanji86",
+      "repo": "xuanji86/claude-mdview",
+      "path": ".",
+      "commit": "d3050cd6046470e644106d0811ea247b3d2fde22",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "Reads files named in the conversation; runs sips and open on your click; sends a prompt only when you press Enter in its edit bar; changes its own setting with /md mode; no network, no model, nothing stored across sessions (README, What it can reach).",
+      "reach": [
+        "reads env and files",
+        "runs sips, open and rm (its own temp file)",
+        "submits a prompt when you press Enter in its edit bar",
+        "changes its own settings",
+        "adds a show tool for Claude",
+        "sees every tool call",
+        "redraws reply rows",
+        "opens a pane"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-26",
+        "claudeCode": "2.1.310",
+        "tests": "38 of 38",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "now-playing",
+      "title": "Now Playing",
+      "summary": "What Spotify is playing, in a band, with lyrics from LRCLIB that you can switch off. macOS only.",
+      "author": "hamzafer",
+      "repo": "hamzafer/claude-code-mods",
+      "path": "mods/now-playing",
+      "commit": "afdf834da210b082bb6446a03315df3d4ca28018",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "macOS and Spotify only, read through AppleScript; checks Spotify every 3 to 5 seconds; track, artist and album names go to LRCLIB once per track; lyrics off sends nothing (docs/mods.md, Privacy).",
+      "reach": [
+        "network (lrclib.net only)",
+        "runs uname, pgrep and osascript",
+        "reads env and files",
+        "draws a band"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-26",
+        "claudeCode": "2.1.310",
+        "tests": "9 of 9",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "gfm-render",
+      "title": "GFM Render",
+      "summary": "GitHub-flavoured Markdown in replies: alerts, task lists and diagrams.",
+      "author": "briangtn",
+      "repo": "briangtn/claude-gfm-render",
+      "path": ".",
+      "commit": "a209ad5a0ec35c0813d2d80ab62b596140b0c807",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "A SessionStart hook adds a short formatting note to Claude's context at startup, after /clear and after compaction; promptHint false turns it off; diagrams on the desktop run node once per diagram, then cached (README).",
+      "reach": [
+        "adds a short formatting note to Claude's context at startup (switchable off)",
+        "runs node for diagrams on the desktop",
+        "draws over reply rows"
+      ],
+      "notes": "Vendors beautiful-mermaid and elkjs (EPL-2.0) with their licence files.",
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-26",
+        "claudeCode": "2.1.310",
+        "tests": "11 of 11",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
+    },
+    {
+      "name": "glance",
+      "title": "Glance",
+      "summary": "A band of what needs you across GitHub, Google Calendar, Linear and Slack, refreshed every 5 minutes.",
+      "author": "hamzafer",
+      "repo": "hamzafer/claude-code-mods",
+      "path": "mods/glance",
+      "commit": "afdf834da210b082bb6446a03315df3d4ca28018",
+      "kind": "mod",
+      "license": "MIT",
+      "says": "Needs gh plus the claude.ai Google Calendar, Linear and Slack connectors; fetches at start and every 5 minutes; connector calls cost no model tokens; looks up your Slack user id once and keeps it in memory (docs/mods.md).",
+      "reach": [
+        "runs gh api",
+        "calls the claude.ai Google Calendar, Linear and Slack connectors",
+        "reads env and files",
+        "polls every 5 minutes",
+        "draws a band"
+      ],
+      "status": "candidate",
+      "checked": {
+        "date": "2026-10-26",
+        "claudeCode": "2.1.310",
+        "tests": "18 of 18",
+        "passed": [
+          "says what it reaches",
+          "no undeclared network or model calls",
+          "no secret-shaped strings",
+          "tests pass",
+          "open-source licence"
+        ],
+        "pending": [
+          "installs on the current Claude Code, terminal and desktop"
+        ]
+      }
     }
   ]
 }
