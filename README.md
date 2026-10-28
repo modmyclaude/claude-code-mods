@@ -59,7 +59,7 @@ Or in one line, which adds the marketplace on first use:
 /plugin install <mod> --marketplace modmyclaude/claude-code-mods
 ```
 
-A mod is active as soon as it installs, with no restart. Installs at user scope (the default) also load in the desktop app's Code tab. The VS Code extension does not draw mods yet.
+A mod is active as soon as it installs, with no restart. Installs at user scope (the default) also load in the desktop app's Code tab. Claude Code can also draw mods in the VS Code extension's chat panel, with extension 2.1.299 or later, or 2.1.304 or later when the session does not fetch feature flags ([where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run)). The mods here are tested on the terminal and the desktop app: check a mod's README before relying on it in VS Code.
 
 ## The mods
 
@@ -236,7 +236,7 @@ The `/plugin` menu inside a session does the same.
 <details>
 <summary><b>Does it work in the desktop app and VS Code?</b></summary>
 
-Every mod is tested on the terminal and the desktop app's Code tab. The VS Code extension does not draw mods yet, so mods with a band or pane show nothing there.
+Every mod is tested on the terminal and the desktop app's Code tab, and that is what each README describes. Claude Code also draws mods in the VS Code extension's chat panel, with extension 2.1.299 or later, or 2.1.304 or later when the session does not fetch feature flags; the official [where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run) table lists every place. Platform support is not a promise from each mod: none of these mods has been tested in VS Code, and a mod can leave a surface out, as [Wardrobe](mods/wardrobe/README.md) does with VS Code and the mobile app. Check the mod's README before relying on it there.
 
 </details>
 
