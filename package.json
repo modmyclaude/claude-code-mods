@@ -14,7 +14,9 @@
     "smoke": "bash scripts/smoke-install.sh",
     "links": "node scripts/check-links.mjs",
     "catalog": "node scripts/build-catalog.mjs",
-    "catalog:check": "node scripts/build-catalog.mjs --check"
+    "catalog:check": "node scripts/build-catalog.mjs --check",
+    "community": "node scripts/community-list.mjs",
+    "community:check": "node scripts/community-list.mjs --check --repos"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
