@@ -10,6 +10,8 @@ Look away while Claude works. Pager plays one short sound, with a toast naming t
 - **needs you** - Claude is waiting on a permission prompt, a question, a plan approval or an MCP input request,
 - **error** - a turn ended on an API error or a refusal.
 
+Set `ntfyTopic` and each alert also sends one short HTTPS POST to `https://ntfy.sh/<topic>`, so your phone gets it too. That is the only network call Pager makes, and it never carries your prompts or Claude's answers.
+
 ## Install
 
 ```
