@@ -142,9 +142,13 @@ export const PANE: RenderPropsOf['Pane'] = {
   view: {},
 }
 
+// The band's props as Claude Code 2.1.326 hands them: `isCollapsed` is new there, and an older
+// engine's type has no such prop, so the base is spread in rather than written out against the type.
+const BAND = { hasSurvey: false, isWorking: false, isCollapsed: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }
+
 /** The band above the prompt as a surface hands it to the hook; `over` changes a prop (a survey, the width). */
 export function bandProps(over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] {
-  return { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {}, ...over }
+  return { ...BAND, ...over }
 }
 
 export const TOOL_ROW: RenderPropsOf['ToolUse'] = {
