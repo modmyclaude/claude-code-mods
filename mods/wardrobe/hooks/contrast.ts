@@ -1,5 +1,6 @@
 // WCAG 2.x contrast, pure. Used by the tests to hold every theme to its bar,
-// and nowhere at run time (a theme is checked once, here, not per frame).
+// and once per look when its palette for the app is made (app-colors.ts);
+// never per frame.
 
 /** `#rrggbb` (or `#rgb`) to 0-255 channels; undefined for anything else. */
 export function rgbOf(hex: string): [number, number, number] | undefined {

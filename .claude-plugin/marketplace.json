@@ -365,7 +365,7 @@
       "name": "wardrobe",
       "source": "./mods/wardrobe",
       "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "looks",
       "keywords": [
         "theme",

@@ -16,7 +16,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { On, RenderPropsOf } from 'claude-code'
 
 import { themeById } from '../hooks/themes'
-import { ENGINE, start, SURFACES, wear, world } from './setup'
+import { ENGINE, MATCH_OFF, start, SURFACES, wear, world } from './setup'
 
 const dracula = themeById('dracula')!
 const paper = themeById('paper')!
@@ -147,7 +147,7 @@ describe('a light look paints only where the app is light', () => {
     await desktop.unmount()
   })
 
-  test('on a dark Claude Code theme, and on the desktop whatever the theme, the stripe stands and nothing is filled', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  test('with matching left to the person: on a dark Claude Code theme, and on the desktop whatever the theme, the stripe stands and nothing is filled', { plugins: [ENGINE_BENEATH], options: MATCH_OFF }, async ($, on) => {
     world(on, { surfaces: ['terminal', 'desktop'], theme: 'dark' })
     await start($)
     const said = await wear($, 'paper')
@@ -174,7 +174,35 @@ describe('a light look paints only where the app is light', () => {
     expect(await wear($, 'paper')).not.toContain('made for a light theme')
   })
 
-  test("Claude Code's theme is read at start and followed when it changes in /config; after a match it is known at once", { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+  test('with matching on, a light look put on over a dark theme paints on the terminal at once; the desktop keeps the stripe alone', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+    const w = world(on, { surfaces: ['terminal', 'desktop'], theme: 'dark' })
+    await start($)
+    expect(await wear($, 'paper')).not.toContain('made for a light theme')
+    expect(w.config.theme).toBe('light')
+    const terminal = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'AssistantMessage', props: ROWS.AssistantMessage })
+    expect(tintsAbove(await terminal.drawn())).toEqual([[paper.palette.bg]])
+    await terminal.unmount()
+    const desktop = await $.ui.mount({ plugin: 'wardrobe', surface: 'desktop', component: 'AssistantMessage', props: ROWS.AssistantMessage })
+    expect(tintsAbove(await desktop.drawn())).toEqual([[]])
+    expect(await desktop.find({ key: 'stripe' })).toBeDefined()
+    await desktop.unmount()
+  })
+
+  test('a look and a theme put on in another session are both followed within a minute', { plugins: [ENGINE_BENEATH] }, async ($, on) => {
+    const w = world(on, { surfaces: ['terminal'], theme: 'dark' })
+    await start($)
+    // As another session's /wear paper would leave things: the shared choice, and the one theme setting.
+    w.store.set('global', 'paper')
+    w.config.theme = 'light'
+    await w.clock.advance(60_000)
+    await w.clock.settle()
+    const ui = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'AssistantMessage', props: ROWS.AssistantMessage })
+    expect(tintsAbove(await ui.drawn())).toEqual([[paper.palette.bg]])
+    await ui.unmount()
+    expect(w.config.sets).toEqual([]) // followed, never set from here
+  })
+
+  test("with matching left to the person: Claude Code's theme is read at start and followed when it changes in /config; after a match it is known at once", { plugins: [ENGINE_BENEATH], options: MATCH_OFF }, async ($, on) => {
     const w = world(on, { surfaces: ['terminal'], theme: 'dark' })
     await start($)
     await wear($, 'paper')

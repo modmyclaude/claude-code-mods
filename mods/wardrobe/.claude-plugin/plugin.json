@@ -1,6 +1,6 @@
 {
   "name": "wardrobe",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
   "homepage": "https://modmyclaude.com/mods/wardrobe",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
@@ -80,6 +80,12 @@
       "title": "Night starts at",
       "description": "When auto mode switches to the night theme, 24-hour HH:MM local time.",
       "default": "19:00"
+    },
+    "matchTheme": {
+      "type": "boolean",
+      "title": "Match Claude Code's theme",
+      "description": "Wearing a look also sets Claude Code's own theme to match it; /wear default puts yours back. Off, only /wear <theme> --match does.",
+      "default": true
     }
   }
 }

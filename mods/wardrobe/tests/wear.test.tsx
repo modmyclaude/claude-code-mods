@@ -158,6 +158,40 @@ describe('/wear pin', () => {
   })
 })
 
+describe('/wear everywhere', () => {
+  test('<theme> everywhere becomes every project\'s choice, lets every pin go and says how many', async ($, on) => {
+    const w = world(on, { root: '/work/alpha', store: { global: 'dracula', pins: { '/work/alpha': 'nord', '/work/beta': 'paper' } } })
+    await start($)
+    expect(await wear($, 'christmas everywhere')).toBe('Wearing christmas everywhere without a pin. 2 project pins were let go. Sessions already open follow within a minute.')
+    expect(w.store.get('global')).toBe('christmas')
+    expect(w.store.get('pins')).toEqual({})
+    // Another project, pinned a moment ago: the same look now.
+    w.cd('/work/beta')
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 3000 } })
+    const christmas = themeById('christmas')!
+    expect((await ui.find({ key: 'turn' }))?.children).toEqual([expect.objectContaining({ props: { color: christmas.palette.muted, backgroundColor: christmas.palette.bg } })])
+    await ui.unmount()
+  })
+
+  test('alone, what this project wears now becomes every project\'s', async ($, on) => {
+    const w = world(on, { root: '/work/alpha', store: { global: 'dracula', pins: { '/work/alpha': 'nord' } } })
+    await start($)
+    expect(await wear($, 'everywhere')).toBe('Wearing nord everywhere without a pin. One project pin was let go. Sessions already open follow within a minute.')
+    expect(w.store.get('global')).toBe('nord')
+    expect(w.store.get('pins')).toEqual({})
+  })
+
+  test('with no pin anywhere it says only where the look is worn; a plain /wear still moves this project alone', async ($, on) => {
+    const w = world(on, { root: '/work/alpha', store: { pins: { '/work/beta': 'paper' } } })
+    await start($)
+    expect(await wear($, 'dracula')).toBe('Wearing dracula everywhere without a pin.')
+    expect(w.store.get('pins')).toEqual({ '/work/beta': 'paper' }) // another project's pin stands
+    expect(await wear($, 'dracula everywhere')).toBe('Wearing dracula everywhere without a pin. One project pin was let go. Sessions already open follow within a minute.')
+    expect(await wear($, 'everywhere')).toBe('Wearing dracula everywhere without a pin. Sessions already open follow within a minute.')
+  })
+})
+
 describe('/wear auto', () => {
   const options = { dayTheme: 'paper', nightTheme: 'nord', dayStarts: '08:30', nightStarts: '20:15' }
 

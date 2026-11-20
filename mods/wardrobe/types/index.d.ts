@@ -38,8 +38,10 @@ export type WardrobeSwitch = {
   at: number
 }
 
-/** The wallpaper behind the chat, as far as wardrobe set it. */
+/** The theme wardrobe set for the app: the look's palette, and the scene behind the chat. */
 export type WardrobeBackdrop = {
+  /** The look whose palette wardrobe set (a theme id), or null where no theme of its own stands. Absent in a value an older version kept. */
+  look?: string | null
   /** The scene wardrobe set (a theme id), or null where none of its own stands. */
   scene: string | null
   /** Whether a window said it draws that scene when it was set. */

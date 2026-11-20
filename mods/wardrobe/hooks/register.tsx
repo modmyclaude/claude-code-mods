@@ -1,16 +1,20 @@
 // Wardrobe: restyles what a mod may draw (tool rows, tool results, diff cards,
 // the spinner, the turn-duration line), switchable live with /wear, and in the
-// desktop app puts an animated scene behind the chat for the look that is worn.
+// desktop app dresses the app itself: the look's palette on its page, panels,
+// text and accents, and an animated scene behind the chat.
 //
-// Display only: it reads and writes its own $.store, and the session's theme
-// backdrop, and nothing else; no files, no processes, no network. Every hook
-// that draws falls back to Claude Code's own drawing when it has nothing to
-// add, and when it fails.
+// Display only. It reads and writes its own $.store and the session's theme
+// (the look's palette and scene); and when a look is put on it sets Claude
+// Code's own `theme` setting to match, as the person could in /config, and
+// puts theirs back on /wear default (the Match setting turns that off). No
+// files, no processes, no network. Every hook that draws falls back to Claude
+// Code's own drawing when it has nothing to add, and when it fails.
 
 import { atom, read } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, Timer } from 'claude-code'
 
 import type { WardrobeApp, WardrobeLook } from '../types'
+import { appColors } from './app-colors'
 import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
@@ -33,8 +37,8 @@ const switched = atom(SWITCH, null)
 const verb = atom(VERB, null)
 /** Claude Code's own theme tone, read from its theme setting; `unknown` for a custom theme or where the row cannot be read. */
 const app = atom(APP, { tone: 'unknown' })
-/** The wallpaper wardrobe set behind the chat, if any, and whose scene was last seen in its place. */
-const backdrop = atom(BACKDROP, { scene: null, isDrawn: false })
+/** The theme wardrobe set for the app, if any: the look whose palette it is, and its scene behind the chat. */
+const backdrop = atom(BACKDROP, { look: null, scene: null, isDrawn: false })
 
 /** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
@@ -70,10 +74,10 @@ let themeNoun: 'present' | 'absent' | null = null
 let holder: string | null = null
 
 /**
- * What `refresh` does about the wallpaper: `start` puts the worn scene up (an
- * unload took the last one down); `follow` sets a scene that changed; `force`
+ * What `refresh` does about the app's theme: `start` puts the worn look's up
+ * (an unload took the last one down); `follow` sets one that changed; `force`
  * sets it again even unchanged, as `/wear` does to bring it back from under
- * another plugin's scene. Absent, the wallpaper is left as it is.
+ * another plugin's. Absent, the theme is left as it is.
  */
 type Dress = 'start' | 'follow' | 'force'
 
@@ -87,34 +91,52 @@ async function refresh($: Dollar, settings: Settings, how?: Dress): Promise<Ward
   // Compared field by field (state crosses as JSON, so identity never matches):
   // an unchanged look writes nothing and redraws nothing.
   const current = await $.state.get(LOOK)
-  if (!sameLook(current.value, fresh)) await $.state.set(LOOK, fresh)
-  // The wallpaper rides along: an engine without the theme noun, or one that cannot answer, leaves the look as it is.
+  const changed = !sameLook(current.value, fresh)
+  if (changed) await $.state.set(LOOK, fresh)
+  // The app's theme rides along: an engine without the theme noun, or one that cannot answer, leaves the look as it is.
   if (how !== undefined) await dress($, fresh, how).catch(() => undefined)
+  // A look that changed by itself (the clock, the calendar, a choice made in another session) may have
+  // come with a theme set there: the tone is read again, and a match already made follows the look.
+  // Only the look every project shares carries a match: one theme setting serves the whole machine,
+  // and a pinned project's look must not turn the others' over (matchTheme holds the rest of the rule).
+  if (how === 'follow' && changed) await readAppTone($).catch(() => undefined)
+  if (settings.matchTheme && fresh.scope === 'global' && (how === 'start' || (how === 'follow' && changed))) await matchTheme($, fresh, 'carry').catch(() => undefined)
   return fresh
 }
 
 /**
- * Puts the worn look's scene behind the chat, or takes wardrobe's own down.
- * `$.theme.set` names the whole theme and the latest set stands, so a set
- * replaces any plugin's earlier one; `$.theme.clear` clears the session's
- * theme whoever set it, so wardrobe clears only where its own scene stands,
- * and never at session start, where an unload already took its own down.
+ * Dresses the app in the worn look: its palette, its light or dark mode and,
+ * with wallpapers on, its scene behind the chat; or takes wardrobe's own theme
+ * down. `$.theme.set` names the whole theme and the latest set stands, so a
+ * set replaces any plugin's earlier one, and wallpapers off is a set with no
+ * scene in it. `$.theme.clear` clears the session's theme whoever set it, so
+ * wardrobe clears only where its own stands, and never at session start,
+ * where an unload already took its own down.
  */
 async function dress($: Dollar, look: WardrobeLook, how: Dress): Promise<void> {
   if (themeNoun === 'absent') return
   const worn = themeById(look.theme)
-  const wanted = worn !== undefined && hasScene(worn) && (await $.store.get(WALLPAPER)) !== 'off' ? worn : undefined
-  const standing = await read($, backdrop)
-  if (wanted === undefined) {
-    if (standing.scene === null) return
-    await $.state.set(BACKDROP, { scene: null, isDrawn: false })
-    if (how !== 'start') await $.theme.clear()
+  // A value an older version kept has no `look` in it: read as none.
+  const standing = { look: null, ...(await read($, backdrop)) }
+  if (worn === undefined) {
+    if (standing.look === null && standing.scene === null) return
+    await $.state.set(BACKDROP, { look: null, scene: null, isDrawn: false })
+    // Where another plugin's scene was seen in place of ours, the theme that stands is theirs: left alone.
+    if (how !== 'start' && holder === null) await $.theme.clear()
+    holder = null
     return
   }
-  if (how === 'follow' && standing.scene === wanted.id) return
+  const scene = hasScene(worn) && (await $.store.get(WALLPAPER)) !== 'off' ? worn.id : null
+  if (how === 'follow' && standing.look === worn.id && standing.scene === scene) return
+  // Built before the call, so that only the call itself can tell of an engine with no theme noun.
+  const attributes = {
+    colors: appColors(worn).colors,
+    overrideColorScheme: worn.tone,
+    ...(scene === null ? {} : { backdrop: { scene, glass: glassFor(worn) } }),
+  }
   let set: { isDrawn: boolean }
   try {
-    set = await $.theme.set({ backdrop: { scene: wanted.id, glass: glassFor(wanted) }, overrideColorScheme: wanted.tone })
+    set = await $.theme.set(attributes)
   } catch (err) {
     if (err instanceof TypeError) {
       themeNoun = 'absent'
@@ -124,15 +146,15 @@ async function dress($: Dollar, look: WardrobeLook, how: Dress): Promise<void> {
   }
   themeNoun = 'present'
   holder = null
-  await $.state.set(BACKDROP, { scene: wanted.id, isDrawn: set.isDrawn })
+  await $.state.set(BACKDROP, { look: worn.id, scene, isDrawn: set.isDrawn })
 }
 
 /** What `/wear wallpaper` answers: on or off, and where the scene draws. */
 async function wallpaperText($: Dollar, look: WardrobeLook, changed: boolean | null): Promise<string> {
   const on = (await $.store.get(WALLPAPER)) !== 'off'
   const lead = changed === null ? `Wallpapers are ${on ? 'on' : 'off'}.` : on ? 'Wallpapers on.' : 'Wallpapers off.'
-  if (!on) return `${lead} The look stays; nothing of wardrobe's draws behind the chat.`
   const theme = themeById(look.theme)
+  if (!on) return theme === undefined ? `${lead} Nothing of wardrobe's draws behind the chat.` : `${lead} The look stays; nothing of wardrobe's draws behind the chat.`
   const scene = theme !== undefined && hasScene(theme) ? `The ${theme.id} scene draws behind the chat in the desktop app.` : 'Wear a look and its scene draws behind the chat in the desktop app.'
   const standing = await read($, backdrop)
   const nowhere = themeNoun === 'absent' || (standing.scene !== null && !standing.isDrawn)
@@ -146,13 +168,24 @@ async function wallpaperText($: Dollar, look: WardrobeLook, changed: boolean | n
 
 /**
  * `/wear <choice>`: changes what this project shows (its pin if it has one,
- * else the global choice). A theme put on (by name, or by `auto` or `season`
- * resolving to one) raises the switch band, which one timer takes down.
+ * else the global choice); with `everywhere`, what every project shows: the
+ * global choice, and every pin let go. A theme put on (by name, or by `auto`
+ * or `season` resolving to one) raises the switch band, which one timer takes
+ * down.
  */
-async function wear($: Dollar, settings: Settings, choice: string): Promise<string> {
+async function wear($: Dollar, settings: Settings, choice: string, everywhere = false): Promise<string> {
   const root = await $.session.root()
   const pins = pinsOf(await $.store.get('pins'))
-  if (Object.hasOwn(pins, root)) {
+  let letGo = ''
+  if (everywhere) {
+    const count = Object.keys(pins).length
+    if (count > 0) await $.store.set('pins', {})
+    await $.store.set('global', choice)
+    // With no pin left, a match made in a pinned project is the shared look's now.
+    await $.store.delete(MATCH_ROOT)
+    // Every session reads the same store, and re-resolves its look each minute.
+    letGo = `${count === 0 ? '' : count === 1 ? ' One project pin was let go.' : ` ${count} project pins were let go.`} Sessions already open follow within a minute.`
+  } else if (Object.hasOwn(pins, root)) {
     pins[root] = choice
     await $.store.set('pins', pins)
   } else {
@@ -163,19 +196,41 @@ async function wear($: Dollar, settings: Settings, choice: string): Promise<stri
     await $.state.set(SWITCH, { theme: look.theme, at: await $.clock.now() })
     $.clock.after(BAND_MS, () => $.ui.invalidate('ui.render'))
   }
-  return describeLook(look, settings) + (await elsewhere($, look))
+  return describeLook(look, settings) + letGo + (await elsewhere($, look))
 }
 
-/** The light-look line for what is worn now, where it cannot paint; empty otherwise. */
-async function lightNoteNow($: Dollar): Promise<string> {
+/**
+ * `/wear <choice>` whole, from the command or a gallery button: the look goes
+ * on, then Claude Code's own theme follows it (said in full on `--match`,
+ * quietly where the Match setting is on) or, on `default`, goes back to the
+ * person's own. The quiet match is the shared look's alone: a pinned project's
+ * look is its own, and leaves the one theme setting to `--match`. `note` is
+ * what the caller has to add about the choice itself.
+ */
+async function putOn($: Dollar, settings: Settings, choice: string, how: { match?: boolean; everywhere?: boolean }, note: string): Promise<string> {
+  const text = (await wear($, settings, choice, how.everywhere === true)) + note
+  const worn = await read($, look)
+  if (choice === DEFAULT) return text + (await restoreTheme($, worn))
+  if (how.match === true) return `${text} ${await matchTheme($, worn, 'said')}`
+  const tried = settings.matchTheme && worn.scope === 'global'
+  const matched = tried ? await matchTheme($, worn, 'quiet').catch(() => '') : ''
+  // Where the match said something (the first change, or a refusal) that is the whole of it.
+  return text + (matched === '' ? await lightNoteNow($, !tried) : ` ${matched}`)
+}
+
+/** How long a `/wear` answer stays up: longer when it has a second sentence to read. */
+const readingMs = (text: string) => (text.length > 110 ? 7000 : 4000)
+
+/** The light-look line for what is worn now, where it cannot paint; empty otherwise. `hint` names `--match` where no match was tried. */
+async function lightNoteNow($: Dollar, hint: boolean): Promise<string> {
   const worn = themeById((await read($, look)).theme)
-  return worn ? lightNote(worn, (await read($, app)).tone) : ''
+  return worn ? lightNote(worn, (await read($, app)).tone, hint) : ''
 }
 
-/** The tone of a Claude Code theme value: `dark`, `dark-ansi`, `light-daltonized`, or a plugin's `custom:...` (unknown). */
 /** The id Claude Code gives a theme file wardrobe ships: `custom:<plugin>:<slug>`, one per look. */
 const ownThemeId = (id: string) => `custom:wardrobe:${id}`
 
+/** The tone of a Claude Code theme value: `dark`, `dark-ansi`, `light-daltonized`, one of wardrobe's own theme files, or another plugin's `custom:...` (unknown). */
 function toneOf(value: unknown): WardrobeApp['tone'] {
   if (typeof value !== 'string') return 'unknown'
   if (value.startsWith('light')) return 'light'
@@ -200,15 +255,28 @@ function fills(theme: Theme, surface: string, tone: WardrobeApp['tone']): boolea
   return theme.tone === 'dark' || (surface === 'terminal' && tone === 'light')
 }
 
-/** The one line a light look gets where it cannot paint: what it is for, and how to match the app to it. */
-function lightNote(theme: Theme, tone: WardrobeApp['tone']): string {
-  return theme.tone === 'light' && tone !== 'light' ? ` ${theme.id} is made for a light theme; /wear ${theme.id} --match sets Claude Code's theme to match.` : ''
+/**
+ * The one line a light look gets where it cannot paint: what it is for, and,
+ * where no match was tried (the setting is off, or the project is pinned), how
+ * to match the app to it. Where one was tried, what stopped it was said (a
+ * refusal) or is not theirs to change here (a locked setting).
+ */
+function lightNote(theme: Theme, tone: WardrobeApp['tone'], hint: boolean): string {
+  if (theme.tone !== 'light' || tone === 'light') return ''
+  return hint ? ` ${theme.id} is made for a light theme; /wear ${theme.id} --match sets Claude Code's theme to match.` : ` ${theme.id} is made for a light theme.`
 }
 
 /** The store key holding the theme Claude Code had before a match, so `/wear default` can put it back. */
 const OWN_THEME = 'ownTheme'
 /** The store key holding the theme wardrobe last set, so a restore can tell when the person changed it since. */
 const MATCHED_THEME = 'matchedTheme'
+/**
+ * The store key naming the pinned project a match was made in (with `--match`,
+ * on the person's word); absent, the match is the look's that every project
+ * shares. A match belongs to where it was made: only from there does it move
+ * with the look, and only `/wear default` there gives the theme back.
+ */
+const MATCH_ROOT = 'matchRoot'
 
 /** The built-in theme nearest a look: its tone, keeping the person's variant (daltonized, ansi) where that option exists. */
 function nearestTheme(tone: 'dark' | 'light', current: string, options: readonly string[]): string {
@@ -218,51 +286,93 @@ function nearestTheme(tone: 'dark' | 'light', current: string, options: readonly
 }
 
 /**
- * `/wear <look> --match` and the gallery's `match theme` button: sets Claude Code's
- * own `theme` to the built-in nearest the look, as the person could in /config,
- * and remembers the theme they had so `/wear default` puts it back. Only ever on
- * their word; a refusal (another plugin's hook, a locked row) is reported, not retried.
+ * How a match is made. `said`: on the person's word (`--match`, `/wear match`,
+ * the gallery's `match theme` button), answered in full. `quiet`: with a look
+ * put on in a project with no pin while the Match setting is on, saying only
+ * the first change and a refusal. `carry`: by itself, when the shared look
+ * changed without a `/wear` here; it only moves a match the shared look made
+ * and that still stands exactly as wardrobe left it, never starts one, and
+ * says nothing. Where the look that follows is Claude Code's own (auto by day,
+ * say), a carry sets the person's own theme and keeps the match for the look
+ * after it.
  */
-async function matchTheme($: Dollar, settings: Settings): Promise<string> {
-  const look = await refresh($, settings)
+type Match = 'said' | 'quiet' | 'carry'
+
+/**
+ * Sets Claude Code's own `theme` to the one nearest the look, as the person
+ * could in /config, and remembers the theme they had so `/wear default` puts
+ * it back. A refusal (another plugin's hook, a locked row) is reported, not
+ * retried. A theme the person chose since the last match is theirs: it is what
+ * `/wear default` then returns to, and a carry leaves it alone.
+ */
+async function matchTheme($: Dollar, look: WardrobeLook, mode: Match): Promise<string> {
+  const said = mode === 'said'
   const theme = themeById(look.theme)
-  if (!theme) return 'No look is worn, so there is no theme to match. Wear one first: /wear <theme> --match.'
+  if (!theme && mode !== 'carry') return said ? 'No look is worn, so there is no theme to match. Wear one first: /wear <theme> --match.' : ''
   const row = (await $.config.list()).find(r => r.key === 'theme')
-  if (!row || typeof row.value !== 'string') return "Claude Code's theme setting was not found; nothing changed."
+  if (!row || typeof row.value !== 'string') return said ? "Claude Code's theme setting was not found; nothing changed." : ''
   const current = row.value
+  const own = await $.store.get(OWN_THEME)
+  const last = await $.store.get(MATCHED_THEME)
+  // A match stands while the theme is still the one wardrobe set.
+  const stands = typeof own === 'string' && (typeof last !== 'string' || last === current)
+  if (mode === 'carry' && (typeof own !== 'string' || last !== current || (await $.store.get(MATCH_ROOT)) !== undefined)) return ''
   // The look's own theme file when Claude Code lists it (the input box border, the message
   // background and the diff colours then follow the look); else the nearest built-in.
   const options = row.options ?? []
-  const target = options.includes(ownThemeId(theme.id)) ? ownThemeId(theme.id) : nearestTheme(theme.tone, current, options)
-  if (target === current) return `Claude Code's theme is already ${current}.`
-  if (row.isLocked) return `Claude Code's theme stays ${current}: the setting is locked.`
-  const own = await $.store.get(OWN_THEME)
-  if (typeof own !== 'string') await $.store.set(OWN_THEME, current)
-  const out = await $.config.set({ key: 'theme', value: target })
+  let target: string
+  if (theme) target = options.includes(ownThemeId(theme.id)) ? ownThemeId(theme.id) : nearestTheme(theme.tone, current, options)
+  else if (typeof own === 'string') target = own
+  else return ''
+  if (target === current) return said ? `Claude Code's theme is already ${current}.` : ''
+  if (row.isLocked) return said ? `Claude Code's theme stays ${current}: the setting is locked.` : ''
+  // Remembered first, so a change that lands is never one wardrobe cannot undo; taken back where it does not land.
+  if (!stands) await $.store.set(OWN_THEME, current)
+  const takeBack = async () => {
+    if (!stands) await (typeof own === 'string' ? $.store.set(OWN_THEME, own) : $.store.delete(OWN_THEME))
+  }
+  let out: Awaited<ReturnType<Dollar['config']['set']>>
+  try {
+    out = await $.config.set({ key: 'theme', value: target })
+  } catch (err) {
+    await takeBack()
+    throw err
+  }
   if (out.deny !== undefined) {
-    if (typeof own !== 'string') await $.store.delete(OWN_THEME)
-    return `Claude Code's theme stays ${current}: ${clean(out.deny)}`
+    await takeBack()
+    return mode === 'carry' ? '' : `Claude Code's theme stays ${current}: ${clean(out.deny)}`
   }
   await $.store.set(MATCHED_THEME, target)
+  // On the person's word the match is where it was made; a carry leaves that as it is.
+  if (mode !== 'carry') await (look.scope === 'project' ? $.store.set(MATCH_ROOT, look.root) : $.store.delete(MATCH_ROOT))
   await $.state.set(APP, { tone: toneOf(target) })
-  // On the desktop app the setting changes the terminal's theme; the app keeps its own look.
+  if (!theme || mode === 'carry' || (mode === 'quiet' && stands)) return ''
+  // The desktop app wears the look through its palette; the setting is the theme a terminal shows.
   const attached: readonly string[] = await $.session.surfaces().catch(() => [])
-  const desktopNote = attached.includes('desktop') ? " The desktop app keeps its own look; this changes the terminal's theme." : ''
+  const desktopNote = attached.includes('desktop') ? " The desktop app wears the look's own palette; this setting is the terminal's theme." : ''
   return `Claude Code's theme set to ${target} to match ${theme.id} (was ${current}). /wear default puts it back.${desktopNote}`
 }
 
 /**
  * `/wear default` after a match: Claude Code's theme goes back to the one the
  * person had, unless the theme was changed since the match (by them in another
- * session, or by hand): then their later choice stands and the memory is dropped.
+ * session, or by hand): then their later choice stands and the memory is
+ * dropped. Only from where the match was made: `/wear default` in a pinned
+ * project leaves a match the shared look made, which other projects still
+ * wear, and the other way round. A theme row that cannot be read is never
+ * written over.
  */
-async function restoreTheme($: Dollar): Promise<string> {
+async function restoreTheme($: Dollar, look: WardrobeLook): Promise<string> {
   const own = await $.store.get(OWN_THEME)
   if (typeof own !== 'string') return ''
+  const here = look.scope === 'project' ? look.root : undefined
+  if ((await $.store.get(MATCH_ROOT)) !== here) return ''
   const matched = await $.store.get(MATCHED_THEME)
-  const row = (await $.config.list().catch(() => [])).find(r => r.key === 'theme')
+  const rows = await $.config.list().catch(() => undefined)
+  const row = rows?.find(r => r.key === 'theme')
   const current = typeof row?.value === 'string' ? row.value : undefined
-  if (typeof matched === 'string' && current !== undefined && current !== matched) {
+  if (current === undefined) return " Claude Code's theme could not be read, so it stays as it is. Run /wear default again to retry."
+  if (typeof matched === 'string' && current !== matched) {
     await forgetMatch($)
     return ` Claude Code's theme was changed since the match, so it stays ${clean(current)}.`
   }
@@ -273,10 +383,11 @@ async function restoreTheme($: Dollar): Promise<string> {
   return ` Claude Code's theme is back to ${own}.`
 }
 
-/** Forgets the matched theme and the one before it: nothing is left for `/wear default` to restore. */
+/** Forgets the matched theme, the one before it and where the match was made: nothing is left for `/wear default` to restore. */
 async function forgetMatch($: Pick<EngineInterface, 'store'>): Promise<void> {
   await $.store.delete(OWN_THEME)
   await $.store.delete(MATCHED_THEME)
+  await $.store.delete(MATCH_ROOT)
 }
 
 /** Names the attached surfaces wardrobe does not restyle, so a theme never seems to fail there. */
@@ -298,14 +409,23 @@ async function pin($: Dollar, settings: Settings): Promise<string> {
   return `Pinned ${what} to ${clean(after.root)}. Other projects keep the global choice.`
 }
 
-/** `/wear unpin`: this project follows the global choice again. */
+/**
+ * `/wear unpin`: this project follows the global choice again. A match made on
+ * this pin goes with it: the shared look takes it over (the refresh carries it
+ * there), or, where that look is Claude Code's own, the person's theme comes
+ * back.
+ */
 async function unpin($: Dollar, settings: Settings): Promise<string> {
   const root = await $.session.root()
   const pins = pinsOf(await $.store.get('pins'))
   if (!Object.hasOwn(pins, root)) return `${clean(root)} has no pin. ${describeLook(await refresh($, settings), settings)}`
   delete pins[root]
   await $.store.set('pins', pins)
-  return `Unpinned ${clean(root)}. ${describeLook(await refresh($, settings, 'follow'), settings)}`
+  const handed = (await $.store.get(MATCH_ROOT)) === root
+  if (handed) await $.store.delete(MATCH_ROOT)
+  const now = await refresh($, settings, 'follow')
+  const theme = handed && themeById(now.theme) === undefined ? await restoreTheme($, now) : ''
+  return `Unpinned ${clean(root)}. ${describeLook(now, settings)}${theme}`
 }
 
 // What /wear says is for the person, never the model: a command's `text` is a
@@ -337,7 +457,7 @@ export const register: Register = (on, options) => {
       .register({
         name: 'wear',
         description: 'Restyle Claude Code: list themes, or wear one, auto, pin or unpin',
-        argumentHint: '[theme | auto | pin | unpin]',
+        argumentHint: '[theme [everywhere] | auto | season | pin | unpin]',
         immediate: true,
       })
       .catch(() => undefined)
@@ -351,22 +471,23 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // Answers its own command; it only ever changes wardrobe's own store, and it
-  // answers `{}`: nothing it says is added to what the model reads.
+  // Answers its own command. It changes wardrobe's own store, the session's theme
+  // and, for the match, Claude Code's `theme` setting; and it answers `{}`:
+  // nothing it says is added to what the model reads.
   on('command.run', { command: 'wear' }, async ($, e) => {
     const command = parseWear(e.args)
     if (command.kind === 'list') {
       await showList($, listText(await refresh($, settings), settings, problems, await $.clock.now()))
     } else if (command.kind === 'unknown') {
-      await say($, `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin.`, 8000)
-    } else if (command.kind === 'wear') {
-      let text = (await wear($, settings, command.choice)) + autoNote(command.choice)
-      if (command.choice === DEFAULT) text += await restoreTheme($)
-      else if (command.match) text += ' ' + (await matchTheme($, settings))
-      else text += await lightNoteNow($)
-      await say($, text)
+      await say($, `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin, everywhere.`, 8000)
+    } else if (command.kind === 'wear' || command.kind === 'everywhere') {
+      // `/wear everywhere` alone: what this project wears now, for every project.
+      const choice = command.kind === 'wear' ? command.choice : (await refresh($, settings)).choice
+      const how = { match: command.match === true, everywhere: command.kind === 'everywhere' || command.everywhere === true }
+      const text = await putOn($, settings, choice, how, autoNote(choice))
+      await say($, text, readingMs(text))
     } else if (command.kind === 'match') {
-      await say($, await matchTheme($, settings), 6000)
+      await say($, await matchTheme($, await refresh($, settings), 'said'), 6000)
     } else if (command.kind === 'wallpaper') {
       // A plain ask only answers; on or off is made so, and on sets the scene again, over anyone's.
       if (command.on !== null) await $.store.set(WALLPAPER, command.on ? 'on' : 'off')
@@ -462,8 +583,9 @@ export const register: Register = (on, options) => {
       await $.state.set(APP, { tone: toneOf(out.value) })
       // A theme the person (or another plugin) chose after a match stands: /wear default will not
       // undo it. Wardrobe's own writes are not that (the engine keeps them from its hooks; the test
-      // kit hands them over, so the origin is checked too).
-      const isOwn = e.origin.kind === 'plugin' && e.origin.name === 'wardrobe'
+      // kit hands them over, some with no origin at all, so the origin is checked too).
+      const origin: typeof e.origin | undefined = e.origin
+      const isOwn = origin === undefined || (origin.kind === 'plugin' && origin.name === 'wardrobe')
       if (!isOwn && typeof (await $.store.get(OWN_THEME)) === 'string') await forgetMatch($)
     }
     return out
@@ -562,13 +684,14 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   // The `/wear` gallery: a card per theme in its own colours with Bolt in its
-  // costume, the worn one marked, a `wear` button on each.
+  // costume, the worn one marked, a `wear` button on each, and in the desktop
+  // app a small still of the look's scene.
   // Box, Text and Button, but for Bolt's Raster on the terminal.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const tone = (await read($, app)).tone
-    const onWear = (choice: string) => {
-      wear($, settings, choice)
-        .then(async text => say($, text + autoNote(choice) + (await lightNoteNow($))))
+    const press = (choice: string, match: boolean) => {
+      putOn($, settings, choice, { match }, autoNote(choice))
+        .then(text => say($, text, match ? 6000 : readingMs(text)))
         .catch(() => undefined)
         .finally(() => $.ui.invalidate('ui.render'))
     }
@@ -579,14 +702,11 @@ export const register: Register = (on, options) => {
       problems,
       columns: e.props.bodyColumns,
       now: await $.clock.now(),
-      onWear,
+      onWear: (choice: string) => press(choice, false),
+      onMatch: (choice: string) => press(choice, true),
       fills: (theme: Theme) => fills(theme, e.surface, tone),
-      onMatch: (choice: string) => {
-        wear($, settings, choice)
-          .then(async text => say($, text + autoNote(choice) + ' ' + (await matchTheme($, settings)), 6000))
-          .catch(() => undefined)
-          .finally(() => $.ui.invalidate('ui.render'))
-      },
+      // The scene shows where its wallpaper would: the desktop app.
+      ...(e.surface === 'desktop' ? { thumb: (theme: Theme) => sceneOf(theme, { thumb: true }) } : {}),
     })
   }).catch(($, e, next) => next(e))
 }

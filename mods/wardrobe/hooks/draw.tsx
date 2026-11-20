@@ -3,7 +3,7 @@
 // Every coloured span is painted on the theme's own background (a chip), so
 // its contrast does not depend on the terminal's.
 
-import type { BoxProps, ButtonProps, ElementConstructor, RasterProps, RenderElement, RenderPropsOf, TextProps, ToolGroupCall } from 'claude-code'
+import type { BoxProps, ButtonProps, ElementConstructor, RasterProps, RenderElement, RenderPropsOf, SvgProps, TextProps, ToolGroupCall } from 'claude-code'
 
 import type { WardrobeLook, WardrobeTiming } from '../types'
 import { BOLT_COLUMNS, boltSprite, cellsSprite } from './bolt-draw'
@@ -16,8 +16,11 @@ import { KIND_ROLE, kindOf, STATUS_ROLE, THEMES, themeById, type Role, type Stat
 
 export type Table = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
-/** The pane's table: Box and Text, a Button for its `wear` controls, and the terminal's Raster for Bolt. */
-export type PaneTable = Table & { Button: ElementConstructor<ButtonProps>; Raster?: ElementConstructor<RasterProps> }
+/** The pane's table: Box and Text, a Button for its `wear` controls, the terminal's Raster for Bolt, and the apps' Svg for a look's scene. */
+export type PaneTable = Table & { Button: ElementConstructor<ButtonProps>; Raster?: ElementConstructor<RasterProps>; Svg?: ElementConstructor<SvgProps> }
+
+/** A scene's picture on a gallery card, in CSS pixels: the wallpaper's own shape, small. */
+export const THUMB = { width: 288, height: 162 } as const
 
 /** Under this many columns a tool row drops its status and timing chip. */
 const NARROW = 60
@@ -269,7 +272,13 @@ export function dressedBolt(t: Table & { Raster?: ElementConstructor<RasterProps
   return cellsSprite(t, surface, wearBolt(theme, size, 'idle'), key)
 }
 
-const HELP = '/wear <theme> switches now. /wear auto follows the clock, /wear season the calendar. /wear pin keeps this look for this project; /wear unpin lets go. /wear wallpaper off keeps the look and drops the scene behind the chat in the desktop app.'
+/** The closing lines of the gallery: every word `/wear` takes, and what the match setting does. */
+export function helpText(settings: Pick<Settings, 'matchTheme'>): string {
+  const match = settings.matchTheme
+    ? "/wear <theme> switches now, and Claude Code's own theme follows it; /wear default puts yours back."
+    : "/wear <theme> switches now; add --match and Claude Code's own theme follows it."
+  return `${match} /wear <theme> everywhere wears it in every project and lets every pin go. /wear auto follows the clock, /wear season the calendar. /wear pin keeps this look for this project; /wear unpin lets go. /wear wallpaper off keeps the look and drops the scene behind the chat in the desktop app.`
+}
 
 /** What is worn, in words, for the gallery header and command replies. */
 export function describeLook(look: WardrobeLook, settings: Settings): string {
@@ -311,8 +320,10 @@ export type Gallery = {
   now: number
   /** What a card's `wear` button does. */
   onWear: (choice: string) => void
-  /** What a theme card's `match theme` button does: wear it and set Claude Code's own theme to match. */
+  /** What a theme card's `match theme` button does: wear it and set Claude Code's own theme to match. The button shows only while the match setting is off; on, `wear` matches by itself. */
   onMatch: (choice: string) => void
+  /** A look's scene as a small still picture, where the surface shows its wallpaper (the desktop app); absent elsewhere. */
+  thumb?: (theme: Theme) => { source: string; alt: string } | undefined
   /** Whether a look may paint its background here (a light look on a dark app may not). */
   fills: (theme: Theme) => boolean
 }
@@ -347,7 +358,7 @@ function sampleRow(t: Table, theme: Theme, key: string, role: Role, text: string
  * Claude Code's own look, `auto` and `season` round it off.
  */
 export function listTree(t: PaneTable, g: Gallery): RenderElement {
-  const { Box, Text, Button } = t
+  const { Box, Text, Button, Svg } = t
   const columns = g.columns ?? 80
   const size = boltSizeFor(columns)
   const wearing = (choice: string) => (g.look.choice === choice ? <Text bold>(wearing)</Text> : null)
@@ -371,6 +382,7 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
   // accent at the end of the head row, never the main surface.
   const card = (theme: Theme) => {
     const fill = g.fills(theme)
+    const picture = Svg === undefined ? undefined : g.thumb?.(theme)
     return (
       <Box key={`theme-${theme.id}`} flexDirection="column" marginBottom={1}>
         <Box key="head" flexDirection="row" gap={1}>
@@ -378,11 +390,12 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
           <Text dimColor>{theme.tone}</Text>
           {wearing(theme.id)}
           {wearButton(theme.id)}
-          <Button key={`match-${theme.id}`} label="match theme" onPress={() => g.onMatch(theme.id)} />
+          {g.settings.matchTheme ? null : <Button key={`match-${theme.id}`} label="match theme" onPress={() => g.onMatch(theme.id)} />}
           {size === null ? null : dressedBolt(t, g.surface, theme, 'tiny', `bolt-${theme.id}`)}
         </Box>
         <Text>{theme.blurb}</Text>
         {theme.tone === 'light' ? <Text dimColor>best on a light theme</Text> : null}
+        {Svg === undefined || picture === undefined ? null : <Svg key={`scene-${theme.id}`} source={picture.source} alt={picture.alt} width={THUMB.width} height={THUMB.height} />}
         {sampleRow(t, theme, `you-${theme.id}`, 'accent', `> ${SAMPLE_PROMPT}`, fill)}
         {sampleRow(t, theme, `reply-${theme.id}`, 'info', SAMPLE_REPLY, fill)}
         <Box key="sample" flexDirection="row" gap={1}>
@@ -420,7 +433,7 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
       {g.problems.map(problem => (
         <Text>Setting: {clean(problem)}</Text>
       ))}
-      <Text>{HELP}</Text>
+      <Text>{helpText(g.settings)}</Text>
     </Box>
   )
 }
@@ -441,7 +454,7 @@ export function listText(look: WardrobeLook, settings: Settings, problems: reado
     `- ${AUTO}: ${settings.dayTheme} from ${clockText(settings.dayStarts)}, ${settings.nightTheme} from ${clockText(settings.nightStarts)}${mark(AUTO)}`,
     `- ${SEASON}: by the calendar: ${season} now (${seasonWindow(season) ?? 'the rest of the year'})${mark(SEASON)}`,
     ...problems.map(problem => `Setting: ${clean(problem)}`),
-    HELP,
+    helpText(settings),
   ].join('\n')
 }
 

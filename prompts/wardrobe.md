@@ -31,10 +31,13 @@ What is new here
 - The mascot in costume: an accessory per theme (a witch hat, a santa hat, a flower crown, sunglasses, a cape and fangs, cat ears ...) drawn over the sprite, never a change to it; the antenna light stays clear and the costume uses at most three colours from the theme's palette.
 - auto mode: a light theme by day and a dark theme by night, with the switch times as settings.
 - /wear pin saves the current theme for this project only; other projects keep the global theme.
-- In the desktop app, a wallpaper per theme: an animated scene behind the chat (rain down lit windows for noir, snow for christmas, the mascot in costume in the corner), set with the theme and switched with it. /wear wallpaper off keeps the theme and drops the scene. Scenes are pure vector, slow, never flashing, and whole when the system asks for reduced motion. Needs Claude Code 2.1.325 or newer; the terminal never draws them.
+- In the desktop app, the app itself wears the theme: a palette for its page, panels, text and accents, made from the theme's own colours with the palette helper your looks guide tells you to copy in, the main text at least 7:1 on every surface. Check that the app will paint every palette: it ignores one with an unreadable pair and says nothing.
+- In the desktop app, a wallpaper per theme: an animated scene behind the chat, drawn in three layers of depth that sway against each other (a rooftop in the rain for noir, a castle against the moon for dracula, a village in the snow with a sleigh crossing the moon for christmas), the mascot in costume standing at the right, set with the theme and switched with it. The gallery shows each scene, small and still. /wear wallpaper off keeps the theme and drops the scene. Scenes are pure vector, slow, never flashing, and whole when the system asks for reduced motion. Needs Claude Code 2.1.325 or newer; the terminal never draws them.
+- Putting a theme on also sets Claude Code's own theme setting to match it, said once with how to undo it; remember the theme I had and put it back on /wear default, leave alone a theme I pick myself afterwards, and give me a setting that turns the matching off. There is one theme setting for every session on my machine, so a pinned project never changes it unless I ask there with --match.
+- /wear <theme> everywhere wears it in every project and lets every project pin go; sessions already open follow within a minute.
 
 Guardrails
-- Display only: no files touched except the mod's own store, no processes, no network.
+- Display only: no files touched except the mod's own store, no processes, no network. The one setting it changes is Claude Code's own theme, to match the look, and it puts mine back.
 - If a theme cannot draw something, fall back to Claude Code's own drawing instead of breaking the screen.
 - The band draws under any other mod's band, never while a survey holds the band, and never over a safety hold. No emoji anywhere, no flashing.
 

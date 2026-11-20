@@ -129,7 +129,7 @@ const NIGHT: Record<Kind, string> = { ...GEO, search: '◉', web: '☾' } // fis
 const FROST: Record<Kind, string> = { ...OUTLINE, search: '❅', web: '❄' } // tight trifoliate snowflake, snowflake
 const BLOOM: Record<Kind, string> = { ...OUTLINE, search: '✿', web: '❀' } // black florette, white florette
 const SHORE: Record<Kind, string> = { ...GEO, search: '≈', web: '☼' } // waves (almost equal to), white sun
-const LEAF: Record<Kind, string> = { ...OUTLINE, search: '✤', web: '❧' } // heavy four-balloon asterisk, rotated floral heart
+const LEAF: Record<Kind, string> = { ...OUTLINE, search: '❦', web: '❧' } // floral heart, rotated floral heart
 
 const MARKS: Record<Status, string> = {
   running: '…', // ellipsis

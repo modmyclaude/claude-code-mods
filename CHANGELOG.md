@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-11-20
 
+- wardrobe 0.3.0: the whole desktop app wears the look. Every look carries a palette for the app's own page, panels, text and accents, its scene is redrawn in depth with far more in it, and the gallery shows each scene. Putting a look on also matches Claude Code's own theme (a setting turns that off, and `/wear default` puts yours back), and `/wear <theme> everywhere` wears it in every project.
 - wardrobe 0.2.0: wallpapers. In the desktop app on Claude Code 2.1.325 or newer, every look puts an animated scene behind the chat, Bolt in costume in the corner; `/wear wallpaper off` keeps the look and drops the scene.
 ## 2026-10-23
 

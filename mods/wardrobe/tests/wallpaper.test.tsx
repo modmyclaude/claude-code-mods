@@ -1,6 +1,7 @@
-// The wallpaper behind the chat, through the real wiring: the theme the look
-// sets at session start and on every switch, /wear wallpaper off and on, the
-// Backdrop drawing on the desktop, and another plugin's scene over ours.
+// The look the app itself wears, through the real wiring: the theme a look
+// sets at session start and on every switch (its palette, its light or dark
+// mode, its scene behind the chat), /wear wallpaper off and on, the Backdrop
+// drawing on the desktop, and another plugin's scene over ours.
 //
 // An engine older than 2.1.325 has no theme noun, and its test kit refuses a
 // world that answers theme.set. The first test finds out which engine this is,
@@ -12,6 +13,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
+import { appColors } from '../hooks/app-colors'
 import { glassFor, sceneOf } from '../hooks/scenes'
 import { themeById } from '../hooks/themes'
 import { at, ENGINE, start, themeWorld, TOOL_ROW, wear, world } from './setup'
@@ -41,7 +43,10 @@ const PROBE = {
 // Set by the first test, read by the rest: tests in a file run in order, in one module.
 let engineHasTheme = false
 
-const setOf = (id: string) => ({ backdrop: { scene: id, glass: glassFor(themeById(id)!) }, overrideColorScheme: themeById(id)!.tone })
+/** What a worn look sets with wallpapers off: its palette and its mode, as JSON round-trips them. */
+const paletteOf = (id: string): Record<string, unknown> => JSON.parse(JSON.stringify({ colors: appColors(themeById(id)!).colors, overrideColorScheme: themeById(id)!.tone }))
+/** The whole theme of a worn look: the palette, the mode, and the scene under its glass. */
+const setOf = (id: string) => ({ ...paletteOf(id), backdrop: { scene: id, glass: glassFor(themeById(id)!) } })
 
 const backdropProps = (scene: string, plugin = 'wardrobe') => ({ scene, plugin, glass: { blur: 14, opacity: 0.56 } })
 const mountBackdrop = ($: Engine, scene: string, plugin = 'wardrobe', surface: 'desktop' | 'mobile' = 'desktop') =>
@@ -56,7 +61,7 @@ describe('wallpapers', () => {
     engineHasTheme = has === 'yes'
   })
 
-  test('a worn look puts its scene behind the chat at session start, with its glass and its mode; nothing is said', async ($, on) => {
+  test('a worn look dresses the app at session start: its palette, its mode and its scene under its glass; nothing is said', async ($, on) => {
     if (!engineHasTheme) return
     const w = world(on, { store: { global: 'dracula' }, surfaces: ['desktop'] })
     const t = themeWorld(on, true)
@@ -64,15 +69,29 @@ describe('wallpapers', () => {
     expect(t.sets).toEqual([setOf('dracula')])
     expect(t.clears).toBe(0)
     expect(w.heard).toEqual([])
+    // The palette is a whole one, in the look's one mode, under wardrobe's own name.
+    const colors = (t.sets[0] as { colors: { v: number; id: string; label: string; inputs: Record<string, Record<string, string>> } }).colors
+    expect(colors).toMatchObject({ v: 1, id: 'wardrobe-dracula', label: 'Dracula (wardrobe)' })
+    expect(Object.keys(colors.inputs)).toEqual(['dark'])
+    expect(Object.keys(colors.inputs.dark!).length).toBeGreaterThan(90)
   })
 
-  test("with wallpapers off nothing is set, and nothing of another plugin's is cleared at session start", async ($, on) => {
+  test("with wallpapers off the palette alone is set, no scene; with no look worn nothing is, and nothing of another plugin's is cleared at session start", async ($, on) => {
     if (!engineHasTheme) return
-    world(on, { store: { global: 'dracula', wallpaper: 'off' } })
+    const w = world(on, { store: { global: 'dracula', wallpaper: 'off' } })
     const t = themeWorld(on, true)
     await start($)
-    expect(t.sets).toEqual([])
+    expect(t.sets).toEqual([paletteOf('dracula')])
+    expect(t.sets[0]).not.toHaveProperty('backdrop')
     expect(t.clears).toBe(0)
+    // Another session took the look off: a new session here sets nothing and clears nothing.
+    w.store.set('global', 'default')
+    w.store.delete('wallpaper')
+    t.sets.length = 0
+    w.cd('/work/beta')
+    await start($)
+    expect(t.sets).toEqual([])
+    expect(t.clears).toBe(0) // an unload took wardrobe's own down already; a clear here could only take another plugin's
   })
 
   test("/wear <look> swaps the scene, a light look brings a light mode, and /wear default takes wardrobe's own scene down, once", async ($, on) => {
@@ -118,13 +137,15 @@ describe('wallpapers', () => {
     await start($)
     await wear($, 'dracula')
     expect(await wear($, 'wallpaper off')).toBe("Wallpapers off. The look stays; nothing of wardrobe's draws behind the chat.")
-    expect(t.clears).toBe(1)
+    // Off is a set of the palette with no scene in it: nothing is cleared, so the app keeps the look's colours.
+    expect(t.clears).toBe(0)
+    expect(t.sets.at(-1)).toEqual(paletteOf('dracula'))
     expect(w.store.get('wallpaper')).toBe('off')
     const row = await $.ui.mount({ plugin: 'wardrobe', surface: 'desktop', component: 'ToolUse', props: TOOL_ROW, requestId: TOOL_ROW.tool_use_id })
     expect((await row.find({ key: 'icon' }))?.text).toBe(` ${dracula.icons.shell} `) // the look stays on
     await row.unmount()
     await wear($, 'nord')
-    expect(t.sets).toHaveLength(1) // off: a switch sets no scene
+    expect(t.sets.at(-1)).toEqual(paletteOf('nord')) // off: a switch sets the palette, no scene
     expect(await wear($, 'wallpaper on')).toBe('Wallpapers on. The nord scene draws behind the chat in the desktop app.')
     expect(t.sets.at(-1)).toEqual(setOf('nord'))
     expect(await wear($, 'wallpaper')).toBe('Wallpapers are on. The nord scene draws behind the chat in the desktop app.')
@@ -179,6 +200,61 @@ describe('wallpapers', () => {
     await wear($, 'dracula')
     expect(t.sets).toHaveLength(sets + 1) // set again, so the latest set is ours
     expect(await wear($, 'wallpaper')).toBe('Wallpapers are on. The dracula scene draws behind the chat in the desktop app.')
+  })
+
+  test("with another plugin's scene standing where ours was, /wear default takes the look off and leaves their theme alone", async ($, on) => {
+    if (!engineHasTheme) return
+    world(on, { surfaces: ['desktop'] })
+    const t = themeWorld(on, true)
+    await start($)
+    await wear($, 'dracula')
+    const ui = await mountBackdrop($, 'lagoon', 'theme-examples')
+    await ui.unmount()
+    await wear($, 'default')
+    expect(t.clears).toBe(0)
+    // With nothing of another plugin's seen, wardrobe's own theme is cleared as before.
+    await wear($, 'nord')
+    await wear($, 'default')
+    expect(t.clears).toBe(1)
+  })
+
+  test('with no look worn, /wear wallpaper off says nothing of a look', async ($, on) => {
+    world(on)
+    await start($)
+    expect(await wear($, 'wallpaper off')).toBe("Wallpapers off. Nothing of wardrobe's draws behind the chat.")
+  })
+
+  test('a theme value an older version kept, with no look in it, is read as no palette yet: the next tick sets the whole theme, once', async ($, on) => {
+    if (!engineHasTheme) return
+    let old = false
+    // The value as wardrobe 0.2.0 wrote it.
+    const kept = { value: { scene: 'dracula', isDrawn: true } } as never
+    on('state.get', ($, e, next) => (old && e.plugin === 'wardrobe' && e.key === 'backdrop' ? kept : next(e)))
+    const w = world(on, { store: { global: 'dracula' } })
+    const t = themeWorld(on, true)
+    await start($)
+    expect(t.sets).toEqual([setOf('dracula')])
+    await w.clock.advance(60_000)
+    expect(t.sets).toHaveLength(1) // the same look, the same scene: nothing to set
+    old = true
+    await w.clock.advance(60_000)
+    expect(t.sets).toEqual([setOf('dracula'), setOf('dracula')])
+    old = false
+    await w.clock.advance(60_000)
+    expect(t.sets).toHaveLength(2)
+  })
+
+  test("an older version's value with nothing set, and no look worn: nothing is wardrobe's to take down, so another plugin's theme is never cleared", async ($, on) => {
+    if (!engineHasTheme) return
+    const kept = { value: { scene: null, isDrawn: false } } as never
+    on('state.get', ($, e, next) => (e.plugin === 'wardrobe' && e.key === 'backdrop' ? kept : next(e)))
+    const w = world(on)
+    const t = themeWorld(on, true)
+    await start($)
+    await w.clock.advance(2 * 60_000)
+    await wear($, 'default')
+    expect(t.clears).toBe(0)
+    expect(t.sets).toEqual([])
   })
 
   test('a theme nothing answers never costs the look, on any engine', async ($, on) => {

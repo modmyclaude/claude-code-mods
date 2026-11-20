@@ -88,6 +88,16 @@ describe('parseWear()', () => {
     ['off', { kind: 'wear', choice: 'default' }],
     ['pin', { kind: 'pin' }],
     ['unpin', { kind: 'unpin' }],
+    ['everywhere', { kind: 'everywhere' }],
+    ['christmas everywhere', { kind: 'wear', choice: 'christmas', everywhere: true }],
+    ['everywhere xmas', { kind: 'wear', choice: 'christmas', everywhere: true }],
+    ['nord --everywhere --match', { kind: 'wear', choice: 'nord', match: true, everywhere: true }],
+    ['every', { kind: 'unknown', word: 'every' }],
+    ['everywhere --match', { kind: 'everywhere', match: true }],
+    ['match everywhere', { kind: 'everywhere', match: true }],
+    ['pin everywhere', { kind: 'unknown', word: 'pin everywhere' }],
+    ['unpin everywhere', { kind: 'unknown', word: 'unpin everywhere' }],
+    ['wallpaper off everywhere', { kind: 'unknown', word: 'wallpaper off everywhere' }],
     ['c', { kind: 'unknown', word: 'c' }],
     ['s', { kind: 'unknown', word: 's' }],
     ['a', { kind: 'unknown', word: 'a' }], // auto or autumn
@@ -101,7 +111,7 @@ describe('parseWear()', () => {
 })
 
 describe('resolveLook()', () => {
-  const settings: Settings = { dayTheme: 'paper', nightTheme: 'nord', dayStarts: 420, nightStarts: 1140 }
+  const settings: Settings = { dayTheme: 'paper', nightTheme: 'nord', dayStarts: 420, nightStarts: 1140, matchTheme: true }
   // resolveLook takes the clock reading itself (season needs the date), not a minute of the day.
   const noon = at(12, 0)
   const midnight = at(0, 0)
@@ -197,8 +207,17 @@ describe('seasonOf()', () => {
 describe('settingsFrom()', () => {
   test('good values are used as given', () => {
     const { settings, problems } = settingsFrom({ dayTheme: 'noir', nightTheme: 'dracula', dayStarts: '06:30', nightStarts: '21:15' })
-    expect(settings).toEqual({ dayTheme: 'noir', nightTheme: 'dracula', dayStarts: 390, nightStarts: 1275 })
+    expect(settings).toEqual({ dayTheme: 'noir', nightTheme: 'dracula', dayStarts: 390, nightStarts: 1275, matchTheme: true })
     expect(problems).toEqual([])
+  })
+
+  test('matching is on unless the setting says off; anything else is named and left on', () => {
+    const good = { dayTheme: 'noir', nightTheme: 'dracula', dayStarts: '06:30', nightStarts: '21:15' }
+    expect(settingsFrom({ ...good, matchTheme: false }).settings.matchTheme).toBe(false)
+    expect(settingsFrom({ ...good, matchTheme: true }).settings.matchTheme).toBe(true)
+    const odd = settingsFrom({ ...good, matchTheme: 'sometimes' })
+    expect(odd.settings.matchTheme).toBe(true)
+    expect(odd.problems).toEqual(['matchTheme "sometimes" is not on or off; using on'])
   })
 
   test('unusable values fall back and are named', () => {

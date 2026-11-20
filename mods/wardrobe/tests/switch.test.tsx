@@ -8,6 +8,7 @@ import type { On, RenderPropsOf } from 'claude-code'
 import type { BoltCell } from '../hooks/bolt'
 import { rasterCells } from '../hooks/bolt-draw'
 import { COSTUMES, wearBolt } from '../hooks/costume'
+import { sceneOf } from '../hooks/scenes'
 import { THEMES, themeById } from '../hooks/themes'
 import { at, bandProps, ENGINE, PANE, start, SURFACES, TOOL_ROW, wear, world } from './setup'
 
@@ -297,7 +298,16 @@ describe('the /wear gallery', () => {
       expect((await ui.find({ key: 'theme-default' }))?.text).toContain('(wearing)')
       const buttons = await ui.findAll({ type: 'Button' })
       expect(buttons.filter(b => String(b.key).startsWith('wear-'))).toHaveLength(THEMES.length + 3)
-      expect(buttons.filter(b => String(b.key).startsWith('match-'))).toHaveLength(THEMES.length)
+      // With matching on, as installed, `wear` matches by itself: no second button on a card.
+      expect(buttons.filter(b => String(b.key).startsWith('match-'))).toHaveLength(0)
+      // The desktop app shows each look's scene, small and still, where its wallpaper would draw; a terminal has no such element.
+      const pictures = await ui.findAll({ type: 'Svg' })
+      expect(pictures).toHaveLength(surface === 'desktop' ? THEMES.length : 0)
+      for (const picture of pictures) expect(picture.props).toMatchObject({ width: 288, height: 162 })
+      if (surface === 'desktop') {
+        const thumb = sceneOf(dracula, { thumb: true })!
+        expect(pictures.find(picture => picture.props.alt === thumb.alt)?.props).toMatchObject({ source: thumb.source, alt: thumb.alt, width: 288, height: 162 })
+      }
       await ui.unmount()
     }
   })

@@ -54,27 +54,38 @@ export function isChoice(value: unknown): value is string {
 
 export type WearCommand =
   | { kind: 'list' }
-  | { kind: 'wear'; choice: string; match?: true }
+  /** `everywhere`: the choice becomes every project's, and every pin is let go. */
+  | { kind: 'wear'; choice: string; match?: true; everywhere?: true }
   | { kind: 'match' }
   | { kind: 'pin' }
   | { kind: 'unpin' }
+  /** `/wear everywhere`: what this project wears now becomes every project's. */
+  | { kind: 'everywhere'; match?: true }
   /** `/wear wallpaper [on|off]`: `on` is null for a plain ask of the state. */
   | { kind: 'wallpaper'; on: boolean | null }
   | { kind: 'unknown'; word: string }
+
+/** The words that make a choice every project's: `/wear christmas everywhere`. */
+const EVERYWHERE: readonly string[] = ['everywhere', '--everywhere']
 
 /** `/wear` arguments as one command. */
 export function parseWear(args: string): WearCommand {
   const parts = args.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const match = parts.includes('--match')
-  const word = parts.filter(part => part !== '--match').join(' ')
-  if (word === 'match' || (word === '' && match)) return { kind: 'match' }
+  const everywhere = parts.some(part => EVERYWHERE.includes(part))
+  const word = parts.filter(part => part !== '--match' && !EVERYWHERE.includes(part)).join(' ')
+  if (word === 'match' || (word === '' && match)) return everywhere ? { kind: 'everywhere', match: true } : { kind: 'match' }
+  if (word === '' && everywhere) return { kind: 'everywhere' }
+  // `everywhere` belongs to a look: beside the list, a pin or the wallpaper it means nothing, and saying so beats dropping it.
+  if (everywhere && (word === 'list' || word === 'pin' || word === 'unpin' || /^wallpapers?( |$)/.test(word))) return { kind: 'unknown', word: args.trim() }
   if (word === '' || word === 'list') return { kind: 'list' }
   if (word === 'pin') return { kind: 'pin' }
   if (word === 'unpin') return { kind: 'unpin' }
   if (word === 'wallpaper' || word === 'wallpapers') return { kind: 'wallpaper', on: null }
   if (/^wallpapers? (on|off)$/.test(word)) return { kind: 'wallpaper', on: word.endsWith('on') }
   const choice = choiceOf(word)
-  return choice === undefined ? { kind: 'unknown', word: args.trim() } : match ? { kind: 'wear', choice, match } : { kind: 'wear', choice }
+  if (choice === undefined) return { kind: 'unknown', word: args.trim() }
+  return { kind: 'wear', choice, ...(match ? { match } : {}), ...(everywhere ? { everywhere } : {}) }
 }
 
 /** `HH:MM` (24-hour, `7:05` too) as minutes after midnight, or undefined. */
@@ -140,6 +151,8 @@ export type Settings = {
   nightTheme: string
   dayStarts: number
   nightStarts: number
+  /** Whether wearing a look also sets Claude Code's own theme to match it. */
+  matchTheme: boolean
 }
 
 const FALLBACK = { dayTheme: 'paper', nightTheme: 'tokyo-night', dayStarts: '07:00', nightStarts: '19:00' }
@@ -160,8 +173,15 @@ export function settingsFrom(options: Readonly<Record<string, unknown>>): { sett
     problems.push(`${key} "${String(value)}" is not HH:MM; using ${FALLBACK[key]}`)
     return parseClock(FALLBACK[key]) ?? 0
   }
+  // On unless the setting says off: an older install, with no such setting stored, matches too.
+  const flag = (key: 'matchTheme'): boolean => {
+    const value = options[key]
+    if (value === undefined || typeof value === 'boolean') return value !== false
+    problems.push(`${key} "${String(value)}" is not on or off; using on`)
+    return true
+  }
   return {
-    settings: { dayTheme: theme('dayTheme'), nightTheme: theme('nightTheme'), dayStarts: clock('dayStarts'), nightStarts: clock('nightStarts') },
+    settings: { dayTheme: theme('dayTheme'), nightTheme: theme('nightTheme'), dayStarts: clock('dayStarts'), nightStarts: clock('nightStarts'), matchTheme: flag('matchTheme') },
     problems,
   }
 }

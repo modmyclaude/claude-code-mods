@@ -8,6 +8,11 @@ import { THEMES } from '../hooks/themes'
 
 export const SURFACES = ['terminal', 'desktop'] as const
 
+/** The settings as installed, for a test that names them. */
+export const SETTINGS = { dayTheme: 'paper', nightTheme: 'tokyo-night', dayStarts: '07:00', nightStarts: '19:00', matchTheme: true } as const
+/** The same with matching left to the person: only `--match` and the gallery's button set Claude Code's theme. */
+export const MATCH_OFF = { ...SETTINGS, matchTheme: false } as const
+
 /**
  * What the engine's own drawing looks like in a test, for an expectation: an
  * `engine` element. Its `ref` is the engine's own number for that drawing (0 on
@@ -45,7 +50,15 @@ export type World = {
   config: ConfigWorld
 }
 
-export type ConfigWorld = { theme: string; sets: { key: string; value: unknown }[]; deny: string | null }
+export type ConfigWorld = {
+  theme: string
+  sets: { key: string; value: unknown }[]
+  deny: string | null
+  /** Armed, every write of a setting fails outright (a throw, not a refusal). */
+  fails: boolean
+  /** Armed, the rows cannot be read. */
+  blind: boolean
+}
 export const THEME_OPTIONS = ['dark', 'light', 'dark-daltonized', 'light-daltonized', 'dark-ansi', 'light-ansi'] as const
 
 /**
@@ -91,12 +104,17 @@ export function world(
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   // Claude Code's own /config rows, as far as wardrobe reads them: the theme row, with a refusal a test can arm.
-  const config: ConfigWorld = { theme: options.theme ?? 'dark', sets: [], deny: null }
-  on('config.list', () => ({
+  const config: ConfigWorld = { theme: options.theme ?? 'dark', sets: [], deny: null, fails: false, blind: false }
+  on('config.list', () => {
+    if (config.blind) throw new Error('the settings cannot be read')
+    return rows()
+  })
+  const rows = () => ({
     value: [{ key: 'theme', label: 'Theme', kind: 'choice', value: config.theme, options: options.pluginThemes ? [...THEME_OPTIONS, ...THEMES.map(t => `custom:wardrobe:${t.id}`)] : THEME_OPTIONS, provider: { plugin: 'engine', tier: 'core' }, isLocked: options.themeLocked === true } as never],
-  }))
+  })
   on('config.set', ($, e) => {
     config.sets.push({ key: e.key, value: e.value })
+    if (config.fails) throw new Error('the settings cannot be written')
     if (config.deny !== null) return { deny: config.deny }
     if (e.key === 'theme') config.theme = String(e.value)
     return { value: e.value }
