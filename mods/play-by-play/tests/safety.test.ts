@@ -32,8 +32,10 @@ const PANE_PROPS = {
   scroll: { offset: 0, bodyRows: 30 },
   view: {},
 }
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
 const BAND_PROPS = {
   hasSurvey: false,
+  isCollapsed: false,
   isWorking: false,
   maxRows: 10,
   bodyColumns: 100,
