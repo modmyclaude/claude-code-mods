@@ -62,7 +62,8 @@ jobs:
       - name: Sound packs are in spec
         run: node scripts/check-sounds.mjs
       - name: House style (no em or en dashes)
-        run: "! git grep -nI -e $'\\u2014' -e $'\\u2013'"
+        # Claude Code's own palette helper is copied into a mod exactly as it comes, so its text is not ours to restyle.
+        run: "! git grep -nI -e $'\\u2014' -e $'\\u2013' -- . ':!mods/*/hooks/make-colors.js'"
         shell: bash
       - name: Every changed mod has a version bump and a changelog line
         if: github.event_name == 'push' || github.event_name == 'pull_request'
