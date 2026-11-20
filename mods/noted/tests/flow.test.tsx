@@ -144,17 +144,16 @@ describe('a correction', () => {
 
 describe('sharing the band', () => {
   for (const surface of SURFACES) {
-    test(`noted draws after other mods' bands, never in place of them, on ${surface}`, { plugins: [NEIGHBOUR] }, async ($, on) => {
+    test(`noted draws beside other mods' bands, never in place of them, on ${surface}`, { plugins: [NEIGHBOUR] }, async ($, on) => {
       world(on, { reply: verdict(PNPM) })
       const ui = await $.ui.mount({ plugin: 'noted', surface, component: 'AbovePrompt', props: BAND })
-      // All three drawn, noted's last: an overflowing band scrolls its end away, never their buttons.
+      // All three drawn, whole: on Claude Code 2.1.293 the hook put the other mod's row first; since 2.1.326 core stacks one row per plugin in chain order, so the order is the engine's.
       const all = async () => {
         const keys = (await ui.findAll({ type: 'Box' })).map(b => b.key)
         const at = (key: string) => keys.indexOf(key)
         expect(at('neighbour')).toBeGreaterThanOrEqual(0)
         expect(at('engine')).toBeGreaterThanOrEqual(0)
-        expect(at('noted')).toBeGreaterThan(at('neighbour'))
-        expect(at('noted')).toBeGreaterThan(at('engine'))
+        expect(at('noted')).toBeGreaterThanOrEqual(0)
         return [await ui.find({ key: 'noted' })]
       }
 
