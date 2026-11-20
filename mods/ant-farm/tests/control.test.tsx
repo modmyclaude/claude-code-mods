@@ -6,7 +6,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { On, RenderPropsOf } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
-import { DOCKED, PANE, PLUGIN, SURFACES, engineBand, paneProps, usage, world } from './world'
+import { DOCKED, PANE, PLUGIN, SURFACES, bandProps, engineBand, paneProps, usage, world } from './world'
 
 // The fetch command's name is built from parts: a shipped file must not read like a download-and-run line.
 const FETCH = ['cu', 'rl'].join('')
@@ -114,7 +114,7 @@ describe('the command grid', () => {
     expect(w.rec.invalidates).toBeGreaterThan(before)
     // Opening itself at the first spawn, it asks for nothing: the dock's share.
     w.rec.panes = [] // the person closed it
-    const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }, viewport: DOCKED })
+    const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: bandProps({ isWorking: false }), viewport: DOCKED })
     await band.unmount()
     await w.spawn($, 'First')
     expect(w.rec.openColumns).toEqual([84, undefined])
@@ -487,7 +487,7 @@ describe('colours, estimates and numbers after the live look', () => {
     expect(textOf(cardsOf(await pane.drawn())[0])).not.toContain('left')
     await pane.press({ key: `inspect-${id}` })
     expect((await pane.find({ key: 'inspector' }))?.text).not.toContain('left')
-    const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: true, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }, viewport: DOCKED })
+    const band = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: bandProps({ isWorking: true }), viewport: DOCKED })
     await $.command.run({ command: 'antfarm', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
     expect((await band.find({ key: `row-${id}` }))?.text).toContain('· waiting')
   })
