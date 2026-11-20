@@ -69,6 +69,8 @@ The repository has no `.gitattributes`, on purpose: the plugin directory stopped
 
 `tsc` needs the mods API types that Claude Code writes into `<mod>/.claude-plugin/types/` the first time it loads your mod from a folder (for example with `claude --plugin-dir mods/<mod>`). Point `CLAUDE_TYPES` at `.claude-plugin/types/claude-code/index.d.ts` if they live elsewhere.
 
+A mod that uses an API younger than the pinned Claude Code names it in its prompt's frontmatter, `full_from: <version>`. Below that version the mod still loads, less that feature, and the validator warns that the hooks for it never run, so `check.sh` lifts `--strict` there and skips `tsc` when the types on hand are older. The latest-release leg of CI checks it whole.
+
 CI runs all of the above on every pull request, on a pinned Claude Code and on the latest release.
 
 ## Versions
