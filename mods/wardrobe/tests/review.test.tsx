@@ -121,7 +121,7 @@ describe('review', () => {
     await start($)
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: 'wardrobe', surface, component: 'CommandOutput', props: { command: 'wear', args: '', text: 'boom', isErrored: true } })
-      expect(await ui.drawn()).toEqual({ type: 'engine', ref: 0 })
+      expect(await ui.drawn()).toEqual(ENGINE)
       await ui.unmount()
     }
   })

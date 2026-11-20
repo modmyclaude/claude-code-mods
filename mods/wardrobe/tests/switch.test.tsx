@@ -168,7 +168,7 @@ describe('the switch band', () => {
     },
   }
 
-  test('another mod band still draws, ahead of ours', { plugins: [STUB] }, async ($, on) => {
+  test('another mod band still draws, whole, beside ours', { plugins: [STUB] }, async ($, on) => {
     world(on)
     await start($)
     await wear($, 'dracula')
@@ -176,8 +176,9 @@ describe('the switch band', () => {
       const ui = await band($, surface)
       expect((await ui.find({ key: 'stub-band' }))?.text).toBe('another mod')
       expect(await ui.find({ key: 'wardrobe-band' })).toBeDefined()
-      const order = (await ui.findAll({ type: 'Box' })).map(b => b.key).filter(k => k === 'stub-band' || k === 'wardrobe-band')
-      expect(order).toEqual(['stub-band', 'wardrobe-band'])
+      // Who comes first is the engine's: 2.1.293 hands the other row to our hook, which draws it first; since 2.1.326 core stacks each plugin's row in chain order. Each row is drawn once.
+      const keys = (await ui.findAll({ type: 'Box' })).map(b => b.key).filter(k => k === 'stub-band' || k === 'wardrobe-band')
+      expect([...keys].sort()).toEqual(['stub-band', 'wardrobe-band'])
       await ui.unmount()
     }
   })
