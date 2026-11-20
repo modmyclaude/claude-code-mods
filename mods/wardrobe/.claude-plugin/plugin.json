@@ -1,6 +1,6 @@
 {
   "name": "wardrobe",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
   "homepage": "https://modmyclaude.com/mods/wardrobe",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
@@ -8,9 +8,19 @@
   "supportUrl": "https://github.com/modmyclaude/claude-code-mods/issues",
   "privacyPolicyUrl": "https://modmyclaude.com/privacy",
   "termsOfServiceUrl": "https://modmyclaude.com/terms",
-  "author": { "name": "modmyclaude" },
+  "author": {
+    "name": "modmyclaude"
+  },
   "license": "MIT",
-  "keywords": ["theme", "looks", "accessibility", "colorblind", "high-contrast", "diff", "display"],
+  "keywords": [
+    "theme",
+    "looks",
+    "accessibility",
+    "colorblind",
+    "high-contrast",
+    "diff",
+    "display"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "dayTheme": {
@@ -18,14 +28,46 @@
       "title": "Day theme (auto mode)",
       "description": "The theme /wear auto wears by day.",
       "default": "paper",
-      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind", "halloween", "christmas", "spring", "summer", "autumn"]
+      "options": [
+        "default",
+        "noir",
+        "paper",
+        "tokyo-night",
+        "dracula",
+        "catppuccin",
+        "solarized",
+        "nord",
+        "high-contrast",
+        "colorblind",
+        "halloween",
+        "christmas",
+        "spring",
+        "summer",
+        "autumn"
+      ]
     },
     "nightTheme": {
       "type": "string",
       "title": "Night theme (auto mode)",
       "description": "The theme /wear auto wears by night.",
       "default": "tokyo-night",
-      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind", "halloween", "christmas", "spring", "summer", "autumn"]
+      "options": [
+        "default",
+        "noir",
+        "paper",
+        "tokyo-night",
+        "dracula",
+        "catppuccin",
+        "solarized",
+        "nord",
+        "high-contrast",
+        "colorblind",
+        "halloween",
+        "christmas",
+        "spring",
+        "summer",
+        "autumn"
+      ]
     },
     "dayStarts": {
       "type": "string",

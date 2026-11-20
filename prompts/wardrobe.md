@@ -5,6 +5,7 @@ tagline: Restyle Claude Code live, including colourblind-safe and high-contrast 
 category: looks
 surfaces: [terminal, desktop]
 model_calls: none
+full_from: 2.1.325
 ---
 
 # Wardrobe
@@ -30,6 +31,7 @@ What is new here
 - The mascot in costume: an accessory per theme (a witch hat, a santa hat, a flower crown, sunglasses, a cape and fangs, cat ears ...) drawn over the sprite, never a change to it; the antenna light stays clear and the costume uses at most three colours from the theme's palette.
 - auto mode: a light theme by day and a dark theme by night, with the switch times as settings.
 - /wear pin saves the current theme for this project only; other projects keep the global theme.
+- In the desktop app, a wallpaper per theme: an animated scene behind the chat (rain down lit windows for noir, snow for christmas, the mascot in costume in the corner), set with the theme and switched with it. /wear wallpaper off keeps the theme and drops the scene. Scenes are pure vector, slow, never flashing, and whole when the system asks for reduced motion. Needs Claude Code 2.1.325 or newer; the terminal never draws them.
 
 Guardrails
 - Display only: no files touched except the mod's own store, no processes, no network.

@@ -112,6 +112,30 @@ export async function start($: Engine): Promise<void> {
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
 }
 
+export type ThemeWorld = {
+  /** Every `$.theme.set` beneath the plugins, as JSON round-trips it, oldest first. */
+  sets: unknown[]
+  /** How many times the theme was cleared. */
+  clears: number
+}
+
+/**
+ * Answers the theme noun beneath the plugins, as a window that draws themes
+ * (`draws`) or a session with none, and records every set and clear.
+ */
+export function themeWorld(on: On, draws: boolean): ThemeWorld {
+  const themes: ThemeWorld = { sets: [], clears: 0 }
+  on('theme.set', ($, e) => {
+    themes.sets.push(JSON.parse(JSON.stringify(e)))
+    return { value: draws ? { isDrawn: true, requestId: 'backdrop' } : { isDrawn: false, reason: 'no window draws themes' } }
+  })
+  on('theme.clear', () => {
+    themes.clears += 1
+    return { value: { isDrawn: false, reason: 'cleared' } }
+  })
+  return themes
+}
+
 /**
  * Runs `/wear <args>` as the person typing it would, and answers what it showed
  * them. Every run is also held to the rule that nothing it says reaches the model.
@@ -142,9 +166,13 @@ export const PANE: RenderPropsOf['Pane'] = {
   view: {},
 }
 
+// The band's props as Claude Code 2.1.326 hands them: `isCollapsed` is new there, and an older
+// engine's type has no such prop, so the base is spread in rather than written out against the type.
+const BAND = { hasSurvey: false, isWorking: false, isCollapsed: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }
+
 /** The band above the prompt as a surface hands it to the hook; `over` changes a prop (a survey, the width). */
 export function bandProps(over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] {
-  return { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {}, ...over }
+  return { ...BAND, ...over }
 }
 
 export const TOOL_ROW: RenderPropsOf['ToolUse'] = {

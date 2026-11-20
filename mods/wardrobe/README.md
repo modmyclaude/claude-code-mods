@@ -20,6 +20,7 @@ Restyle Claude Code live, including colourblind-safe and high-contrast themes.
 | `/wear season` | The seasonal pack the calendar calls for, re-checked daily (see Seasonal packs). |
 | `/wear pin` | This project keeps what it wears now; other projects keep the global choice. While pinned, `/wear <theme>` changes this project's pin. |
 | `/wear unpin` | This project follows the global choice again. |
+| `/wear wallpaper off` | Keeps the look and drops its scene behind the chat in the desktop app; `/wear wallpaper on` brings scenes back, and `/wear wallpaper` says which way it is set (see Wallpapers). |
 | `/wear <theme> --match` | Wears the theme and sets Claude Code's own `theme` setting (the `/theme` menu) to the built-in nearest it: a light look on a dark theme turns the theme light, keeping a daltonized or ansi variant. Your own theme is remembered. From the desktop app this changes the terminal's theme; the app keeps its own look. |
 | `/wear match` | The same for the theme worn now. The gallery's `match theme` button does both at once. |
 | `/wear default` | Back to Claude Code's own drawing. After a match, Claude Code's theme goes back to the one you had, unless you changed it yourself since the match: then your choice stands. |
@@ -61,6 +62,14 @@ Five themes made for a time of year, each with its own mark and icons: `hallowee
 
 Bolt, the modmyclaude mascot, wears each theme: in the gallery beside every card, beside the line that names what is worn, and in the switch band. A costume is an accessory drawn over the sprite, never a change to it: a witch hat for `halloween`, a santa hat for `christmas`, a flower crown for `spring`, sunglasses for `summer`, a beanie for `autumn`, a cape and fangs for `dracula`, cat ears for `catppuccin`, a headband for `tokyo-night`, a fedora for `noir`, reading glasses for `paper`, a sun visor for `solarized`, a beanie with a pom for `nord`, a bow tie for `high-contrast`; `colorblind` leaves Bolt plain. Every costume takes at most three colours, all from the theme's own palette, keeps the antenna light clear (each hat has a notch around it), and never uses Bolt's own pink or blush. `tests/costume.test.ts` holds every one of those rules for every theme and pose.
 
+### Wallpapers (desktop app)
+
+Every look has a scene, drawn behind the chat in the desktop app: rain down lit windows for noir, a ruled page for paper, a night skyline and a passing train for tokyo-night, a castle and bats for dracula, rising bubbles for catppuccin, a low sun over the sea for solarized, the aurora for nord, a drifting grid for high-contrast and lanes of shapes in blue and orange for colorblind; carved pumpkins, falling snow, petals, rolling waves and tumbling leaves for the seasonal packs. Bolt sits at the right in the look's costume. The scene comes on with the look and switches with it, `/wear auto` and `/wear season` included; `/wear default` takes it down with the look.
+
+Scenes are pure vector, animated slowly and never flashing, and under the system's reduced-motion setting they stand still, whole. The chat sits on frosted glass tinted with the look's background; the two accessibility looks use a heavier glass so text keeps its contrast.
+
+`/wear wallpaper off` keeps the look and drops the scene; `/wear wallpaper on` brings it back; `/wear wallpaper` says which way it is set. Wallpapers need the desktop app on Claude Code 2.1.325 or newer: the terminal never draws them, and nothing else of wardrobe changes there.
+
 ### The switch band
 
 For six seconds after `/wear <theme>` (and after `/wear auto` or `/wear season` resolves to a theme) a band above the prompt shows the switch: one row filled with the theme's background, carrying its mark, `wearing <theme>`, its five icons, and Bolt in the theme's costume at the right when the band is 60 columns or wider. It draws under any other mod's band, never while a survey holds the band, and goes away by itself. `/wear default` raises none.
@@ -88,6 +97,7 @@ Every setting has a default, so the notice at install about options not yet set 
 
 - Its own store: the global choice, the per-project pins (keyed by the path of the folder the session started in), and, once you have matched a theme, the Claude Code theme you had before and the one it set, so `/wear default` can put yours back and can tell when you changed it since.
 - For the session, in memory: each tool call's start and end time, for its row.
+- The session's theme backdrop, in the desktop app: the worn look's scene, set when the look changes and taken down by `/wear default` or `/wear wallpaper off`. It never clears a scene another plugin set.
 - Reads the project root, the attached surfaces, the clock, and Claude Code's own theme setting (the `/config` theme row) at session start, before a match and before a restore; it also notices when you change that setting.
 - Writes Claude Code's theme setting only when you ask: `/wear <look> --match`, `/wear match` and the `match theme` button set it, and `/wear default` sets it back to the one you had. No files, no processes, no network, no model calls. It never refuses or changes a tool call: its tool hook only notes when a call starts and ends.
 
@@ -111,7 +121,10 @@ Every setting has a default, so the notice at install about options not yet set 
 - Auto mode and season mode check the clock once a minute, so a switch can land up to a minute late. A choice made in another session reaches this one the same way.
 - The switch band is a plain row above the prompt: it never covers a safety hold or a survey, and Bolt is left out of it under 60 columns.
 - Tool calls made before wardrobe loaded show no time, and a refused or failed call shows its status but no time.
-- Not verified: the paint itself in a real terminal and in the desktop app. The tests check the drawn trees against each surface's rules, not pixels.
+- Wallpapers draw in the desktop app on Claude Code 2.1.325 or newer; the terminal, VS Code and the mobile app never draw them, and `/wear wallpaper` says so where nothing does. On an older Claude Code the hook that draws them never runs, and the rest of wardrobe is unchanged.
+- Claude Code keeps one backdrop per session, and the latest plugin to set it wins: when another plugin's scene appears over wardrobe's, a toast says so once, and `/wear <theme>` puts wardrobe's back.
+- Under the system's reduced-motion setting the desktop app takes the animation out, and every scene rests whole: nothing in a scene is only visible mid-animation.
+- Not verified: the paint itself in a real terminal and in the desktop app, the wallpapers included. The tests check the drawn trees against each surface's rules and every scene against the backdrop's rules, not pixels.
 
 ## Built from a prompt
 

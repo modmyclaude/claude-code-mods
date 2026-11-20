@@ -2,6 +2,9 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-11-20
+
+- wardrobe 0.2.0: wallpapers. In the desktop app on Claude Code 2.1.325 or newer, every look puts an animated scene behind the chat, Bolt in costume in the corner; `/wear wallpaper off` keeps the look and drops the scene.
 ## 2026-10-23
 
 - switchboard 0.2.0: out of draft and into the catalogue. Every Claude Code session on your machine in one pane, and which one needs you.

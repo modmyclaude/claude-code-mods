@@ -38,6 +38,14 @@ export type WardrobeSwitch = {
   at: number
 }
 
+/** The wallpaper behind the chat, as far as wardrobe set it. */
+export type WardrobeBackdrop = {
+  /** The scene wardrobe set (a theme id), or null where none of its own stands. */
+  scene: string | null
+  /** Whether a window said it draws that scene when it was set. */
+  isDrawn: boolean
+}
+
 declare module 'claude-code' {
   interface PluginState {
     wardrobe: {
@@ -46,6 +54,7 @@ declare module 'claude-code' {
       switch: WardrobeSwitch | null
       verb: WardrobeVerb | null
       app: WardrobeApp
+      backdrop: WardrobeBackdrop
     }
   }
 }

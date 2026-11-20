@@ -1,9 +1,11 @@
 // Wardrobe: restyles what a mod may draw (tool rows, tool results, diff cards,
-// the spinner, the turn-duration line), switchable live with /wear.
+// the spinner, the turn-duration line), switchable live with /wear, and in the
+// desktop app puts an animated scene behind the chat for the look that is worn.
 //
-// Display only: it reads and writes its own $.store and nothing else; no files,
-// no processes, no network. Every hook that draws falls back to Claude Code's
-// own drawing when it has nothing to add, and when it fails.
+// Display only: it reads and writes its own $.store, and the session's theme
+// backdrop, and nothing else; no files, no processes, no network. Every hook
+// that draws falls back to Claude Code's own drawing when it has nothing to
+// add, and when it fails.
 
 import { atom, read } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, Timer } from 'claude-code'
@@ -12,6 +14,7 @@ import type { WardrobeApp, WardrobeLook } from '../types'
 import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
+import { glassFor, hasScene, sceneOf } from './scenes'
 import { pickVerb, themeById, THEMES, type Theme } from './themes'
 
 const LOOK = { plugin: 'wardrobe', key: 'look' } as const
@@ -19,6 +22,9 @@ const TIMING = { plugin: 'wardrobe', key: 'timing' } as const
 const SWITCH = { plugin: 'wardrobe', key: 'switch' } as const
 const VERB = { plugin: 'wardrobe', key: 'verb' } as const
 const APP = { plugin: 'wardrobe', key: 'app' } as const
+const BACKDROP = { plugin: 'wardrobe', key: 'backdrop' } as const
+/** The store key that turns the wallpapers off (`off`); absent or anything else, they are on. */
+const WALLPAPER = 'wallpaper'
 
 const look = atom(LOOK, { theme: DEFAULT, choice: DEFAULT, scope: 'global', phase: null, root: '' })
 /** The last `/wear` that put a theme on, for the switch band; null before the first. */
@@ -27,6 +33,8 @@ const switched = atom(SWITCH, null)
 const verb = atom(VERB, null)
 /** Claude Code's own theme tone, read from its theme setting; `unknown` for a custom theme or where the row cannot be read. */
 const app = atom(APP, { tone: 'unknown' })
+/** The wallpaper wardrobe set behind the chat, if any, and whose scene was last seen in its place. */
+const backdrop = atom(BACKDROP, { scene: null, isDrawn: false })
 
 /** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
@@ -38,7 +46,7 @@ const BAND_BOLT_MIN_COLUMNS = 60
 /** The pane `/wear` lists the themes in. */
 const PANE = 'wardrobe'
 
-type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock' | 'ui' | 'config'>
+type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock' | 'ui' | 'config' | 'theme'>
 
 /**
  * Where wardrobe draws in place of a component (a result card, the turn line),
@@ -47,8 +55,30 @@ type Dollar = Pick<EngineInterface, 'state' | 'store' | 'session' | 'clock' | 'u
  */
 const drewOwn = (below: RenderElement) => below.type !== 'engine'
 
+/**
+ * Whether this engine has the theme noun, which Claude Code 2.1.325 brought,
+ * learnt from the first set: an older engine throws a TypeError there, and the
+ * wallpaper is left alone on it while the look goes on. Unknown until then.
+ */
+let themeNoun: 'present' | 'absent' | null = null
+
+/**
+ * The plugin whose scene was last drawn in place of ours, said once. Module
+ * state, not `$.state`: a drawing may not write state, and a reload, which
+ * sets our scene again, rightly starts it over.
+ */
+let holder: string | null = null
+
+/**
+ * What `refresh` does about the wallpaper: `start` puts the worn scene up (an
+ * unload took the last one down); `follow` sets a scene that changed; `force`
+ * sets it again even unchanged, as `/wear` does to bring it back from under
+ * another plugin's scene. Absent, the wallpaper is left as it is.
+ */
+type Dress = 'start' | 'follow' | 'force'
+
 /** Works out what to wear now and publishes it; every drawing that reads it redraws. */
-async function refresh($: Dollar, settings: Settings): Promise<WardrobeLook> {
+async function refresh($: Dollar, settings: Settings, how?: Dress): Promise<WardrobeLook> {
   const root = await $.session.root()
   const global = await $.store.get('global')
   const pins = await $.store.get('pins')
@@ -58,7 +88,60 @@ async function refresh($: Dollar, settings: Settings): Promise<WardrobeLook> {
   // an unchanged look writes nothing and redraws nothing.
   const current = await $.state.get(LOOK)
   if (!sameLook(current.value, fresh)) await $.state.set(LOOK, fresh)
+  // The wallpaper rides along: an engine without the theme noun, or one that cannot answer, leaves the look as it is.
+  if (how !== undefined) await dress($, fresh, how).catch(() => undefined)
   return fresh
+}
+
+/**
+ * Puts the worn look's scene behind the chat, or takes wardrobe's own down.
+ * `$.theme.set` names the whole theme and the latest set stands, so a set
+ * replaces any plugin's earlier one; `$.theme.clear` clears the session's
+ * theme whoever set it, so wardrobe clears only where its own scene stands,
+ * and never at session start, where an unload already took its own down.
+ */
+async function dress($: Dollar, look: WardrobeLook, how: Dress): Promise<void> {
+  if (themeNoun === 'absent') return
+  const worn = themeById(look.theme)
+  const wanted = worn !== undefined && hasScene(worn) && (await $.store.get(WALLPAPER)) !== 'off' ? worn : undefined
+  const standing = await read($, backdrop)
+  if (wanted === undefined) {
+    if (standing.scene === null) return
+    await $.state.set(BACKDROP, { scene: null, isDrawn: false })
+    if (how !== 'start') await $.theme.clear()
+    return
+  }
+  if (how === 'follow' && standing.scene === wanted.id) return
+  let set: { isDrawn: boolean }
+  try {
+    set = await $.theme.set({ backdrop: { scene: wanted.id, glass: glassFor(wanted) }, overrideColorScheme: wanted.tone })
+  } catch (err) {
+    if (err instanceof TypeError) {
+      themeNoun = 'absent'
+      return
+    }
+    throw err
+  }
+  themeNoun = 'present'
+  holder = null
+  await $.state.set(BACKDROP, { scene: wanted.id, isDrawn: set.isDrawn })
+}
+
+/** What `/wear wallpaper` answers: on or off, and where the scene draws. */
+async function wallpaperText($: Dollar, look: WardrobeLook, changed: boolean | null): Promise<string> {
+  const on = (await $.store.get(WALLPAPER)) !== 'off'
+  const lead = changed === null ? `Wallpapers are ${on ? 'on' : 'off'}.` : on ? 'Wallpapers on.' : 'Wallpapers off.'
+  if (!on) return `${lead} The look stays; nothing of wardrobe's draws behind the chat.`
+  const theme = themeById(look.theme)
+  const scene = theme !== undefined && hasScene(theme) ? `The ${theme.id} scene draws behind the chat in the desktop app.` : 'Wear a look and its scene draws behind the chat in the desktop app.'
+  const standing = await read($, backdrop)
+  const nowhere = themeNoun === 'absent' || (standing.scene !== null && !standing.isDrawn)
+  const where = nowhere
+    ? ' Nothing here draws it yet: wallpapers need the desktop app on Claude Code 2.1.325 or newer.'
+    : holder !== null && standing.scene !== null
+      ? ` ${clean(holder)} draws the backdrop now; /wear ${standing.scene} brings ours back.`
+      : ''
+  return `${lead} ${scene}${where}`
 }
 
 /**
@@ -75,7 +158,7 @@ async function wear($: Dollar, settings: Settings, choice: string): Promise<stri
   } else {
     await $.store.set('global', choice)
   }
-  const look = await refresh($, settings)
+  const look = await refresh($, settings, 'force')
   if (themeById(look.theme)) {
     await $.state.set(SWITCH, { theme: look.theme, at: await $.clock.now() })
     $.clock.after(BAND_MS, () => $.ui.invalidate('ui.render'))
@@ -210,7 +293,7 @@ async function pin($: Dollar, settings: Settings): Promise<string> {
   const pins = pinsOf(await $.store.get('pins'))
   pins[now.root] = now.choice
   await $.store.set('pins', pins)
-  const after = await refresh($, settings)
+  const after = await refresh($, settings, 'follow')
   const what = after.choice === DEFAULT ? "Claude Code's own look" : after.choice
   return `Pinned ${what} to ${clean(after.root)}. Other projects keep the global choice.`
 }
@@ -222,7 +305,7 @@ async function unpin($: Dollar, settings: Settings): Promise<string> {
   if (!Object.hasOwn(pins, root)) return `${clean(root)} has no pin. ${describeLook(await refresh($, settings), settings)}`
   delete pins[root]
   await $.store.set('pins', pins)
-  return `Unpinned ${clean(root)}. ${describeLook(await refresh($, settings), settings)}`
+  return `Unpinned ${clean(root)}. ${describeLook(await refresh($, settings, 'follow'), settings)}`
 }
 
 // What /wear says is for the person, never the model: a command's `text` is a
@@ -259,11 +342,11 @@ export const register: Register = (on, options) => {
       })
       .catch(() => undefined)
     // A store or clock that cannot answer leaves Claude Code's own look on.
-    await refresh($, settings).catch(() => undefined)
+    await refresh($, settings, 'start').catch(() => undefined)
     await readAppTone($).catch(() => undefined)
     ticker?.cancel()
     ticker = $.clock.every(TICK_MS, () => {
-      refresh($, settings).catch(() => undefined)
+      refresh($, settings, 'follow').catch(() => undefined)
     })
     return next(e)
   })
@@ -284,6 +367,11 @@ export const register: Register = (on, options) => {
       await say($, text)
     } else if (command.kind === 'match') {
       await say($, await matchTheme($, settings), 6000)
+    } else if (command.kind === 'wallpaper') {
+      // A plain ask only answers; on or off is made so, and on sets the scene again, over anyone's.
+      if (command.on !== null) await $.store.set(WALLPAPER, command.on ? 'on' : 'off')
+      const look = command.on === null ? await refresh($, settings) : await refresh($, settings, 'force')
+      await say($, await wallpaperText($, look, command.on), 6000)
     } else {
       await say($, command.kind === 'pin' ? await pin($, settings) : await unpin($, settings))
     }
@@ -449,6 +537,28 @@ export const register: Register = (on, options) => {
         {switchBand($.ui.resolve(e), theme, columns, bolt, fills(theme, e.surface, (await read($, app)).tone))}
       </Box>
     )
+  }).catch(($, e, next) => next(e))
+
+  // The wallpaper: the desktop app asks every plugin to draw the backdrop that
+  // `$.theme.set` named. Wardrobe draws its own scene for the look that is worn
+  // and passes on any other plugin's, saying once, kindly, that the other
+  // plugin holds the backdrop now. The terminal never asks; mobile is left to
+  // Claude Code's own drawing, like the rest of wardrobe there.
+  on('ui.render', { component: 'Backdrop' }, async ($, e, next) => {
+    if (e.surface !== 'desktop') return next(e)
+    if (e.props.plugin !== 'wardrobe') {
+      const own = await read($, backdrop)
+      if (own.scene !== null && holder !== e.props.plugin) {
+        holder = e.props.plugin
+        await $.ui.toast(`${clean(e.props.plugin)} draws the backdrop now, so the ${own.scene} wallpaper waits. /wear ${own.scene} brings it back.`, { timeoutMs: 8000 })
+      }
+      return next(e)
+    }
+    const theme = themeById(e.props.scene)
+    const scene = theme === undefined ? undefined : sceneOf(theme)
+    if (scene === undefined) return next(e)
+    const { Svg } = $.ui.resolve(e)
+    return <Svg source={scene.source} alt={scene.alt} isInteractive />
   }).catch(($, e, next) => next(e))
 
   // The `/wear` gallery: a card per theme in its own colours with Bolt in its

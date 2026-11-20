@@ -269,7 +269,7 @@ export function dressedBolt(t: Table & { Raster?: ElementConstructor<RasterProps
   return cellsSprite(t, surface, wearBolt(theme, size, 'idle'), key)
 }
 
-const HELP = '/wear <theme> switches now. /wear auto follows the clock, /wear season the calendar. /wear pin keeps this look for this project; /wear unpin lets go.'
+const HELP = '/wear <theme> switches now. /wear auto follows the clock, /wear season the calendar. /wear pin keeps this look for this project; /wear unpin lets go. /wear wallpaper off keeps the look and drops the scene behind the chat in the desktop app.'
 
 /** What is worn, in words, for the gallery header and command replies. */
 export function describeLook(look: WardrobeLook, settings: Settings): string {

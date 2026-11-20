@@ -58,6 +58,8 @@ export type WearCommand =
   | { kind: 'match' }
   | { kind: 'pin' }
   | { kind: 'unpin' }
+  /** `/wear wallpaper [on|off]`: `on` is null for a plain ask of the state. */
+  | { kind: 'wallpaper'; on: boolean | null }
   | { kind: 'unknown'; word: string }
 
 /** `/wear` arguments as one command. */
@@ -69,6 +71,8 @@ export function parseWear(args: string): WearCommand {
   if (word === '' || word === 'list') return { kind: 'list' }
   if (word === 'pin') return { kind: 'pin' }
   if (word === 'unpin') return { kind: 'unpin' }
+  if (word === 'wallpaper' || word === 'wallpapers') return { kind: 'wallpaper', on: null }
+  if (/^wallpapers? (on|off)$/.test(word)) return { kind: 'wallpaper', on: word.endsWith('on') }
   const choice = choiceOf(word)
   return choice === undefined ? { kind: 'unknown', word: args.trim() } : match ? { kind: 'wear', choice, match } : { kind: 'wear', choice }
 }
