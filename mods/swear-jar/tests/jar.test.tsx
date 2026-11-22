@@ -3,11 +3,45 @@
 // answer nothing the model reads, and the opt-in nudge.
 
 import { describe, expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
 import { EM_DASH } from '../hooks/jar'
 import { BAND_PROPS, COMPOSE, SURFACES, band, pane, reply, run, start, world } from './world'
 
 const THREE = "You're absolutely right, great question. I apologize for the mess; let me know if it helps. You are absolutely right."
+
+/**
+ * Whether this engine stacks the band one row per plugin (Claude Code 2.1.325
+ * and newer), where a hook is handed nothing of what lies beneath it and the
+ * engine's own rows draw first: a probe plugin's hook on the band's list runs
+ * there and nowhere else. Set by the first test, read by the hold test.
+ */
+let engineStacksRows = false
+const STACKER = {
+  name: 'stacker',
+  tier: 'append' as const,
+  register(on: On) {
+    // The band's list is a component of Claude Code 2.1.325 and newer; the 2.1.293 types do not name
+    // it, so the matcher is typed as the band row's, which both sets of types accept. The hook only
+    // toasts and passes, so the event's shape is never read.
+    const LIST = { component: 'AbovePromptList' } as unknown as { component: 'AbovePrompt' }
+    on('ui.render', LIST, async ($, e, next) => {
+      await $.ui.toast('stacker: the engine stacks the band')
+      return next(e)
+    })
+  },
+}
+
+describe('the engine', () => {
+  test('finds out whether this engine stacks the band one row per plugin', { plugins: [STACKER] }, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await reply($, THREE)
+    await band($, 'terminal')
+    engineStacksRows = w.toasts.some(text => text.startsWith('stacker:'))
+    expect(typeof engineStacksRows).toBe('boolean')
+  })
+})
 
 describe('counting', () => {
   test('a reply with tics counts each once, and the band shows the top three in order on both surfaces', async ($, on) => {
@@ -55,15 +89,22 @@ describe('counting', () => {
     }
   })
 
-  test('while a safety hold waits beneath, the band is left to it alone', async ($, on) => {
+  test('while a safety hold waits beneath, the hold draws whole; where the engine lets it, the band is left to it alone', async ($, on) => {
     world(on, { holdBeneath: true })
     await start($)
     await reply($, THREE)
     for (const surface of SURFACES) {
       const drawn = await band($, surface)
       expect(drawn.hold).toContain('held: rm -rf build')
-      expect(drawn.line).toBeUndefined()
-      expect(drawn.texts.join('\n')).not.toContain('swear-jar')
+      // On Claude Code 2.1.293 the hook sees the hold beneath it and steps aside. Since 2.1.325 the
+      // engine stacks the band itself, its own rows first and whole, and hands a hook nothing of what
+      // lies beneath, so the line draws beside the hold, never over it, and cannot step aside.
+      if (engineStacksRows) {
+        expect(drawn.line).toBeDefined()
+      } else {
+        expect(drawn.line).toBeUndefined()
+        expect(drawn.texts.join('\n')).not.toContain('swear-jar')
+      }
     }
   })
 

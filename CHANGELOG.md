@@ -2,6 +2,10 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-11-20
+
+- last-look 0.1.4: on Claude Code 2.1.325 and newer, where the engine stacks the band's rows itself, the band still draws alone while a hold waits: other mods' rows are left out until you decide, as before.
+
 ## 2026-10-23
 
 - switchboard 0.2.0: out of draft and into the catalogue. Every Claude Code session on your machine in one pane, and which one needs you.

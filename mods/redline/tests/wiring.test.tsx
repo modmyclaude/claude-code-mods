@@ -112,7 +112,8 @@ const PANE_PROPS = {
   scroll: { offset: 0, bodyRows: 40 },
   view: {},
 }
-const BAND_PROPS = { hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 120, scroll: { offset: 0, bodyRows: 5 }, view: {} }
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
+const BAND_PROPS = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 6, bodyColumns: 120, scroll: { offset: 0, bodyRows: 5 }, view: {} }
 
 describe('status line', () => {
   test('moves on each model request and spells out the level', async ($, on) => {
@@ -525,7 +526,7 @@ describe('outside text is cleaned before it is drawn', () => {
 })
 
 describe('band shares the slot', () => {
-  test("draws its gauge on top of another mod's band, never in its place, on both surfaces", { plugins: [OTHER_BAND] }, async ($, on) => {
+  test("draws its gauge beside another mod's band, never in its place, on both surfaces", { plugins: [OTHER_BAND] }, async ($, on) => {
     world(on)
     await request($, pct(85))
     await runCommand($, 'band')
@@ -533,9 +534,9 @@ describe('band shares the slot', () => {
       const ui = await $.ui.mount({ plugin: 'redline', surface, component: 'AbovePrompt', props: BAND_PROPS })
       expect((await ui.find({ key: 'gauge' }))?.text).toMatch(/context.*85%/)
       expect((await ui.find({ key: 'other-band' }))?.text).toBe("another mod's band")
-      // The other band comes first, so a long gauge never pushes its buttons out of view.
+      // Both rows whole: on Claude Code 2.1.293 the hook put the other mod's row first; since 2.1.326 core stacks one row per plugin in chain order, so the order is the engine's.
       const keys = (await ui.findAll({})).map(el => el.key).filter(k => k === 'other-band' || k === 'gauge')
-      expect(keys).toEqual(['other-band', 'gauge'])
+      expect([...keys].sort()).toEqual(['gauge', 'other-band'])
       expect(await ui.drawn()).toMatchObject({ type: 'Box', props: { flexDirection: 'column' } })
       await ui.unmount()
     }

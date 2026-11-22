@@ -163,7 +163,8 @@ export async function run($: Engine, args: string) {
   return $.command.run({ command: 'bouncer', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } })
 }
 
-export const BAND_PROPS = { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 10 }, view: {} }
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
+export const BAND_PROPS = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 10 }, view: {} }
 
 export const PANE_PROPS = {
   title: 'Bouncer',

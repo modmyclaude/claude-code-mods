@@ -8,8 +8,14 @@ import { THEMES } from '../hooks/themes'
 
 export const SURFACES = ['terminal', 'desktop'] as const
 
-/** What the engine's own drawing looks like in a test: an `engine` element. */
-export const ENGINE = { type: 'engine', ref: 0 } as const
+/**
+ * What the engine's own drawing looks like in a test, for an expectation: an
+ * `engine` element. Its `ref` is the engine's own number for that drawing (0 on
+ * Claude Code 2.1.293, any number since 2.1.326), so only the type is held.
+ */
+export const ENGINE = { type: 'engine', ref: expect.any(Number) }
+/** The drawing the world answers for the engine: plain data, as a hook must return it. */
+const DRAWN_BY_ENGINE = { type: 'engine', ref: 0 } as const
 
 /** A local time today-ish, independent of the machine's time zone. */
 export function at(hours: number, minutes: number, seconds = 0): number {
@@ -97,7 +103,7 @@ export function world(
   })
   on('ui.render', ($, e) => {
     drawnByEngine.push(e.props)
-    return ENGINE
+    return DRAWN_BY_ENGINE
   })
   return { clock, store, heard: seen, panes, cd: next => (root = next), drawnByEngine, config }
 }
@@ -136,9 +142,13 @@ export const PANE: RenderPropsOf['Pane'] = {
   view: {},
 }
 
+// The band's props as Claude Code 2.1.326 hands them: `isCollapsed` is new there, and an older
+// engine's type has no such prop, so the base is spread in rather than written out against the type.
+const BAND = { hasSurvey: false, isWorking: false, isCollapsed: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }
+
 /** The band above the prompt as a surface hands it to the hook; `over` changes a prop (a survey, the width). */
 export function bandProps(over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] {
-  return { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {}, ...over }
+  return { ...BAND, ...over }
 }
 
 export const TOOL_ROW: RenderPropsOf['ToolUse'] = {
