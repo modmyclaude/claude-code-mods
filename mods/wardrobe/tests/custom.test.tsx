@@ -210,8 +210,8 @@ describe('game day', () => {
     await start($)
     const lines = (await wear($, '')).split('\n')
     expect(lines).toContain('Game day: gridiron on Thursday, while auto or season is worn. Today is one: auto and season wear gridiron until midnight.')
-    // The day after it is the plain line again.
-    await w.clock.advance(24 * 60 * 60_000)
+    // Friday, a little after midnight, it is the plain line again.
+    await w.clock.advance(4 * 60 * 60_000)
     expect((await wear($, '')).split('\n')).toContain('Game day: gridiron on Thursday, while auto or season is worn.')
   })
 
@@ -242,7 +242,10 @@ describe('game day', () => {
 
 describe('the holiday looks', () => {
   const easterSunday = new Date(2026, 3, 5, 10).getTime()
-  const eidDay = new Date(2026, 2, 20, 10).getTime()
+  // The last half hour of each holiday's last day. The ticker re-resolves once a minute, so the tests
+  // that watch a holiday end start here and cross one midnight, not whole days of ticks.
+  const easterMondayLate = new Date(2026, 3, 6, 23, 30).getTime()
+  const eidLastDayLate = new Date(2026, 2, 22, 23, 30).getTime()
 
   test('worn by name on any day, like every look', { options: SETTINGS }, async ($, on) => {
     world(on, { now: at(12, 0) })
@@ -266,26 +269,26 @@ describe('the holiday looks', () => {
   })
 
   test('with its setting on, season wears easter from Good Friday to Easter Monday, then spring again', { options: { ...SETTINGS, seasonEaster: true } }, async ($, on) => {
-    const w = world(on, { now: easterSunday })
+    const w = world(on, { now: easterMondayLate })
     await start($)
     expect(await wear($, 'season')).toBe('Wearing season everywhere without a pin: easter now (Good Friday to Easter Monday).')
     const ui = await pane($)
     expect((await ui.find({ key: 'theme-season' }))?.text).toContain('by the calendar: easter now (Good Friday to Easter Monday)')
     expect((await ui.find({ key: 'family' }))?.text).toBe('seasons: the calendar and two holidays. /wear season wears easter on its days.')
     await ui.unmount()
-    await w.clock.advance(2 * 24 * 60 * 60_000) // Tuesday
+    await w.clock.advance(60 * 60_000) // Tuesday, half past midnight
     expect(await stripeOf($)).toBe(themeById('spring')!.palette.accent)
   })
 
   test('with its setting on, season wears eid on Eid al-Fitr and the two days after', { options: { ...SETTINGS, seasonEid: true, seasonEaster: true } }, async ($, on) => {
-    const w = world(on, { now: eidDay })
+    const w = world(on, { now: eidLastDayLate })
     await start($)
     expect(await wear($, 'season')).toBe('Wearing season everywhere without a pin: eid now (Eid al-Fitr and the two days after).')
     expect(await stripeOf($)).toBe(themeById('eid')!.palette.accent)
     const ui = await pane($)
     expect((await ui.find({ key: 'family' }))?.text).toBe('seasons: the calendar and two holidays. /wear season wears easter and eid on their days.')
     await ui.unmount()
-    await w.clock.advance(3 * 24 * 60 * 60_000) // March 23
+    await w.clock.advance(60 * 60_000) // March 23, half past midnight
     expect(await stripeOf($)).toBe(themeById('spring')!.palette.accent)
   })
 })
