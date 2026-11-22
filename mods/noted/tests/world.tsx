@@ -14,8 +14,10 @@ export const NOW = Date.UTC(2026, 9, 8, 12)
 export const SURFACES = ['terminal', 'desktop'] as const
 
 /** What a band above the prompt is handed by a surface. */
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
 export const BAND = {
   hasSurvey: false,
+  isCollapsed: false,
   isWorking: true,
   maxRows: 14,
   bodyColumns: 100,

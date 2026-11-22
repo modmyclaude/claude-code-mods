@@ -67,7 +67,8 @@ const FLAG = {
 
 const BAND = {
   component: 'AbovePrompt',
-  props: { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 96, scroll: { offset: 0, bodyRows: 11 }, view: {} },
+  // `isCollapsed` is new in Claude Code 2.1.326's band props; this const is never a fresh literal where it is used, so older types do not object.
+  props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 12, bodyColumns: 96, scroll: { offset: 0, bodyRows: 11 }, view: {} },
 } as const
 
 type Answer = string | ModelCompleteResult
@@ -632,7 +633,7 @@ const OTHER_BAND = {
   },
 } satisfies Plugin
 
-test('a note keeps other mods\' bands, drawn above it, on both surfaces', { plugins: [OTHER_BAND] }, async ($, on) => {
+test('a note keeps other mods\' bands, whole beside it, on both surfaces', { plugins: [OTHER_BAND] }, async ($, on) => {
   const seen = world(on, [JSON.stringify(FLAG)])
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
@@ -650,8 +651,8 @@ test('a note keeps other mods\' bands, drawn above it, on both surfaces', { plug
     const headline = texts.indexOf(FLAG.headline)
     expect(other).toBeGreaterThanOrEqual(0)
     expect(headline).toBeGreaterThanOrEqual(0)
-    // The other band first, so an overflow never scrolls its buttons away.
-    expect(other).toBeLessThan(headline)
+    // Both whole: on Claude Code 2.1.293 the hook put the other mod's row first; since 2.1.326 core stacks one row per plugin in chain order, so the order is the engine's.
+    expect(other).not.toBe(headline)
     await ui.unmount()
   }
 })

@@ -15,8 +15,8 @@ Mission control for your subagents: what each one is doing, its activity and its
 - **The band.** While a turn runs, a slim line above the prompt shows the
   elapsed time, how many subagents are running and done, and the session's
   spend so far. It stays while background subagents still run. Other mods'
-  band lines keep drawing, above it, so a long ant list never pushes their
-  buttons out of view.
+  band lines keep drawing beside it, whole (on Claude Code 2.1.326 and newer
+  the engine stacks the band's rows itself; before that, theirs came first).
 - **The pane is a mission control.** `/antfarm` opens it (mid-turn too, and it
   adds nothing to the conversation). At the top: Bolt, the mission's state in
   one line (`Working · 3 running`, `Waiting · 1 held`, `All done · 4 agents`,

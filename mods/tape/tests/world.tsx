@@ -44,14 +44,16 @@ export function world(on: On, setup: { env?: Record<string, string>; mode?: Mode
   }
   on('http.fetch', (_$, e) => {
     const method = e.init?.method ?? 'GET'
-    rec.requests.push({ url: e.url, method, headers: e.init?.headers ?? {}, body: e.init?.body })
+    // Claude Code 2.1.326 lets a body be bytes (`{ base64 }`) as well as text; the mod sends text.
+    const sent = e.init?.body
+    rec.requests.push({ url: e.url, method, headers: e.init?.headers ?? {}, body: typeof sent === 'string' ? sent : undefined })
     if (rec.mode === 'fail') return { deny: 'offline' }
     if (rec.mode === '429') return { value: { status: 429, ok: false, headers: {}, text: '' } }
     if (e.url.startsWith('https://data.alpaca.markets/')) {
       if (rec.mode === 'alpaca-401') return { value: { status: 401, ok: false, headers: {}, text: '{"message":"unauthorized"}' } }
       return { value: { status: 200, ok: true, headers: {}, text: SNAPSHOTS } }
     }
-    const body = JSON.parse(e.init?.body ?? '{}') as { type?: string; dex?: string }
+    const body = JSON.parse(typeof sent === 'string' ? sent : '{}') as { type?: string; dex?: string }
     const text =
       body.type === 'allMids' ? (body.dex === 'xyz' ? XYZ_MIDS : MAIN_MIDS)
       : body.type === 'metaAndAssetCtxs' ? (body.dex === 'xyz' ? XYZ_CTX : MAIN_CTX)
@@ -89,8 +91,11 @@ export function world(on: On, setup: { env?: Record<string, string>; mode?: Mode
   }
 }
 
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
+const BAND = { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }
+
 export function bandProps(over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] {
-  return { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {}, ...over }
+  return { ...BAND, ...over }
 }
 
 export function mountBand($: Engine, surface: 'terminal' | 'desktop', over: Partial<RenderPropsOf['AbovePrompt']> = {}) {

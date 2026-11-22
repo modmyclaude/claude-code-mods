@@ -19,8 +19,10 @@ const FRAME = 300
 const SLEEP = 5 * 60_000
 const SURFACES = ['terminal', 'desktop'] as const
 
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
 const BAND = {
   hasSurvey: false,
+  isCollapsed: false,
   isWorking: false,
   maxRows: 12,
   bodyColumns: 80,
@@ -632,9 +634,9 @@ describe('the band', () => {
         expect(await ui.find({ key: 'neighbour-band' }), `${surface} ${JSON.stringify(props)}`).toBeDefined()
         expect(await ui.find({ key: 'band' })).toBeDefined()
         expect(await shown(ui)).toContain('neighbour safety notice')
-        // The neighbour comes first, so the pet can never scroll it out of view.
+        // Both rows whole: on Claude Code 2.1.293 the hook put the other mod's row first; since 2.1.326 core stacks one row per plugin in chain order, so the order is the engine's.
         const order = keysOf(await ui.drawn()).filter(key => key === 'neighbour-band' || key === 'band')
-        expect(order, `${surface} ${JSON.stringify(props)}`).toEqual(['neighbour-band', 'band'])
+        expect([...order].sort(), `${surface} ${JSON.stringify(props)}`).toEqual(['band', 'neighbour-band'])
         await ui.unmount()
       }
       // Hidden: the neighbour alone.
