@@ -10,13 +10,14 @@
 // files, no processes, no network. Every hook that draws falls back to Claude
 // Code's own drawing when it has nothing to add, and when it fails.
 
-import { atom, read } from 'claude-code'
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement, Timer } from 'claude-code'
 
 import type { WardrobeApp, WardrobeLook } from '../types'
 import { appColors } from './app-colors'
 import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
+import { AT_REST, gpuValues } from './live'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
 import { glassFor, hasScene, sceneOf } from './scenes'
 import { teamNote, wornTheme } from './tailor'
@@ -29,6 +30,7 @@ const VERB = { plugin: 'wardrobe', key: 'verb' } as const
 const APP = { plugin: 'wardrobe', key: 'app' } as const
 const BACKDROP = { plugin: 'wardrobe', key: 'backdrop' } as const
 const GALLERY = { plugin: 'wardrobe', key: 'gallery' } as const
+const LIVE = { plugin: 'wardrobe', key: 'live' } as const
 /** The store key that turns the wallpapers off (`off`); absent or anything else, they are on. */
 const WALLPAPER = 'wallpaper'
 
@@ -43,6 +45,8 @@ const app = atom(APP, { tone: 'unknown' })
 const backdrop = atom(BACKDROP, { look: null, scene: null, isDrawn: false })
 /** The family of looks the gallery shows; null until one is picked, and then the worn look's own. */
 const gallery = atom(GALLERY, { family: null })
+/** What a scene on the GPU is told of the session: whether Claude works. */
+const live = atom(LIVE, AT_REST)
 
 /** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
@@ -619,6 +623,14 @@ export const register: Register = (on, options) => {
     const theme = wornTheme((await read($, look)).theme, settings)
     const pick = theme ? pickVerb(theme.id, e.turnId) : null
     await $.state.set(VERB, pick ? { turnId: e.turnId, present: pick[0], past: pick[1] } : null)
+    // A scene on the GPU answers the session: the weather picks up while Claude works. An agent's turn is not the session's.
+    if (e.agentId === undefined) await update($, live, was => ({ ...was, isWorking: true }))
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // ... and settles when the turn ends, however it ends. It only watches: the answer goes on unchanged.
+  on('turn.complete', async ($, e, next) => {
+    if (e.agentId === undefined) await update($, live, was => ({ ...was, isWorking: false }))
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -701,7 +713,17 @@ export const register: Register = (on, options) => {
     const theme = wornTheme(e.props.scene, settings)
     const scene = theme === undefined ? undefined : sceneOf(theme, { motion: settings.motion })
     if (scene === undefined) return next(e)
-    const { Svg } = $.ui.resolve(e)
+    const { Shader, Svg } = $.ui.resolve(e)
+    // A flagship scene also plays on the GPU, over the same picture: the app shows the picture alone under Reduce Motion,
+    // or where it plays no shader. Calm and still motion keep to the picture, and so does an app older than the Shader.
+    if (settings.motion !== 'full' || Shader === undefined) return <Svg source={scene.source} alt={scene.alt} isInteractive />
+    const values = gpuValues(await read($, live))
+    if (theme?.id === 'christmas')
+      return (
+        <Shader module="./gpu/snow.ts" values={values}>
+          <Svg source={scene.source} alt={scene.alt} isInteractive />
+        </Shader>
+      )
     return <Svg source={scene.source} alt={scene.alt} isInteractive />
   }).catch(($, e, next) => next(e))
 

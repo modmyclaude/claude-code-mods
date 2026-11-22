@@ -14,6 +14,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { appColors } from '../hooks/app-colors'
+import { AT_REST, gpuValues } from '../hooks/live'
 import { glassFor, sceneOf } from '../hooks/scenes'
 import { wornTheme } from '../hooks/tailor'
 import { themeById } from '../hooks/themes'
@@ -296,6 +297,43 @@ describe('wallpapers', () => {
     await wear($, 'default')
     expect(t.clears).toBe(0)
     expect(t.sets).toEqual([])
+  })
+
+  test('christmas also plays on the GPU, over its own whole picture, told how the session stands: at rest, then working, then at rest', async ($, on) => {
+    if (!engineHasTheme) return
+    world(on, { surfaces: ['desktop'] })
+    themeWorld(on, true)
+    on('turn.complete', ($, e) => ({ text: e.answer }))
+    await start($)
+    await wear($, 'christmas')
+    const ui = await mountBackdrop($, 'christmas')
+    const scene = sceneOf(themeById('christmas')!)!
+    expect(gpuValues(AT_REST)).toEqual({ work: 0 })
+    const playing = (work: number) => ({
+      type: 'Shader',
+      props: { module: 'hooks/gpu/snow.ts', values: { work } },
+      children: [{ type: 'Svg', props: { source: scene.source, alt: scene.alt, isInteractive: true } }],
+    })
+    expect(await ui.drawn()).toMatchObject(playing(0))
+    await $.turn.start({ text: 'go', turnId: 'turn-1' })
+    expect(await ui.drawn()).toMatchObject(playing(1))
+    // An agent's turn ending is not the session's.
+    await $.turn.complete({ answer: 'done', durationMs: 5, isAborted: false, turnId: 'agent-turn', agentId: 'a1', reason: 'answer' } as never)
+    expect(await ui.drawn()).toMatchObject(playing(1))
+    await $.turn.complete({ answer: 'done', durationMs: 5, isAborted: false, turnId: 'turn-1', reason: 'answer' } as never)
+    expect(await ui.drawn()).toMatchObject(playing(0))
+    await ui.unmount()
+  })
+
+  test('calm motion keeps christmas to its picture, and a look with no GPU scene draws its picture alone', { options: { ...SETTINGS, motion: 'calm' } }, async ($, on) => {
+    if (!engineHasTheme) return
+    world(on, { surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'christmas')
+    const ui = await mountBackdrop($, 'christmas')
+    expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(themeById('christmas')!, { motion: 'calm' })!.source } })
+    await ui.unmount()
   })
 
   test('a theme nothing answers never costs the look, on any engine', async ($, on) => {

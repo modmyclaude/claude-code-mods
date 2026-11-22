@@ -4,6 +4,7 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 
 ## 2026-11-22
 
+- wardrobe 0.6.0: the Christmas scene also plays on the graphics card in the desktop app. Snow falls over the scene in depth, parts around the pointer and blows outward from a press on the bare scene; while Claude works it falls faster and aslant and a warm light sits around the prompt box and on the tree. The vector scene stays whole beneath it and shows alone under reduced motion, with `motion` at `calm` or `still`, or where the app plays no shader.
 - wardrobe 0.5.0: every scene is composed around the chat column. The desktop app frosts the column over the middle of the window, so each look's subject (the moon, the castle, the terminal, the tree) now stands at a side, where it is seen sharp, and only soft light sits behind the words; Bolt stands clear of the column in every look. `/wardrobe` answers as `/wear` does. The Christmas sleigh flies forwards.
 
 ## 2026-11-21

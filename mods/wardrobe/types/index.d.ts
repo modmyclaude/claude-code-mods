@@ -53,6 +53,12 @@ export type WardrobeGallery = {
   family: string | null
 }
 
+/** What a scene on the GPU is told of the session. */
+export type WardrobeLive = {
+  /** Whether a turn of the session's own runs now. */
+  isWorking: boolean
+}
+
 declare module 'claude-code' {
   interface PluginState {
     wardrobe: {
@@ -63,6 +69,7 @@ declare module 'claude-code' {
       app: WardrobeApp
       backdrop: WardrobeBackdrop
       gallery: WardrobeGallery
+      live: WardrobeLive
     }
   }
 }
