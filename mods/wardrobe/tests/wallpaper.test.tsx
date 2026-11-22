@@ -15,8 +15,9 @@ import type { On } from 'claude-code'
 
 import { appColors } from '../hooks/app-colors'
 import { glassFor, sceneOf } from '../hooks/scenes'
+import { wornTheme } from '../hooks/tailor'
 import { themeById } from '../hooks/themes'
-import { at, ENGINE, start, themeWorld, TOOL_ROW, wear, world } from './setup'
+import { at, ENGINE, SETTINGS, start, themeWorld, TOOL_ROW, wear, world } from './setup'
 
 const dracula = themeById('dracula')!
 const paper = themeById('paper')!
@@ -92,6 +93,46 @@ describe('wallpapers', () => {
     await start($)
     expect(t.sets).toEqual([])
     expect(t.clears).toBe(0) // an unload took wardrobe's own down already; a clear here could only take another plugin's
+  })
+
+  const TEAM = { teamPrimary: '#14306b', teamSecondary: '#f2b824' }
+
+  test('the settings reach the app: the glass asked for, the motion asked for, and the team colours of a sports look', { options: { ...SETTINGS, glass: 'heavy', motion: 'calm', ...TEAM } }, async ($, on) => {
+    if (!engineHasTheme) return
+    world(on, { surfaces: ['desktop'] })
+    const t = themeWorld(on, true)
+    await start($)
+    await wear($, 'dracula')
+    expect(t.sets.at(-1)).toEqual({ ...paletteOf('dracula'), backdrop: { scene: 'dracula', glass: glassFor(dracula, 'heavy') } })
+    expect(glassFor(dracula, 'heavy')).not.toEqual(glassFor(dracula))
+    const calm = sceneOf(dracula, { motion: 'calm' })!
+    expect(calm.source).not.toBe(sceneOf(dracula)!.source)
+    const ui = await mountBackdrop($, 'dracula')
+    expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: calm.source, alt: calm.alt, isInteractive: true } })
+    await ui.unmount()
+    // A sports look goes on as the team wears it: the palette set and the scene drawn are both the team's.
+    await wear($, 'rink')
+    const worn = wornTheme('rink', TEAM)!
+    expect(t.sets.at(-1)).toEqual(JSON.parse(JSON.stringify({ colors: appColors(worn).colors, overrideColorScheme: 'dark', backdrop: { scene: 'rink', glass: glassFor(worn, 'heavy') } })))
+    expect((t.sets.at(-1) as { colors: unknown }).colors).not.toEqual(paletteOf('rink').colors)
+    const rink = await mountBackdrop($, 'rink')
+    expect(await rink.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(worn, { motion: 'calm' })!.source } })
+    expect(sceneOf(worn, { motion: 'calm' })!.source).not.toBe(sceneOf(themeById('rink')!, { motion: 'calm' })!.source)
+    await rink.unmount()
+  })
+
+  test('motion still draws the scene whole and at rest; as installed it moves', { options: { ...SETTINGS, motion: 'still' } }, async ($, on) => {
+    if (!engineHasTheme) return
+    world(on, { surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'nord')
+    const ui = await mountBackdrop($, 'nord')
+    const drawn = (await ui.drawn()) as { props: { source: string } }
+    expect(drawn.props.source).toBe(sceneOf(themeById('nord')!, { motion: 'still' })!.source)
+    expect(drawn.props.source).not.toContain('animation')
+    expect(sceneOf(themeById('nord')!)!.source).toContain('animation')
+    await ui.unmount()
   })
 
   test("/wear <look> swaps the scene, a light look brings a light mode, and /wear default takes wardrobe's own scene down, once", async ($, on) => {

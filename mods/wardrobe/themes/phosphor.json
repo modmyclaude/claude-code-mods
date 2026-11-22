@@ -1,0 +1,22 @@
+{
+  "name": "Phosphor (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#4dff7c",
+    "claudeShimmer": "#ffd98a",
+    "text": "#b7f5c4",
+    "subtle": "#7fb58c",
+    "inactive": "#7fb58c",
+    "suggestion": "#7de8c5",
+    "success": "#9dff6a",
+    "error": "#ff7a66",
+    "warning": "#ffc24d",
+    "permission": "#ffd98a",
+    "promptBorder": "#4dff7c",
+    "bashBorder": "#4dff7c",
+    "userMessageBackground": "#0a0f0a",
+    "userMessageBackgroundHover": "#0a0f0a",
+    "diffAdded": "#0f3a1c",
+    "diffRemoved": "#3d1a12"
+  }
+}

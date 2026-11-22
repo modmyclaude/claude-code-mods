@@ -1,7 +1,7 @@
 // Pure logic: what /wear means, which theme is worn when, and how times print.
 
 import type { WardrobeLook } from '../types'
-import { THEMES, themeById } from './themes'
+import { SPORTS, THEMES, themeById } from './themes'
 
 /** Claude Code's own drawing: wardrobe restyles nothing. */
 export const DEFAULT = 'default'
@@ -29,6 +29,20 @@ const ALIASES: Record<string, string> = {
   tokyonight: 'tokyo-night',
   mocha: 'catppuccin',
   light: 'paper',
+  crt: 'phosphor',
+  terminal: 'phosphor',
+  grey: 'graphite',
+  gray: 'graphite',
+  terracotta: 'clay',
+  retro: 'synthwave',
+  pager: 'on-call',
+  oncall: 'on-call',
+  basketball: 'hardwood',
+  hoops: 'hardwood',
+  football: 'gridiron',
+  hockey: 'rink',
+  'eid-al-fitr': 'eid',
+  fitr: 'eid',
   off: DEFAULT,
   none: DEFAULT,
   reset: DEFAULT,
@@ -127,8 +141,78 @@ export const SEASONS: readonly { theme: string; from: readonly [number, number];
   { theme: 'nord', from: [1, 7], to: [2, 29], when: 'Jan 7 to the end of Feb' },
 ]
 
-/** The theme the season calls for at a `$.clock.now()` reading (local date). */
-export function seasonOf(ms: number): string {
+/** Easter Sunday of a year by the Western (Gregorian) reckoning, as [month, day]. */
+export function easterOf(year: number): readonly [number, number] {
+  const a = year % 19
+  const b = Math.floor(year / 100)
+  const c = year % 100
+  const h = (19 * a + b - Math.floor(b / 4) - Math.floor((b - Math.floor((b + 8) / 25) + 1) / 3) + 15) % 30
+  const l = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - h - (c % 4)) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const sum = h + l - 7 * m + 114
+  return [Math.floor(sum / 31), (sum % 31) + 1]
+}
+
+/**
+ * The first day of Eid al-Fitr by the Umm al-Qura calendar, as [year, month,
+ * day], through 2040. The day itself follows the sighting of the new moon, so
+ * where a person lives it may fall a day either side; past the table the look
+ * is still worn by name.
+ */
+export const EID_AL_FITR: readonly (readonly [number, number, number])[] = [
+  [2026, 3, 20],
+  [2027, 3, 9],
+  [2028, 2, 26],
+  [2029, 2, 14],
+  [2030, 2, 4],
+  [2031, 1, 24],
+  [2032, 1, 14],
+  [2033, 1, 3],
+  [2033, 12, 23],
+  [2034, 12, 12],
+  [2035, 12, 1],
+  [2036, 11, 19],
+  [2037, 11, 9],
+  [2038, 10, 29],
+  [2039, 10, 19],
+  [2040, 10, 7],
+]
+
+/** The two holiday looks `season` may wear on their days, each only where its setting asks. */
+export const HOLIDAYS: readonly { theme: string; setting: 'seasonEaster' | 'seasonEid'; when: string }[] = [
+  { theme: 'easter', setting: 'seasonEaster', when: 'Good Friday to Easter Monday' },
+  { theme: 'eid', setting: 'seasonEid', when: 'Eid al-Fitr and the two days after' },
+]
+
+/** Whole local days from one local date to the reading `ms`: 0 on the day itself. */
+function daysFrom(year: number, month: number, day: number, ms: number): number {
+  const date = new Date(ms)
+  const here = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  // Rounded, so the hour a clock change adds or takes never moves a day.
+  return Math.round((here - new Date(year, month - 1, day).getTime()) / 86_400_000)
+}
+
+/** The holiday look a `$.clock.now()` reading (local date) falls in, among those asked for; undefined on any other day. */
+export function holidayOf(ms: number, asked: Readonly<{ seasonEaster: boolean; seasonEid: boolean }>): string | undefined {
+  const year = new Date(ms).getFullYear()
+  if (asked.seasonEaster) {
+    const since = daysFrom(year, ...easterOf(year), ms)
+    if (since >= -2 && since <= 1) return 'easter'
+  }
+  if (asked.seasonEid) {
+    for (const [y, month, day] of EID_AL_FITR) {
+      if (Math.abs(y - year) > 1) continue
+      const since = daysFrom(y, month, day, ms)
+      if (since >= 0 && since <= 2) return 'eid'
+    }
+  }
+  return undefined
+}
+
+/** The theme the season calls for at a `$.clock.now()` reading (local date): a holiday asked for first, then the calendar. */
+export function seasonOf(ms: number, asked?: Readonly<{ seasonEaster: boolean; seasonEid: boolean }>): string {
+  const holiday = asked === undefined ? undefined : holidayOf(ms, asked)
+  if (holiday !== undefined) return holiday
   const date = new Date(ms)
   const day = (date.getMonth() + 1) * 100 + date.getDate()
   const key = ([month, dayOfMonth]: readonly [number, number]) => month * 100 + dayOfMonth
@@ -143,8 +227,33 @@ export function seasonOf(ms: number): string {
 
 /** The window of the year a theme is the season's, in words, or undefined. */
 export function seasonWindow(theme: string): string | undefined {
-  return SEASONS.find(season => season.theme === theme)?.when
+  return (HOLIDAYS.find(holiday => holiday.theme === theme) ?? SEASONS.find(season => season.theme === theme))?.when
 }
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+
+/** `gameDay` as weekdays (0 is Sunday): `sunday`, `sat sun`, `mon, thu`; three letters are enough. Words that are no weekday come back in `unknown`. */
+export function parseGameDays(text: string): { days: number[]; unknown: string[] } {
+  const days = new Set<number>()
+  const unknown: string[] = []
+  for (const word of text.toLowerCase().split(/[\s,;/+&]+/).filter(word => word !== '' && word !== 'and')) {
+    const at = word.length >= 3 ? WEEKDAYS.findIndex(day => day.startsWith(word.replace(/s$/, '')) || day === word) : -1
+    if (at === -1) unknown.push(word)
+    else days.add(at)
+  }
+  return { days: [...days].sort((a, b) => a - b), unknown }
+}
+
+/** The weekdays of a game day setting, in words: `Sunday`, `Saturday and Sunday`. */
+export function gameDaysText(days: readonly number[]): string {
+  const names = days.map(day => `${WEEKDAYS[day]!.charAt(0).toUpperCase()}${WEEKDAYS[day]!.slice(1)}`)
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+/** How much a scene moves: all of it, half the small things at half the speed, or not at all. */
+export type Motion = 'full' | 'calm' | 'still'
+/** How heavily the desktop frosts its panels over a scene. */
+export type Glass = 'light' | 'default' | 'heavy'
 
 export type Settings = {
   dayTheme: string
@@ -153,9 +262,33 @@ export type Settings = {
   nightStarts: number
   /** Whether wearing a look also sets Claude Code's own theme to match it. */
   matchTheme: boolean
+  /** A team's two colours for the sports looks, each `#rrggbb`, or empty for the look's own. */
+  teamPrimary: string
+  teamSecondary: string
+  /** The weekdays (0 is Sunday) on which `auto` and `season` wear the game look; none, and there is no game day. */
+  gameDays: readonly number[]
+  /** The sports look a game day wears. */
+  gameLook: string
+  motion: Motion
+  glass: Glass
+  /** Whether `season` wears the Easter look from Good Friday to Easter Monday. */
+  seasonEaster: boolean
+  /** Whether `season` wears the Eid look on Eid al-Fitr and the two days after. */
+  seasonEid: boolean
 }
 
 const FALLBACK = { dayTheme: 'paper', nightTheme: 'tokyo-night', dayStarts: '07:00', nightStarts: '19:00' }
+
+/** What a setting this version added is when nothing is stored for it: an older install keeps drawing as it did. */
+export const ADDED = { teamPrimary: '', teamSecondary: '', gameDays: [], gameLook: 'hardwood', motion: 'full', glass: 'default', seasonEaster: false, seasonEid: false } as const satisfies Partial<Settings>
+
+/** A colour as `#rrggbb`, from `#rgb`, `rrggbb` or `#RRGGBB`; undefined for anything else. */
+export function hexOf(text: string): string | undefined {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text.trim())
+  if (!m) return undefined
+  const digits = m[1]!.toLowerCase()
+  return `#${digits.length === 3 ? [...digits].map(d => d + d).join('') : digits}`
+}
 
 /** The userConfig values, checked; anything unusable falls back and is named in `problems`. */
 export function settingsFrom(options: Readonly<Record<string, unknown>>): { settings: Settings; problems: string[] } {
@@ -173,15 +306,53 @@ export function settingsFrom(options: Readonly<Record<string, unknown>>): { sett
     problems.push(`${key} "${String(value)}" is not HH:MM; using ${FALLBACK[key]}`)
     return parseClock(FALLBACK[key]) ?? 0
   }
-  // On unless the setting says off: an older install, with no such setting stored, matches too.
-  const flag = (key: 'matchTheme'): boolean => {
+  // A switch is what it was installed as until the setting says otherwise: matching on (an older install, with no
+  // such setting stored, matches too), the holiday looks off.
+  const flag = (key: 'matchTheme' | 'seasonEaster' | 'seasonEid', installed: boolean): boolean => {
     const value = options[key]
-    if (value === undefined || typeof value === 'boolean') return value !== false
-    problems.push(`${key} "${String(value)}" is not on or off; using on`)
-    return true
+    if (value === undefined) return installed
+    if (typeof value === 'boolean') return value
+    problems.push(`${key} "${String(value)}" is not on or off; using ${installed ? 'on' : 'off'}`)
+    return installed
+  }
+  const colour = (key: 'teamPrimary' | 'teamSecondary'): string => {
+    const value = options[key]
+    if (value === undefined || value === '') return ''
+    const hex = typeof value === 'string' ? hexOf(value) : undefined
+    if (hex !== undefined) return hex
+    problems.push(`${key} "${String(value)}" is not a colour like #1f4e9c; using the look's own`)
+    return ''
+  }
+  const oneOf = <T extends string>(key: 'gameLook' | 'motion' | 'glass', allowed: readonly T[], fallback: T): T => {
+    const value = options[key]
+    if (value === undefined) return fallback
+    if (typeof value === 'string' && (allowed as readonly string[]).includes(value)) return value as T
+    problems.push(`${key} "${String(value)}" is not one of ${allowed.join(', ')}; using ${fallback}`)
+    return fallback
+  }
+  const gameDays = (): number[] => {
+    const value = options.gameDay
+    if (value === undefined || value === '') return []
+    const { days, unknown } = typeof value === 'string' ? parseGameDays(value) : { days: [], unknown: [String(value)] }
+    if (unknown.length > 0) problems.push(`gameDay "${unknown.join(' ')}" is not a weekday; left out`)
+    return days
   }
   return {
-    settings: { dayTheme: theme('dayTheme'), nightTheme: theme('nightTheme'), dayStarts: clock('dayStarts'), nightStarts: clock('nightStarts'), matchTheme: flag('matchTheme') },
+    settings: {
+      dayTheme: theme('dayTheme'),
+      nightTheme: theme('nightTheme'),
+      dayStarts: clock('dayStarts'),
+      nightStarts: clock('nightStarts'),
+      matchTheme: flag('matchTheme', true),
+      teamPrimary: colour('teamPrimary'),
+      teamSecondary: colour('teamSecondary'),
+      gameDays: gameDays(),
+      gameLook: oneOf('gameLook', SPORTS, ADDED.gameLook),
+      motion: oneOf<Motion>('motion', ['full', 'calm', 'still'], ADDED.motion),
+      glass: oneOf<Glass>('glass', ['light', 'default', 'heavy'], ADDED.glass),
+      seasonEaster: flag('seasonEaster', false),
+      seasonEid: flag('seasonEid', false),
+    },
     problems,
   }
 }
@@ -200,8 +371,10 @@ export function resolveLook(input: {
   const pin = pinsOf(input.pins)[input.root]
   const choice = pin ?? (isChoice(input.global) ? input.global : DEFAULT)
   const scope = pin === undefined ? 'global' : 'project'
-  if (choice === SEASON) return { theme: seasonOf(input.now), choice, scope, phase: null, root: input.root }
-  if (choice !== AUTO) return { theme: choice, choice, scope, phase: null, root: input.root }
+  if (choice !== AUTO && choice !== SEASON) return { theme: choice, choice, scope, phase: null, root: input.root }
+  // A game day outranks the clock and the calendar, for the two choices that change by themselves; a look worn by name stays.
+  if (input.settings.gameDays.includes(new Date(input.now).getDay())) return { theme: input.settings.gameLook, choice, scope, phase: 'game', root: input.root }
+  if (choice === SEASON) return { theme: seasonOf(input.now, input.settings), choice, scope, phase: null, root: input.root }
   const { dayTheme, nightTheme, dayStarts, nightStarts } = input.settings
   const phase = isDay(minuteOfDay(input.now), dayStarts, nightStarts) ? 'day' : 'night'
   return { theme: phase === 'day' ? dayTheme : nightTheme, choice, scope, phase, root: input.root }

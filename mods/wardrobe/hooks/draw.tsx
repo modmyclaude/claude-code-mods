@@ -11,8 +11,9 @@ import type { BoltSize } from './bolt'
 import type { DiffCard, DiffLine } from './content'
 import { clean, shortPath } from './content'
 import { costumeOf, wearBolt } from './costume'
-import { AUTO, clockText, DEFAULT, formatDuration, formatMs, SEASON, seasonOf, seasonWindow, type Settings } from './look'
-import { KIND_ROLE, kindOf, STATUS_ROLE, THEMES, themeById, type Role, type Status, type Theme } from './themes'
+import { AUTO, clockText, DEFAULT, formatDuration, formatMs, gameDaysText, SEASON, seasonOf, seasonWindow, type Settings } from './look'
+import { isTailored, wornTheme } from './tailor'
+import { FAMILIES, familyOf, KIND_ROLE, kindOf, STATUS_ROLE, themeById, type Role, type Status, type Theme } from './themes'
 
 export type Table = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
@@ -277,7 +278,27 @@ export function helpText(settings: Pick<Settings, 'matchTheme'>): string {
   const match = settings.matchTheme
     ? "/wear <theme> switches now, and Claude Code's own theme follows it; /wear default puts yours back."
     : "/wear <theme> switches now; add --match and Claude Code's own theme follows it."
-  return `${match} /wear <theme> everywhere wears it in every project and lets every pin go. /wear auto follows the clock, /wear season the calendar. /wear pin keeps this look for this project; /wear unpin lets go. /wear wallpaper off keeps the look and drops the scene behind the chat in the desktop app.`
+  return `${match} /wear <theme> everywhere wears it in every project and lets every pin go. /wear auto follows the clock, /wear season the calendar. /wear pin keeps this look for this project; /wear unpin lets go. /wear wallpaper off keeps the look and drops the scene behind the chat in the desktop app. The mod's settings hold your team's two colours, a game day, how much the scenes move, and the holiday looks for /wear season.`
+}
+
+/** The game day, in words, where the settings name one; empty otherwise. */
+export function gameDayText(settings: Pick<Settings, 'gameDays' | 'gameLook'>, now: number): string {
+  if (settings.gameDays.length === 0) return ''
+  const today = settings.gameDays.includes(new Date(now).getDay()) ? ` Today is one: auto and season wear ${settings.gameLook} until midnight.` : ''
+  return `Game day: ${settings.gameLook} on ${gameDaysText(settings.gameDays)}, while auto or season is worn.${today}`
+}
+
+/** What a family's heading adds for the two families a setting changes: the team colours, and the holiday looks. */
+function familyNote(name: string, settings: Settings): string {
+  if (name === 'sports') {
+    const colours = [settings.teamPrimary, settings.teamSecondary].filter(colour => colour !== '')
+    return colours.length > 0 ? ` Shown in your team colours (${colours.join(' and ')}).` : ' Set teamPrimary and teamSecondary in the settings to wear your team colours.'
+  }
+  if (name === 'seasons') {
+    const asked = [settings.seasonEaster ? 'easter' : '', settings.seasonEid ? 'eid' : ''].filter(Boolean)
+    return asked.length > 0 ? ` /wear season wears ${asked.join(' and ')} on ${asked.length === 1 ? 'its days' : 'their days'}.` : ' easter and eid are worn by name; a setting each lets /wear season wear them on their days.'
+  }
+  return ''
 }
 
 /** What is worn, in words, for the gallery header and command replies. */
@@ -285,9 +306,9 @@ export function describeLook(look: WardrobeLook, settings: Settings): string {
   const where = look.scope === 'project' ? 'in this project (pinned)' : 'everywhere without a pin'
   if (look.choice === AUTO) {
     const { dayTheme, nightTheme, dayStarts, nightStarts } = settings
-    return `Wearing auto ${where}: ${dayTheme} from ${clockText(dayStarts)}, ${nightTheme} from ${clockText(nightStarts)}; ${look.theme} now (${look.phase}).`
+    return `Wearing auto ${where}: ${dayTheme} from ${clockText(dayStarts)}, ${nightTheme} from ${clockText(nightStarts)}; ${look.theme} now (${look.phase === 'game' ? 'game day' : look.phase}).`
   }
-  if (look.choice === SEASON) return `Wearing season ${where}: ${look.theme} now (${seasonWindow(look.theme) ?? 'the rest of the year'}).`
+  if (look.choice === SEASON) return `Wearing season ${where}: ${look.theme} now (${look.phase === 'game' ? 'game day' : (seasonWindow(look.theme) ?? 'the rest of the year')}).`
   if (look.choice === DEFAULT) return `Wearing Claude Code's own look ${where}.`
   return `Wearing ${look.theme} ${where}.`
 }
@@ -318,6 +339,10 @@ export type Gallery = {
   columns: number | undefined
   /** A `$.clock.now()` reading, for what `season` would wear today. */
   now: number
+  /** The family of looks shown: a family's name, or null for the worn look's own. */
+  family: string | null
+  /** What a family's button does: shows that family. */
+  onFamily: (name: string) => void
   /** What a card's `wear` button does. */
   onWear: (choice: string) => void
   /** What a theme card's `match theme` button does: wear it and set Claude Code's own theme to match. The button shows only while the match setting is off; on, `wear` matches by itself. */
@@ -350,12 +375,19 @@ function sampleRow(t: Table, theme: Theme, key: string, role: Role, text: string
   )
 }
 
+/** The family the gallery shows: the one picked, else the worn look's own (the first for Claude Code's own look). */
+export function openFamily(g: Pick<Gallery, 'family' | 'look'>): (typeof FAMILIES)[number] {
+  return FAMILIES.find(family => family.name === g.family) ?? FAMILIES.find(family => family.name === familyOf(g.look.theme)) ?? FAMILIES[0]!
+}
+
 /**
- * `/wear` with no argument: a gallery. Every theme is a card: its name and
- * blurb, a sample tool row drawn exactly as toolRow draws one in that theme,
- * its diff chips, Bolt in the theme's costume, the worn one marked, and a
- * `wear` button (no hotkey: the pane can hold the focus). Rows for
- * Claude Code's own look, `auto` and `season` round it off.
+ * `/wear` with no argument: a gallery, one family of looks at a time (a button
+ * per family, the worn look's own shown first). Every theme of the family is
+ * a card: its name and blurb, a sample tool row drawn exactly as toolRow draws
+ * one in that theme, its diff chips, Bolt in the theme's costume, the worn one
+ * marked, and a `wear` button (no hotkey: the pane can hold the focus). A
+ * sports look is shown in the team's colours where the settings give them.
+ * Rows for Claude Code's own look, `auto` and `season` round it off.
  */
 export function listTree(t: PaneTable, g: Gallery): RenderElement {
   const { Box, Text, Button, Svg } = t
@@ -364,8 +396,11 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
   const wearing = (choice: string) => (g.look.choice === choice ? <Text bold>(wearing)</Text> : null)
   const wearButton = (choice: string) => <Button key={`wear-${choice}`} label="wear" onPress={() => g.onWear(choice)} />
   const worn = <Text>{describeLook(g.look, g.settings)}</Text>
-  const wornTheme = themeById(g.look.theme)
-  const seasonTheme = seasonOf(g.now)
+  // The look worn now, in the team's colours where it is a sports look.
+  const wornNow = wornTheme(g.look.theme, g.settings)
+  const seasonTheme = seasonOf(g.now, g.settings)
+  const open = openFamily(g)
+  const game = gameDayText(g.settings, g.now)
 
   /** A row that is not a theme: a name, what it does, the mark and the button. */
   const plainRow = (choice: string, what: string) => (
@@ -420,16 +455,37 @@ export function listTree(t: PaneTable, g: Gallery): RenderElement {
         worn
       ) : (
         <Box key="worn" flexDirection="row" gap={1} marginBottom={1}>
-          {dressedBolt(t, g.surface, wornTheme, 'tiny', 'bolt')}
+          {dressedBolt(t, g.surface, wornNow, 'tiny', 'bolt')}
           <Box flexDirection="column" flexShrink={1}>
             {worn}
           </Box>
         </Box>
       )}
       {plainRow(DEFAULT, "Claude Code's own drawing")}
-      {THEMES.map(card)}
+      <Box key="families" flexDirection="row" flexWrap="wrap" gap={1}>
+        {FAMILIES.map(family =>
+          family.name === open.name ? (
+            <Text key={`family-${family.name}`} bold>
+              [{family.name} {family.ids.length}]
+            </Text>
+          ) : (
+            <Button key={`family-${family.name}`} label={`${family.name} ${family.ids.length}`} onPress={() => g.onFamily(family.name)} />
+          ),
+        )}
+      </Box>
+      <Box key="family" marginBottom={1}>
+        <Text dimColor>
+          {open.name}: {open.what}.{familyNote(open.name, g.settings)}
+        </Text>
+      </Box>
+      {open.ids.map(id => wornTheme(id, g.settings)).map(theme => (theme === undefined ? null : card(theme)))}
       {plainRow(AUTO, `${g.settings.dayTheme} from ${clockText(g.settings.dayStarts)}, ${g.settings.nightTheme} from ${clockText(g.settings.nightStarts)}`)}
       {plainRow(SEASON, `by the calendar: ${seasonTheme} now (${seasonWindow(seasonTheme) ?? 'the rest of the year'})`)}
+      {game === '' ? null : (
+        <Box key="game-day" marginBottom={1}>
+          <Text>{game}</Text>
+        </Box>
+      )}
       {g.problems.map(problem => (
         <Text>Setting: {clean(problem)}</Text>
       ))}
@@ -443,16 +499,26 @@ export function listText(look: WardrobeLook, settings: Settings, problems: reado
   const mark = (choice: string) => (look.choice === choice ? ' (wearing)' : '')
   const sample = (theme: Theme) =>
     `${theme.icons.read} ${SAMPLE_TEXT} ${theme.status.done} ${formatMs(SAMPLE_TIMING.ms ?? 0)}  +add -del  Bolt: ${costumeOf(theme)?.name ?? 'none'}`
-  const season = seasonOf(now)
+  const season = seasonOf(now, settings)
+  const game = gameDayText(settings, now)
   return [
     describeLook(look, settings),
     `- ${DEFAULT}: Claude Code's own drawing${mark(DEFAULT)}`,
-    ...THEMES.flatMap(theme => [
-      `- ${theme.id} (${theme.tone}) ${SAMPLE_KINDS.map(kind => theme.icons[kind]).join('')}: ${theme.blurb}${theme.tone === 'light' ? ' (best on a light theme)' : ''}${mark(theme.id)}`,
-      `    ${sample(theme)}`,
+    ...FAMILIES.flatMap(family => [
+      `${family.name} (${family.what}):`,
+      ...family.ids.flatMap(id => {
+        const theme = themeById(id)
+        if (theme === undefined) return []
+        const team = isTailored(id, settings) ? ' (in your team colours)' : ''
+        return [
+          `- ${theme.id} (${theme.tone}) ${SAMPLE_KINDS.map(kind => theme.icons[kind]).join('')}: ${theme.blurb}${theme.tone === 'light' ? ' (best on a light theme)' : ''}${team}${mark(theme.id)}`,
+          `    ${sample(theme)}`,
+        ]
+      }),
     ]),
     `- ${AUTO}: ${settings.dayTheme} from ${clockText(settings.dayStarts)}, ${settings.nightTheme} from ${clockText(settings.nightStarts)}${mark(AUTO)}`,
     `- ${SEASON}: by the calendar: ${season} now (${seasonWindow(season) ?? 'the rest of the year'})${mark(SEASON)}`,
+    ...(game === '' ? [] : [game]),
     ...problems.map(problem => `Setting: ${clean(problem)}`),
     helpText(settings),
   ].join('\n')

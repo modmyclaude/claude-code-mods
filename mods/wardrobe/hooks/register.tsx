@@ -19,6 +19,7 @@ import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
 import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
 import { glassFor, hasScene, sceneOf } from './scenes'
+import { teamNote, wornTheme } from './tailor'
 import { pickVerb, themeById, THEMES, type Theme } from './themes'
 
 const LOOK = { plugin: 'wardrobe', key: 'look' } as const
@@ -27,6 +28,7 @@ const SWITCH = { plugin: 'wardrobe', key: 'switch' } as const
 const VERB = { plugin: 'wardrobe', key: 'verb' } as const
 const APP = { plugin: 'wardrobe', key: 'app' } as const
 const BACKDROP = { plugin: 'wardrobe', key: 'backdrop' } as const
+const GALLERY = { plugin: 'wardrobe', key: 'gallery' } as const
 /** The store key that turns the wallpapers off (`off`); absent or anything else, they are on. */
 const WALLPAPER = 'wallpaper'
 
@@ -39,6 +41,8 @@ const verb = atom(VERB, null)
 const app = atom(APP, { tone: 'unknown' })
 /** The theme wardrobe set for the app, if any: the look whose palette it is, and its scene behind the chat. */
 const backdrop = atom(BACKDROP, { look: null, scene: null, isDrawn: false })
+/** The family of looks the gallery shows; null until one is picked, and then the worn look's own. */
+const gallery = atom(GALLERY, { family: null })
 
 /** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
@@ -94,7 +98,7 @@ async function refresh($: Dollar, settings: Settings, how?: Dress): Promise<Ward
   const changed = !sameLook(current.value, fresh)
   if (changed) await $.state.set(LOOK, fresh)
   // The app's theme rides along: an engine without the theme noun, or one that cannot answer, leaves the look as it is.
-  if (how !== undefined) await dress($, fresh, how).catch(() => undefined)
+  if (how !== undefined) await dress($, fresh, how, settings).catch(() => undefined)
   // A look that changed by itself (the clock, the calendar, a choice made in another session) may have
   // come with a theme set there: the tone is read again, and a match already made follows the look.
   // Only the look every project shares carries a match: one theme setting serves the whole machine,
@@ -113,9 +117,10 @@ async function refresh($: Dollar, settings: Settings, how?: Dress): Promise<Ward
  * wardrobe clears only where its own stands, and never at session start,
  * where an unload already took its own down.
  */
-async function dress($: Dollar, look: WardrobeLook, how: Dress): Promise<void> {
+async function dress($: Dollar, look: WardrobeLook, how: Dress, settings: Settings): Promise<void> {
   if (themeNoun === 'absent') return
-  const worn = themeById(look.theme)
+  // A sports look goes on in the team's colours where the settings give them: its palette and its scene both.
+  const worn = wornTheme(look.theme, settings)
   // A value an older version kept has no `look` in it: read as none.
   const standing = { look: null, ...(await read($, backdrop)) }
   if (worn === undefined) {
@@ -132,7 +137,7 @@ async function dress($: Dollar, look: WardrobeLook, how: Dress): Promise<void> {
   const attributes = {
     colors: appColors(worn).colors,
     overrideColorScheme: worn.tone,
-    ...(scene === null ? {} : { backdrop: { scene, glass: glassFor(worn) } }),
+    ...(scene === null ? {} : { backdrop: { scene, glass: glassFor(worn, settings.glass) } }),
   }
   let set: { isDrawn: boolean }
   try {
@@ -208,8 +213,9 @@ async function wear($: Dollar, settings: Settings, choice: string, everywhere = 
  * what the caller has to add about the choice itself.
  */
 async function putOn($: Dollar, settings: Settings, choice: string, how: { match?: boolean; everywhere?: boolean }, note: string): Promise<string> {
-  const text = (await wear($, settings, choice, how.everywhere === true)) + note
+  const said = (await wear($, settings, choice, how.everywhere === true)) + note
   const worn = await read($, look)
+  const text = said + teamNote(worn.theme, settings)
   if (choice === DEFAULT) return text + (await restoreTheme($, worn))
   if (how.match === true) return `${text} ${await matchTheme($, worn, 'said')}`
   const tried = settings.matchTheme && worn.scope === 'global'
@@ -519,7 +525,7 @@ export const register: Register = (on, options) => {
   // Tool rows: the theme's icon and a status/timing chip around the engine's own row.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     const timing = await read($, { ...TIMING, id: e.props.tool_use_id })
     return toolRow($.ui.resolve(e), theme, e.props, timing, await next(e), e.viewport?.columns)
@@ -530,7 +536,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     if (e.props.isExpanded || e.props.calls.length === 0) return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     return groupRow($.ui.resolve(e), theme, e.props.calls, await next(e))
   }).catch(($, e, next) => next(e))
@@ -541,7 +547,7 @@ export const register: Register = (on, options) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     if (e.props.isErrored) return next(e)
     const worn = await read($, look)
-    const theme = themeById(worn.theme)
+    const theme = wornTheme(worn.theme, settings)
     if (!theme) return next(e)
     const diff = diffCard(e.props.tool, e.props.output)
     const shell = !diff && e.props.tool === 'Bash' ? shellCard(e.props.output) : null
@@ -558,19 +564,19 @@ export const register: Register = (on, options) => {
   // never the clock, so the desktop has nothing to redraw mid-turn.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     return messageRow($.ui.resolve(e), theme, 'UserMessage', await next(e), { surface: e.surface, fill: fills(theme, e.surface, (await read($, app)).tone) })
   }).catch(($, e, next) => next(e))
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     return messageRow($.ui.resolve(e), theme, 'AssistantMessage', await next(e), { surface: e.surface, fill: fills(theme, e.surface, (await read($, app)).tone) })
   }).catch(($, e, next) => next(e))
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     return messageRow($.ui.resolve(e), theme, 'CommandOutput', await next(e), { surface: e.surface, fill: fills(theme, e.surface, (await read($, app)).tone) })
   }).catch(($, e, next) => next(e))
@@ -594,7 +600,7 @@ export const register: Register = (on, options) => {
   // One verb per turn for the spinner and the closing line: picked when the
   // turn starts, from the theme worn then, and held until the next turn starts.
   on('turn.start', async ($, e, next) => {
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     const pick = theme ? pickVerb(theme.id, e.turnId) : null
     await $.state.set(VERB, pick ? { turnId: e.turnId, present: pick[0], past: pick[1] } : null)
     return next(e)
@@ -604,7 +610,7 @@ export const register: Register = (on, options) => {
   // long as a theme is worn, so the look stays named after the switch band goes.
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     return wearingLabel($.ui.resolve(e), theme, e.props.modes.length > 0, await next(e))
   }).catch(($, e, next) => next(e))
@@ -615,7 +621,7 @@ export const register: Register = (on, options) => {
   // shows, its text is left exactly as the engine wrote it.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     // The turn's verb replaces the engine's word on the terminal, and on the desktop
     // only while the row says nothing of its own ("Working"); a status message of
@@ -631,7 +637,7 @@ export const register: Register = (on, options) => {
     if (e.surface !== 'terminal') return next(e)
     const { word, durationMs } = e.props
     if (typeof word !== 'string' || !Number.isFinite(durationMs) || durationMs < 0) return next(e)
-    const theme = themeById((await read($, look)).theme)
+    const theme = wornTheme((await read($, look)).theme, settings)
     if (!theme) return next(e)
     const below = await next(e)
     const worn = await read($, verb)
@@ -647,7 +653,7 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey) return next(e)
     if (e.surface !== 'terminal' && e.surface !== 'desktop') return next(e)
     const last = await read($, switched)
-    const theme = last === null ? undefined : themeById(last.theme)
+    const theme = last === null ? undefined : wornTheme(last.theme, settings)
     if (last === null || !theme || (await $.clock.now()) - last.at >= BAND_MS) return next(e)
     const below = await next(e)
     const { Box } = $.ui.resolve(e)
@@ -676,8 +682,8 @@ export const register: Register = (on, options) => {
       }
       return next(e)
     }
-    const theme = themeById(e.props.scene)
-    const scene = theme === undefined ? undefined : sceneOf(theme)
+    const theme = wornTheme(e.props.scene, settings)
+    const scene = theme === undefined ? undefined : sceneOf(theme, { motion: settings.motion })
     if (scene === undefined) return next(e)
     const { Svg } = $.ui.resolve(e)
     return <Svg source={scene.source} alt={scene.alt} isInteractive />
@@ -698,6 +704,10 @@ export const register: Register = (on, options) => {
     return listTree($.ui.resolve(e), {
       surface: e.surface,
       look: await read($, look),
+      family: (await read($, gallery)).family,
+      onFamily: (family: string) => {
+        $.state.set(GALLERY, { family }).catch(() => undefined)
+      },
       settings,
       problems,
       columns: e.props.bodyColumns,

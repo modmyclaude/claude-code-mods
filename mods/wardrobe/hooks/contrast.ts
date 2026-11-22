@@ -1,6 +1,8 @@
 // WCAG 2.x contrast, pure. Used by the tests to hold every theme to its bar,
-// and once per look when its palette for the app is made (app-colors.ts);
-// never per frame.
+// once per look when its palette for the app is made (app-colors.ts), and once
+// per team colour (tailor.ts); never per frame.
+
+import { mix } from './scene-kit'
 
 /** `#rrggbb` (or `#rgb`) to 0-255 channels; undefined for anything else. */
 export function rgbOf(hex: string): [number, number, number] | undefined {
@@ -41,4 +43,11 @@ export function hue(hex: string): number {
   if (d === 0) return 0
   const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
   return (h * 60 + 360) % 360
+}
+
+/** A colour moved toward `pole` (white on a dark ground, black on a light one) until it stands `want` to one against `ground`; as it is where it already does. */
+export function lifted(colour: string, ground: string, want: number, pole: string): string {
+  let out = colour
+  for (let k = 0; k < 48 && contrast(out, ground) < want; k += 1) out = mix(out, pole, 0.06)
+  return out
 }

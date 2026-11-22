@@ -7,10 +7,15 @@
 import type { ThemeBackdropGlass } from 'claude-code'
 
 import { dressedPixels } from './costume'
+import type { Glass, Motion } from './look'
 import { BOLT_HERE, group, rect, svg, withDetail } from './scene-kit'
 import type { Scene } from './scene-kit'
+import { HOLIDAY_SCENES } from './scenes-holiday'
 import { LOOK_SCENES } from './scenes-looks'
 import { SEASON_SCENES } from './scenes-seasons'
+import { SPORT_SCENES } from './scenes-sport'
+import { TECH_SCENES } from './scenes-tech'
+import { lookKey } from './tailor'
 import type { Theme } from './themes'
 
 export type { Scene }
@@ -19,7 +24,7 @@ export type SceneOf = (theme: Theme) => Scene
 /** The engine's ceiling for one Svg document. */
 export const SCENE_LIMIT = 131_072
 
-const SCENES: Record<string, SceneOf> = { ...LOOK_SCENES, ...SEASON_SCENES }
+const SCENES: Record<string, SceneOf> = { ...LOOK_SCENES, ...TECH_SCENES, ...SPORT_SCENES, ...SEASON_SCENES, ...HOLIDAY_SCENES }
 
 /** Whether a look has a scene (every shipped look does; a theme added without one draws nothing). */
 export function hasScene(theme: Pick<Theme, 'id'>): boolean {
@@ -73,6 +78,14 @@ function stillBody(body: string, style: string): string {
 
 /** How much of a scene's small things a gallery thumbnail keeps. */
 const THUMB_DETAIL = 0.25
+/** How much of what drifts calm motion keeps, and how many times slower everything moves. */
+const CALM_DETAIL = 0.5
+const CALM_SLOWER = 2
+
+/** A scene's CSS or body with every animation time made `k` times longer: durations, and the delays that spread things along a loop. */
+function slowed(text: string, k: number): string {
+  return text.replace(/animation(?:-duration|-delay)?:[^;}"]*/g, declaration => declaration.replace(/(?<=[\s:])(-?\d+(?:\.\d+)?)s\b/g, (_whole, seconds: string) => `${Math.round(Number(seconds) * k * 10) / 10}s`))
+}
 
 /** Where Bolt stands when a scene names no place: at the right, off the middle and the foot, where the words and the message box sit. */
 const BOLT_AT = { x: 1240, y: 560 }
@@ -105,22 +118,27 @@ export function boltInScene(theme: Theme, at: { x: number; y: number } = BOLT_AT
 /**
  * The whole SVG document of a look's wallpaper, Bolt included; undefined for a
  * look with no scene. A thumbnail is the same picture with fewer small things
- * in it and nothing moving, for the gallery.
+ * in it and nothing moving, for the gallery. `motion` is the person's setting:
+ * `calm` keeps half of what drifts and moves everything at half the speed,
+ * `still` is the whole picture at rest, as reduced motion shows it.
  */
-export function sceneOf(theme: Theme, options: { thumb?: boolean } = {}): { source: string; alt: string } | undefined {
+export function sceneOf(theme: Theme, options: { thumb?: boolean; motion?: Motion } = {}): { source: string; alt: string } | undefined {
   const make = SCENES[theme.id]
   if (make === undefined) return undefined
+  const thumb = options.thumb === true
+  const motion = options.motion ?? 'full'
   // A scene is the same every time, and the desktop asks for it on every redraw: drawn once, kept.
-  const key = `${theme.id}${options.thumb === true ? ' thumb' : ''}`
+  const key = `${lookKey(theme)} ${thumb ? 'thumb' : motion}`
   const kept = drawn.get(key)
   if (kept !== undefined) return kept
-  const scene = options.thumb === true ? withDetail(THUMB_DETAIL, () => make(theme)) : make(theme)
+  const scene = thumb ? withDetail(THUMB_DETAIL, () => make(theme)) : motion === 'calm' ? withDetail(CALM_DETAIL, () => make(theme), 1) : make(theme)
   const bolt = boltInScene(theme, scene.bolt)
   const whole = scene.body.includes(BOLT_HERE) ? scene.body.replace(BOLT_HERE, bolt.body) : scene.body + bolt.body
-  // A thumbnail is still: its CSS keeps the places and drops the motion, Bolt's among them.
+  // A still picture keeps the places its CSS gives and drops the motion, Bolt's among them.
   const moving = scene.style + bolt.style
-  const style = options.thumb === true ? stillStyle(moving) : moving
-  const body = options.thumb === true ? stillBody(whole, style) : whole
+  const still = thumb || motion === 'still'
+  const style = still ? stillStyle(moving) : motion === 'calm' ? slowed(moving, CALM_SLOWER) : moving
+  const body = still ? stillBody(whole, style) : motion === 'calm' ? slowed(whole, CALM_SLOWER) : whole
   const out = {
     source: svg(theme.palette.bg, style, body, scene.defs),
     alt: `${scene.alt} Bolt, in the ${theme.id} costume, stands at the right.`,
@@ -132,12 +150,20 @@ export function sceneOf(theme: Theme, options: { thumb?: boolean } = {}): { sour
 /**
  * How the desktop frosts its panels over the scene: tinted with the look's own
  * background so the chat reads as the look, heavier for the two accessibility
- * looks so text contrast stays what their README promises.
+ * looks so text contrast stays what their README promises. The person's
+ * setting moves it a step either way; the accessibility looks never go lighter.
  */
-export function glassFor(theme: Theme): ThemeBackdropGlass {
-  if (theme.id === 'high-contrast') return { blur: 24, tint: '#000000', opacity: 0.86 }
-  if (theme.id === 'colorblind') return { blur: 20, tint: theme.palette.bg, opacity: 0.72 }
-  return { blur: 14, tint: theme.palette.bg, opacity: theme.tone === 'light' ? 0.5 : 0.56 }
+export function glassFor(theme: Theme, glass: Glass = 'default'): ThemeBackdropGlass {
+  const careful = theme.id === 'high-contrast' || theme.id === 'colorblind'
+  const base: { blur: number; tint: string; opacity: number } =
+    theme.id === 'high-contrast'
+      ? { blur: 24, tint: '#000000', opacity: 0.86 }
+      : theme.id === 'colorblind'
+        ? { blur: 20, tint: theme.palette.bg, opacity: 0.72 }
+        : { blur: 14, tint: theme.palette.bg, opacity: theme.tone === 'light' ? 0.5 : 0.56 }
+  if (glass === 'heavy') return { ...base, blur: base.blur + 10, opacity: Math.min(0.92, Math.round((base.opacity + 0.2) * 100) / 100) }
+  if (glass === 'light' && !careful) return { ...base, blur: base.blur - 6, opacity: Math.round((base.opacity - 0.16) * 100) / 100 }
+  return base
 }
 
 /** The scene's size in characters, for the tests. */

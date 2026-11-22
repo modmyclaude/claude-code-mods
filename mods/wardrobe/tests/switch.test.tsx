@@ -9,7 +9,7 @@ import type { BoltCell } from '../hooks/bolt'
 import { rasterCells } from '../hooks/bolt-draw'
 import { COSTUMES, wearBolt } from '../hooks/costume'
 import { sceneOf } from '../hooks/scenes'
-import { THEMES, themeById } from '../hooks/themes'
+import { FAMILIES, THEMES, themeById } from '../hooks/themes'
 import { at, bandProps, ENGINE, PANE, start, SURFACES, TOOL_ROW, wear, world } from './setup'
 
 const halloween = themeById('halloween')!
@@ -261,55 +261,95 @@ describe('/wear season', () => {
 })
 
 describe('the /wear gallery', () => {
-  test('every theme is a card: name, blurb, the sample row as toolRow draws it, the diff chips, Bolt in costume, a wear button', async ($, on) => {
-    world(on)
+  test('every theme is a card in its family: name, blurb, the sample row as toolRow draws it, the diff chips, Bolt in costume, a wear button', async ($, on) => {
+    const w = world(on)
     await start($)
     for (const surface of SURFACES) {
       const ui = await pane($, surface)
-      const tree = await ui.drawn()
-      for (const theme of THEMES) {
-        const card = under(tree, `theme-${theme.id}`)
-        expect(card, `${surface} ${theme.id}`).toBeDefined()
-        const found = await ui.find({ key: `theme-${theme.id}` })
-        expect(found?.text).toContain(theme.id)
-        expect(found?.text).toContain(theme.blurb)
-        expect(found?.text).toContain('Read src/app.ts')
-        // The sample row is toolRow's: the stripe, the read icon chip, the text, a done chip with the time.
-        const stripe = under(card, 'stripe') as Drawn
-        expect((stripe.children?.[0] as Drawn).props).toEqual({ color: theme.palette.bg, backgroundColor: theme.palette.accent })
-        const icon = under(card, 'icon') as Drawn
-        expect((icon.children?.[0] as Drawn).children).toEqual([` ${theme.icons.read} `])
-        expect((icon.children?.[0] as Drawn).props).toEqual({ color: theme.palette.info, backgroundColor: theme.palette.bg }) // KIND_ROLE.read
-        const status = under(card, 'status') as Drawn
-        expect((status.children?.[0] as Drawn).children).toEqual([` ${theme.status.done} 300ms `])
-        expect((status.children?.[0] as Drawn).props).toEqual({ color: theme.palette.ok, backgroundColor: theme.palette.bg })
-        expect(JSON.stringify(card)).toContain(JSON.stringify({ color: theme.diff.addFg, backgroundColor: theme.diff.addBg }))
-        expect(JSON.stringify(card)).toContain(JSON.stringify({ color: theme.diff.removeFg, backgroundColor: theme.diff.removeBg }))
-        // Bolt, small, in this theme's costume (plain where the theme has none).
-        expect(drawnBolt(under(card, `bolt-${theme.id}`)), `${surface} ${theme.id}`).toEqual(cellsAs(surface, wearBolt(theme, 'tiny', 'idle')))
-        const button = (await ui.findAll({ type: 'Button' })).find(b => b.key === `wear-${theme.id}`)
-        expect(button?.props.label).toBe('wear')
-        expect(button?.props.hotkey).toBeUndefined() // the pane can hold the focus
+      const seen: string[] = []
+      for (const family of FAMILIES) {
+        // One family shows at a time: the first while Claude Code's own look is worn, any other at its button.
+        const tab = (await ui.findAll({ type: 'Button' })).find(b => b.key === `family-${family.name}`)
+        if (tab !== undefined) {
+          expect(tab.props.label).toBe(`${family.name} ${family.ids.length}`)
+          await ui.press({ key: `family-${family.name}` })
+          await w.clock.settle()
+        }
+        const tree = await ui.drawn()
+        // The open family is named, not a button; every other is one press away.
+        expect((await ui.find({ key: 'families' }))?.text).toContain(`[${family.name} ${family.ids.length}]`)
+        expect((await ui.findAll({ type: 'Button' })).filter(b => String(b.key).startsWith('family-')).map(b => b.key).sort()).toEqual(FAMILIES.filter(f => f !== family).map(f => `family-${f.name}`).sort())
+        expect((await ui.find({ key: 'family' }))?.text).toContain(`${family.name}: ${family.what}.`)
+        for (const other of THEMES.filter(theme => !family.ids.includes(theme.id))) expect(under(tree, `theme-${other.id}`), `${family.name} shows ${other.id}`).toBeUndefined()
+        for (const theme of THEMES.filter(theme => family.ids.includes(theme.id))) {
+          seen.push(theme.id)
+          const card = under(tree, `theme-${theme.id}`)
+          expect(card, `${surface} ${theme.id}`).toBeDefined()
+          const found = await ui.find({ key: `theme-${theme.id}` })
+          expect(found?.text).toContain(theme.id)
+          expect(found?.text).toContain(theme.blurb)
+          expect(found?.text).toContain('Read src/app.ts')
+          // The sample row is toolRow's: the stripe, the read icon chip, the text, a done chip with the time.
+          const stripe = under(card, 'stripe') as Drawn
+          expect((stripe.children?.[0] as Drawn).props).toEqual({ color: theme.palette.bg, backgroundColor: theme.palette.accent })
+          const icon = under(card, 'icon') as Drawn
+          expect((icon.children?.[0] as Drawn).children).toEqual([` ${theme.icons.read} `])
+          expect((icon.children?.[0] as Drawn).props).toEqual({ color: theme.palette.info, backgroundColor: theme.palette.bg }) // KIND_ROLE.read
+          const status = under(card, 'status') as Drawn
+          expect((status.children?.[0] as Drawn).children).toEqual([` ${theme.status.done} 300ms `])
+          expect((status.children?.[0] as Drawn).props).toEqual({ color: theme.palette.ok, backgroundColor: theme.palette.bg })
+          expect(JSON.stringify(card)).toContain(JSON.stringify({ color: theme.diff.addFg, backgroundColor: theme.diff.addBg }))
+          expect(JSON.stringify(card)).toContain(JSON.stringify({ color: theme.diff.removeFg, backgroundColor: theme.diff.removeBg }))
+          // Bolt, small, in this theme's costume (plain where the theme has none).
+          expect(drawnBolt(under(card, `bolt-${theme.id}`)), `${surface} ${theme.id}`).toEqual(cellsAs(surface, wearBolt(theme, 'tiny', 'idle')))
+          const button = (await ui.findAll({ type: 'Button' })).find(b => b.key === `wear-${theme.id}`)
+          expect(button?.props.label).toBe('wear')
+          expect(button?.props.hotkey).toBeUndefined() // the pane can hold the focus
+        }
+        for (const choice of ['default', 'auto', 'season']) {
+          expect(await ui.find({ key: `theme-${choice}` })).toBeDefined()
+          expect((await ui.findAll({ type: 'Button' })).some(b => b.key === `wear-${choice}`)).toBe(true)
+        }
+        expect((await ui.find({ key: 'theme-default' }))?.text).toContain('(wearing)')
+        const buttons = await ui.findAll({ type: 'Button' })
+        expect(buttons.filter(b => String(b.key).startsWith('wear-'))).toHaveLength(family.ids.length + 3)
+        // With matching on, as installed, `wear` matches by itself: no second button on a card.
+        expect(buttons.filter(b => String(b.key).startsWith('match-'))).toHaveLength(0)
+        // The desktop app shows each look's scene, small and still, where its wallpaper would draw; a terminal has no such element.
+        const pictures = await ui.findAll({ type: 'Svg' })
+        expect(pictures).toHaveLength(surface === 'desktop' ? family.ids.length : 0)
+        for (const picture of pictures) expect(picture.props).toMatchObject({ width: 288, height: 162 })
+        if (surface === 'desktop' && family.ids.includes('dracula')) {
+          const thumb = sceneOf(dracula, { thumb: true })!
+          expect(pictures.find(picture => picture.props.alt === thumb.alt)?.props).toMatchObject({ source: thumb.source, alt: thumb.alt, width: 288, height: 162 })
+        }
       }
-      for (const choice of ['default', 'auto', 'season']) {
-        expect(await ui.find({ key: `theme-${choice}` })).toBeDefined()
-        expect((await ui.findAll({ type: 'Button' })).some(b => b.key === `wear-${choice}`)).toBe(true)
-      }
-      expect((await ui.find({ key: 'theme-default' }))?.text).toContain('(wearing)')
-      const buttons = await ui.findAll({ type: 'Button' })
-      expect(buttons.filter(b => String(b.key).startsWith('wear-'))).toHaveLength(THEMES.length + 3)
-      // With matching on, as installed, `wear` matches by itself: no second button on a card.
-      expect(buttons.filter(b => String(b.key).startsWith('match-'))).toHaveLength(0)
-      // The desktop app shows each look's scene, small and still, where its wallpaper would draw; a terminal has no such element.
-      const pictures = await ui.findAll({ type: 'Svg' })
-      expect(pictures).toHaveLength(surface === 'desktop' ? THEMES.length : 0)
-      for (const picture of pictures) expect(picture.props).toMatchObject({ width: 288, height: 162 })
-      if (surface === 'desktop') {
-        const thumb = sceneOf(dracula, { thumb: true })!
-        expect(pictures.find(picture => picture.props.alt === thumb.alt)?.props).toMatchObject({ source: thumb.source, alt: thumb.alt, width: 288, height: 162 })
-      }
+      // Every look is in exactly one family, so the families together show them all, once.
+      expect(seen.sort()).toEqual(THEMES.map(theme => theme.id).sort())
       await ui.unmount()
     }
+  })
+
+  test('the gallery opens on the worn look own family, and a family picked stays open', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await wear($, 'rink')
+    const ui = await pane($, 'desktop')
+    expect((await ui.find({ key: 'families' }))?.text).toContain('[sports 3]')
+    expect((await ui.find({ key: 'theme-rink' }))?.text).toContain('(wearing)')
+    expect(await ui.find({ key: 'theme-dracula' })).toBeUndefined()
+    await ui.press({ key: 'family-tech' })
+    await w.clock.settle()
+    expect((await ui.find({ key: 'families' }))?.text).toContain('[tech 5]')
+    expect(await ui.find({ key: 'theme-phosphor' })).toBeDefined()
+    expect(await ui.find({ key: 'theme-rink' })).toBeUndefined()
+    // Wearing a look of the open family keeps that family open; so does one put on by command from another.
+    await ui.press({ key: 'wear-clay' })
+    await w.clock.settle()
+    expect((await ui.find({ key: 'theme-clay' }))?.text).toContain('(wearing)')
+    await wear($, 'dracula')
+    expect((await ui.find({ key: 'families' }))?.text).toContain('[tech 5]')
+    await ui.unmount()
   })
 
   test('Bolt is a tiny accent on each card from 40 columns, and out under 40', async ($, on) => {
@@ -335,6 +375,11 @@ describe('the /wear gallery', () => {
     await start($)
     for (const [surface, id] of [['terminal', 'halloween'], ['desktop', 'summer']] as const) {
       const ui = await pane($, surface)
+      // Both are in the seasons family, one press from the first (and already open the second time round).
+      if ((await ui.findAll({ type: 'Button' })).some(b => b.key === 'family-seasons')) {
+        await ui.press({ key: 'family-seasons' })
+        await w.clock.settle()
+      }
       w.heard.length = 0
       await ui.press({ key: `wear-${id}` })
       await w.clock.settle()

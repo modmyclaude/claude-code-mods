@@ -2,10 +2,19 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { clean, DIFF_CHAR_CAP, DIFF_LINE_CAP, diffCard, shellCard, shortPath } from '../hooks/content'
 import {
+  ADDED,
+  choiceOf,
+  easterOf,
+  EID_AL_FITR,
   formatDuration,
   formatMs,
+  gameDaysText,
+  hexOf,
+  holidayOf,
+  HOLIDAYS,
   isDay,
   parseClock,
+  parseGameDays,
   parseWear,
   pinsOf,
   resolveLook,
@@ -111,7 +120,7 @@ describe('parseWear()', () => {
 })
 
 describe('resolveLook()', () => {
-  const settings: Settings = { dayTheme: 'paper', nightTheme: 'nord', dayStarts: 420, nightStarts: 1140, matchTheme: true }
+  const settings: Settings = { ...ADDED, dayTheme: 'paper', nightTheme: 'nord', dayStarts: 420, nightStarts: 1140, matchTheme: true }
   // resolveLook takes the clock reading itself (season needs the date), not a minute of the day.
   const noon = at(12, 0)
   const midnight = at(0, 0)
@@ -159,6 +168,31 @@ describe('resolveLook()', () => {
     expect(pinsOf(['/a'])).toEqual({})
     expect(pinsOf({ '/a': 'noir', '/b': 'gone' })).toEqual({ '/a': 'noir' })
   })
+
+  test('on a game day auto and season wear the game look; a look worn by name stays, and so does any other day', () => {
+    const weekday = new Date(noon).getDay()
+    const game: Settings = { ...settings, gameDays: [weekday], gameLook: 'rink' }
+    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, now: noon, settings: game })).toEqual({ theme: 'rink', choice: 'auto', scope: 'global', phase: 'game', root: '/a' })
+    expect(resolveLook({ root: '/a', global: 'season', pins: {}, now: noon, settings: game })).toMatchObject({ theme: 'rink', choice: 'season', phase: 'game' })
+    expect(resolveLook({ root: '/a', global: 'nord', pins: { '/a': 'season' }, now: noon, settings: game })).toMatchObject({ theme: 'rink', scope: 'project', phase: 'game' })
+    expect(resolveLook({ root: '/a', global: 'dracula', pins: {}, now: noon, settings: game })).toMatchObject({ theme: 'dracula', phase: null })
+    expect(resolveLook({ root: '/a', global: 'default', pins: {}, now: noon, settings: game })).toMatchObject({ theme: 'default', phase: null })
+    const other: Settings = { ...settings, gameDays: [(weekday + 1) % 7], gameLook: 'rink' }
+    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, now: noon, settings: other })).toMatchObject({ theme: 'paper', phase: 'day' })
+    // The day is the local one, to the minute: the last minute before midnight is still the game day.
+    const late = new Date(new Date(noon).getFullYear(), new Date(noon).getMonth(), new Date(noon).getDate(), 23, 59).getTime()
+    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, now: late, settings: game })).toMatchObject({ theme: 'rink', phase: 'game' })
+    expect(resolveLook({ root: '/a', global: 'auto', pins: {}, now: late + 60_000, settings: game })).toMatchObject({ theme: 'nord', phase: 'night' })
+  })
+
+  test('season wears a holiday look only where its setting asks', () => {
+    const easter = new Date(2026, 3, 5, 12).getTime()
+    expect(resolveLook({ root: '/a', global: 'season', pins: {}, now: easter, settings }).theme).toBe('spring')
+    expect(resolveLook({ root: '/a', global: 'season', pins: {}, now: easter, settings: { ...settings, seasonEaster: true } }).theme).toBe('easter')
+    const eid = new Date(2026, 2, 21, 12).getTime()
+    expect(resolveLook({ root: '/a', global: 'season', pins: {}, now: eid, settings: { ...settings, seasonEaster: true } }).theme).toBe('spring')
+    expect(resolveLook({ root: '/a', global: 'season', pins: {}, now: eid, settings: { ...settings, seasonEid: true } }).theme).toBe('eid')
+  })
 })
 
 describe('seasonOf()', () => {
@@ -204,11 +238,241 @@ describe('seasonOf()', () => {
   })
 })
 
+describe('parseGameDays()', () => {
+  const cases: [string, number[], string[]][] = [
+    ['sunday', [0], []],
+    ['Sat Sun', [0, 6], []],
+    ['mon, thu', [1, 4], []],
+    ['Sundays', [0], []],
+    ['tues/thurs', [2, 4], []],
+    ['sunday sunday', [0], []],
+    ['Saturday and Sunday', [0, 6], []],
+    ['sat & sun', [0, 6], []],
+    ['Monday, Thursday and Saturday', [1, 4, 6], []],
+    ['and', [], []],
+    ['funday', [], ['funday']],
+    ['su', [], ['su']],
+    ['', [], []],
+  ]
+  for (const [text, days, unknown] of cases) {
+    test(`"${text}" is ${days.join(',') || 'no day'}`, () => {
+      expect(parseGameDays(text)).toEqual({ days, unknown })
+    })
+  }
+
+  test('the days read back in words', () => {
+    expect(gameDaysText([0])).toBe('Sunday')
+    expect(gameDaysText([0, 6])).toBe('Sunday and Saturday')
+    expect(gameDaysText([1, 4, 6])).toBe('Monday, Thursday and Saturday')
+    expect(gameDaysText([])).toBe('')
+  })
+
+  test('the words read back are a setting that reads, with nothing left out', () => {
+    for (const days of [[0], [0, 6], [1, 4, 6], [0, 1, 2, 3, 4, 5, 6]]) {
+      expect(parseGameDays(gameDaysText(days)), gameDaysText(days)).toEqual({ days, unknown: [] })
+    }
+  })
+})
+
+describe('the holiday looks in season mode', () => {
+  const day = (year: number, month: number, dayOfMonth: number, hour = 12) => new Date(year, month - 1, dayOfMonth, hour).getTime()
+  const both = { seasonEaster: true, seasonEid: true }
+  const neither = { seasonEaster: false, seasonEid: false }
+
+  // Western Easter Sundays, from published tables. 1954, 1981, 2049 and 2076 are the
+  // years this century and last where the formula's last correction moves the date a week.
+  const easters: [number, number, number][] = [
+    [1954, 4, 18],
+    [1981, 4, 19],
+    [2008, 3, 23],
+    [2011, 4, 24],
+    [2049, 4, 18],
+    [2076, 4, 19],
+    [2024, 3, 31],
+    [2025, 4, 20],
+    [2026, 4, 5],
+    [2027, 3, 28],
+    [2028, 4, 16],
+    [2030, 4, 21],
+    [2038, 4, 25],
+  ]
+  for (const [year, month, dayOfMonth] of easters) {
+    test(`Easter ${year} is ${month}/${dayOfMonth}`, () => {
+      expect(easterOf(year)).toEqual([month, dayOfMonth])
+    })
+  }
+
+  test('easter is worn from Good Friday to Easter Monday, and only where asked', () => {
+    // 2026: Friday April 3 to Monday April 6.
+    expect(holidayOf(day(2026, 4, 2, 23), both)).toBeUndefined()
+    for (const d of [3, 4, 5, 6]) expect(holidayOf(day(2026, 4, d), both), `April ${d}`).toBe('easter')
+    expect(holidayOf(day(2026, 4, 3, 0), both)).toBe('easter')
+    expect(holidayOf(day(2026, 4, 6, 23), both)).toBe('easter')
+    expect(holidayOf(day(2026, 4, 7, 0), both)).toBeUndefined()
+    expect(holidayOf(day(2026, 4, 5), neither)).toBeUndefined()
+    expect(holidayOf(day(2026, 4, 5), { seasonEaster: false, seasonEid: true })).toBeUndefined()
+  })
+
+  test('eid is worn on Eid al-Fitr and the two days after, by the table, and only where asked', () => {
+    // 2026: March 20 to 22.
+    expect(holidayOf(day(2026, 3, 19, 23), both)).toBeUndefined()
+    for (const d of [20, 21, 22]) expect(holidayOf(day(2026, 3, d), both), `March ${d}`).toBe('eid')
+    expect(holidayOf(day(2026, 3, 23, 0), both)).toBeUndefined()
+    expect(holidayOf(day(2026, 3, 20), neither)).toBeUndefined()
+    expect(holidayOf(day(2026, 3, 20), { seasonEaster: true, seasonEid: false })).toBeUndefined()
+    // 2033 holds two: January 3 and December 23; the second runs to Christmas Day.
+    expect(holidayOf(day(2033, 1, 3), both)).toBe('eid')
+    expect(holidayOf(day(2033, 12, 23), both)).toBe('eid')
+    expect(holidayOf(day(2033, 12, 25), both)).toBe('eid')
+    expect(holidayOf(day(2033, 12, 26), both)).toBeUndefined()
+    // Past the table, no day is guessed.
+    expect(holidayOf(day(2041, 9, 27), both)).toBeUndefined()
+  })
+
+  test('the table is one first day a lunar year, in order, each about eleven days earlier than the last', () => {
+    for (let i = 1; i < EID_AL_FITR.length; i += 1) {
+      const [a, b] = [EID_AL_FITR[i - 1]!, EID_AL_FITR[i]!]
+      const gap = Math.round((new Date(b[0], b[1] - 1, b[2]).getTime() - new Date(a[0], a[1] - 1, a[2]).getTime()) / 86_400_000)
+      expect(gap === 354 || gap === 355, `${a.join('-')} to ${b.join('-')} is ${gap} days`).toBe(true)
+    }
+    expect(EID_AL_FITR[0]).toEqual([2026, 3, 20])
+  })
+
+  test('the table is the Umm al-Qura calendar first of Shawwal, year by year, through 2040', () => {
+    expect(EID_AL_FITR).toEqual([
+      [2026, 3, 20],
+      [2027, 3, 9],
+      [2028, 2, 26],
+      [2029, 2, 14],
+      [2030, 2, 4],
+      [2031, 1, 24],
+      [2032, 1, 14],
+      [2033, 1, 3],
+      [2033, 12, 23],
+      [2034, 12, 12],
+      [2035, 12, 1],
+      [2036, 11, 19],
+      [2037, 11, 9],
+      [2038, 10, 29],
+      [2039, 10, 19],
+      [2040, 10, 7],
+    ])
+  })
+
+  test('season wears a holiday asked for over the calendar, and the calendar alone otherwise', () => {
+    expect(seasonOf(day(2026, 4, 5), both)).toBe('easter')
+    expect(seasonOf(day(2026, 4, 5), neither)).toBe('spring')
+    expect(seasonOf(day(2026, 4, 5))).toBe('spring')
+    expect(seasonOf(day(2026, 3, 20), both)).toBe('eid')
+    expect(seasonOf(day(2026, 3, 20))).toBe('spring')
+    expect(seasonOf(day(2026, 7, 4), both)).toBe('summer')
+    expect(seasonWindow('easter')).toBe('Good Friday to Easter Monday')
+    expect(seasonWindow('eid')).toBe('Eid al-Fitr and the two days after')
+    expect(HOLIDAYS.map(holiday => holiday.theme)).toEqual(['easter', 'eid'])
+    const seen = new Set<string>()
+    for (let d = 0; d < 366; d++) seen.add(seasonOf(new Date(2028, 0, 1 + d, 12).getTime(), both))
+    expect([...seen].sort()).toEqual(['autumn', 'christmas', 'easter', 'eid', 'halloween', 'nord', 'spring', 'summer'])
+  })
+})
+
+describe('the new looks by name', () => {
+  const cases: [string, string | undefined][] = [
+    ['phosphor', 'phosphor'],
+    ['crt', 'phosphor'],
+    ['graphite', 'graphite'],
+    ['grey', 'graphite'],
+    ['clay', 'clay'],
+    ['synthwave', 'synthwave'],
+    ['retro', 'synthwave'],
+    ['on-call', 'on-call'],
+    ['on call', 'on-call'],
+    ['oncall', 'on-call'],
+    ['pager', 'on-call'],
+    ['hardwood', 'hardwood'],
+    ['basketball', 'hardwood'],
+    ['gridiron', 'gridiron'],
+    ['football', 'gridiron'],
+    ['rink', 'rink'],
+    ['hockey', 'rink'],
+    ['easter', 'easter'],
+    ['eid', 'eid'],
+    ['eid al fitr', 'eid'],
+    ['Eid_al_Fitr', 'eid'],
+    // A unique start is still enough, and a shared one still is not.
+    ['r', 'rink'],
+    ['o', 'on-call'],
+    ['ph', 'phosphor'],
+    ['p', undefined],
+    ['e', undefined],
+    ['g', undefined],
+    ['h', undefined],
+    ['s', undefined],
+  ]
+  for (const [word, choice] of cases) {
+    test(`"${word}" is ${choice ?? 'no one look'}`, () => {
+      expect(choiceOf(word)).toBe(choice)
+    })
+  }
+})
+
 describe('settingsFrom()', () => {
   test('good values are used as given', () => {
     const { settings, problems } = settingsFrom({ dayTheme: 'noir', nightTheme: 'dracula', dayStarts: '06:30', nightStarts: '21:15' })
-    expect(settings).toEqual({ dayTheme: 'noir', nightTheme: 'dracula', dayStarts: 390, nightStarts: 1275, matchTheme: true })
+    // What this version added is as an older install left it: no team, no game day, full motion, no holiday in season mode.
+    expect(settings).toEqual({
+      dayTheme: 'noir',
+      nightTheme: 'dracula',
+      dayStarts: 390,
+      nightStarts: 1275,
+      matchTheme: true,
+      teamPrimary: '',
+      teamSecondary: '',
+      gameDays: [],
+      gameLook: 'hardwood',
+      motion: 'full',
+      glass: 'default',
+      seasonEaster: false,
+      seasonEid: false,
+    })
+    expect(settings).toMatchObject(ADDED)
     expect(problems).toEqual([])
+  })
+
+  const good = { dayTheme: 'noir', nightTheme: 'dracula', dayStarts: '06:30', nightStarts: '21:15' }
+
+  test('team colours are read as hex, in any of its spellings; anything else is named and the look keeps its own', () => {
+    const { settings, problems } = settingsFrom({ ...good, teamPrimary: '#1F4E9C', teamSecondary: 'fc3' })
+    expect(settings).toMatchObject({ teamPrimary: '#1f4e9c', teamSecondary: '#ffcc33' })
+    expect(problems).toEqual([])
+    expect(settingsFrom({ ...good, teamPrimary: '', teamSecondary: '' }).problems).toEqual([])
+    const odd = settingsFrom({ ...good, teamPrimary: 'navy', teamSecondary: 7 })
+    expect(odd.settings).toMatchObject({ teamPrimary: '', teamSecondary: '' })
+    expect(odd.problems).toEqual(['teamPrimary "navy" is not a colour like #1f4e9c; using the look\'s own', 'teamSecondary "7" is not a colour like #1f4e9c; using the look\'s own'])
+    expect(hexOf(' #ABC ')).toBe('#aabbcc')
+    expect(hexOf('#abcd')).toBeUndefined()
+    expect(hexOf('url(#a)')).toBeUndefined()
+  })
+
+  test('a game day is weekdays in words, and its look one of the sports looks', () => {
+    expect(settingsFrom({ ...good, gameDay: 'Sunday', gameLook: 'gridiron' }).settings).toMatchObject({ gameDays: [0], gameLook: 'gridiron' })
+    expect(settingsFrom({ ...good, gameDay: 'sat, sun' }).settings.gameDays).toEqual([0, 6])
+    expect(settingsFrom({ ...good, gameDay: '' }).settings.gameDays).toEqual([])
+    const odd = settingsFrom({ ...good, gameDay: 'sunday funday', gameLook: 'dracula' })
+    expect(odd.settings).toMatchObject({ gameDays: [0], gameLook: 'hardwood' })
+    expect(odd.problems).toEqual(['gameDay "funday" is not a weekday; left out', 'gameLook "dracula" is not one of hardwood, gridiron, rink; using hardwood'])
+    expect(settingsFrom({ ...good, gameDay: 3 }).problems).toEqual(['gameDay "3" is not a weekday; left out'])
+  })
+
+  test('motion, glass and the two holiday switches: what is asked, or as installed with the odd value named', () => {
+    expect(settingsFrom({ ...good, motion: 'calm', glass: 'heavy', seasonEaster: true, seasonEid: true }).settings).toMatchObject({ motion: 'calm', glass: 'heavy', seasonEaster: true, seasonEid: true })
+    const odd = settingsFrom({ ...good, motion: 'fast', glass: 'none', seasonEaster: 'yes', seasonEid: 1 })
+    expect(odd.settings).toMatchObject({ motion: 'full', glass: 'default', seasonEaster: false, seasonEid: false })
+    expect(odd.problems).toEqual([
+      'motion "fast" is not one of full, calm, still; using full',
+      'glass "none" is not one of light, default, heavy; using default',
+      'seasonEaster "yes" is not on or off; using off',
+      'seasonEid "1" is not on or off; using off',
+    ])
   })
 
   test('matching is on unless the setting says off; anything else is named and left on', () => {

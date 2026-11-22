@@ -8,7 +8,7 @@ import { join } from 'node:path'
 const MOD = 'mods/wardrobe'
 const src = readFileSync(join(MOD, 'hooks/themes.ts'), 'utf8')
 const blocks = [...src.matchAll(/\{\s*\n\s+id: '([a-z-]+)',\s*\n\s+tone: '(dark|light)',\s*\n\s+blurb: '([^']*)',\s*\n\s+palette: \{([\s\S]*?)\},\s*\n\s+diff: \{([^}]*)\}/g)]
-const NAMES = { noir: 'Noir', paper: 'Paper', 'tokyo-night': 'Tokyo Night', dracula: 'Dracula', catppuccin: 'Catppuccin', solarized: 'Solarized', nord: 'Nord', 'high-contrast': 'High contrast', colorblind: 'Colorblind', halloween: 'Halloween', christmas: 'Christmas', spring: 'Spring', summer: 'Summer', autumn: 'Autumn' }
+const NAMES = { phosphor: 'Phosphor', graphite: 'Graphite', clay: 'Clay', synthwave: 'Synthwave', 'on-call': 'On call', hardwood: 'Hardwood', gridiron: 'Gridiron', rink: 'Rink', easter: 'Easter', eid: 'Eid', noir: 'Noir', paper: 'Paper', 'tokyo-night': 'Tokyo Night', dracula: 'Dracula', catppuccin: 'Catppuccin', solarized: 'Solarized', nord: 'Nord', 'high-contrast': 'High contrast', colorblind: 'Colorblind', halloween: 'Halloween', christmas: 'Christmas', spring: 'Spring', summer: 'Summer', autumn: 'Autumn' }
 const colours = text => Object.fromEntries([...text.matchAll(/(\w+): '(#[0-9a-fA-F]{6})'/g)].map(m => [m[1], m[2]]))
 
 const want = new Map()

@@ -2,6 +2,10 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-11-21
+
+- wardrobe 0.4.0: ten new looks, each with its own scene, costume and verbs. Five for people who build software (`phosphor`, `graphite`, `clay`, `synthwave`, `on-call`), three sports looks (`hardwood`, `gridiron`, `rink`) that wear your team's two colours and come out on game day, and two holiday looks (`easter`, `eid`) that `/wear season` wears where you ask. The gallery shows one family of looks at a time, and new settings set how much the scenes move and how heavy the glass over them is.
+
 ## 2026-11-20
 
 - wardrobe 0.3.0: the whole desktop app wears the look. Every look carries a palette for the app's own page, panels, text and accents, its scene is redrawn in depth with far more in it, and the gallery shows each scene. Putting a look on also matches Claude Code's own theme (a setting turns that off, and `/wear default` puts yours back), and `/wear <theme> everywhere` wears it in every project.

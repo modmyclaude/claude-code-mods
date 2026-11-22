@@ -8,8 +8,8 @@ export type WardrobeLook = {
   choice: string
   /** Where the choice came from: the global one, or this project's pin. */
   scope: 'global' | 'project'
-  /** In auto mode, which half of the day it is; null otherwise. */
-  phase: 'day' | 'night' | null
+  /** In auto mode, which half of the day it is; `game` where a game day chose the look (auto or season); null otherwise. */
+  phase: 'day' | 'night' | 'game' | null
   /** The project root the look was resolved for (pins are keyed by it). */
   root: string
 }
@@ -48,6 +48,11 @@ export type WardrobeBackdrop = {
   isDrawn: boolean
 }
 
+/** Which family of looks the `/wear` gallery shows: a family's name, or null for the worn look's own. */
+export type WardrobeGallery = {
+  family: string | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     wardrobe: {
@@ -57,6 +62,7 @@ declare module 'claude-code' {
       verb: WardrobeVerb | null
       app: WardrobeApp
       backdrop: WardrobeBackdrop
+      gallery: WardrobeGallery
     }
   }
 }

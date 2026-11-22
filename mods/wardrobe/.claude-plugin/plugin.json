@@ -1,6 +1,6 @@
 {
   "name": "wardrobe",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
   "homepage": "https://modmyclaude.com/mods/wardrobe",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
@@ -19,7 +19,9 @@
     "colorblind",
     "high-contrast",
     "diff",
-    "display"
+    "display",
+    "sports",
+    "wallpaper"
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
@@ -39,11 +41,21 @@
         "nord",
         "high-contrast",
         "colorblind",
+        "phosphor",
+        "graphite",
+        "clay",
+        "synthwave",
+        "on-call",
+        "hardwood",
+        "gridiron",
+        "rink",
         "halloween",
         "christmas",
         "spring",
         "summer",
-        "autumn"
+        "autumn",
+        "easter",
+        "eid"
       ]
     },
     "nightTheme": {
@@ -62,11 +74,21 @@
         "nord",
         "high-contrast",
         "colorblind",
+        "phosphor",
+        "graphite",
+        "clay",
+        "synthwave",
+        "on-call",
+        "hardwood",
+        "gridiron",
+        "rink",
         "halloween",
         "christmas",
         "spring",
         "summer",
-        "autumn"
+        "autumn",
+        "easter",
+        "eid"
       ]
     },
     "dayStarts": {
@@ -86,6 +108,69 @@
       "title": "Match Claude Code's theme",
       "description": "Wearing a look also sets Claude Code's own theme to match it; /wear default puts yours back. Off, only /wear <theme> --match does.",
       "default": true
+    },
+    "teamPrimary": {
+      "type": "string",
+      "title": "Team colour, first",
+      "description": "Your team's main colour as a hex code like #1f4e9c. The sports looks (hardwood, gridiron, rink) wear it. Empty keeps each look's own.",
+      "default": ""
+    },
+    "teamSecondary": {
+      "type": "string",
+      "title": "Team colour, second",
+      "description": "Your team's second colour as a hex code like #f2b824. Empty keeps each look's own.",
+      "default": ""
+    },
+    "gameDay": {
+      "type": "string",
+      "title": "Game day",
+      "description": "The weekdays your team plays, like sunday or sat sun. On those days /wear auto and /wear season wear the game look. Empty for none.",
+      "default": ""
+    },
+    "gameLook": {
+      "type": "string",
+      "title": "Game look",
+      "description": "The sports look a game day wears.",
+      "default": "hardwood",
+      "options": [
+        "hardwood",
+        "gridiron",
+        "rink"
+      ]
+    },
+    "motion": {
+      "type": "string",
+      "title": "Scene motion",
+      "description": "How much the scene behind the chat moves: full, calm (half as much, half as fast) or still.",
+      "default": "full",
+      "options": [
+        "full",
+        "calm",
+        "still"
+      ]
+    },
+    "glass": {
+      "type": "string",
+      "title": "Glass over the scene",
+      "description": "How heavily the desktop app frosts its panels over the scene: light shows more of it, heavy less.",
+      "default": "default",
+      "options": [
+        "light",
+        "default",
+        "heavy"
+      ]
+    },
+    "seasonEaster": {
+      "type": "boolean",
+      "title": "Easter in season mode",
+      "description": "/wear season wears the easter look from Good Friday to Easter Monday (the Western date).",
+      "default": false
+    },
+    "seasonEid": {
+      "type": "boolean",
+      "title": "Eid al-Fitr in season mode",
+      "description": "/wear season wears the eid look on Eid al-Fitr and the two days after. The day follows the Umm al-Qura calendar; where you live it may fall a day either side.",
+      "default": false
     }
   }
 }

@@ -9,9 +9,10 @@
 
 import type { ThemeColors } from 'claude-code'
 
-import { contrast } from './contrast'
+import { lifted } from './contrast'
 import { makeColors } from './make-colors.js'
 import { mix } from './scene-kit'
+import { lookKey } from './tailor'
 import type { Theme } from './themes'
 
 /** The code highlighting theme a look pairs with, where a well-known one shares its palette; a surface keeps its own for a name it does not offer. */
@@ -31,13 +32,6 @@ export function paletteLabel(theme: Pick<Theme, 'id'>): string {
 
 /** The line the helper writes when the desktop app would ignore the whole palette. */
 export const isRefusal = (line: string): boolean => line.startsWith("Desktop won't paint")
-
-/** A colour moved toward `pole` until it stands `want` to one against `ground`. */
-function lifted(colour: string, ground: string, want: number, pole: string): string {
-  let out = colour
-  for (let k = 0; k < 48 && contrast(out, ground) < want; k += 1) out = mix(out, pole, 0.06)
-  return out
-}
 
 type Anchors = Record<'surface-0' | 'surface-1' | 'surface-2' | 'surface-3' | 'text-primary' | 'text-secondary' | 'text-muted', string>
 
@@ -72,7 +66,9 @@ const made = new Map<string, { colors: ThemeColors; problems: string[] }>()
  * names no such pair; tests/app-colors.test.ts holds every look to that.
  */
 export function appColors(theme: Theme): { colors: ThemeColors; problems: string[] } {
-  const hit = made.get(theme.id)
+  // A sports look in a team's colours is a palette of its own.
+  const key = lookKey(theme)
+  const hit = made.get(key)
   if (hit !== undefined) return hit
   const p = theme.palette
   // High contrast paints its diff words black on a bright ground, so its added and removed marks take the status colours instead.
@@ -93,6 +89,6 @@ export function appColors(theme: Theme): { colors: ThemeColors; problems: string
     out = { colors, problems }
     if (!problems.some(isRefusal)) break
   }
-  made.set(theme.id, out!)
+  made.set(key, out!)
   return out!
 }

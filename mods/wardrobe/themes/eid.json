@@ -1,0 +1,22 @@
+{
+  "name": "Eid (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#f2c96b",
+    "claudeShimmer": "#f0a8c0",
+    "text": "#f7f1df",
+    "subtle": "#b5c9c0",
+    "inactive": "#b5c9c0",
+    "suggestion": "#8fd9d1",
+    "success": "#8ee0a0",
+    "error": "#ff8f85",
+    "warning": "#ffb866",
+    "permission": "#f0a8c0",
+    "promptBorder": "#f2c96b",
+    "bashBorder": "#f2c96b",
+    "userMessageBackground": "#0c2a2a",
+    "userMessageBackgroundHover": "#0c2a2a",
+    "diffAdded": "#12402e",
+    "diffRemoved": "#4a2424"
+  }
+}

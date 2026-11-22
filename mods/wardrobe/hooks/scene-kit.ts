@@ -44,17 +44,22 @@ export function op(x: number): string {
 }
 
 // How much of a scene's small things are drawn: 1 for the wallpaper, less for a
-// gallery thumbnail, which wants the picture and not its every snowflake.
+// gallery thumbnail, which wants the picture and not its every snowflake, and
+// for calm motion, which wants half of what drifts. `grain` is how finely its
+// lines are drawn and how many of its windows are kept: less for a thumbnail
+// alone, since a calm wallpaper is still the whole picture.
 let detail = 1
+let grain = 1
 
-/** Draws with fewer small things, as a thumbnail wants. */
-export function withDetail<T>(k: number, make: () => T): T {
-  const was = detail
+/** Draws with fewer small things, and (unless `lines` says otherwise) coarser lines, as a thumbnail wants. */
+export function withDetail<T>(k: number, make: () => T, lines = k): T {
+  const was = [detail, grain] as const
   detail = k
+  grain = lines
   try {
     return make()
   } finally {
-    detail = was
+    ;[detail, grain] = was
   }
 }
 
@@ -62,7 +67,7 @@ export function withDetail<T>(k: number, make: () => T): T {
 export const few = (count: number): number => Math.max(1, Math.round(count * detail))
 
 /** A spacing widened for a thumbnail: the same line, fewer points along it. */
-export const coarse = (step: number): number => step / Math.max(detail, 0.34)
+export const coarse = (step: number): number => step / Math.max(grain, 0.34)
 
 /** The whole document: the style block first, the gradients, then the drawing over a ground of one colour. */
 export function svg(ground: string, style: string, body: string, defs = ''): string {
@@ -250,7 +255,7 @@ export function city(seed: number, baseY: number, minH: number, maxH: number, wi
     else if (crown < 0.5) d += `M${n(x + w * 0.5 - 1.5)} ${n(top)}v${n(-18 - r() * 40)}h3V${n(top)}z`
     tops.push({ x, y: top, w })
     // A thumbnail keeps every fourth place a window may be lit.
-    for (let wx = x + 7; wx < x + w - 9; wx += 13) for (let wy = top + 12; wy < baseY - 10; wy += 19) if (detail === 1 || (Math.round(wx) + Math.round(wy)) % 4 === 0) cells.push([wx, wy])
+    for (let wx = x + 7; wx < x + w - 9; wx += 13) for (let wy = top + 12; wy < baseY - 10; wy += 19) if (grain === 1 || (Math.round(wx) + Math.round(wy)) % 4 === 0) cells.push([wx, wy])
     x += w + gap * r()
   }
   return { d, cells, tops }

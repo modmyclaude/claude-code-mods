@@ -27,9 +27,9 @@ describe('/wear', () => {
       const row = await ui.find({ key: 'theme-dracula' })
       expect(row?.text).toContain('dracula')
       expect(row?.text).toContain(dracula.blurb)
-      // The preview chips are painted in the theme's own diff colours (14 themes since the seasonal packs).
+      // The preview chips are painted in the theme's own diff colours: one per look of the family shown (the seven everyday looks first).
       const adds = await ui.findAll({ type: 'Text', text: ' + add ' })
-      expect(adds).toHaveLength(14)
+      expect(adds).toHaveLength(7)
       expect(adds.map(chip => chip.props.backgroundColor)).toContain(dracula.diff.addBg)
       expect((await ui.find({ key: 'theme-default' }))?.text).toContain('(wearing)')
       expect((await ui.find({ key: 'theme-dracula' }))?.text).not.toContain('(wearing)')
@@ -274,7 +274,7 @@ describe('Bolt in the /wear pane', () => {
       expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
       expect(await ui.find({ type: 'Text', text: "Wearing Claude Code's own look everywhere without a pin." })).toBeDefined()
       expect((await ui.find({ key: 'theme-dracula' }))?.text).toContain(dracula.blurb)
-      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(14) // one chip per theme (14)
+      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(7) // one chip per look of the family shown
       await ui.unmount()
       const narrow = await pane($, surface, 39)
       expect(await narrow.find({ key: 'bolt' }), surface).toBeUndefined()

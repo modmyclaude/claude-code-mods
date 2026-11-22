@@ -9,7 +9,8 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { costumeOf, dressedPixels } from '../hooks/costume'
 import { glassFor, hasScene, SCENE_LIMIT, sceneOf, sceneSize } from '../hooks/scenes'
-import { THEMES } from '../hooks/themes'
+import { wornTheme } from '../hooks/tailor'
+import { FAMILIES, SPORTS, THEMES, themeById } from '../hooks/themes'
 
 // What the engine refuses in a backdrop's Svg, in one breath: pictures, fonts,
 // fetches, links, scripts' hiding places, and comments (plain ones are
@@ -128,9 +129,11 @@ describe('every look has a scene', () => {
     })
   }
 
-  test('the fourteen thumbnails together stay light enough for one gallery', () => {
-    const total = THEMES.reduce((sum, theme) => sum + sceneOf(theme, { thumb: true })!.source.length, 0)
-    expect(total).toBeLessThan(320_000)
+  test('the thumbnails of any one family, all the gallery draws at a time, stay light', () => {
+    for (const family of FAMILIES) {
+      const total = family.ids.reduce((sum, id) => sum + sceneOf(themeById(id)!, { thumb: true })!.source.length, 0)
+      expect(total, family.name).toBeLessThan(200_000)
+    }
   })
 
   test('the glass over a scene is within the engine bounds, tinted with the look, heavier for the accessibility looks', () => {
@@ -146,4 +149,105 @@ describe('every look has a scene', () => {
     expect(glassFor(THEMES.find(t => t.id === 'colorblind')!).opacity).toBeGreaterThan(0.7)
     expect(glassFor(THEMES.find(t => t.id === 'dracula')!).tint).toBe('#282a36')
   })
+
+  test('the glass setting moves it a step either way; the accessibility looks never go lighter', () => {
+    const dracula = themeById('dracula')!
+    expect(glassFor(dracula, 'default')).toEqual(glassFor(dracula))
+    expect(glassFor(dracula, 'light')).toEqual({ blur: 8, tint: '#282a36', opacity: 0.4 })
+    expect(glassFor(dracula, 'heavy')).toEqual({ blur: 24, tint: '#282a36', opacity: 0.76 })
+    for (const theme of THEMES) {
+      const [light, plain, heavy] = [glassFor(theme, 'light'), glassFor(theme), glassFor(theme, 'heavy')]
+      expect(light.opacity, theme.id).toBeLessThanOrEqual(plain.opacity ?? 0)
+      expect(heavy.opacity, theme.id).toBeGreaterThan(plain.opacity ?? 1)
+      for (const glass of [light, heavy]) {
+        expect(glass.blur).toBeGreaterThanOrEqual(0)
+        expect(glass.blur).toBeLessThanOrEqual(64)
+        expect(glass.opacity).toBeGreaterThan(0.3)
+        expect(glass.opacity).toBeLessThanOrEqual(1)
+        expect(glass.tint).toBe(plain.tint)
+      }
+    }
+    for (const id of ['high-contrast', 'colorblind']) expect(glassFor(themeById(id)!, 'light'), id).toEqual(glassFor(themeById(id)!))
+  })
+})
+
+describe('how much a scene moves', () => {
+  /** Every animation time a document names, in seconds: the CSS shorthand and the inline durations. */
+  const times = (source: string) => [...source.matchAll(/animation:[a-z0-9-]+ ([0-9.]+)s/g), ...source.matchAll(/animation-duration:([0-9.]+)s/g)].map(m => Number(m[1]))
+
+  for (const theme of THEMES) {
+    test(`${theme.id}: calm is the same picture with fewer small things at half the speed; still is the whole picture at rest`, () => {
+      const full = sceneOf(theme)!
+      const calm = sceneOf(theme, { motion: 'calm' })!
+      const still = sceneOf(theme, { motion: 'still' })!
+      expect(sceneOf(theme, { motion: 'full' })).toBe(full)
+      for (const scene of [calm, still]) {
+        heldAsADocument(scene.source, theme.palette.bg)
+        expect(scene.alt).toBe(full.alt)
+        expect(count(scene.source, 'class="bolt"')).toBe(1)
+      }
+      // Calm: nothing new moves, nothing runs under two seconds, and every rule's animation takes twice as long.
+      expect(times(full.source).length).toBeGreaterThan(0)
+      expect(Math.min(...times(calm.source))).toBeGreaterThanOrEqual(2)
+      const paced = (source: string) => [...styleOf(source).matchAll(/animation:([a-z0-9-]+) ([0-9.]+)s/g)].map(m => [m[1]!, Number(m[2])] as const)
+      const [quick, slow] = [paced(full.source), paced(calm.source)]
+      expect(slow.map(([name]) => name)).toEqual(quick.map(([name]) => name))
+      slow.forEach(([name, seconds], i) => expect(seconds, name).toBe(Math.round(quick[i]![1] * 2 * 10) / 10))
+      expect(count(calm.source, '<')).toBeLessThanOrEqual(count(full.source, '<'))
+      expect(count(calm.source, '@keyframes')).toBe(count(full.source, '@keyframes'))
+      // Its lines are as fine as the wallpaper's: only what drifts is thinned.
+      expect(calm.source.length).toBeGreaterThan(sceneOf(theme, { thumb: true })!.source.length)
+      // Still: every part of the picture, and nothing that moves one.
+      expect(still.source).not.toContain('animation')
+      expect(still.source).not.toContain('@keyframes')
+      expect(count(still.source, '<')).toBe(count(full.source, '<') - count(styleOf(full.source), '<'))
+      expect(styleOf(still.source)).toMatch(/\.bolt\{transform:translate\(\d+px,\d+px\) scale\(12\)\}/)
+      // Asking for one never changes another.
+      expect(sceneOf(theme)).toBe(full)
+      expect(sceneOf(theme, { motion: 'calm' })).toBe(calm)
+    })
+  }
+})
+
+describe('calm thins what drifts and nothing else', () => {
+  /** The silhouettes a scene draws edge to edge: its ridges and its skylines, each one long path from the left bleed. */
+  const lines = (source: string) => [...source.matchAll(/ d="(M-80 900[LV][^"]*)"/g)].map(m => m[1]!)
+
+  for (const id of ['dracula', 'nord', 'tokyo-night', 'noir']) {
+    test(`${id}: its ridges and skylines are the wallpaper's own, point for point; only a thumbnail draws them coarser`, () => {
+      const theme = themeById(id)!
+      const full = lines(sceneOf(theme)!.source)
+      expect(full.length).toBeGreaterThan(1)
+      expect(lines(sceneOf(theme, { motion: 'calm' })!.source)).toEqual(full)
+      expect(lines(sceneOf(theme, { motion: 'still' })!.source)).toEqual(full)
+      // A ridge is drawn with fewer points in a thumbnail; a skyline is the same blocks at any size.
+      const thumb = lines(sceneOf(theme, { thumb: true })!.source)
+      if (id === 'dracula' || id === 'nord') expect(thumb.join('').length).toBeLessThan(full.join('').length)
+      else expect(thumb).toEqual(full)
+    })
+  }
+})
+
+describe('a sports look in a team colours has a picture of its own', () => {
+  const TEAM = { teamPrimary: '#14306b', teamSecondary: '#f2b824' }
+  for (const id of SPORTS) {
+    test(`${id}: the same picture in other paint, held to the same rules, thumbnail and all`, () => {
+      const stock = themeById(id)!
+      const worn = wornTheme(id, TEAM)!
+      const [own, team] = [sceneOf(stock)!, sceneOf(worn)!]
+      heldAsADocument(team.source, worn.palette.bg)
+      expect(team.source).not.toBe(own.source)
+      expect(team.alt).toBe(own.alt)
+      expect(count(team.source, '<')).toBe(count(own.source, '<'))
+      // The colours as given paint it: mixed toward the look, so neither is there raw, and the look's own accent no longer leads.
+      expect(count(team.source, stock.palette.accent)).toBeLessThan(count(own.source, stock.palette.accent))
+      const thumb = sceneOf(worn, { thumb: true })!
+      heldAsADocument(thumb.source, worn.palette.bg)
+      expect(thumb.source).not.toBe(sceneOf(stock, { thumb: true })!.source)
+      expect(thumb.source).not.toContain('animation')
+      // Asking for the team's never changes the look's own, nor the other way round.
+      expect(sceneOf(stock)).toBe(own)
+      expect(sceneOf(worn)).toBe(team)
+    })
+  }
 })

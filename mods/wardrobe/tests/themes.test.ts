@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { contrast, hue, luminance, rgbOf } from '../hooks/contrast'
-import { KINDS, ROLES, STATUSES, THEMES, kindOf, themeById } from '../hooks/themes'
+import { FAMILIES, familyOf, KINDS, ROLES, SPORTS, STATUSES, THEMES, kindOf, themeById } from '../hooks/themes'
 
 describe('contrast()', () => {
   // Known WCAG values: black on white is 21:1, #767676 is the lightest grey
@@ -51,11 +51,28 @@ describe('contrast()', () => {
 describe('the themes', () => {
   test('are exactly the ones the prompt names, the seasonal packs included', () => {
     expect(THEMES.map(theme => theme.id).sort()).toEqual(
-      ['catppuccin', 'colorblind', 'dracula', 'high-contrast', 'noir', 'nord', 'paper', 'solarized', 'tokyo-night', 'halloween', 'christmas', 'spring', 'summer', 'autumn'].sort(),
+      [
+        ...['catppuccin', 'colorblind', 'dracula', 'high-contrast', 'noir', 'nord', 'paper', 'solarized', 'tokyo-night'],
+        ...['phosphor', 'graphite', 'clay', 'synthwave', 'on-call'],
+        ...['hardwood', 'gridiron', 'rink'],
+        ...['halloween', 'christmas', 'spring', 'summer', 'autumn', 'easter', 'eid'],
+      ].sort(),
     )
     expect(themeById('paper')?.tone).toBe('light')
     expect(themeById('spring')?.tone).toBe('light')
     expect(themeById('default')).toBeUndefined()
+  })
+
+  test('every look is in exactly one family, the sports looks in theirs, and every family holds only looks', () => {
+    const placed = FAMILIES.flatMap(family => family.ids)
+    expect([...placed].sort()).toEqual(THEMES.map(theme => theme.id).sort())
+    expect(new Set(placed).size).toBe(placed.length)
+    expect(FAMILIES.map(family => family.name)).toEqual(['everyday', 'tech', 'sports', 'seasons', 'accessible'])
+    expect(FAMILIES.find(family => family.name === 'sports')?.ids).toEqual(SPORTS)
+    for (const theme of THEMES) expect(FAMILIES.find(family => family.name === familyOf(theme.id))?.ids, theme.id).toContain(theme.id)
+    // A name that is no look (Claude Code's own drawing) opens the first family.
+    expect(familyOf('default')).toBe('everyday')
+    for (const family of FAMILIES) expect(family.what, family.name).toMatch(/^[a-z].*[a-z]$/)
   })
 
   test('every mark and every icon is one single-width BMP character: no emoji, no variation selector', () => {

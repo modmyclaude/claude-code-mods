@@ -14,11 +14,11 @@ Restyle Claude Code live, including colourblind-safe and high-contrast themes.
 
 | Command | What it does |
 | --- | --- |
-| `/wear` | Opens the gallery: a card per theme with a sample tool row drawn in that theme, its diff chips, Bolt in the theme's costume and a `wear` button; in the desktop app each card also shows the look's scene, small and still. The one you wear is marked. Close it with its close mark or ctrl+x x. |
+| `/wear` | Opens the gallery, one family of looks at a time: everyday, tech, sports, seasons and accessible, a button each, opening on the family of the look you wear. Every look of the family is a card with a sample tool row drawn in that theme, its diff chips, Bolt in the theme's costume and a `wear` button; in the desktop app each card also shows the look's scene, small and still. The one you wear is marked. Close it with its close mark or ctrl+x x. |
 | `/wear <theme>` | Switches now. Rows still live on screen redraw in the new look, the switch band shows the theme above the prompt for six seconds, the desktop app takes the look's colours and scene, and Claude Code's own theme follows the look (see Matching Claude Code's theme). |
 | `/wear <theme> everywhere` | Wears it in every project: the global choice changes and every project pin is let go, so nothing keeps another look. Sessions already open follow within a minute. `/wear everywhere` alone does the same with what this project wears now, and `--match` may ride with either. |
-| `/wear auto` | A day theme by day and a night theme by night (see Settings). |
-| `/wear season` | The seasonal pack the calendar calls for, re-checked daily (see Seasonal packs). |
+| `/wear auto` | A day theme by day and a night theme by night (see Settings); on a game day, your game look (see Sports looks). |
+| `/wear season` | The seasonal pack the calendar calls for, re-checked daily (see Seasonal packs); the two holiday looks on their days where you ask for them, and your game look on a game day. |
 | `/wear pin` | This project keeps what it wears now; other projects keep the global choice. While pinned, `/wear <theme>` changes this project's pin. |
 | `/wear unpin` | This project follows the global choice again. |
 | `/wear wallpaper off` | Keeps the look and drops its scene behind the chat in the desktop app; `/wear wallpaper on` brings scenes back, and `/wear wallpaper` says which way it is set (see Wallpapers). |
@@ -28,7 +28,17 @@ Restyle Claude Code live, including colourblind-safe and high-contrast themes.
 
 Each command answers in a toast (an unknown theme's message stays longer). Nothing `/wear` says is added to the conversation, so it costs no tokens and never reaches the model.
 
-Themes: `noir`, `paper` (light), `tokyo-night`, `dracula`, `catppuccin`, `solarized`, `nord`, `high-contrast`, `colorblind`, and the seasonal packs `halloween`, `christmas`, `spring` (light), `summer`, `autumn`. Short forms work too: `drac`, `hc`, `colourblind`, `tokyo night`, `xmas`, `fall`, `spooky`, and any prefix that names one theme alone (`sp` is spring, `su` is summer).
+Twenty-four looks, in five families:
+
+| Family | Looks |
+| --- | --- |
+| everyday | `noir`, `paper` (light), `tokyo-night`, `dracula`, `catppuccin`, `solarized`, `nord` |
+| tech | `phosphor`, `graphite`, `clay`, `synthwave`, `on-call` |
+| sports | `hardwood` (basketball), `gridiron` (football), `rink` (hockey), each in your team's colours if you set them |
+| seasons | `halloween`, `christmas`, `spring` (light), `summer`, `autumn`, and the holiday looks `easter` and `eid` |
+| accessible | `high-contrast`, `colorblind` |
+
+Short forms work too: `drac`, `hc`, `colourblind`, `tokyo night`, `xmas`, `fall`, `spooky`, `crt`, `pager`, `basketball`, `football`, `hockey`, `eid al fitr`, and any prefix that names one look alone (`sp` is spring, `su` is summer, `r` is rink).
 
 ### Matching Claude Code's theme
 
@@ -69,9 +79,26 @@ Five themes made for a time of year, each with its own mark and icons: `hallowee
 | Jun 1 to Aug 31 | `summer` |
 | Sep 1 to Nov 30, Halloween aside | `autumn` |
 
+### Tech looks
+
+Five looks from the rooms and screens of people who build software: `phosphor` (green and amber phosphor on near-black, the old terminal, mark `▮`), `graphite` (dimmed greys and one calm blue, for long days of reading code, `◦`), `clay` (terracotta, sand and sage on warm charcoal, `◒`), `synthwave` (magenta and cyan on indigo, `◢`) and `on-call` (pager amber and red on graphite, for the night shift, `◉`). Each has its own verbs on the spinner, its own costume for Bolt and its own scene.
+
+### Sports looks and your team
+
+Three looks, a sport each: `hardwood` (basketball: maple, orange and arena lights), `gridiron` (football: night turf, chalk lines and goalpost yellow) and `rink` (hockey: ice blue and the red line). They name a sport, never a league or a team; the team is yours to bring.
+
+- **Team colours.** Set `teamPrimary` and `teamSecondary` to your team's two colours as hex codes (`#1f4e9c`, `f2b824` and `#fc3` all read). Every sports look then wears them in place of its own accent and special: the stripe on each row, the icons and chips in those colours, Bolt's costume, the desktop app's accents, and in the scene the seats, the banners and the painted lines. A colour too dark to read on the look is lightened only as far as reading takes (the scene paints from the colour as you gave it, blended a little toward the look so it sits in the picture), and `/wear` says so when the look goes on. One colour alone works; the other stays the look's own. The gallery shows the three looks as you will wear them.
+- **Game day.** Set `gameDay` to the weekdays your team plays (`sunday`, `sat sun`, `mon, thu`) and `gameLook` to the look. On those days `/wear auto` and `/wear season` wear the game look, all day, and go back at midnight; `/wear` says "game day" where it names what is worn. A look you put on by name stays on, game day or not.
+
+### Holiday looks
+
+Two looks for two holidays, each a place and its light, with no figures and no words: `easter` (dawn gold, lily white and blossom on a violet morning, mark `⚘`) and `eid` (Eid al-Fitr: lantern gold and a crescent over a teal night, `☽`). Both are worn by name on any day, like every look.
+
+`/wear season` wears one only where you ask: the `seasonEaster` setting wears `easter` from Good Friday to Easter Monday, by the Western date; the `seasonEid` setting wears `eid` on Eid al-Fitr and the two days after. Eid follows the sighting of the new moon, so wardrobe carries the Umm al-Qura calendar's dates through 2040, and where you live the day may fall a day either side; past the table the look is still there by name. Both settings are off as installed.
+
 ### Bolt in costume
 
-Bolt, the modmyclaude mascot, wears each theme: in the gallery beside every card, beside the line that names what is worn, and in the switch band. A costume is an accessory drawn over the sprite, never a change to it: a witch hat for `halloween`, a santa hat for `christmas`, a flower crown for `spring`, sunglasses for `summer`, a beanie for `autumn`, a cape and fangs for `dracula`, cat ears for `catppuccin`, a headband for `tokyo-night`, a fedora for `noir`, reading glasses for `paper`, a sun visor for `solarized`, a beanie with a pom for `nord`, a bow tie for `high-contrast`; `colorblind` leaves Bolt plain. Every costume takes at most three colours, all from the theme's own palette, keeps the antenna light clear (each hat has a notch around it), and never uses Bolt's own pink or blush. `tests/costume.test.ts` holds every one of those rules for every theme and pose.
+Bolt, the modmyclaude mascot, wears each theme: in the gallery beside every card, beside the line that names what is worn, and in the switch band. A costume is an accessory drawn over the sprite, never a change to it: a witch hat for `halloween`, a santa hat for `christmas`, a flower crown for `spring`, sunglasses for `summer`, a beanie for `autumn`, a cape and fangs for `dracula`, cat ears for `catppuccin`, a headband for `tokyo-night`, a fedora for `noir`, reading glasses for `paper`, a sun visor for `solarized`, a beanie with a pom for `nord`, a bow tie for `high-contrast`, a terminal visor for `phosphor`, headphones for `graphite`, a sun hat for `clay`, shutter shades for `synthwave`, a headset for `on-call`, a sweatband for `hardwood`, a helmet for `gridiron`, a helmet and stick for `rink`, a lily for `easter` and a lantern for `eid`; `colorblind` leaves Bolt plain. The three sports costumes are in the look's accent and special, so they are in your team's colours once you set them. Every costume takes at most three colours, all from the theme's own palette, keeps the antenna light clear (each hat has a notch around it), and never uses Bolt's own pink or blush. `tests/costume.test.ts` holds every one of those rules for every theme and pose.
 
 ### The app wears the look (desktop app)
 
@@ -92,15 +119,25 @@ Every look has a scene, drawn behind the chat in the desktop app, with Bolt in t
 | `nord` | The aurora over snow-capped ridges, a lake, a cabin with smoke rising, pines and falling snow. |
 | `high-contrast` | Outlined shapes on a floor running to a yellow horizon, under an outlined sun. Calm on purpose. |
 | `colorblind` | Hills told apart by hatching and dots, a ringed sun, and four kites, each its own shape. |
+| `phosphor` | A dim machine room: a green terminal on a desk, its cursor blinking, an amber one farther back, a wall of reel cabinets with status lights, slow scanlines. |
+| `graphite` | A commit graph as constellations: a blue main line, branches and merges drifting over a dot grid, a monitor, books and a plant on the desk. |
+| `clay` | Desert dunes at dusk: a low sun, a mesa and buttes, cacti and agave, three clay pots, birds crossing, the first stars. |
+| `synthwave` | A banded sun over a grid floor running to the horizon, faceted mountains, palms and light trails. |
+| `on-call` | An operations room at night: a wall of dashboards with heartbeat traces and status lights, two monitors, a pager glowing red, a mug and a rubber duck. |
+| `hardwood` | An empty basketball arena under the lights: a maple floor with its painted lanes and arcs, a hoop at each end, tiers of seats in two colours, plain banners, a glowing scoreboard and one ball bouncing. |
+| `gridiron` | A football stadium at night: a striped field with chalk yard lines, an end zone in colour at each end, yellow goalposts, floodlight towers over stands full of small lights, low mist and a ball spiralling across the sky. |
+| `rink` | A hockey rink under arena lights: bright ice with its lines and face-off circles, boards with glass above, a net at each end, tiers of seats in two colours, banners, skate traces and a puck sliding. |
 | `halloween` | A haunted house under a crescent moon, glowing pumpkins, ghosts, an owl, a spider on its web, bats and embers. |
 | `christmas` | A village under snow-capped mountains, a decorated tree with gifts, a snowman, string lights, and a sleigh crossing the moon. |
 | `spring` | A cherry branch in blossom over a meadow, a stream, tulips and daisies, butterflies and drifting petals. |
 | `summer` | Sunset over the sea: a sailboat, an island, gulls, palms, lanterns on a string and a surfboard in the sand. |
 | `autumn` | A low sun over forested ridges, geese in a V, hay bales, a scarecrow and tumbling leaves. |
+| `easter` | Easter morning: dawn gold rising behind violet hills, three small crosses on a far hill, a rock tomb with its stone rolled aside and soft light within, a garden of white lilies between cypresses. |
+| `eid` | The night of Eid al-Fitr: a thin crescent over a skyline of domes and minarets with warm lit arches, strings of lanterns across a teal sky, a gateway with one great lantern and a potted palm. |
 
-Most scenes are drawn in three layers of depth (far, middle, near) that sway gently against each other; `paper`, `solarized` and `high-contrast` are flat on purpose. The scene comes on with the look and switches with it, `/wear auto` and `/wear season` included; `/wear default` takes it down with the look.
+Most scenes are drawn in three layers of depth (far, middle, near) that sway gently against each other; `paper`, `solarized` and `high-contrast` are flat on purpose. The three sports scenes paint their seats, banners and lines in your team's colours where you set them. The scene comes on with the look and switches with it, `/wear auto` and `/wear season` included; `/wear default` takes it down with the look.
 
-Scenes are pure vector, animated slowly and never flashing, and under the system's reduced-motion setting they stand still, whole. The chat sits on frosted glass tinted with the look's background; the two accessibility looks use a heavier glass so text keeps its contrast.
+Scenes are pure vector, animated slowly and never flashing, and under the system's reduced-motion setting they stand still, whole. The `motion` setting is yours besides: `calm` keeps half of what drifts and moves everything at half the speed, and `still` draws the whole picture at rest. The chat sits on frosted glass tinted with the look's background; the `glass` setting makes it lighter (more of the scene) or heavier (less), and the two accessibility looks use a heavier glass that never goes lighter, so text keeps its contrast.
 
 `/wear wallpaper off` keeps the look and drops the scene; `/wear wallpaper on` brings it back; `/wear wallpaper` says which way it is set. Wallpapers need the desktop app on Claude Code 2.1.325 or newer: the terminal never draws them, and nothing else of wardrobe changes there.
 
@@ -118,7 +155,7 @@ For six seconds after `/wear <theme>` (and after `/wear auto` or `/wear season` 
 
 ## Settings
 
-Every setting has a default, so the notice at install about options not yet set is expected. Set these in `/config`. A time wardrobe cannot read falls back to its default, and `/wear` names it.
+Every setting has a default, so the notice at install about options not yet set is expected. Set these in `/config`. A value wardrobe cannot read (a time, a colour, a weekday) falls back to its default, and `/wear` names it.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -127,6 +164,14 @@ Every setting has a default, so the notice at install about options not yet set 
 | `dayStarts` | `07:00` | When the day starts, 24-hour local time. |
 | `nightStarts` | `19:00` | When the night starts. A day that crosses midnight (`20:00` to `06:00`) works. |
 | `matchTheme` | on | Putting a look on also sets Claude Code's own theme to match it (see Matching Claude Code's theme). Off, only `--match`, `/wear match` and the gallery's `match theme` button do. |
+| `teamPrimary` | empty | Your team's main colour as a hex code. The sports looks wear it as their accent. Empty keeps each look's own. |
+| `teamSecondary` | empty | Your team's second colour. The sports looks wear it as their special colour. |
+| `gameDay` | empty | The weekdays your team plays, in words: `sunday`, `sat sun`. On those days `/wear auto` and `/wear season` wear the game look. |
+| `gameLook` | `hardwood` | The sports look a game day wears: `hardwood`, `gridiron` or `rink`. |
+| `motion` | `full` | How much the scene behind the chat moves: `full`, `calm` or `still`. |
+| `glass` | `default` | How heavily the desktop app frosts its panels over the scene: `light`, `default` or `heavy`. |
+| `seasonEaster` | off | `/wear season` wears `easter` from Good Friday to Easter Monday. |
+| `seasonEid` | off | `/wear season` wears `eid` on Eid al-Fitr and the two days after. |
 
 ## What it can touch
 
@@ -155,6 +200,9 @@ Every setting has a default, so the notice at install about options not yet set 
 - VS Code and the mobile app are not restyled; `/wear` says so when one is attached.
 - Where nothing draws a toast or a pane (a `claude -p` run), `/wear` writes its words and the list to the log instead.
 - Auto mode and season mode check the clock once a minute, so a switch can land up to a minute late. A choice made in another session reaches this one the same way.
+- Team colours change what wardrobe draws and what the desktop app wears. The Claude Code theme file a sports look matches (`themes/<look>.json`) keeps the look's own colours, so in a terminal the input box border stays the look's.
+- A game day runs from midnight to midnight, local time, and only moves `auto` and `season`. There is one game look and one team for every project.
+- Easter is the Western date. Eid al-Fitr is the Umm al-Qura calendar's date, which a local sighting of the moon may move a day either way, and the table ends in 2040.
 - The switch band is a plain row above the prompt: it never covers a safety hold or a survey, and Bolt is left out of it under 60 columns.
 - Tool calls made before wardrobe loaded show no time, and a refused or failed call shows its status but no time.
 - The app's palette and the wallpapers need the desktop app on Claude Code 2.1.325 or newer; the terminal, VS Code and the mobile app never draw them, and `/wear wallpaper` says so where nothing does. On an older Claude Code the hook that draws the scene never runs, and the rest of wardrobe is unchanged.
