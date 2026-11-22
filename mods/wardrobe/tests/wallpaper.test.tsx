@@ -325,16 +325,57 @@ describe('wallpapers', () => {
     await ui.unmount()
   })
 
-  test('calm motion keeps christmas to its picture, and a look with no GPU scene draws its picture alone', { options: { ...SETTINGS, motion: 'calm' } }, async ($, on) => {
+  // The flagship looks and the file each plays. A look added here needs its own branch in register.tsx, which names the file in the element.
+  const GPU_SCENES: Record<string, string> = { christmas: 'snow', noir: 'rain', 'tokyo-night': 'neon', nord: 'aurora', halloween: 'embers', summer: 'sea' }
+
+  for (const [id, file] of Object.entries(GPU_SCENES)) {
+    test(`${id} plays hooks/gpu/${file}.ts over its own whole picture, and hears when Claude works`, async ($, on) => {
+      if (!engineHasTheme) return
+      world(on, { surfaces: ['desktop'] })
+      themeWorld(on, true)
+      on('turn.complete', ($, e) => ({ text: e.answer }))
+      await start($)
+      await wear($, id)
+      const ui = await mountBackdrop($, id)
+      const scene = sceneOf(themeById(id)!)!
+      const playing = (work: number) => ({
+        type: 'Shader',
+        props: { module: `hooks/gpu/${file}.ts`, values: { work } },
+        children: [{ type: 'Svg', props: { source: scene.source, alt: scene.alt, isInteractive: true } }],
+      })
+      expect(await ui.drawn()).toMatchObject(playing(0))
+      await $.turn.start({ text: 'go', turnId: 'turn-1' })
+      expect(await ui.drawn()).toMatchObject(playing(1))
+      await $.turn.complete({ answer: 'done', durationMs: 5, isAborted: false, turnId: 'turn-1', reason: 'answer' } as never)
+      expect(await ui.drawn()).toMatchObject(playing(0))
+      await ui.unmount()
+    })
+  }
+
+  test('a look with no GPU scene draws its picture alone', async ($, on) => {
     if (!engineHasTheme) return
     world(on, { surfaces: ['desktop'] })
     themeWorld(on, true)
     await start($)
-    await wear($, 'christmas')
-    const ui = await mountBackdrop($, 'christmas')
-    expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(themeById('christmas')!, { motion: 'calm' })!.source } })
+    await wear($, 'dracula')
+    const ui = await mountBackdrop($, 'dracula')
+    const scene = sceneOf(themeById('dracula')!)!
+    expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: scene.source, alt: scene.alt } })
     await ui.unmount()
   })
+
+  for (const id of Object.keys(GPU_SCENES)) {
+    test(`calm motion keeps ${id} to its picture`, { options: { ...SETTINGS, motion: 'calm' } }, async ($, on) => {
+      if (!engineHasTheme) return
+      world(on, { surfaces: ['desktop'] })
+      themeWorld(on, true)
+      await start($)
+      await wear($, id)
+      const ui = await mountBackdrop($, id)
+      expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(themeById(id)!, { motion: 'calm' })!.source } })
+      await ui.unmount()
+    })
+  }
 
   test('a theme nothing answers never costs the look, on any engine', async ($, on) => {
     world(on) // no theme world: on an older engine there is no noun, on a newer one nothing beneath answers it

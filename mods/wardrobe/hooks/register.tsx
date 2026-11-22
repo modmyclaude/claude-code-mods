@@ -718,13 +718,47 @@ export const register: Register = (on, options) => {
     // or where it plays no shader. Calm and still motion keep to the picture, and so does an app older than the Shader.
     if (settings.motion !== 'full' || Shader === undefined) return <Svg source={scene.source} alt={scene.alt} isInteractive />
     const values = gpuValues(await read($, live))
-    if (theme?.id === 'christmas')
-      return (
-        <Shader module="./gpu/snow.ts" values={values}>
-          <Svg source={scene.source} alt={scene.alt} isInteractive />
-        </Shader>
-      )
-    return <Svg source={scene.source} alt={scene.alt} isInteractive />
+    // Each names its file in the element itself, as the app asks: the engine reads the file from there.
+    switch (theme?.id) {
+      case 'christmas':
+        return (
+          <Shader module="./gpu/snow.ts" values={values}>
+            <Svg source={scene.source} alt={scene.alt} isInteractive />
+          </Shader>
+        )
+      case 'noir':
+        return (
+          <Shader module="./gpu/rain.ts" values={values}>
+            <Svg source={scene.source} alt={scene.alt} isInteractive />
+          </Shader>
+        )
+      case 'tokyo-night':
+        return (
+          <Shader module="./gpu/neon.ts" values={values}>
+            <Svg source={scene.source} alt={scene.alt} isInteractive />
+          </Shader>
+        )
+      case 'nord':
+        return (
+          <Shader module="./gpu/aurora.ts" values={values}>
+            <Svg source={scene.source} alt={scene.alt} isInteractive />
+          </Shader>
+        )
+      case 'halloween':
+        return (
+          <Shader module="./gpu/embers.ts" values={values}>
+            <Svg source={scene.source} alt={scene.alt} isInteractive />
+          </Shader>
+        )
+      case 'summer':
+        return (
+          <Shader module="./gpu/sea.ts" values={values}>
+            <Svg source={scene.source} alt={scene.alt} isInteractive />
+          </Shader>
+        )
+      default:
+        return <Svg source={scene.source} alt={scene.alt} isInteractive />
+    }
   }).catch(($, e, next) => next(e))
 
   // The `/wear` gallery: a card per theme in its own colours with Bolt in its

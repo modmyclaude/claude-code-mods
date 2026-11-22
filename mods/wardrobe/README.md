@@ -140,7 +140,18 @@ Most scenes are drawn in three layers of depth (far, middle, near) that sway gen
 
 Scenes are pure vector, animated slowly and never flashing, and under the system's reduced-motion setting they stand still, whole. The `motion` setting is yours besides: `calm` keeps half of what drifts and moves everything at half the speed, and `still` draws the whole picture at rest. The chat sits on frosted glass tinted with the look's background; the `glass` setting makes it lighter (more of the scene) or heavier (less), and the two accessibility looks use a heavier glass that never goes lighter, so text keeps its contrast.
 
-One look also plays on the graphics card. With `christmas` worn and `motion` at `full`, snow falls over the scene in depth, parts around your pointer, and blows outward from where you press the bare scene. While Claude works it falls faster and aslant, and a warm light sits around the prompt box and on the tree; when the turn ends it settles. The vector scene stays whole beneath it and shows alone under the system's reduced-motion setting, with `motion` at `calm` or `still`, and wherever the app plays no shader. Claude Code's own check of the file says it runs on any graphics card. The app follows the pointer itself: wardrobe hears nothing of it.
+Six looks also play on the graphics card. With one of them worn and `motion` at `full`, the desktop app plays a second layer over the look's scene. Each answers three things: your pointer, a press on the bare scene (anywhere outside the chat and the panels), and whether Claude is working. Every one also puts a soft light around the prompt box, brighter while Claude works.
+
+| Look | Over the scene | Your pointer | A press on the bare scene | While Claude works |
+| --- | --- | --- | --- | --- |
+| `christmas` | Snow falling in depth. | The snow parts around it. | The snow blows outward from there. | It falls faster and aslant, and the tree glows. |
+| `noir` | Hard rain. | Dry in a ring around it, and over the bare scene the searchlight on the left roofs turns to follow it. | Sheet lightning from there. | The rain thickens and leans, the searchlight sweeps faster. |
+| `tokyo-night` | Light rain lit pink, cyan and violet. | A violet lantern that lights the rain near it. | A ring of light runs out from there. | More rain, and the haze of the signs swells in both wings. |
+| `nord` | Three curtains of aurora, and ice crystals that glitter in the air. | The aurora is brightest above it, and crystals near it shine. | A fold of light runs along the curtains from there. | The aurora brightens and flows faster. |
+| `halloween` | Embers rising from the pumpkin patch, and low violet fog. | Embers gather and circle it, and the fog opens around it. | The fire flares and throws the embers outward. | More embers, and the firelight on the patches grows. |
+| `summer` | The sea glinting, the sun's path glittering on it, fireflies among the palms. | A glitter on the water under it, and the fireflies shy away. | Every firefly lights, and a press on the water spreads rings from there. | The sun's path widens and brightens, and more fireflies come out. |
+
+The vector scene stays whole beneath each one and shows alone under the system's reduced-motion setting, with `motion` at `calm` or `still`, and wherever the app plays no shader. Claude Code's own check of each file says it runs on any graphics card, at 30 frames a second. The app follows the pointer itself: wardrobe hears nothing of it.
 
 `/wear wallpaper off` keeps the look and drops the scene; `/wear wallpaper on` brings it back; `/wear wallpaper` says which way it is set. Wallpapers need the desktop app on Claude Code 2.1.325 or newer: the terminal never draws them, and nothing else of wardrobe changes there.
 
@@ -179,7 +190,7 @@ Every setting has a default, so the notice at install about options not yet set 
 ## What it can touch
 
 - Its own store: the global choice, the per-project pins (keyed by the path of the folder the session started in), and, once a theme is matched, the Claude Code theme you had before, the one it set, and the pinned project the match was made in if it was made in one, so `/wear default` can put yours back and can tell when you changed it since.
-- For the session, in memory: each tool call's start and end time, for its row; and, for the scene on the graphics card, whether a turn runs now.
+- For the session, in memory: each tool call's start and end time, for its row; and, for the scenes on the graphics card, whether a turn runs now.
 - The session's theme, in the desktop app: the worn look's palette and scene, set when the look changes and taken down by `/wear default` (`/wear wallpaper off` drops the scene and keeps the palette). Claude Code keeps one theme per session, so setting it replaces a theme another plugin set. `/wear default` clears the session's theme only where wardrobe set one, never at session start, and not where another plugin's scene was seen in its place.
 - Reads the project root, the attached surfaces, the clock, and Claude Code's own theme setting (the `/config` theme row) at session start, when the look changes, before a match and before a restore; it also notices when you change that setting.
 - Writes Claude Code's theme setting when you put a look on in a project with no pin (`/wear <look>`, a gallery `wear` button), when the look every project shares changes by itself and its match is already standing, and on `/wear default`, which sets it back to the one you had. With the Match setting off it writes it only on `/wear <look> --match`, `/wear match` and the `match theme` button. No files, no processes, no network, no model calls. It never refuses or changes a tool call: its tool hook only notes when a call starts and ends.
@@ -215,7 +226,7 @@ Every setting has a default, so the notice at install about options not yet set 
 - Claude Code keeps one theme per session and does not say whose it is. Where another plugin set a theme with no scene after wardrobe's, `/wear default` cannot see it and clears it with its own.
 - The gallery's scene pictures show in the desktop app only; the terminal's gallery is unchanged.
 - Under the system's reduced-motion setting the desktop app takes the animation out, and every scene rests whole: nothing in a scene is only visible mid-animation.
-- Not verified: the paint itself in a real terminal and in the desktop app, the palettes and wallpapers included, how smoothly the fuller scenes animate on a slow machine, and the look and speed of the Christmas snow on a real graphics card (its cost is Claude Code's own estimate). The tests check the drawn trees against each surface's rules, every scene against the backdrop's rules and every palette against the helper's check, not pixels.
+- Not verified: the paint itself in a real terminal and in the desktop app, the palettes and wallpapers included, how smoothly the fuller scenes animate on a slow machine, and the look and speed of the six scenes on a real graphics card (their cost is Claude Code's own estimate; they were judged on a stand-in that plays the same files on the processor). The tests check the drawn trees against each surface's rules, every scene against the backdrop's rules and every palette against the helper's check, not pixels.
 
 ## Built from a prompt
 
