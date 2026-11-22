@@ -49,7 +49,9 @@ function world(on: On, { options = {} }: World = {}) {
   })
   on('http.fetch', (_$, e) => {
     if (options.fetch === 'fails') return { deny: 'offline' }
-    posts.push({ url: e.url, ...e.init })
+    // Claude Code 2.1.326 lets a body be bytes (`{ base64 }`) as well as text; pager sends text.
+    const body = e.init?.body
+    posts.push({ url: e.url, ...e.init, body: typeof body === 'string' ? body : undefined })
     return { value: { status: 200, ok: true, headers: {}, text: '' } }
   })
   on('ui.toast', (_$, e) => {

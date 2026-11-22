@@ -4,6 +4,7 @@
 // nothing, and only the named files and the validator are ever touched.
 
 import { describe, expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
 import { GATEKEEPER, HOME, MARKET, NETTY, NETTY_REPORT, SURFACES, ZEN, band, pane, report, run, start, world } from './world'
 import type { World } from './world'
@@ -12,6 +13,38 @@ import type { World } from './world'
 const names = (w: World) => Object.values(w.store.get('seen') as Record<string, { name: string }>).map(s => s.name).sort()
 /** The hash the seen record holds for one plugin folder. */
 const hashAt = (w: World, root: string) => (w.store.get('seen') as Record<string, { hash: string }>)[root]?.hash
+
+/**
+ * Whether this engine stacks the band one row per plugin (Claude Code 2.1.325
+ * and newer), where a hook is handed nothing of what lies beneath it and the
+ * engine's own rows draw first: a probe plugin's hook on the band's list runs
+ * there and nowhere else. Set by the first test, read by the hold test.
+ */
+let engineStacksRows = false
+const STACKER = {
+  name: 'stacker',
+  tier: 'append' as const,
+  register(on: On) {
+    // The band's list is a component of Claude Code 2.1.325 and newer; the 2.1.293 types do not name
+    // it, so the matcher is typed as the band row's, which both sets of types accept. The hook only
+    // toasts and passes, so the event's shape is never read.
+    const LIST = { component: 'AbovePromptList' } as unknown as { component: 'AbovePrompt' }
+    on('ui.render', LIST, async ($, e, next) => {
+      await $.ui.toast('stacker: the engine stacks the band')
+      return next(e)
+    })
+  },
+}
+
+describe('the engine', () => {
+  test('finds out whether this engine stacks the band one row per plugin', { plugins: [STACKER] }, async ($, on) => {
+    const w = world(on)
+    await start($, w)
+    await band($, 'terminal')
+    engineStacksRows = w.toasts.some(text => text.startsWith('stacker:'))
+    expect(typeof engineStacksRows).toBe('boolean')
+  })
+})
 
 describe('the check', () => {
   test('every folder the registry names is checked; the pane draws a row each with its reach, on both surfaces', async ($, on) => {
@@ -182,13 +215,17 @@ describe('the check', () => {
 })
 
 describe('the band and the commands', () => {
-  test('while a safety hold waits beneath, the band is left to it alone', async ($, on) => {
+  test('while a safety hold waits beneath, the hold draws whole; where the engine lets it, the band is left to it alone', async ($, on) => {
     const w = world(on, { holdBeneath: true })
     await start($, w)
     for (const surface of SURFACES) {
       const drawn = await band($, surface)
       expect(drawn.hold).toContain('held: rm -rf build')
-      expect(drawn.line).toBeUndefined()
+      // On Claude Code 2.1.293 the hook sees the hold beneath it and steps aside. Since 2.1.325 the
+      // engine stacks the band itself, its own rows first and whole, and hands a hook nothing of what
+      // lies beneath, so the line draws beside the hold, never over it, and cannot step aside.
+      if (engineStacksRows) expect(drawn.line).toBeDefined()
+      else expect(drawn.line).toBeUndefined()
     }
   })
 

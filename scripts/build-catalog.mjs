@@ -81,9 +81,11 @@ function splitTop(list) {
   return out
 }
 
-// "tool.call{tool=Bash}" -> "tool.call Bash", "command.run{command=rules}" -> "command.run /rules"
+// "tool.call{tool=Bash}" -> "tool.call Bash", "command.run{command=rules}" -> "command.run /rules".
+// Claude Code 2.1.326 and newer add " (default matcher key: plugin)" after some matchers: dropped
+// first, so every engine labels a hook alike and the generated files agree.
 function eventLabel(raw) {
-  const m = raw.match(/^([a-zA-Z.]+)(?:\{(.*)\})?$/)
+  const m = raw.replace(/ \(default matcher key: [^)]*\)$/, '').match(/^([a-zA-Z.]+)(?:\{(.*)\})?$/)
   if (!m) return raw
   const [, name, matcher] = m
   if (!matcher) return name

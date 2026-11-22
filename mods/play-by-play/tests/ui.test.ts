@@ -9,8 +9,10 @@ import { boltOf, rasterCells } from '../hooks/bolt-draw'
 
 import { fakeGit, fileTools, PANE, panes, PLUGIN, repo, runReplay, session, start, threeChanges, turn } from './fixtures'
 
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
 const BAND_PROPS = {
   hasSurvey: false,
+  isCollapsed: false,
   isWorking: false,
   maxRows: 10,
   bodyColumns: 100,
@@ -81,16 +83,16 @@ function engineNodeConcealers(node: unknown, around: string[] = []): string[][] 
 }
 
 describe('the hint above the prompt', () => {
-  test('composes with other mods: their band line is drawn first, the hint after it', { plugins: [OTHER_BAND] }, async ($, on) => {
+  test('composes with other mods: their band line and the hint both draw, whole', { plugins: [OTHER_BAND] }, async ($, on) => {
     await threeStepTurn($, on)
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: BAND_PROPS })
       expect(await ui.find({ type: 'Box', key: 'play-by-play' })).toBeDefined()
       expect(await ui.find({ type: 'Box', key: 'other-band' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: 'other mod line' })).toBeDefined()
-      // Other mods first, so an overflowing band never hides their buttons.
+      // Both rows whole: on Claude Code 2.1.293 the hook put the other mod's row first; since 2.1.326 core stacks one row per plugin in chain order, so the order is the engine's.
       const keyed = (await ui.findAll({ type: 'Box' })).map(box => box.key).filter(key => key !== undefined)
-      expect(keyed).toEqual(['other-band', 'play-by-play'])
+      expect([...keyed].sort()).toEqual(['other-band', 'play-by-play'])
       await ui.unmount()
     }
     // Hidden, the other mod's line is all that is left.

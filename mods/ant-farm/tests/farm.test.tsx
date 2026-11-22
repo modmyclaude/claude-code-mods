@@ -624,7 +624,7 @@ describe('sharing the band', () => {
     },
   }
 
-  test('another mod band still draws, ahead of ours, busy or idle', { plugins: [STUB] }, async ($, on) => {
+  test('another mod band still draws, whole, beside ours, busy or idle', { plugins: [STUB] }, async ($, on) => {
     const w = world(on, { placed: false })
     const id = await w.spawn($, 'Busy')
     // The compact list too, so an overflowing band is what follows the other mod.
@@ -633,9 +633,11 @@ describe('sharing the band', () => {
       const band = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: bandProps(), viewport: DOCKED })
       expect(await band.find({ key: 'summary' })).toBeDefined()
       expect((await band.find({ key: 'stub-band' }))?.text).toBe('another mod')
+      // Both whole, ours in one piece: on Claude Code 2.1.293 the hook put the other mod's row first; since 2.1.326 core stacks one row per plugin in chain order, so the order is the engine's.
       const order = (await band.findAll({ type: 'Box' })).map(b => b.key).filter(k => k === 'stub-band' || k === 'band' || k === `row-${id}`)
-      expect(order).toEqual(['stub-band', 'band', `row-${id}`])
-      // Painted in that order too: a reversed column would draw the other mod last.
+      expect([...order].sort()).toEqual(['band', `row-${id}`, 'stub-band'].sort())
+      expect(order.indexOf('band')).toBeLessThan(order.indexOf(`row-${id}`))
+      // Painted as a column either way.
       expect(await band.drawn()).toMatchObject({ type: 'Box', props: { flexDirection: 'column' } })
       await band.unmount()
     }
