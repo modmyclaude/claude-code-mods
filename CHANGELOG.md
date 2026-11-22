@@ -2,6 +2,10 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-11-22
+
+- wardrobe 0.5.0: every scene is composed around the chat column. The desktop app frosts the column over the middle of the window, so each look's subject (the moon, the castle, the terminal, the tree) now stands at a side, where it is seen sharp, and only soft light sits behind the words; Bolt stands clear of the column in every look. `/wardrobe` answers as `/wear` does. The Christmas sleigh flies forwards.
+
 ## 2026-11-21
 
 - wardrobe 0.4.0: ten new looks, each with its own scene, costume and verbs. Five for people who build software (`phosphor`, `graphite`, `clay`, `synthwave`, `on-call`), three sports looks (`hardwood`, `gridiron`, `rink`) that wear your team's two colours and come out on game day, and two holiday looks (`easter`, `eid`) that `/wear season` wears where you ask. The gallery shows one family of looks at a time, and new settings set how much the scenes move and how heavy the glass over them is.

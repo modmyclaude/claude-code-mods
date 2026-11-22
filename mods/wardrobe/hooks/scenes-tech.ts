@@ -135,7 +135,7 @@ const phosphor: Make = ({ palette: p }) => {
   for (let row = 0; row < 3; row += 1) for (let k = 0; k < 15; k += 1) keys += `M${254 + k * 19 - row * 5} ${662 + row * 8}h14v5h-14z`
   const keyboard = polygon([[244, 656], [540, 656], [556, 690], [224, 690]], mix(shell, '#000000', 0.28)) + path(keys, { fill: mix(shell, p.text, 0.22) })
   const mug = path(mugD(646, 656, 38, 46), { fill: mix(p.bg, p.text, 0.26) }) + rect(646, 620, 38, 5, mix(p.bg, p.warn, 0.4))
-  const desk = rect(-BLEED, 650, WIDTH + 2 * BLEED, 60, deskTop) + rect(-BLEED, 650, WIDTH + 2 * BLEED, 3, mix(p.bg, p.accent, 0.24)) + ellipse(380, 676, 360, 24, paint('ph-pool'))
+  const desk = rect(-BLEED, 650, WIDTH + 2 * BLEED, 60, deskTop) + rect(-BLEED, 650, WIDTH + 2 * BLEED, 3, mix(p.bg, p.accent, 0.24)) + ellipse(212, 676, 280, 24, paint('ph-pool'))
 
   // The near edge of the desk, where Bolt stands, with a stack of disks beside.
   const front = mix(p.bg, '#000000', 0.5)
@@ -153,7 +153,7 @@ const phosphor: Make = ({ palette: p }) => {
   const motes = drift(33, 26, 'mote', 80, (x, y, k, pick) => circle(x, y, 1 + pick() * 1.6, alpha(k % 5 === 0 ? p.warn : p.accent, 0.38)))
   return {
     alt: 'A dim terminal room: a big green-screen terminal glowing on a desk with a keyboard and a mug, a smaller amber terminal farther back, a wall of reel cabinets with status lights, and scanlines drifting down.',
-    bolt: { x: 1240, y: 570 },
+    bolt: { x: 1276, y: 570 },
     defs,
     style:
       PARALLAX +
@@ -169,9 +169,9 @@ const phosphor: Make = ({ palette: p }) => {
       '@keyframes band{from{transform:translateY(-420px)}to{transform:translateY(760px)}}.band{animation:band 12s linear infinite}',
     body:
       rect(0, 0, WIDTH, HEIGHT, paint('ph-wall')) +
-      layer('far', racks + floor + second) +
-      circle(380, 455, 580, paint('ph-halo'), { class: 'halo' }) +
-      layer('mid', desk + cables + crt + keyboard + mug + smoke(665, 612, mix(p.text, p.accent, 0.3))) +
+      layer('far', racks + floor + group(second, { transform: 'translate(-210 0)' })) +
+      circle(212, 510, 520, paint('ph-halo'), { class: 'halo' }) +
+      layer('mid', desk + group(cables + crt + keyboard + mug + smoke(665, 612, mix(p.text, p.accent, 0.3)), { transform: 'translate(-62 182) scale(0.72)' })) +
       motes +
       layer('near', edge + disks + BOLT_HERE) +
       rect(-20, -12, WIDTH + 40, HEIGHT + 24, paint('ph-scan'), { class: 'scan' }) +
@@ -280,7 +280,7 @@ const graphite: Make = ({ palette: p }) => {
   const motes = drift(43, 18, 'mote', 96, (x, y, k, pick) => circle(x, y, 1 + pick() * 1.4, alpha(k % 3 === 0 ? p.accent : p.text, 0.26)))
   return {
     alt: 'A commit graph drawn like constellations across a slate night sky: a blue main line with coloured branches leaving and merging back, seen from behind a desk with a monitor, books and a plant.',
-    bolt: { x: 1240, y: 640 },
+    bolt: { x: 1276, y: 640 },
     defs,
     style:
       PARALLAX +
@@ -300,7 +300,7 @@ const graphite: Make = ({ palette: p }) => {
       layer('far', farGraph) +
       layer('mid', group(graph(45, [170, 252, 334, 416, 498], true), { class: 'gflow' })) +
       motes +
-      layer('near', monitor + books + plant + desk + BOLT_HERE) +
+      layer('near', group(monitor, { transform: 'translate(-36 213) scale(0.72)' }) + books + group(plant, { transform: 'translate(46 0)' }) + desk + BOLT_HERE) +
       v.body,
   }
 }
@@ -352,18 +352,18 @@ const clay: Make = ({ palette: p }) => {
       [1, mix(p.bg, '#000000', 0.5)],
     ]) +
     v.defs
-  const [sunX, sunY] = [440, 500]
+  const [sunX, sunY] = [236, 496]
   const sun = circle(sunX, sunY, 560, paint('cl-halo'), { class: 'halo' }) + circle(sunX, sunY, 132, paint('cl-sun'))
   const shimmer = [0, 1, 2, 3, 4].map(k => ellipse(260 + k * 250, 546 + (k % 3) * 9, 300 - k * 20, 2.6, alpha(mix(p.warn, '#ffffff', 0.5), 0.26), { class: 'shim', style: `animation-duration:${7 + k * 2}s` })).join('')
 
   // Far: two buttes and the first line of dunes.
   const rock = mix(p.accent, p.bg, 0.42)
   const mesa =
-    polygon([[960, 580], [1002, 474], [1030, 466], [1042, 438], [1252, 434], [1264, 460], [1302, 470], [1352, 580]], rock) +
-    polygon([[1042, 438], [1252, 434], [1264, 460], [1030, 466]], mix(rock, p.warn, 0.22)) +
-    path('M1070 470v96M1120 468v100M1178 468v100M1232 466v104', { fill: 'none', stroke: mix(rock, p.bg, 0.3), 'stroke-width': 5 }) +
+    polygon([[1200, 580], [1242, 474], [1270, 466], [1282, 438], [1492, 434], [1504, 460], [1542, 470], [1592, 580]], rock) +
+    polygon([[1282, 438], [1492, 434], [1504, 460], [1270, 466]], mix(rock, p.warn, 0.22)) +
+    path('M1310 470v96M1360 468v100M1418 468v100M1472 466v104', { fill: 'none', stroke: mix(rock, p.bg, 0.3), 'stroke-width': 5 }) +
     polygon([[96, 580], [130, 508], [146, 502], [152, 482], [236, 480], [244, 502], [262, 510], [290, 580]], mix(rock, p.special, 0.2)) +
-    polygon([[1420, 580], [1444, 520], [1500, 516], [1530, 580]], mix(rock, p.special, 0.25))
+    polygon([[1010, 580], [1034, 520], [1090, 516], [1120, 580]], mix(rock, p.special, 0.25))
   const far = ridge(71, 626, 92, 640, { rough: 2 })
   const midA = ridge(77, 692, 110, 800, { rough: 2 })
   const mid = ridge(72, 752, 112, 940, { rough: 2 })
@@ -412,7 +412,7 @@ const clay: Make = ({ palette: p }) => {
     path(`M${n(x - w * 0.47)} ${n(base - h * 0.5)}h${n(w * 0.94)}M${n(x - w * 0.5)} ${n(base - h * 0.38)}h${n(w)}`, { fill: 'none', stroke: mix(fill, '#000000', 0.35), 'stroke-width': n(h * 0.035) }) +
     rect(x - w * 0.24, base - h - 3, w * 0.48, 7, mix(fill, p.warn, 0.3), { rx: 3 }) +
     ellipse(x - w * 0.24, base - h * 0.5, w * 0.06, h * 0.2, alpha(mix(p.warn, '#ffffff', 0.5), 0.2))
-  const pots = pot(176, 812, 96, 118, mix(p.accent, p.bg, 0.18)) + pot(286, 818, 74, 84, mix(p.accent, p.warn, 0.3)) + pot(372, 826, 58, 60, mix(p.accent, p.bg, 0.4))
+  const pots = pot(150, 812, 96, 118, mix(p.accent, p.bg, 0.18)) + pot(256, 818, 74, 84, mix(p.accent, p.warn, 0.3)) + pot(334, 826, 58, 60, mix(p.accent, p.bg, 0.4))
   const ground = path('M-80 900V820Q200 790 430 830T800 852Q1000 848 1110 772Q1220 702 1330 704Q1470 708 1680 800V900z', { fill: paint('cl-near') })
   let tufts = ''
   for (const [x, y] of [[90, 808], [470, 834], [560, 842], [1040, 816], [1420, 722], [1580, 760]] as const) {
@@ -423,8 +423,8 @@ const clay: Make = ({ palette: p }) => {
   )
   const blown = drift(75, 22, 'sand', 56, (x, y, k, pick) => circle(x, 520 + y * 0.42, 1 + pick() * 1.5, alpha(mix(p.warn, '#ffffff', 0.3), 0.42)))
   return {
-    alt: 'Desert dunes at dusk: a big low sun in a terracotta and sand sky, a flat-topped mesa far off, rolling dunes with cactus and agave, and three clay pots in the near sand.',
-    bolt: { x: 1240, y: 588 },
+    alt: 'Desert dunes at dusk: a big low sun at the left in a terracotta and sand sky, a flat-topped mesa far off at the right, rolling dunes with cactus and agave, and three clay pots in the near sand.',
+    bolt: { x: 1276, y: 588 },
     defs,
     style:
       PARALLAX +
@@ -560,7 +560,7 @@ const synthwave: Make = ({ palette: p }) => {
   const motes = drift(84, 16, 'mote', 70, (x, y, k, pick) => circle(x, y, 1.1 + pick() * 1.5, alpha(k % 2 === 0 ? p.info : p.accent, 0.5)))
   return {
     alt: 'A banded sun setting over a glowing grid floor that runs to the horizon, faceted mountains either side, palm trees in silhouette and light trails across an indigo sky.',
-    bolt: { x: 1240, y: 588 },
+    bolt: { x: 1276, y: 588 },
     defs,
     style: PARALLAX + CROSS + anim('trail', 'cross') + RISE + anim('mote', 'rise') + BEND + pulse('halo', 0.78, 1, 8) + pulse('tw', 0.25, 1, 5) + rules,
     body:
@@ -625,17 +625,17 @@ const onCall: Make = ({ palette: p }) => {
   }
 
   // Row one: a long healthy trace, the status grid, request bars, a gauge.
-  const a = panel(90, 120, 560, 190) + gridlines(106, 150, 528, 140) + rect(106, 152, 44, 140, paint('oc-sweep'), { class: 'sweep' }) + trace(106, 244, 528, 104, 6, p.ok, 'trace')
+  const a = panel(380, 120, 560, 190) + gridlines(396, 150, 528, 140) + rect(396, 152, 44, 140, paint('oc-sweep'), { class: 'sweep' }) + trace(396, 244, 528, 104, 6, p.ok, 'trace')
   let dots = ''
   for (let row = 0; row < 5; row += 1) {
     for (let col = 0; col < 8; col += 1) {
-      const [cx, cy, k] = [708 + col * 29, 162 + row * 28, row * 8 + col]
+      const [cx, cy, k] = [118 + col * 29, 162 + row * 28, row * 8 + col]
       if (k === 13) dots += circle(cx, cy, 30, paint('oc-amb'), { class: 'amb' }) + circle(cx, cy, 8, p.accent, { class: 'amb' })
       else if (k === 29) dots += circle(cx, cy, 38, paint('oc-red'), { class: 'red' }) + circle(cx, cy, 8, p.error, { class: 'red' })
       else dots += circle(cx, cy, 7.5, p.ok, { opacity: 0.45 + r() * 0.4 })
     }
   }
-  const b = panel(680, 120, 260, 190) + dots
+  const b = panel(90, 120, 260, 190) + dots
   let bars = ''
   let hot = ''
   for (let k = 0; k < 12; k += 1) {
@@ -715,7 +715,7 @@ const onCall: Make = ({ palette: p }) => {
   const motes = drift(93, 16, 'mote', 96, (x, y, k, pick) => circle(x, y, 1 + pick() * 1.4, alpha(k % 4 === 0 ? p.accent : p.text, 0.24)))
   return {
     alt: 'An operations room at night: a wall of dashboards with heartbeat traces, bar charts and a grid of status lights, one amber and one red; a desk with two monitors, a pager glowing red, a mug and a rubber duck.',
-    bolt: { x: 1240, y: 580 },
+    bolt: { x: 1276, y: 580 },
     defs,
     style:
       PARALLAX +
@@ -732,9 +732,9 @@ const onCall: Make = ({ palette: p }) => {
     body:
       rect(0, 0, WIDTH, HEIGHT, paint('oc-wall')) +
       layer('far', wall) +
-      layer('mid', desk + monitor(250, 94, [p.info, p.ok]) + monitor(545, 96, [p.muted, p.accent]) + keyboard + pager + mug + smoke(1034, 608, mix(p.text, p.bg, 0.3)) + duck) +
+      layer('mid', desk + monitor(84, 94, [p.info, p.ok]) + monitor(640, 96, [p.muted, p.accent]) + group(keyboard, { transform: 'translate(176 0)' }) + group(pager, { transform: 'translate(530 0)' }) + group(mug + smoke(1034, 608, mix(p.text, p.bg, 0.3)), { transform: 'translate(-650 0)' }) + duck) +
       motes +
-      layer('near', edge + chair + BOLT_HERE) +
+      layer('near', edge + group(chair, { transform: 'translate(176 0)' }) + BOLT_HERE) +
       v.body,
   }
 }

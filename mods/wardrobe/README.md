@@ -15,6 +15,7 @@ Restyle Claude Code live, including colourblind-safe and high-contrast themes.
 | Command | What it does |
 | --- | --- |
 | `/wear` | Opens the gallery, one family of looks at a time: everyday, tech, sports, seasons and accessible, a button each, opening on the family of the look you wear. Every look of the family is a card with a sample tool row drawn in that theme, its diff chips, Bolt in the theme's costume and a `wear` button; in the desktop app each card also shows the look's scene, small and still. The one you wear is marked. Close it with its close mark or ctrl+x x. |
+| `/wardrobe` | The same as `/wear`, with the same words after it: the mod's name is what most people type first. |
 | `/wear <theme>` | Switches now. Rows still live on screen redraw in the new look, the switch band shows the theme above the prompt for six seconds, the desktop app takes the look's colours and scene, and Claude Code's own theme follows the look (see Matching Claude Code's theme). |
 | `/wear <theme> everywhere` | Wears it in every project: the global choice changes and every project pin is let go, so nothing keeps another look. Sessions already open follow within a minute. `/wear everywhere` alone does the same with what this project wears now, and `--match` may ride with either. |
 | `/wear auto` | A day theme by day and a night theme by night (see Settings); on a game day, your game look (see Sports looks). |
@@ -106,7 +107,7 @@ In the desktop app a look reaches past the rows wardrobe draws: the app itself t
 
 ### Wallpapers (desktop app)
 
-Every look has a scene, drawn behind the chat in the desktop app, with Bolt in the look's costume standing at the right:
+Every look has a scene, drawn behind the chat in the desktop app, with Bolt in the look's costume standing at the right. The app frosts the chat column over the middle of the window, so every scene is composed around it: what the scene is about stands at the two sides, where it is seen sharp, and only soft light sits behind the words.
 
 | Look | Scene |
 | --- | --- |

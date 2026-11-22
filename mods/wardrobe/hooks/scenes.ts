@@ -87,8 +87,8 @@ function slowed(text: string, k: number): string {
   return text.replace(/animation(?:-duration|-delay)?:[^;}"]*/g, declaration => declaration.replace(/(?<=[\s:])(-?\d+(?:\.\d+)?)s\b/g, (_whole, seconds: string) => `${Math.round(Number(seconds) * k * 10) / 10}s`))
 }
 
-/** Where Bolt stands when a scene names no place: at the right, off the middle and the foot, where the words and the message box sit. */
-const BOLT_AT = { x: 1240, y: 560 }
+/** Where Bolt stands when a scene names no place: in the right wing, clear of the chat column's frost and of the foot, where the message box sits. */
+const BOLT_AT = { x: 1276, y: 560 }
 /** One Bolt pixel, in the scene's units. */
 const BOLT_SCALE = 12
 

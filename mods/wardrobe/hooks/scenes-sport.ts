@@ -237,7 +237,7 @@ const hardwood: Make = theme => {
   const dust = drift(41, 30, 'hw-dust', 90, (x, y, k, pick) => circle(x, y * 0.8, 1 + pick() * 1.5, alpha(k % 3 === 0 ? p.warn : p.text, 0.3 + pick() * 0.25)))
   return {
     alt: 'An empty basketball arena under the lights: a maple floor with its painted lanes, arcs and centre circle, a hoop at each end, tiers of seats in two colours, plain banners and a glowing scoreboard overhead, and one ball bouncing.',
-    bolt: { x: 1112, y: 566 },
+    bolt: { x: 1276, y: 566 },
     defs,
     style:
       PARALLAX +
@@ -436,7 +436,7 @@ const gridiron: Make = theme => {
   const motes = drift(74, 26, 'gi-mote', 80, (x, y, k, pick) => circle(x, y * 0.75, 1 + pick() * 1.4, alpha(k % 2 === 0 ? p.text : p.warn, 0.28 + pick() * 0.3)))
   return {
     alt: 'A football stadium at night: a striped field with chalk yard lines and hash marks, an end zone in colour at each end, yellow goalposts, floodlight towers over stands full of small lights, low mist, and a ball spiralling across the sky.',
-    bolt: { x: 1196, y: 574 },
+    bolt: { x: 1276, y: 574 },
     defs,
     style:
       PARALLAX +
@@ -578,7 +578,7 @@ const rink: Make = theme => {
   const frost = drift(89, 34, 'rk-frost', 85, (x, y, k, pick) => circle(x, y * 0.85, 0.9 + pick() * 1.5, alpha(k % 2 === 0 ? white : p.info, 0.3 + pick() * 0.3)))
   return {
     alt: 'A hockey rink under arena lights: bright ice with a centre line, two more lines and face-off circles, white boards with glass above, a net at each end, tiers of seats in two colours, plain banners overhead, faint skate traces and a puck sliding.',
-    bolt: { x: 1246, y: 568 },
+    bolt: { x: 1276, y: 568 },
     defs,
     style:
       PARALLAX +

@@ -158,10 +158,10 @@ export function themeWorld(on: On, draws: boolean): ThemeWorld {
  * Runs `/wear <args>` as the person typing it would, and answers what it showed
  * them. Every run is also held to the rule that nothing it says reaches the model.
  */
-export async function wear($: Engine, args: string): Promise<string> {
+export async function wear($: Engine, args: string, command: 'wear' | 'wardrobe' = 'wear'): Promise<string> {
   const before = heard.length
   const ran = await $.command.run({
-    command: 'wear',
+    command,
     args,
     origin: { kind: 'composer' },
     presentation: { isFullscreen: true, columns: 120 },

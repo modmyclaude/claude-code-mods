@@ -37,6 +37,15 @@ describe('/wear', () => {
     }
   })
 
+  test('/wardrobe, the name of the mod, answers as /wear does: the gallery alone, a look by name', async ($, on) => {
+    const w = world(on)
+    await start($)
+    expect(await wear($, '', 'wardrobe')).toBe('')
+    expect(w.panes).toEqual(['wardrobe'])
+    expect(await wear($, 'dracula', 'wardrobe')).toBe('Wearing dracula everywhere without a pin.')
+    expect(await wear($, 'nope', 'wardrobe')).toContain('No theme called "nope"')
+  })
+
   test('<theme> restyles what is already drawn, live, and default hands it back', async ($, on) => {
     world(on)
     await start($)

@@ -50,12 +50,12 @@ const halloween: Make = ({ palette: p }) => {
     glow('hw-lamp', p.warn, 0.55) +
     glow('hw-fog', p.special, 0.16) +
     v.defs
-  const moon = circle(1190, 190, 330, paint('hw-halo'), { class: 'halo' }) + path('M1170 96A98 98 0 1 0 1284 246A80 80 0 1 1 1170 96z', { fill: p.text })
+  const moon = circle(1336, 190, 330, paint('hw-halo'), { class: 'halo' }) + path('M1316 96A98 98 0 1 0 1430 246A80 80 0 1 1 1316 96z', { fill: p.text })
   const clouds =
     group(cloud(420, 210, 520, mix(p.bg, p.info, 0.3), 0.45), { class: 'cl', style: 'animation-duration:240s;animation-delay:-70s' }) + group(cloud(1300, 330, 440, mix(p.bg, p.accent, 0.3), 0.35), { class: 'cl', style: 'animation-duration:300s;animation-delay:-190s' })
   const far = ridge(121, 700, 240, 700)
   // The house on its hill: crooked blocks, a witch-hat tower, lit windows.
-  let house = 'M-80 900V720Q120 640 260 590L560 590Q760 660 900 780L960 900z'
+  let house = 'M-80 1100V720Q120 640 260 590L560 590Q760 660 900 780L960 1100z'
   house += 'M250 596V430l16 -6V596zM266 596V424h184l8 172z'
   house += 'M240 432L356 330L474 428z'
   house += 'M452 596V372l70 6l-6 218zM436 380L490 236L540 384z'
@@ -79,7 +79,7 @@ const halloween: Make = ({ palette: p }) => {
         circle(x + 29 * s, y - 4 * s, 3.4 * s, dark),
       { class: 'ghost', style: `animation-delay:${delay}s` },
     )
-  const ghosts = ghost(640, 520, 1, 0) + ghost(120, 470, 0.8, -2.5)
+  const ghosts = ghost(1180, 500, 1, 0) + ghost(70, 500, 0.8, -2.5)
   // Pumpkins in the patch, each carved and lit from inside, with the light it throws on the ground.
   const pumpkin = (x: number, y: number, rad: number, k: number) => {
     const ry = rad * 0.8
@@ -93,7 +93,7 @@ const halloween: Make = ({ palette: p }) => {
       group(eye(-1) + eye(1) + path(`M${x - rad * 0.46} ${y + ry * 0.22}l${rad * 0.16} ${ry * 0.14}l${rad * 0.14} ${-ry * 0.12}l${rad * 0.16} ${ry * 0.14}l${rad * 0.16} ${-ry * 0.14}l${rad * 0.14} ${ry * 0.12}l${rad * 0.16} ${-ry * 0.14}q${-rad * 0.46} ${ry * 0.62} ${-rad * 0.92} 0z`, { fill: p.warn }), { class: 'flick', style: `animation-delay:${-k * 1.1}s` })
     )
   }
-  const patch = pumpkin(170, 840, 58, 0) + pumpkin(330, 858, 42, 1) + pumpkin(520, 846, 64, 2) + pumpkin(720, 866, 40, 3) + pumpkin(900, 856, 50, 4) + pumpkin(1450, 742, 46, 5)
+  const patch = pumpkin(170, 840, 58, 0) + pumpkin(330, 858, 42, 1) + pumpkin(700, 846, 64, 2) + pumpkin(860, 866, 40, 3) + pumpkin(900, 856, 50, 4) + pumpkin(1450, 742, 46, 5)
   const ground = path('M-80 900V806Q200 780 440 812T820 838Q1010 836 1110 770Q1220 690 1330 690Q1470 696 1680 780V900z', { fill: mix(p.bg, '#000000', 0.7) })
   let fence = ''
   for (let x = 610; x < 1090; x += 34) fence += `M${x} 842v-58l5 -9l5 9v58z`
@@ -139,7 +139,7 @@ const halloween: Make = ({ palette: p }) => {
   const embers = drift(14, 16, 'ember', 60, (x, y, k, pick) => circle(x, y, 1.3 + pick() * 1.6, alpha(k % 3 === 0 ? p.warn : p.accent, 0.7)))
   return {
     alt: 'A haunted house on a hill under a crescent moon, its windows lit orange, a patch of carved pumpkins glowing in front, two small ghosts, an owl on a bare tree, bats, a spider on its web and thin violet fog.',
-    bolt: { x: 1240, y: 572 },
+    bolt: { x: 1276, y: 572 },
     defs,
     style:
       PARALLAX +
@@ -164,7 +164,7 @@ const halloween: Make = ({ palette: p }) => {
       moon +
       clouds +
       layer('far', path(far.d, { fill: mix(p.bg, p.info, 0.2) })) +
-      layer('mid', path(house, { fill: dark, stroke: dark, 'stroke-width': 3 }) + windows + door + ghosts) +
+      layer('mid', group(path(house, { fill: dark, stroke: dark, 'stroke-width': 3 }) + windows + door, { transform: 'translate(-66 118) scale(0.8)' }) + ghosts) +
       fog +
       layer('near', ground + path(fence, { fill: mix(p.bg, '#000000', 0.82) }) + patch + trees + BOLT_HERE) +
       path(web, { fill: 'none', stroke: alpha(p.text, 0.28), 'stroke-width': 1.2 }) +
@@ -196,12 +196,14 @@ const christmas: Make = ({ palette: p }) => {
     glow('xm-halo', mix(p.text, p.info, 0.4), 0.36) +
     bulbs.map((c, i) => glow(`xm-b${i}`, c, 0.6)).join('') +
     glow('xm-lamp', p.special, 0.6) +
+    glow('xm-far', p.special, 0.95) +
     linear('xm-snow', [
       [0, snowy],
       [1, mix(p.bg, p.text, 0.55)],
     ]) +
     v.defs
-  const moon = circle(1150, 190, 340, paint('xm-halo')) + circle(1150, 190, 100, paint('xm-moon'))
+  // The moon stands in the right wing, clear of the chat column.
+  const moon = circle(1340, 172, 330, paint('xm-halo')) + circle(1340, 172, 92, paint('xm-moon'))
   // The sleigh: three reindeer, the reins, the sleigh and its driver, small against the moon.
   const deer = (x: number) =>
     ellipse(x, 0, 17, 6.5, dark) + path(`M${x + 12} -3l12 -12l8 1l-3 6l-8 2zM${x + 22} -16l-3 -10M${x + 25} -15l4 -9M${x - 12} 2l-12 14M${x - 6} 4l-2 16M${x + 8} 4l10 13M${x + 13} 2l16 7`, { fill: dark, stroke: dark, 'stroke-width': 2.4, 'stroke-linecap': 'round' })
@@ -218,29 +220,37 @@ const christmas: Make = ({ palette: p }) => {
   )
   const far = ridge(142, 700, 300, 620, { sharp: true })
   const hill = ridge(143, 790, 90, 700)
-  // The village: gabled houses with snow on the roof, a lit window or two, a chimney and its smoke.
+  // The village: gabled houses with snow on the roof at either side of the chat column, a lit window or two, a chimney and
+  // its smoke. Under the column itself, where the app frosts the picture, only their window light: soft glows that read as a
+  // far village through the frost.
   let walls = ''
   let roofs = ''
   let panes = ''
   let lamps = ''
   let smokes = ''
-  for (let i = 0; i < 8; i += 1) {
-    const x = 520 + i * 96 + r() * 30
-    const w = 50 + r() * 34
+  const house = (x: number, w: number, k: number, steeple: boolean) => {
     const h = w * (0.62 + r() * 0.3)
     const y = hill.y(x + w / 2) + 6
-    if (i === 4) {
+    if (steeple) {
       walls += `M${n(x)} ${n(y)}v${n(-h * 2.1)}h${n(w * 0.6)}v${n(h * 2.1)}z`
       roofs += `M${n(x - 6)} ${n(y - h * 2.1)}l${n(w * 0.3 + 6)} ${n(-h * 0.9)}l${n(w * 0.3 + 6)} ${n(h * 0.9)}z`
       panes += `M${n(x + w * 0.2)} ${n(y - h * 0.9)}h${n(w * 0.2)}v${n(h * 0.34)}h${n(-w * 0.2)}z`
       lamps += circle(x + w * 0.3, y - h * 1.6, 15, paint('xm-lamp')) + circle(x + w * 0.3, y - h * 1.6, 8, mix(p.text, p.special, 0.4))
-      continue
+      return
     }
     walls += `M${n(x)} ${n(y)}v${n(-h)}h${n(w)}v${n(h)}zM${n(x + w * 0.66)} ${n(y - h)}v${n(-h * 0.62)}h${n(w * 0.16)}v${n(h * 0.62)}z`
     roofs += `M${n(x - 8)} ${n(y - h + 3)}l${n(w / 2 + 8)} ${n(-h * 0.62)}l${n(w / 2 + 8)} ${n(h * 0.62)}z`
-    panes += `M${n(x + w * 0.16)} ${n(y - h * 0.68)}h${n(w * 0.24)}v${n(h * 0.36)}h${n(-w * 0.24)}z` + (i % 2 === 0 ? `M${n(x + w * 0.58)} ${n(y - h * 0.68)}h${n(w * 0.24)}v${n(h * 0.36)}h${n(-w * 0.24)}z` : '')
+    panes += `M${n(x + w * 0.16)} ${n(y - h * 0.68)}h${n(w * 0.24)}v${n(h * 0.36)}h${n(-w * 0.24)}z` + (k % 2 === 0 ? `M${n(x + w * 0.58)} ${n(y - h * 0.68)}h${n(w * 0.24)}v${n(h * 0.36)}h${n(-w * 0.24)}z` : '')
     lamps += circle(x + w * 0.28, y - h * 0.5, 30, paint('xm-lamp'))
-    if (i % 2 === 1) smokes += smoke(x + w * 0.74, y - h * 1.66, p.muted)
+    if (k % 2 === 1) smokes += smoke(x + w * 0.74, y - h * 1.66, p.muted)
+  }
+  ;[392, 462].forEach((x, k) => house(x + r() * 12, 54 + r() * 26, k, false))
+  house(1084, 56, 0, true)
+  ;[1128, 1190].forEach((x, k) => house(x + r() * 10, 52 + r() * 24, k + 1, false))
+  let farLights = ''
+  for (let i = 0; i < 7; i += 1) {
+    const x = 570 + i * 74 + r() * 30
+    farLights += circle(x, hill.y(x) - 12, 34 + r() * 18, paint('xm-far'))
   }
   let villagePines = ''
   let pineCaps = ''
@@ -251,7 +261,7 @@ const christmas: Make = ({ palette: p }) => {
     pineCaps += `M${n(x)} ${n(hill.y(x) + 4 - h)}l${n(h * 0.09)} ${n(h * 0.2)}l${n(-h * 0.09)} ${n(-h * 0.06)}l${n(-h * 0.09)} ${n(h * 0.06)}z`
   }
   // The big tree at the left: snow on each tier, garlands, ornaments, a glowing topper, gifts beneath.
-  const [bx, by, bh] = [230, 850, 470]
+  const [bx, by, bh] = [262, 850, 440]
   let tree = ''
   let caps = ''
   let garland = ''
@@ -280,29 +290,30 @@ const christmas: Make = ({ palette: p }) => {
     circle(bx, by - bh - 6, 46, paint('xm-lamp'), { class: 'topper' }) +
     circle(bx, by - bh - 6, 11, mix(p.special, '#ffffff', 0.5))
   const gift = (x: number, y: number, w: number, h: number, box: string, bow: string) => rect(x, y - h, w, h, box, { rx: 3 }) + rect(x + w / 2 - 4, y - h, 8, h, bow) + rect(x, y - h * 0.62, w, 7, bow) + path(`M${x + w / 2} ${y - h}q-16 -18 -22 -4q10 8 22 4q16 -18 22 -4q-10 8 -22 4z`, { fill: bow })
-  const gifts = gift(318, 866, 66, 50, p.accent, p.special) + gift(120, 872, 54, 40, p.info, p.text) + gift(386, 872, 44, 34, p.ok, p.accent)
-  // A snowman, a little left of the middle.
+  const gifts = gift(318, 866, 62, 48, p.accent, p.special) + gift(136, 872, 54, 40, p.info, p.text) + gift(372, 874, 40, 32, p.ok, p.accent)
+  // A snowman at the right, past the lamp.
+  const [sx, sy] = [1478, 838]
   const snowman =
-    circle(520, 838, 38, snowy) +
-    circle(520, 786, 28, snowy) +
-    circle(520, 746, 20, snowy) +
-    rect(504, 716, 32, 16, dark) +
-    rect(496, 730, 48, 5, dark) +
-    path('M498 770q22 12 44 0l-2 12q-20 10 -40 0zM536 776l12 26l-10 2z', { fill: p.accent }) +
-    circle(513, 742, 2.4, dark) +
-    circle(527, 742, 2.4, dark) +
-    polygon([[520, 748], [540, 752], [520, 754]], p.warn) +
-    path('M494 788l-30 -18M546 788l32 -14', { fill: 'none', stroke: mix(p.bg, '#000000', 0.6), 'stroke-width': 3, 'stroke-linecap': 'round' })
+    circle(sx, sy, 38, snowy) +
+    circle(sx, sy - 52, 28, snowy) +
+    circle(sx, sy - 92, 20, snowy) +
+    rect(sx - 16, sy - 122, 32, 16, dark) +
+    rect(sx - 24, sy - 108, 48, 5, dark) +
+    path(`M${sx - 22} ${sy - 68}q22 12 44 0l-2 12q-20 10 -40 0zM${sx + 16} ${sy - 62}l12 26l-10 2z`, { fill: p.accent }) +
+    circle(sx - 7, sy - 96, 2.4, dark) +
+    circle(sx + 7, sy - 96, 2.4, dark) +
+    polygon([[sx, sy - 90], [sx - 20, sy - 86], [sx, sy - 84]], p.warn) +
+    path(`M${sx - 26} ${sy - 50}l-30 -18M${sx + 26} ${sy - 50}l32 -14`, { fill: 'none', stroke: mix(p.bg, '#000000', 0.6), 'stroke-width': 3, 'stroke-linecap': 'round' })
   // A street lamp at the right, by Bolt.
-  const lamp = rect(1474, 640, 7, 170, dark) + path('M1462 640h31l-5 -30h-21z', { fill: dark }) + circle(1477, 624, 60, paint('xm-lamp'), { class: 'topper' }) + rect(1470, 614, 14, 22, mix(p.special, '#ffffff', 0.4))
-  const snow = path('M-80 900V830Q160 800 400 836T780 850Q960 850 1080 790Q1200 696 1320 694Q1470 700 1680 780V900z', { fill: paint('xm-snow') })
+  const lamp = rect(1404, 640, 7, 170, dark) + path('M1392 640h31l-5 -30h-21z', { fill: dark }) + circle(1407, 624, 60, paint('xm-lamp'), { class: 'topper' }) + rect(1400, 614, 14, 22, mix(p.special, '#ffffff', 0.4))
+  const snow = path('M-80 900V830Q160 800 400 836T780 850Q1000 850 1150 806Q1240 704 1340 694Q1480 700 1680 780V900z', { fill: paint('xm-snow') })
   const drifts = path('M-80 900V872Q300 846 640 874T1220 866Q1440 840 1680 866V900z', { fill: snowy, opacity: 0.7 })
   const flakesFar = drift(144, 46, 'snow', 34, (x, y, k, pick) => circle(x, y, 1 + pick() * 1.4, alpha(p.text, 0.6)))
   const flakesMid = drift(145, 34, 'snow', 22, (x, y, k, pick) => circle(x, y, 2 + pick() * 2, alpha(p.text, 0.8)))
   const flakesNear = drift(146, 14, 'snow', 14, (x, y, k, pick) => circle(x, y, 4 + pick() * 3, alpha(p.text, 0.9)))
   return {
-    alt: 'A snowy village on Christmas Eve: a sleigh crossing a full moon, lit houses with smoking chimneys, a big decorated tree with gifts and a snowman at the left, coloured lights strung along the top and snow falling.',
-    bolt: { x: 1240, y: 578 },
+    alt: 'A snowy village on Christmas Eve: a sleigh crossing a full moon at the right, a big decorated tree with gifts at the left, lit houses with smoking chimneys at either side and far window lights between them, a street lamp and a snowman by the right edge, coloured lights strung along the top and snow falling.',
+    bolt: { x: 1276, y: 578 },
     defs,
     style:
       PARALLAX +
@@ -312,14 +323,14 @@ const christmas: Make = ({ palette: p }) => {
       pulse('bulb', 0.5, 1, 5) +
       pulse('topper', 0.7, 1, 6) +
       pulse('tw', 0.25, 1, 6) +
-      '@keyframes sleigh{0%{transform:translate(1760px,270px) rotate(8deg)}50%{transform:translate(820px,130px) rotate(0)}100%{transform:translate(-320px,250px) rotate(-8deg)}}.sleigh{transform:translate(1010px,150px) rotate(3deg);animation:sleigh 96s linear infinite}',
+      '@keyframes sleigh{0%{transform:translate(-320px,270px) rotate(-8deg)}50%{transform:translate(820px,124px) rotate(0)}100%{transform:translate(1760px,254px) rotate(8deg)}}.sleigh{transform:translate(1392px,203px) rotate(5deg);animation:sleigh 96s linear -77s infinite}',
     body:
       rect(0, 0, WIDTH, HEIGHT, paint('xm-sky')) +
       stars(147, 120, 600, p.text) +
       moon +
       sleigh +
       layer('far', path(far.d, { fill: mix(p.bg, p.info, 0.2) }) + path(capsD(far.y, 600), { fill: mix(p.bg, p.text, 0.66) })) +
-      layer('mid', path(hill.d, { fill: mix(p.bg, p.text, 0.5) }) + path(villagePines, { fill: mix(p.bg, '#000000', 0.35) }) + path(pineCaps, { fill: snowy }) + lamps + path(walls, { fill: mix(p.bg, '#000000', 0.4) }) + path(roofs, { fill: snowy }) + path(panes, { fill: p.special, opacity: 0.95 }) + smokes) +
+      layer('mid', path(hill.d, { fill: mix(p.bg, p.text, 0.5) }) + path(villagePines, { fill: mix(p.bg, '#000000', 0.35) }) + path(pineCaps, { fill: snowy }) + farLights + lamps + path(walls, { fill: mix(p.bg, '#000000', 0.4) }) + path(roofs, { fill: snowy }) + path(panes, { fill: p.special, opacity: 0.95 }) + smokes) +
       flakesFar +
       layer('near', snow + bigTree + gifts + snowman + lamp + drifts + BOLT_HERE) +
       lights('xm-b', bulbs, 150) +
@@ -430,7 +441,7 @@ const spring: Make = ({ palette: p }) => {
   const butterflies = butterfly(760, 420, mix(p.info, '#ffffff', 0.3), -1) + butterfly(1060, 560, mix(p.warn, '#ffd75f', 0.7), -3) + butterfly(300, 520, pink, -5)
   return {
     alt: 'A bright spring morning: a cherry branch in blossom at the top left, pink petals drifting over green hills dotted with blossoming trees, tulips and daisies in the grass, butterflies and soft white clouds under a pale sun.',
-    bolt: { x: 1240, y: 572 },
+    bolt: { x: 1276, y: 572 },
     defs,
     style:
       PARALLAX +
@@ -549,7 +560,7 @@ const summer: Make = ({ palette: p }) => {
   }
   return {
     alt: 'A summer sunset at the beach: the sun sinking into a teal sea with a glittering path, a sailboat and an island on the horizon, gulls overhead, lanterns strung between palms leaning in from the sides and slow waves lapping the sand.',
-    bolt: { x: 1240, y: 574 },
+    bolt: { x: 1276, y: 574 },
     defs,
     style:
       PARALLAX +
@@ -607,7 +618,7 @@ const autumn: Make = ({ palette: p }) => {
       [1, mix(p.bg, p.warn, 0.18)],
     ]) +
     v.defs
-  const sun = circle(380, 560, 460, paint('au-glow'), { class: 'glow' }) + circle(380, 560, 124, paint('au-sun'), { opacity: 0.94 })
+  const sun = circle(232, 556, 460, paint('au-glow'), { class: 'glow' }) + circle(232, 556, 124, paint('au-sun'), { opacity: 0.94 })
   const clouds = group(cloud(820, 250, 420, mix(p.warn, p.text, 0.3), 0.2), { class: 'cl', style: 'animation-duration:300s;animation-delay:-120s' }) + group(cloud(1340, 360, 320, mix(p.accent, p.text, 0.3), 0.18), { class: 'cl', style: 'animation-duration:360s;animation-delay:-40s' })
   const far = ridge(162, 680, 190, 760)
   const mid = ridge(163, 760, 130, 560)
@@ -638,7 +649,7 @@ const autumn: Make = ({ palette: p }) => {
   const field = path('M-80 900V812Q200 782 460 822T860 846Q1020 846 1110 780Q1210 694 1330 692Q1470 698 1680 786V900z', { fill: paint('au-field') })
   const bale = (x: number, y: number, s: number) =>
     ellipse(x, y, 48 * s, 40 * s, mix(p.accent, p.bg, 0.3)) + ellipse(x - 30 * s, y, 20 * s, 40 * s, mix(p.accent, p.text, 0.2)) + [10, 20, 30].map(k => ellipse(x - 30 * s, y, (20 - k * 0.55) * s, (40 - k * 1.1) * s, 'none', { stroke: alpha(p.bg, 0.3), 'stroke-width': 1.6 })).join('')
-  const bales = bale(520, 812, 1) + bale(700, 836, 0.8) + bale(930, 822, 0.66)
+  const bales = bale(424, 814, 1) + bale(700, 836, 0.8) + bale(930, 822, 0.66)
   const scarecrow =
     path('M250 850V690M190 720H310', { fill: 'none', stroke: bark, 'stroke-width': 7, 'stroke-linecap': 'round' }) +
     path('M214 716h72l10 70h-92z', { fill: mix(p.error, p.bg, 0.45) }) +
@@ -671,7 +682,7 @@ const autumn: Make = ({ palette: p }) => {
   const mist = ellipse(500, 770, 640, 56, paint('au-mist'), { class: 'mist' }) + ellipse(1250, 800, 560, 50, paint('au-mist'), { class: 'mist', style: 'animation-duration:58s' })
   return {
     alt: 'A golden autumn dusk: a low hazy sun behind russet hills, a forest in amber, rust and olive, hay bales and a scarecrow in the field, geese flying in a V, and leaves tumbling from a bough onto the leaf-strewn ground.',
-    bolt: { x: 1240, y: 574 },
+    bolt: { x: 1276, y: 574 },
     defs,
     style:
       PARALLAX +

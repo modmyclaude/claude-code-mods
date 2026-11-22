@@ -451,6 +451,34 @@ async function showList($: Pick<EngineInterface, 'session' | 'ui'>, text: string
   if (opened?.isPlaced !== true) $.ui.log(text)
 }
 
+// Answers the mod's command, `/wear`, and `/wardrobe`, the same command under the mod's own name. It changes wardrobe's
+// own store, the session's theme and, for the match, Claude Code's `theme` setting; and it answers `{}`: nothing it says
+// is added to what the model reads.
+async function answerWear($: Dollar, args: string, settings: Settings, problems: readonly string[], autoNote: (choice: string) => string): Promise<Record<string, never>> {
+  const command = parseWear(args)
+  if (command.kind === 'list') {
+    await showList($, listText(await refresh($, settings), settings, problems, await $.clock.now()))
+  } else if (command.kind === 'unknown') {
+    await say($, `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin, everywhere.`, 8000)
+  } else if (command.kind === 'wear' || command.kind === 'everywhere') {
+    // `/wear everywhere` alone: what this project wears now, for every project.
+    const choice = command.kind === 'wear' ? command.choice : (await refresh($, settings)).choice
+    const how = { match: command.match === true, everywhere: command.kind === 'everywhere' || command.everywhere === true }
+    const text = await putOn($, settings, choice, how, autoNote(choice))
+    await say($, text, readingMs(text))
+  } else if (command.kind === 'match') {
+    await say($, await matchTheme($, await refresh($, settings), 'said'), 6000)
+  } else if (command.kind === 'wallpaper') {
+    // A plain ask only answers; on or off is made so, and on sets the scene again, over anyone's.
+    if (command.on !== null) await $.store.set(WALLPAPER, command.on ? 'on' : 'off')
+    const look = command.on === null ? await refresh($, settings) : await refresh($, settings, 'force')
+    await say($, await wallpaperText($, look, command.on), 6000)
+  } else {
+    await say($, command.kind === 'pin' ? await pin($, settings) : await unpin($, settings))
+  }
+  return {}
+}
+
 export const register: Register = (on, options) => {
   const { settings, problems } = settingsFrom(options)
   // Bad auto settings are named where they matter: the list and /wear auto.
@@ -467,6 +495,15 @@ export const register: Register = (on, options) => {
         immediate: true,
       })
       .catch(() => undefined)
+    // The mod's own name is what people type first: `/wardrobe` answers as `/wear` does.
+    await $.command
+      .register({
+        name: 'wardrobe',
+        description: 'The same as /wear: list themes, or wear one',
+        argumentHint: '[theme [everywhere] | auto | season | pin | unpin]',
+        immediate: true,
+      })
+      .catch(() => undefined)
     // A store or clock that cannot answer leaves Claude Code's own look on.
     await refresh($, settings, 'start').catch(() => undefined)
     await readAppTone($).catch(() => undefined)
@@ -477,34 +514,13 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // Answers its own command. It changes wardrobe's own store, the session's theme
-  // and, for the match, Claude Code's `theme` setting; and it answers `{}`:
-  // nothing it says is added to what the model reads.
-  on('command.run', { command: 'wear' }, async ($, e) => {
-    const command = parseWear(e.args)
-    if (command.kind === 'list') {
-      await showList($, listText(await refresh($, settings), settings, problems, await $.clock.now()))
-    } else if (command.kind === 'unknown') {
-      await say($, `No theme called "${clean(command.word)}". Try one of: ${CHOICES.join(', ')}; or pin, unpin, everywhere.`, 8000)
-    } else if (command.kind === 'wear' || command.kind === 'everywhere') {
-      // `/wear everywhere` alone: what this project wears now, for every project.
-      const choice = command.kind === 'wear' ? command.choice : (await refresh($, settings)).choice
-      const how = { match: command.match === true, everywhere: command.kind === 'everywhere' || command.everywhere === true }
-      const text = await putOn($, settings, choice, how, autoNote(choice))
-      await say($, text, readingMs(text))
-    } else if (command.kind === 'match') {
-      await say($, await matchTheme($, await refresh($, settings), 'said'), 6000)
-    } else if (command.kind === 'wallpaper') {
-      // A plain ask only answers; on or off is made so, and on sets the scene again, over anyone's.
-      if (command.on !== null) await $.store.set(WALLPAPER, command.on ? 'on' : 'off')
-      const look = command.on === null ? await refresh($, settings) : await refresh($, settings, 'force')
-      await say($, await wallpaperText($, look, command.on), 6000)
-    } else {
-      await say($, command.kind === 'pin' ? await pin($, settings) : await unpin($, settings))
-    }
-    return {}
-  }).catch($ => {
+  on('command.run', { command: 'wear' }, ($, e) => answerWear($, e.args, settings, problems, autoNote)).catch($ => {
     $.ui.toast('/wear could not finish. Run /wear to see what is worn.')
+    return {}
+  })
+  // The mod's own name is what people type first.
+  on('command.run', { command: 'wardrobe' }, ($, e) => answerWear($, e.args, settings, problems, autoNote)).catch($ => {
+    $.ui.toast('/wardrobe could not finish. Run /wear to see what is worn.')
     return {}
   })
 

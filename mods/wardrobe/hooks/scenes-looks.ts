@@ -32,7 +32,7 @@ const dracula: Make = ({ palette: p }) => {
     glow('dr-mist', mix(p.special, p.text, 0.25), 0.2) +
     glow('dr-lamp', p.warn, 0.5) +
     v.defs
-  const [mx, my] = [455, 225]
+  const [mx, my] = [236, 232]
   const moon =
     circle(mx, my, 430, paint('dr-halo'), { class: 'halo' }) +
     circle(mx, my, 122, paint('dr-moon')) +
@@ -51,7 +51,7 @@ const dracula: Make = ({ palette: p }) => {
   const far2 = ridge(52, 730, 200, 380, { sharp: true })
   const mid = ridge(51, 800, 150, 560)
   // The castle: towers, a keep with a spire, a curtain wall, on a crag at the left.
-  let castle = 'M-80 900L-80 730L30 690L110 612L180 590L236 524L604 524L640 580L706 606L770 700L880 760L960 900z'
+  let castle = 'M-80 1100L-80 730L30 690L110 612L180 590L236 524L604 524L640 580L706 606L770 700L880 760L960 1100z'
   const tower = (x: number, top: number, w: number, roof: number) => {
     castle += `M${x} 530V${top}h${w}V530zM${x - 9} ${top}L${x + w / 2} ${top - roof}L${x + w + 9} ${top}z`
   }
@@ -110,8 +110,8 @@ const dracula: Make = ({ palette: p }) => {
   const bats = drift(6, 9, 'bat', 54, (x, y, k, pick) => group(path(BAT, { fill: '#0d0a14', transform: `translate(${n(x)} ${n(40 + y * 0.5)}) scale(${n(1.1 + pick() * 1.5)})` }), { class: 'flap' }))
   const motes = drift(7, 16, 'mote', 80, (x, y, k, pick) => circle(x, y, 1.2 + pick() * 1.6, alpha(k % 2 === 0 ? p.accent : p.special, 0.5)))
   return {
-    alt: 'A castle on a crag against a huge full moon, lit windows glowing, pines and mountains below, bats crossing and violet mist drifting over a graveyard.',
-    bolt: { x: 1240, y: 566 },
+    alt: 'A castle on a crag at the left against a huge full moon, lit windows glowing, pines and mountains below, bats crossing and violet mist drifting over a graveyard.',
+    bolt: { x: 1276, y: 566 },
     defs,
     style:
       PARALLAX +
@@ -133,7 +133,7 @@ const dracula: Make = ({ palette: p }) => {
       moon +
       clouds +
       layer('far', path(far.d, { fill: mix(p.bg, p.accent, 0.24) }) + path(far2.d, { fill: mix(p.bg, p.accent, 0.12) })) +
-      layer('mid', path(mid.d, { fill: mix(p.bg, '#000000', 0.34) }) + pines + path(castle, { fill: stone }) + lamps + gate + lit + flag) +
+      layer('mid', path(mid.d, { fill: mix(p.bg, '#000000', 0.34) }) + pines + group(path(castle, { fill: stone }) + lamps + gate + lit + flag, { transform: 'translate(-108 84) scale(0.8)' })) +
       mist +
       layer('near', ground + path(stones, { fill: mix(p.bg, '#000000', 0.66) }) + trees + BOLT_HERE) +
       bats +
@@ -171,7 +171,7 @@ const noir: Make = ({ palette: p }) => {
     flicker += rect(x, y, 5, 9, p.text, { opacity: 0.7, class: 'win', style: `animation-delay:${n(-r() * 9)}s` })
   }
   const beam = (x: number, cls: string) => polygon([[x, 760], [x - 150, -60], [x + 110, -60]], paint('no-beam'), { class: cls })
-  const sign = rect(404, 452, 13, 104, p.error, { rx: 3, opacity: 0.92, class: 'sign' }) + circle(410, 504, 110, paint('no-red'), { class: 'sign' })
+  const sign = rect(318, 452, 13, 104, p.error, { rx: 3, opacity: 0.92, class: 'sign' }) + circle(324, 504, 110, paint('no-red'), { class: 'sign' })
   const beacons = mid.tops
     .filter((t, i) => i % 4 === 1 && t.y < 620)
     .map(t => circle(t.x + t.w / 2, t.y - 4, 3, p.error, { opacity: 0.9, class: 'beacon' }))
@@ -191,7 +191,7 @@ const noir: Make = ({ palette: p }) => {
   const rainNear = drift(12, 34, 'rain', 1.7, (x, y) => line(x, y, x - 6, y + 46, alpha(p.text, 0.42), { 'stroke-width': 1.4 }))
   return {
     alt: 'Rain over a dark city seen from a rooftop: lit windows, one red neon sign, two searchlights sweeping the clouds, a water tower at the left.',
-    bolt: { x: 1240, y: 676 },
+    bolt: { x: 1276, y: 676 },
     defs,
     style:
       PARALLAX +
@@ -239,7 +239,7 @@ const tokyoNight: Make = ({ palette: p }) => {
     signColours.map((c, i) => glow(`tn-g${i}`, c, 0.5)).join('') +
     glow('tn-head', p.warn, 0.7) +
     v.defs
-  const moon = circle(1290, 210, 330, paint('tn-halo')) + circle(1290, 210, 96, paint('tn-moon'), { opacity: 0.92 })
+  const moon = circle(1344, 206, 330, paint('tn-halo')) + circle(1344, 206, 92, paint('tn-moon'), { opacity: 0.92 })
   const far = city(3, 660, 70, 330, [24, 58])
   const mid = city(4, 780, 150, 480, [54, 124])
   const farLit = far.cells.filter(() => r() < 0.14)
@@ -250,7 +250,7 @@ const tokyoNight: Make = ({ palette: p }) => {
     glints += rect(x, y, 6, 9, i % 2 === 0 ? p.info : p.warn, { opacity: 0.8, class: 'tw', style: `animation-delay:${n(-r() * 8)}s` })
   }
   // The lattice tower: two legs closing to a mast, braced, with three beacons.
-  const [tx, tb, tt] = [372, 700, 150]
+  const [tx, tb, tt] = [300, 700, 150]
   let tower = `M${tx - 52} ${tb}L${tx - 5} ${tt}M${tx + 52} ${tb}L${tx + 5} ${tt}M${tx} ${tt}V${tt - 54}`
   for (let k = 0; k < 9; k += 1) {
     const y = tb - k * 60
@@ -287,7 +287,7 @@ const tokyoNight: Make = ({ palette: p }) => {
   const rain = drift(22, 40, 'rain', 2.2, (x, y) => line(x, y, x - 3, y + 26, alpha(p.text, 0.24), { 'stroke-width': 1 }))
   return {
     alt: 'A neon city at night: signs glowing pink, violet and cyan, a lattice tower blinking red, a lit train crossing a viaduct under a pale moon, light rain falling.',
-    bolt: { x: 1236, y: 696 },
+    bolt: { x: 1276, y: 696 },
     defs,
     style:
       PARALLAX +
@@ -430,7 +430,7 @@ const catppuccin: Make = ({ palette: p }) => {
     tints.map((c, i) => glow(`cp-b${i}`, c, 0.55)).join('') +
     glow('cp-lamp', p.warn, 0.55) +
     v.defs
-  const moon = circle(1130, 170, 250, paint('cp-halo')) + path('M1118 96A78 78 0 1 0 1204 214A62 62 0 1 1 1118 96z', { fill: mix(p.warn, '#ffffff', 0.5) })
+  const moon = circle(1340, 170, 250, paint('cp-halo')) + path('M1328 96A78 78 0 1 0 1414 214A62 62 0 1 1 1328 96z', { fill: mix(p.warn, '#ffffff', 0.5) })
   const clouds =
     group(cloud(300, 250, 460, p.special, 0.2), { class: 'cl', style: 'animation-duration:320s;animation-delay:-150s' }) +
     group(cloud(900, 360, 380, p.accent, 0.2), { class: 'cl', style: 'animation-duration:380s;animation-delay:-190s' }) +
@@ -491,7 +491,7 @@ const catppuccin: Make = ({ palette: p }) => {
     path('M1440 786h130M1452 760h110M1446 737h96', { fill: 'none', stroke: alpha(p.text, 0.2), 'stroke-width': 2 })
   return {
     alt: 'A pastel dusk seen from a windowsill: a crescent moon, soft clouds and rolling hills with a little village, a cat asleep beside a plant, fairy lights along the top and slow pastel bubbles rising.',
-    bolt: { x: 1240, y: 682 },
+    bolt: { x: 1276, y: 682 },
     defs,
     style:
       PARALLAX +
@@ -513,7 +513,7 @@ const catppuccin: Make = ({ palette: p }) => {
       bubbles +
       path(wire, { fill: 'none', stroke: alpha(p.muted, 0.55), 'stroke-width': 2 }) +
       bulbs +
-      layer('near', sill + cat + plant + books + BOLT_HERE) +
+      layer('near', sill + group(cat, { transform: 'translate(-92 0)' }) + group(plant, { transform: 'translate(150 0)' }) + books + BOLT_HERE) +
       v.body,
   }
 }
@@ -581,17 +581,17 @@ const solarized: Make = ({ palette: p }) => {
     .join('')
   const comet = group(rect(0, -2, 220, 4, paint('so-tail'), { rx: 2 }) + circle(0, 0, 5, '#ffffff'), { class: 'comet' })
   // A small rock for Bolt to stand on.
-  const rock = path('M1196 700l30 -14l64 -6l70 4l44 12l-18 22l-60 14l-86 -4z', { fill: mix(p.bg, p.text, 0.34) }) + path('M1196 700l30 -14l64 -6l70 4l44 12l-70 6l-80 2z', { fill: mix(p.bg, p.text, 0.5) })
+  const rock = path('M1236 700l30 -14l64 -6l70 4l44 12l-18 22l-60 14l-86 -4z', { fill: mix(p.bg, p.text, 0.34) }) + path('M1236 700l30 -14l64 -6l70 4l44 12l-70 6l-80 2z', { fill: mix(p.bg, p.text, 0.5) })
   return {
     alt: 'An orrery in deep teal space: a golden sun at the lower left with six worlds circling it on fine orbit lines, a banded giant and a ringed planet among them, a belt of rocks, a comet and stars.',
-    bolt: { x: 1236, y: 566 },
+    bolt: { x: 1276, y: 566 },
     defs,
     style:
       worlds.map((w, i) => orbit(`so-o${i}`, sx, sy, w.rx, w.rx * squash, w.seconds, w.phase)).join('') +
       pulse('tw', 0.25, 1, 6) +
       pulse('corona', 0.75, 1, 10) +
       '@keyframes ring{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}.ring{transform-origin:150px 780px;animation:ring 12s ease-in-out infinite}' +
-      '@keyframes comet{0%{transform:translate(1500px,60px) rotate(-14deg)}100%{transform:translate(-400px,520px) rotate(-14deg)}}.comet{transform:translate(1180px,140px) rotate(-14deg);animation:comet 90s linear infinite}' +
+      '@keyframes comet{0%{transform:translate(1500px,60px) rotate(-14deg)}100%{transform:translate(-400px,520px) rotate(-14deg)}}.comet{transform:translate(1260px,118px) rotate(-14deg);animation:comet 90s linear infinite}' +
       BOB +
       '.rock{animation:bob 4s ease-in-out infinite}',
     body: rect(0, 0, WIDTH, HEIGHT, paint('so-sky')) + nebula + stars(42, 170, 900, p.text) + orbits + belt + sun + comet + planets + group(rock, { class: 'rock' }) + v.body,
@@ -637,14 +637,14 @@ const paper: Make = ({ palette: p }) => {
   const specks = drift(31, 40, 'speck', 0, (x, y, k, pick) => circle(x, y, 0.8 + pick() * 1.2, alpha(p.warn, 0.16)))
   return {
     alt: 'A sheet of warm ruled paper with a red margin and punch holes: soft watercolour washes, a coffee ring, pencil doodles of a paper plane, a cactus and a small graph, and one blue pen line writing itself across the page.',
-    bolt: { x: 1240, y: 598 },
+    bolt: { x: 1276, y: 598 },
     defs,
     style:
       SWAY +
       '.wash{animation:sway 44s ease-in-out infinite}' +
       '@keyframes draw{from{stroke-dashoffset:2400}to{stroke-dashoffset:0}}.pen{animation:draw 40s linear infinite}' +
-      '@keyframes plane{0%,100%{transform:translate(760px,150px) rotate(-6deg)}50%{transform:translate(800px,128px) rotate(4deg)}}.plane{transform:translate(770px,146px);animation:plane 9s ease-in-out infinite}',
-    body: washes + specks + lines + holes + ring + trail + plane + cactus + graph + sun + peaks + pen + clip + v.body,
+      '@keyframes plane{0%,100%{transform:translate(206px,150px) rotate(6deg) scaleX(-1)}50%{transform:translate(166px,128px) rotate(-4deg) scaleX(-1)}}.plane{transform:translate(196px,146px) scaleX(-1);animation:plane 9s ease-in-out infinite}',
+    body: washes + specks + lines + holes + ring + group(trail, { transform: 'translate(1100 0) scale(-1 1)' }) + plane + group(cactus, { transform: 'translate(-76 -44)' }) + group(graph, { transform: 'translate(-78 0)' }) + group(sun, { transform: 'translate(850 36)' }) + group(peaks, { transform: 'translate(176 20)' }) + pen + clip + v.body,
   }
 }
 
@@ -659,17 +659,18 @@ const highContrast: Make = ({ palette: p }) => {
   for (let k = -14; k <= 14; k += 1) floor += `M800 ${horizon}L${800 + k * 190} ${HEIGHT}`
   for (let k = 1; k <= 9; k += 1) floor += `M0 ${n(horizon + 260 * (k / 9) ** 2.2)}h${WIDTH}`
   // The sun: an outline half-disc on the horizon, cut by level bars.
-  let sun = `M1010 ${horizon}A190 190 0 0 1 1390 ${horizon}`
-  for (let k = 1; k <= 5; k += 1) {
+  const [sunX, sunR] = [1384, 156]
+  let sun = `M${sunX - sunR} ${horizon}A${sunR} ${sunR} 0 0 1 ${sunX + sunR} ${horizon}`
+  for (let k = 1; k <= 4; k += 1) {
     const y = horizon - k * 30
-    const half = Math.sqrt(190 * 190 - (k * 30) ** 2)
-    sun += `M${n(1200 - half)} ${y}h${n(half * 2)}`
+    const half = Math.sqrt(sunR * sunR - (k * 30) ** 2)
+    sun += `M${n(sunX - half)} ${y}h${n(half * 2)}`
   }
   const bold = { fill: 'none', stroke: alpha(p.text, 0.42), 'stroke-width': 3 }
   const shapes =
     group(circle(190, 170, 78, 'none', bold) + circle(190, 170, 108, 'none', { ...thin, 'stroke-dasharray': '4 12', class: 'turn' }), { class: 'float' }) +
     group(rect(1300, 70, 150, 150, 'none', bold) + rect(1274, 44, 202, 202, 'none', { ...thin, 'stroke-dasharray': '4 12' }), { class: 'float', style: 'animation-delay:-2s' }) +
-    group(polygon([[330, 520], [470, 520], [400, 400]], 'none', bold), { class: 'float', style: 'animation-delay:-4s' }) +
+    group(polygon([[236, 520], [376, 520], [306, 400]], 'none', bold), { class: 'float', style: 'animation-delay:-4s' }) +
     group(polygon([[690, 250], [750, 310], [690, 370], [630, 310]], 'none', bold), { class: 'float', style: 'animation-delay:-1s' })
   return {
     alt: 'A calm black field in sharp white line: a dotted sky drifting slowly, an outlined sun on a yellow horizon, a floor of fine lines running to one point, and an outline circle, square, triangle and diamond floating above.',
@@ -698,7 +699,7 @@ const colorblind: Make = ({ palette: p, diff }) => {
     pattern('cb-dots', 18, 18, circle(9, 9, 2.6, alpha('#000000', 0.34))) +
     glow('cb-sun', p.warn, 0.35) +
     v.defs
-  const sun = circle(1180, 250, 300, paint('cb-sun')) + circle(1180, 250, 58, p.warn) + [92, 128, 166].map((rad, i) => circle(1180, 250, rad, 'none', { stroke: alpha(p.warn, [0.5, 0.32, 0.18][i]!), 'stroke-width': 3, class: 'ring' })).join('')
+  const sun = circle(1350, 236, 300, paint('cb-sun')) + circle(1350, 236, 58, p.warn) + [92, 128, 166].map((rad, i) => circle(1350, 236, rad, 'none', { stroke: alpha(p.warn, [0.5, 0.32, 0.18][i]!), 'stroke-width': 3, class: 'ring' })).join('')
   const hills = [
     { h: ridge(91, 640, 170, 820), colour: mix(p.bg, blue, 0.34), tex: 'cb-hatch', depth: 'far' as const },
     { h: ridge(92, 720, 150, 620), colour: mix(p.bg, orange, 0.5), tex: 'cb-dots', depth: 'mid' as const },
@@ -726,18 +727,18 @@ const colorblind: Make = ({ palette: p, diff }) => {
     const string = line(x, y + s, home[0], home[1], alpha(p.text, 0.3), { 'stroke-width': 1.2 })
     return string + group(group(shape + path(`M0 ${s}q-10 40 -50 ${s + 40}`, { fill: 'none', stroke: alpha(p.text, 0.4), 'stroke-width': 1.5 }) + tail, { class: 'kite', style: `animation-delay:${-kind * 1.7}s` }), { transform: `translate(${x} ${y})` })
   }
-  const kites = kite(0, 230, 220, blue, [120, 840]) + kite(1, 520, 130, orange, [420, 830]) + kite(2, 820, 250, blue, [760, 846]) + kite(3, 1460, 430, orange, [1560, 780])
+  const kites = kite(0, 230, 220, blue, [120, 840]) + kite(1, 322, 96, orange, [300, 838]) + kite(2, 820, 250, blue, [760, 846]) + kite(3, 1460, 430, orange, [1560, 780])
   const bits = drift(17, 22, 'bit', 70, (x, y, k) => (k % 2 === 0 ? rect(x, y, 7, 7, blue, { opacity: 0.45 }) : circle(x, y, 4, orange, { opacity: 0.5 })))
   return {
     alt: 'Layered hills in blue and orange, told apart by pattern as well as colour, hatched and dotted, under a ringed yellow sun, with four kites above them: a triangle, a disc, a diamond and a square.',
-    bolt: { x: 1240, y: 566 },
+    bolt: { x: 1276, y: 566 },
     defs,
     style:
       PARALLAX +
       FALL +
       anim('bit', 'fall') +
       '@keyframes kite{0%,100%{transform:translate(0,0) rotate(-4deg)}50%{transform:translate(14px,-16px) rotate(5deg)}}.kite{animation:kite 8s ease-in-out infinite}' +
-      '@keyframes ring{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.ring{transform-origin:1180px 250px;animation:ring 11s ease-in-out infinite}',
+      '@keyframes ring{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.ring{transform-origin:1350px 236px;animation:ring 11s ease-in-out infinite}',
     body: rect(0, 0, WIDTH, HEIGHT, paint('cb-sky')) + sun + land + kites + bits + layer('near', ground + BOLT_HERE) + v.body,
   }
 }

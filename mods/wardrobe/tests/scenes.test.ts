@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { costumeOf, dressedPixels } from '../hooks/costume'
+import { WINGS } from '../hooks/scene-kit'
 import { glassFor, hasScene, SCENE_LIMIT, sceneOf, sceneSize } from '../hooks/scenes'
 import { wornTheme } from '../hooks/tailor'
 import { FAMILIES, SPORTS, THEMES, themeById } from '../hooks/themes'
@@ -89,11 +90,12 @@ describe('every look has a scene', () => {
         const paints = Object.values(costume.paint).map(role => (role === 'bg' ? theme.palette.bg : theme.palette[role]))
         expect(paints.some(colour => bolt.includes(`fill="${colour}"`))).toBe(true)
       }
-      // Bolt stands at the right, off the middle and the foot, where the words and the message box sit.
+      // Bolt stands whole in the right wing, clear of the chat column's frost even as the near layer sways, and off the
+      // foot, where the message box sits.
       const place = /\.bolt\{transform:translate\((\d+)px,(\d+)px\) scale\(12\)/.exec(style)
       expect(place).not.toBeNull()
-      expect(Number(place![1])).toBeGreaterThan(1100)
-      expect(Number(place![1])).toBeLessThan(1400)
+      expect(Number(place![1]) - 28).toBeGreaterThanOrEqual(WINGS.right.from)
+      expect(Number(place![1]) + 120).toBeLessThanOrEqual(WINGS.right.to)
       expect(Number(place![2])).toBeLessThan(720)
 
       // The words for a reader who cannot see it.

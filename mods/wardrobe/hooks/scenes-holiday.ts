@@ -155,7 +155,7 @@ const easter: Make = ({ palette: p }) => {
     ellipse(360, 742, 560, 44, paint('ea-mist'), { class: 'ea-mist' }) + ellipse(1180, 728, 520, 40, paint('ea-mist'), { class: 'ea-mist', style: 'animation-duration:57s' }) + ellipse(780, 800, 700, 46, paint('ea-mist'), { opacity: 0.8, class: 'ea-mist', style: 'animation-duration:66s' })
   return {
     alt: 'Easter morning: dawn gold rising behind violet hills, three small crosses on a far hill, a rock tomb with its round stone rolled aside and soft light within, and a garden of white lilies between tall cypresses.',
-    bolt: { x: 1240, y: 566 },
+    bolt: { x: 1276, y: 566 },
     defs,
     style:
       PARALLAX +
@@ -177,8 +177,8 @@ const easter: Make = ({ palette: p }) => {
       stars(38, 44, 240, p.text) +
       sun +
       clouds +
-      layer('far', path(haze.d, { fill: mix(mix(p.bg, p.special, 0.4), p.warn, 0.12) }) + path(calvary, { fill: hillTone }) + crosses + path(hills.d, { fill: mix(hillTone, '#000000', 0.14) })) +
-      layer('mid', path(land.d, { fill: landTone }) + trees + olive(210, 796, 1.15) + path(rock, { fill: paint('ea-rock') }) + cracks + rockLight + tomb + rolled + way + olive(1010, land.y(1010) + 8, 0.8)) +
+      layer('far', path(haze.d, { fill: mix(mix(p.bg, p.special, 0.4), p.warn, 0.12) }) + group(path(calvary, { fill: hillTone }) + crosses, { transform: 'translate(250 0)' }) + path(hills.d, { fill: mix(hillTone, '#000000', 0.14) })) +
+      layer('mid', path(land.d, { fill: landTone }) + trees + olive(446, 800, 1) + group(path(rock, { fill: paint('ea-rock') }) + cracks + rockLight + tomb + rolled + way, { transform: 'translate(-80 158) scale(0.8)' }) + olive(1010, land.y(1010) + 8, 0.8)) +
       mist +
       layer('near', path(ground, { fill: soil }) + path(crest, { fill: 'none', stroke: alpha(mix(gold, p.special, 0.5), 0.26), 'stroke-width': 2.4 }) + path(blades, { fill: mix(leaf, '#000000', 0.1) }) + framing + lilies + BOLT_HERE) +
       birds +
@@ -221,7 +221,7 @@ const eid: Make = ({ palette: p }) => {
     pattern('ei-lattice', 30, 30, path('M15 0L30 15L15 30L0 15z', { fill: 'none', stroke: gold, 'stroke-width': 1.3 }) + circle(15, 15, 5.5, 'none', { stroke: gold, 'stroke-width': 1.1 }) + circle(0, 0, 3, gold) + circle(30, 0, 3, gold) + circle(0, 30, 3, gold) + circle(30, 30, 3, gold)) +
     v.defs
   // The crescent: one circle with another taken out of it, alone in the sky.
-  const [mx, my] = [1012, 330]
+  const [mx, my] = [232, 344]
   const moon =
     circle(mx, my, 330, paint('ei-halo'), { class: 'ei-halo' }) + path(`M${n(mx + 36.5)} ${n(my - 64.4)}A74 74 0 1 0 ${n(mx + 36.5)} ${n(my + 64.4)}A66 66 0 1 1 ${n(mx + 36.5)} ${n(my - 64.4)}z`, { fill: paint('ei-moon'), transform: `rotate(-28 ${mx} ${my})` })
   // Domes and minarets as path pieces.
@@ -286,7 +286,7 @@ const eid: Make = ({ palette: p }) => {
     )
   }
   const quarter =
-    path(houses + `M${-BLEED} 900V752H${WIDTH + BLEED}V900z`, { fill: dusk }) + path(houseLit, { fill: mix(p.warn, gold, 0.4), opacity: 0.9 }) + path(hall, { fill: mix(dusk, '#000000', 0.12) }) + rim + archGlow + path(arches, { fill: paint('ei-arch'), opacity: 0.92, class: 'ei-warm' }) + path(upperLit, { fill: mix(gold, p.text, 0.3), opacity: 0.85 }) + palm(150, 752, 170, 0) + palm(1010, 752, 150, 1) + palm(1076, 752, 108, 2)
+    path(houses + `M${-BLEED} 900V752H${WIDTH + BLEED}V900z`, { fill: dusk }) + path(houseLit, { fill: mix(p.warn, gold, 0.4), opacity: 0.9 }) + group(path(hall, { fill: mix(dusk, '#000000', 0.12) }) + rim + archGlow + path(arches, { fill: paint('ei-arch'), opacity: 0.92, class: 'ei-warm' }) + path(upperLit, { fill: mix(gold, p.text, 0.3), opacity: 0.85 }), { transform: 'translate(-80 293) scale(0.62)' }) + palm(150, 752, 170, 0) + palm(1010, 752, 150, 1) + palm(1076, 752, 108, 2)
   // Strings of lanterns across the top, each lantern swaying on its cord.
   const strings: [number, number, number, number, number, number][] = [
     [-40, 66, 330, 250, 700, 52],
@@ -357,7 +357,7 @@ const eid: Make = ({ palette: p }) => {
   const lights = drift(58, 24, 'ei-light', 110, (x, y, k, pick) => circle(x, y, 1.4 + pick() * 1.9, alpha(k % 2 === 0 ? p.warn : gold, 0.55)))
   return {
     alt: 'The night of Eid al-Fitr: a thin crescent moon over a skyline of domes and minarets with warm lit arches, strings of coloured lanterns across a teal sky, and a pointed gateway with one great lantern over a terrace and a potted palm.',
-    bolt: { x: 1236, y: 570 },
+    bolt: { x: 1276, y: 570 },
     defs,
     style:
       PARALLAX +

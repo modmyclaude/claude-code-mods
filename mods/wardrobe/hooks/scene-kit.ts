@@ -19,6 +19,17 @@ export const HEIGHT = 900
 /** How far a layer is drawn past each side, so its sway never shows an edge. */
 export const BLEED = 80
 
+// Where the picture is seen. The desktop app frosts the chat column over the middle of the window, so the picture
+// shows sharp only at the two sides. Across the window sizes people use (about 1000 points wide and up, the side bar
+// shut), the column always covers LANE and never covers the WINGS; between them the edge of the frost moves with the
+// window. So: what a scene is about stands in a wing, whole, and never across that moving edge; the lane holds only what
+// reads through frost (a glow, a far hill, a sun, what falls or drifts); and each wing carries something, so the
+// picture holds when a side bar covers one of them.
+/** The middle of the picture, always under the chat column's frost. */
+export const LANE = { from: 520, to: 1080 } as const
+/** The two sides the frost never reaches: where a scene's subjects stand. */
+export const WINGS = { left: { from: 181, to: 376 }, right: { from: 1224, to: 1419 } } as const
+
 /** A scene's drawing: its CSS, its gradients, its body over the ground, where Bolt stands, and what it shows for a reader who cannot see it. */
 export type Scene = { style: string; body: string; alt: string; defs?: string; bolt?: { x: number; y: number } }
 
