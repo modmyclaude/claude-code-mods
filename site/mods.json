@@ -48,8 +48,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-13",
-      "commit": "b8786f6",
+      "updated": "2026-11-20",
+      "commit": "cc3709e",
       "reach": [
         "hooks tool calls"
       ],
@@ -125,8 +125,8 @@
       },
       "license": "MIT",
       "added": "2026-10-12",
-      "updated": "2026-10-23",
-      "commit": "b83b6fd",
+      "updated": "2026-11-20",
+      "commit": "8dd74a8",
       "reach": [
         "reads files",
         "runs commands"
@@ -455,8 +455,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-13",
-      "commit": "abe3f19",
+      "updated": "2026-11-20",
+      "commit": "d11b958",
       "reach": [
         "calls a model"
       ],
@@ -662,8 +662,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-13",
-      "commit": "9b5d2b8",
+      "updated": "2026-11-20",
+      "commit": "1195862",
       "reach": [
         "hooks tool calls"
       ],
@@ -813,8 +813,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-13",
-      "commit": "1c3ec0c",
+      "updated": "2026-11-20",
+      "commit": "f9a78d1",
       "reach": [
         "reads files",
         "runs commands",
@@ -968,8 +968,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-13",
-      "commit": "bd09e92",
+      "updated": "2026-11-20",
+      "commit": "ee5be94",
       "reach": [
         "writes files",
         "reads files",
@@ -1049,8 +1049,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-27",
-      "commit": "56925c0",
+      "updated": "2026-11-20",
+      "commit": "2d360cc",
       "reach": [
         "network",
         "plays sound"
@@ -1115,8 +1115,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-13",
-      "commit": "9e07ee0",
+      "updated": "2026-11-20",
+      "commit": "5ea091e",
       "reach": [
         "runs commands",
         "hooks tool calls"
@@ -1417,8 +1417,8 @@
       },
       "license": "MIT",
       "added": "2026-10-09",
-      "updated": "2026-10-19",
-      "commit": "674607e",
+      "updated": "2026-11-20",
+      "commit": "1df8fb3",
       "reach": [
         "display only"
       ],
@@ -1623,8 +1623,8 @@
       },
       "license": "MIT",
       "added": "2026-10-12",
-      "updated": "2026-10-23",
-      "commit": "e9b3468",
+      "updated": "2026-11-20",
+      "commit": "fb70c7e",
       "reach": [
         "display only"
       ],
@@ -1958,7 +1958,7 @@
         }
       ],
       "tests": {
-        "count": 534,
+        "count": 559,
         "surfaces": [
           "terminal",
           "desktop",
