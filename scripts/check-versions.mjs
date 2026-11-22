@@ -5,8 +5,6 @@
 // yet. A bumped mod also has its line in CHANGELOG.md.
 // Usage: node scripts/check-versions.mjs <base> [head]   (an all-zero base, a branch's first push, checks nothing)
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 const [base, head = 'HEAD'] = process.argv.slice(2)
 if (!base) {
@@ -19,7 +17,6 @@ if (/^0+$/.test(base)) {
 }
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-const ROOT = git('rev-parse', '--show-toplevel').trim()
 // icon.png is the listing icon the Claude plugin directory reads from the repo. It changes nothing a
 // session runs, so a new or changed icon needs no bump.
 const NOT_SHIPPED = [/^mods\/[^/]+\/README\.md$/, /^mods\/[^/]+\/tests\//, /^mods\/[^/]+\/\.claude-plugin\/icon\.png$/]
@@ -62,14 +59,20 @@ function versionAt(ref, mod) {
   }
 }
 
+/**
+ * A file as the head commit has it, '' when it is not there. The checked-out files are not asked: a
+ * push from a clone that sits on another branch is judged by what it sends, as the versions are.
+ */
+function atHead(path) {
+  try { return git('show', `${head}:${path}`) } catch { return '' }
+}
+
 function isDraft(mod) {
-  const prompt = join(ROOT, 'prompts', `${mod}.md`)
-  if (!existsSync(prompt)) return false
-  const front = /^---\n([\s\S]*?)\n---/.exec(readFileSync(prompt, 'utf8'))
+  const front = /^---\n([\s\S]*?)\n---/.exec(atHead(`prompts/${mod}.md`))
   return front !== null && /^draft:\s*true\s*$/m.test(front[1])
 }
 
-const changelog = existsSync(join(ROOT, 'CHANGELOG.md')) ? readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8') : ''
+const changelog = atHead('CHANGELOG.md')
 let problems = 0
 for (const mod of mods) {
   const before = versionAt(base, mod)
