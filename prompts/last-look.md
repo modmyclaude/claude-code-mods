@@ -5,6 +5,7 @@ tagline: Holds destructive commands until you approve, and shows what they would
 category: safety
 surfaces: [terminal, desktop]
 model_calls: none
+full_from: 2.1.325
 ---
 
 # Last Look

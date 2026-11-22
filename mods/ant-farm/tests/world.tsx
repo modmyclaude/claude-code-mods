@@ -6,6 +6,9 @@
 
 import { mock } from 'claude-code/testing'
 import type { AgentInfo, On, RenderPropsOf, RenderViewport, TurnUsage, UiOpenResult } from 'claude-code'
+
+/** What the world keeps of an agent: the fields every Claude Code's `AgentInfo` has (2.1.326 adds eight more, which the mod never reads). */
+type Listed = Pick<AgentInfo, 'id' | 'description' | 'type' | 'status'>
 import type { Engine } from 'claude-code/testing'
 
 export const PLUGIN = 'ant-farm'
@@ -28,7 +31,7 @@ export function world(on: On, setup: { placed?: boolean; reason?: string } = {})
     /** The body columns each open asked the dock for. */
     openColumns: [] as (number | undefined)[],
     invalidates: 0,
-    listed: [] as AgentInfo[],
+    listed: [] as Listed[],
     panes: [] as { id: string; title: string; isShown: boolean; isFocused: boolean; isPlaced: boolean }[],
     nextModel: 'claude-haiku-5-5',
     nextId: 0,
@@ -80,7 +83,7 @@ export function world(on: On, setup: { placed?: boolean; reason?: string } = {})
   })
   on('agent.list', () => {
     if (rec.listThrows) throw new Error('agent list unavailable')
-    return { value: rec.listed }
+    return { value: rec.listed as AgentInfo[] }
   })
   on('command.register', ($, e) => {
     rec.registered.push({ name: e.name, ...(e.immediate === true ? { immediate: true as const } : {}) })
@@ -213,11 +216,11 @@ export function usage(model: string, input: number, output: number, cacheRead = 
 export const DOCKED: RenderViewport = { columns: 180, rows: 50, isFullscreen: true }
 export const NARROW: RenderViewport = { columns: 100, rows: 40, isFullscreen: true }
 
+// `isCollapsed` is new in Claude Code 2.1.326's band props and unknown to older types: kept in an untyped base, never a typed literal.
+const BAND = { hasSurvey: false, isCollapsed: false, isWorking: true, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 11 }, view: {} }
+
 export function bandProps(over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] {
-  return {
-    hasSurvey: false, isWorking: true, maxRows: 12, bodyColumns: 100,
-    scroll: { offset: 0, bodyRows: 11 }, view: {}, ...over,
-  }
+  return { ...BAND, ...over }
 }
 
 export function paneProps(over: Partial<RenderPropsOf['Pane']> = {}): RenderPropsOf['Pane'] {

@@ -48,7 +48,8 @@ Commands:
 | `/pet card` | A ~30 x 12 plain-text card with a **Copy card** button, for sharing |
 
 The pet is one pet for you, across every session and project. It shares the band with other mods:
-theirs is drawn first and the pet below it, so it never pushes their buttons out of view.
+each row whole (on Claude Code 2.1.326 and newer the engine stacks the band's rows itself; before that,
+theirs came first and the pet below it).
 
 ## Settings
 

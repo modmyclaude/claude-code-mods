@@ -5,6 +5,8 @@ One line per version. A mod reaches installed copies through `/plugin update` on
 ## 2026-11-20
 
 - wardrobe 0.2.0: wallpapers. In the desktop app on Claude Code 2.1.325 or newer, every look puts an animated scene behind the chat, Bolt in costume in the corner; `/wear wallpaper off` keeps the look and drops the scene.
+- last-look 0.1.4: on Claude Code 2.1.325 and newer, where the engine stacks the band's rows itself, the band still draws alone while a hold waits: other mods' rows are left out until you decide, as before.
+
 ## 2026-10-23
 
 - switchboard 0.2.0: out of draft and into the catalogue. Every Claude Code session on your machine in one pane, and which one needs you.

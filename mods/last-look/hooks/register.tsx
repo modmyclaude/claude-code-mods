@@ -109,6 +109,20 @@ export const register: Register = (on, options) => {
       onProceed: () => decide($, first.id, 'proceed'),
     })
   })
+
+  // Since Claude Code 2.1.325 the band is one row per plugin, stacked by the
+  // engine, so a hook can no longer hide the rows beneath it by not drawing
+  // them. While a hold waits in the band, this hook passes on last-look's row
+  // alone, and the band draws alone there too; the engine's own rows are not
+  // in the list and stay. An older engine has no such component and the hook
+  // never runs: the band hook above drew alone there already. A failure leaves
+  // every row in place, since hiding our own hold would take its Cancel away.
+  on('ui.render', { component: 'AbovePromptList' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
+    const list = await read($, holds)
+    if (!list.some(held => held.mode === 'band')) return next(e)
+    return next({ ...e, props: { ...e.props, rows: e.props.rows.filter(row => row.plugin === 'last-look') } })
+  }).catch(($, e, next) => next(e))
 }
 
 /**

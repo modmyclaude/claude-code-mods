@@ -32,7 +32,7 @@ Plain-words nudge off (/swear-jar nudge on|off).
 
 ## Use it
 
-- **The band**: one dim line above the prompt with this session's top three tics, drawn under whatever other mods draw there. Nothing is drawn while every count is zero, and nothing at all while another mod's safety hold waits for your answer.
+- **The band**: one dim line above the prompt with this session's top three tics, drawn beside whatever other mods draw there (on Claude Code 2.1.326 and newer the engine stacks the band's rows itself, its own first, so a safety hold is never covered; before that, the line stays out while a hold waits beneath). Nothing is drawn while every count is zero.
 - **`/swear-jar`** opens the scoreboard: this session, all time, the worst offender, and the last reply's hits in their sentences with the tic in bold.
 - **`/swear-jar reset`** empties this session's jar; **`/swear-jar reset all`** empties it for good.
 - **`/swear-jar nudge on`** adds one short line to the system prompt asking for plain words and no praise openers; **`nudge off`** removes it. Off by default; the switch is remembered.

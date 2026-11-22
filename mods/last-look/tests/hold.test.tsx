@@ -13,7 +13,8 @@ import type { WorldSpec } from './world'
 const SURFACES = ['terminal', 'desktop'] as const
 const PANE = 'last-look'
 const paneProps = (bodyRows = 40) => ({ title: 'Last Look', isFocused: true, bodyColumns: 72, placement: 'dock' as const, scroll: { offset: 0, bodyRows }, view: {} })
-const BAND = { hasSurvey: false, isWorking: true, maxRows: 12, bodyColumns: 64, scroll: { offset: 0, bodyRows: 11 }, view: {} }
+// `isCollapsed` is new in Claude Code 2.1.326's band props; kept in an untyped const so neither engine's types object.
+const BAND = { hasSurvey: false, isCollapsed: false, isWorking: true, maxRows: 12, bodyColumns: 64, scroll: { offset: 0, bodyRows: 11 }, view: {} }
 
 const FILES: WorldSpec = {
   files: {
