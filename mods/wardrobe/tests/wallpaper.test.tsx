@@ -16,9 +16,10 @@ import type { On } from 'claude-code'
 import { appColors } from '../hooks/app-colors'
 import { AT_REST, gpuValues } from '../hooks/live'
 import { glassFor, sceneOf } from '../hooks/scenes'
+import { lightAt } from '../hooks/sky'
 import { wornTheme } from '../hooks/tailor'
 import { themeById } from '../hooks/themes'
-import { at, ENGINE, SETTINGS, start, themeWorld, TOOL_ROW, wear, world } from './setup'
+import { at, ENGINE, NOON, SETTINGS, start, themeWorld, TOOL_ROW, wear, world } from './setup'
 
 const dracula = themeById('dracula')!
 const paper = themeById('paper')!
@@ -106,8 +107,8 @@ describe('wallpapers', () => {
     await wear($, 'dracula')
     expect(t.sets.at(-1)).toEqual({ ...paletteOf('dracula'), backdrop: { scene: 'dracula', glass: glassFor(dracula, 'heavy') } })
     expect(glassFor(dracula, 'heavy')).not.toEqual(glassFor(dracula))
-    const calm = sceneOf(dracula, { motion: 'calm' })!
-    expect(calm.source).not.toBe(sceneOf(dracula)!.source)
+    const calm = sceneOf(dracula, { motion: 'calm', light: NOON })!
+    expect(calm.source).not.toBe(sceneOf(dracula, { light: NOON })!.source)
     const ui = await mountBackdrop($, 'dracula')
     expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: calm.source, alt: calm.alt, isInteractive: true } })
     await ui.unmount()
@@ -117,7 +118,7 @@ describe('wallpapers', () => {
     expect(t.sets.at(-1)).toEqual(JSON.parse(JSON.stringify({ colors: appColors(worn).colors, overrideColorScheme: 'dark', backdrop: { scene: 'rink', glass: glassFor(worn, 'heavy') } })))
     expect((t.sets.at(-1) as { colors: unknown }).colors).not.toEqual(paletteOf('rink').colors)
     const rink = await mountBackdrop($, 'rink')
-    expect(await rink.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(worn, { motion: 'calm' })!.source } })
+    expect(await rink.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(worn, { motion: 'calm', light: NOON })!.source } })
     expect(sceneOf(worn, { motion: 'calm' })!.source).not.toBe(sceneOf(themeById('rink')!, { motion: 'calm' })!.source)
     await rink.unmount()
   })
@@ -130,7 +131,7 @@ describe('wallpapers', () => {
     await wear($, 'nord')
     const ui = await mountBackdrop($, 'nord')
     const drawn = (await ui.drawn()) as { props: { source: string } }
-    expect(drawn.props.source).toBe(sceneOf(themeById('nord')!, { motion: 'still' })!.source)
+    expect(drawn.props.source).toBe(sceneOf(themeById('nord')!, { motion: 'still', light: NOON })!.source)
     expect(drawn.props.source).not.toContain('animation')
     expect(sceneOf(themeById('nord')!)!.source).toContain('animation')
     await ui.unmount()
@@ -214,7 +215,7 @@ describe('wallpapers', () => {
     await start($)
     await wear($, 'dracula')
     const ui = await mountBackdrop($, 'dracula')
-    const scene = sceneOf(dracula)!
+    const scene = sceneOf(dracula, { light: NOON })!
     expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: scene.source, alt: scene.alt, isInteractive: true } })
     await ui.unmount()
     for (const other of [mountBackdrop($, 'nope'), mountBackdrop($, 'dracula', 'wardrobe', 'mobile')]) {
@@ -307,7 +308,7 @@ describe('wallpapers', () => {
     await start($)
     await wear($, 'christmas')
     const ui = await mountBackdrop($, 'christmas')
-    const scene = sceneOf(themeById('christmas')!)!
+    const scene = sceneOf(themeById('christmas')!, { light: NOON })!
     expect(gpuValues(AT_REST)).toEqual({ work: 0 })
     const playing = (work: number) => ({
       type: 'Shader',
@@ -337,7 +338,7 @@ describe('wallpapers', () => {
       await start($)
       await wear($, id)
       const ui = await mountBackdrop($, id)
-      const scene = sceneOf(themeById(id)!)!
+      const scene = sceneOf(themeById(id)!, { light: NOON })!
       const playing = (work: number) => ({
         type: 'Shader',
         props: { module: `hooks/gpu/${file}.ts`, values: { work } },
@@ -359,7 +360,7 @@ describe('wallpapers', () => {
     await start($)
     await wear($, 'dracula')
     const ui = await mountBackdrop($, 'dracula')
-    const scene = sceneOf(themeById('dracula')!)!
+    const scene = sceneOf(themeById('dracula')!, { light: NOON })!
     expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: scene.source, alt: scene.alt } })
     await ui.unmount()
   })
@@ -372,10 +373,135 @@ describe('wallpapers', () => {
       await start($)
       await wear($, id)
       const ui = await mountBackdrop($, id)
-      expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(themeById(id)!, { motion: 'calm' })!.source } })
+      expect(await ui.drawn()).toMatchObject({ type: 'Svg', props: { source: sceneOf(themeById(id)!, { motion: 'calm', light: NOON })!.source } })
       await ui.unmount()
     })
   }
+
+  /** The source the desktop is handed for a mounted backdrop: the picture's own, or the picture's under its shader. */
+  const sourceOf = async (ui: { drawn: () => Promise<unknown> }): Promise<string> => {
+    const drawn = (await ui.drawn()) as { type: string; props: { source?: string }; children?: { props: { source: string } }[] }
+    return drawn.type === 'Shader' ? drawn.children![0]!.props.source : drawn.props.source!
+  }
+  /** The light at a local time, by the day and night hours as installed. */
+  const lightOf = (hours: number, minutes = 0) => lightAt(hours * 60 + minutes, 7 * 60, 19 * 60)
+  const MINUTE = 60_000
+
+  test('the scene stands in the light of the hour, from the first frame: a night scene as painted by night, then dawn at its left, then lifted by day', async ($, on) => {
+    if (!engineHasTheme) return
+    const w = world(on, { now: at(3, 0), surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'dracula')
+    const ui = await mountBackdrop($, 'dracula')
+    // Dracula is painted at night: at three in the morning nothing is laid over it.
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula)!.source)
+    await w.clock.advance(225 * MINUTE) // 06:45, the heart of dawn
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula, { light: lightOf(6, 45) })!.source)
+    expect(await sourceOf(ui)).toContain('id="hour-dawn"')
+    expect(await sourceOf(ui)).toContain('id="hour-lift"')
+    await w.clock.advance(315 * MINUTE) // noon
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula, { light: lightOf(12) })!.source)
+    expect(await sourceOf(ui)).not.toContain('hour-dawn')
+    expect(await sourceOf(ui)).toContain('id="hour-lift"')
+    await ui.unmount()
+  })
+
+  test('... and on through dusk at its right to the night it was painted at; a look put on at any hour is drawn in that hour at once', async ($, on) => {
+    if (!engineHasTheme) return
+    const w = world(on, { now: at(18, 45), surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'dracula')
+    const ui = await mountBackdrop($, 'dracula')
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula, { light: lightOf(18, 45) })!.source)
+    expect(await sourceOf(ui)).toContain('id="hour-dusk"')
+    await w.clock.advance(255 * MINUTE) // 23:00
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula)!.source)
+    await ui.unmount()
+    // A day scene the same night: shaded at both sides.
+    await wear($, 'spring')
+    const spring = await mountBackdrop($, 'spring')
+    expect(await sourceOf(spring)).toBe(sceneOf(themeById('spring')!, { light: lightOf(23) })!.source)
+    expect(await sourceOf(spring)).toContain('id="hour-shade"')
+    await spring.unmount()
+  })
+
+  test('the light is written only when it moves: never through the day, once a step at dusk', async ($, on) => {
+    if (!engineHasTheme) return
+    const told: unknown[] = []
+    on('state.set', ($, e, next) => {
+      if (e.plugin === 'wardrobe' && e.key === 'sky') told.push(e.value)
+      return next(e)
+    })
+    const w = world(on, { now: at(9, 0), surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'dracula')
+    // Session start read the clock once; the look put on read it again and found the same light.
+    expect(told).toEqual([{ dark: 0, dawn: 0, dusk: 0 }])
+    await w.clock.advance(8 * 60 * MINUTE + 44 * MINUTE) // 17:44: the whole day and the first step of dusk, which is still daylight
+    expect(told).toHaveLength(1)
+    await w.clock.advance(MINUTE) // 17:45
+    expect(told).toHaveLength(2)
+    expect(told[1]).toEqual(lightOf(17, 45))
+    await w.clock.advance(14 * MINUTE) // 17:59: the same step
+    expect(told).toHaveLength(2)
+    await w.clock.advance(MINUTE) // 18:00
+    expect(told).toHaveLength(3)
+  })
+
+  test('with the clock light off every scene stands as painted at any hour, and nothing is told of the hour', { options: { ...SETTINGS, clockLight: false } }, async ($, on) => {
+    if (!engineHasTheme) return
+    const told: unknown[] = []
+    on('state.set', ($, e, next) => {
+      if (e.plugin === 'wardrobe' && e.key === 'sky') told.push(e.value)
+      return next(e)
+    })
+    const w = world(on, { now: at(6, 45), surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'dracula')
+    const ui = await mountBackdrop($, 'dracula')
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula)!.source)
+    await w.clock.advance(6 * 60 * MINUTE)
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula)!.source)
+    expect(told).toEqual([])
+    await ui.unmount()
+  })
+
+  test('dawn and dusk follow the day and night hours of the settings', { options: { ...SETTINGS, dayStarts: '05:00', nightStarts: '22:00' } }, async ($, on) => {
+    if (!engineHasTheme) return
+    const w = world(on, { now: at(4, 45), surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'dracula')
+    const ui = await mountBackdrop($, 'dracula')
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula, { light: lightAt(4 * 60 + 45, 5 * 60, 22 * 60) })!.source)
+    expect(await sourceOf(ui)).toContain('id="hour-dawn"')
+    await w.clock.advance(14 * 60 * MINUTE + 15 * MINUTE) // 19:00: night as installed, broad day here
+    expect(await sourceOf(ui)).toBe(sceneOf(dracula, { light: { dark: 0, dawn: 0, dusk: 0 } })!.source)
+    await ui.unmount()
+  })
+
+  test('the two accessibility looks keep their light whatever the hour; a scene on the GPU plays over the picture in the hour light', async ($, on) => {
+    if (!engineHasTheme) return
+    world(on, { now: at(6, 45), surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    for (const id of ['high-contrast', 'colorblind']) {
+      await wear($, id)
+      const ui = await mountBackdrop($, id)
+      expect(await sourceOf(ui), id).toBe(sceneOf(themeById(id)!)!.source)
+      await ui.unmount()
+    }
+    await wear($, 'christmas')
+    const ui = await mountBackdrop($, 'christmas')
+    expect(await ui.drawn()).toMatchObject({ type: 'Shader', props: { module: 'hooks/gpu/snow.ts', values: { work: 0 } } })
+    expect(await sourceOf(ui)).toBe(sceneOf(themeById('christmas')!, { light: lightOf(6, 45) })!.source)
+    expect(await sourceOf(ui)).toContain('id="hour-dawn"')
+    await ui.unmount()
+  })
 
   test('a theme nothing answers never costs the look, on any engine', async ($, on) => {
     world(on) // no theme world: on an older engine there is no noun, on a newer one nothing beneath answers it

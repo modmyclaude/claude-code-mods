@@ -59,6 +59,13 @@ export type WardrobeLive = {
   isWorking: boolean
 }
 
+/** The light of the hour a scene stands in: how dark it is (0 by day, 1 at night), and how much of dawn's and of dusk's glow shows (0 to 1). */
+export type WardrobeSky = {
+  dark: number
+  dawn: number
+  dusk: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     wardrobe: {
@@ -70,6 +77,8 @@ declare module 'claude-code' {
       backdrop: WardrobeBackdrop
       gallery: WardrobeGallery
       live: WardrobeLive
+      /** The light of the hour, as the clock last gave it; null before the first reading and with the clock light off. */
+      sky: WardrobeSky | null
     }
   }
 }

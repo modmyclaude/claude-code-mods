@@ -6,6 +6,7 @@
 
 import type { ThemeBackdropGlass } from 'claude-code'
 
+import type { WardrobeSky } from '../types'
 import { dressedPixels } from './costume'
 import type { Glass, Motion } from './look'
 import { BOLT_HERE, group, rect, svg, withDetail } from './scene-kit'
@@ -15,6 +16,7 @@ import { LOOK_SCENES } from './scenes-looks'
 import { SEASON_SCENES } from './scenes-seasons'
 import { SPORT_SCENES } from './scenes-sport'
 import { TECH_SCENES } from './scenes-tech'
+import { washOf } from './sky'
 import { lookKey } from './tailor'
 import type { Theme } from './themes'
 
@@ -32,6 +34,8 @@ export function hasScene(theme: Pick<Theme, 'id'>): boolean {
 }
 
 const drawn = new Map<string, { source: string; alt: string }>()
+/** The one scene kept for each look and motion in the hour's light: the light moves on, and a light gone by is never asked for again. */
+const lit = new Map<string, { wash: string; scene: { source: string; alt: string } }>()
 
 /** Declarations with the motion taken out: what places a thing stays, what moves it goes. */
 const atRest = (css: string): string[] => css.split(';').filter(rule => rule !== '' && !rule.startsWith('animation'))
@@ -120,15 +124,28 @@ export function boltInScene(theme: Theme, at: { x: number; y: number } = BOLT_AT
  * look with no scene. A thumbnail is the same picture with fewer small things
  * in it and nothing moving, for the gallery. `motion` is the person's setting:
  * `calm` keeps half of what drifts and moves everything at half the speed,
- * `still` is the whole picture at rest, as reduced motion shows it.
+ * `still` is the whole picture at rest, as reduced motion shows it. `light` is
+ * the light of the hour (sky.ts), laid over the finished picture; a thumbnail
+ * never takes it, and neither does a look the clock leaves alone.
  */
-export function sceneOf(theme: Theme, options: { thumb?: boolean; motion?: Motion } = {}): { source: string; alt: string } | undefined {
+export function sceneOf(theme: Theme, options: { thumb?: boolean; motion?: Motion; light?: WardrobeSky | null } = {}): { source: string; alt: string } | undefined {
   const make = SCENES[theme.id]
   if (make === undefined) return undefined
   const thumb = options.thumb === true
   const motion = options.motion ?? 'full'
   // A scene is the same every time, and the desktop asks for it on every redraw: drawn once, kept.
   const key = `${lookKey(theme)} ${thumb ? 'thumb' : motion}`
+  const wash = thumb || options.light === undefined || options.light === null ? '' : washOf(theme, options.light)
+  if (wash !== '') {
+    const held = lit.get(key)
+    if (held !== undefined && held.wash === wash) return held.scene
+    const plain = sceneOf(theme, { motion })
+    if (plain === undefined) return undefined
+    // The wash goes last in the document, over the vignette and Bolt: the hour's light falls on everything.
+    const scene = { source: `${plain.source.slice(0, -'</svg>'.length)}${wash}</svg>`, alt: plain.alt }
+    lit.set(key, { wash, scene })
+    return scene
+  }
   const kept = drawn.get(key)
   if (kept !== undefined) return kept
   const scene = thumb ? withDetail(THUMB_DETAIL, () => make(theme)) : motion === 'calm' ? withDetail(CALM_DETAIL, () => make(theme), 1) : make(theme)

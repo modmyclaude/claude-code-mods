@@ -18,8 +18,9 @@ import { appColors } from './app-colors'
 import { clean, diffCard, shellCard } from './content'
 import { describeLook, diffTree, dressedBolt, groupRow, listText, listTree, messageRow, shellTree, spinnerRow, switchBand, toolRow, turnRow, wearingLabel } from './draw'
 import { AT_REST, gpuValues } from './live'
-import { AUTO, CHOICES, DEFAULT, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
+import { AUTO, CHOICES, DEFAULT, minuteOfDay, parseWear, pinsOf, resolveLook, sameLook, type Settings, settingsFrom } from './look'
 import { glassFor, hasScene, sceneOf } from './scenes'
+import { lightAt, sameLight } from './sky'
 import { teamNote, wornTheme } from './tailor'
 import { pickVerb, themeById, THEMES, type Theme } from './themes'
 
@@ -31,6 +32,7 @@ const APP = { plugin: 'wardrobe', key: 'app' } as const
 const BACKDROP = { plugin: 'wardrobe', key: 'backdrop' } as const
 const GALLERY = { plugin: 'wardrobe', key: 'gallery' } as const
 const LIVE = { plugin: 'wardrobe', key: 'live' } as const
+const SKY = { plugin: 'wardrobe', key: 'sky' } as const
 /** The store key that turns the wallpapers off (`off`); absent or anything else, they are on. */
 const WALLPAPER = 'wallpaper'
 
@@ -47,6 +49,8 @@ const backdrop = atom(BACKDROP, { look: null, scene: null, isDrawn: false })
 const gallery = atom(GALLERY, { family: null })
 /** What a scene on the GPU is told of the session: whether Claude works. */
 const live = atom(LIVE, AT_REST)
+/** The light of the local hour, which a scene stands in; null until the clock is first read, and with the clock light off. */
+const sky = atom(SKY, null)
 
 /** How often the worn theme is re-resolved: auto mode's switch, the season's, a choice made in another session. */
 const TICK_MS = 60_000
@@ -89,12 +93,26 @@ let holder: string | null = null
  */
 type Dress = 'start' | 'follow' | 'force'
 
+/**
+ * Publishes the light of the hour, for the scene behind the chat. It moves in
+ * steps and stands still all day and all night, and only a light that moved is
+ * written: the scene is drawn again a few times an hour at dawn and dusk, and
+ * never between.
+ */
+async function tellHour($: Pick<EngineInterface, 'state'>, now: number, settings: Settings): Promise<void> {
+  const light = settings.clockLight ? lightAt(minuteOfDay(now), settings.dayStarts, settings.nightStarts) : null
+  const current = await $.state.get(SKY)
+  if (!sameLight(current.value, light)) await $.state.set(SKY, light)
+}
+
 /** Works out what to wear now and publishes it; every drawing that reads it redraws. */
 async function refresh($: Dollar, settings: Settings, how?: Dress): Promise<WardrobeLook> {
   const root = await $.session.root()
   const global = await $.store.get('global')
   const pins = await $.store.get('pins')
   const now = await $.clock.now()
+  // The hour's light first, so a scene set below is drawn in it from its first frame; a failure here never costs the look.
+  await tellHour($, now, settings).catch(() => undefined)
   const fresh = resolveLook({ root, global, pins, now, settings })
   // Compared field by field (state crosses as JSON, so identity never matches):
   // an unchanged look writes nothing and redraws nothing.
@@ -711,7 +729,8 @@ export const register: Register = (on, options) => {
       return next(e)
     }
     const theme = wornTheme(e.props.scene, settings)
-    const scene = theme === undefined ? undefined : sceneOf(theme, { motion: settings.motion })
+    // The scene stands in the light of the local hour, where the clock light is on and the look takes it.
+    const scene = theme === undefined ? undefined : sceneOf(theme, { motion: settings.motion, light: await read($, sky) })
     if (scene === undefined) return next(e)
     const { Shader, Svg } = $.ui.resolve(e)
     // A flagship scene also plays on the GPU, over the same picture: the app shows the picture alone under Reduce Motion,

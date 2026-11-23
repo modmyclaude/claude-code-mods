@@ -275,12 +275,14 @@ export type Settings = {
   seasonEaster: boolean
   /** Whether `season` wears the Eid look on Eid al-Fitr and the two days after. */
   seasonEid: boolean
+  /** Whether a scene takes the light of the local hour: dawn, day, dusk and night. */
+  clockLight: boolean
 }
 
 const FALLBACK = { dayTheme: 'paper', nightTheme: 'tokyo-night', dayStarts: '07:00', nightStarts: '19:00' }
 
-/** What a setting this version added is when nothing is stored for it: an older install keeps drawing as it did. */
-export const ADDED = { teamPrimary: '', teamSecondary: '', gameDays: [], gameLook: 'hardwood', motion: 'full', glass: 'default', seasonEaster: false, seasonEid: false } as const satisfies Partial<Settings>
+/** What a setting this version added is when nothing is stored for it: an older install keeps drawing as it did, but for the clock light, which comes on with the version that brought it. */
+export const ADDED = { teamPrimary: '', teamSecondary: '', gameDays: [], gameLook: 'hardwood', motion: 'full', glass: 'default', seasonEaster: false, seasonEid: false, clockLight: true } as const satisfies Partial<Settings>
 
 /** A colour as `#rrggbb`, from `#rgb`, `rrggbb` or `#RRGGBB`; undefined for anything else. */
 export function hexOf(text: string): string | undefined {
@@ -307,8 +309,8 @@ export function settingsFrom(options: Readonly<Record<string, unknown>>): { sett
     return parseClock(FALLBACK[key]) ?? 0
   }
   // A switch is what it was installed as until the setting says otherwise: matching on (an older install, with no
-  // such setting stored, matches too), the holiday looks off.
-  const flag = (key: 'matchTheme' | 'seasonEaster' | 'seasonEid', installed: boolean): boolean => {
+  // such setting stored, matches too), the holiday looks off, the clock light on.
+  const flag = (key: 'matchTheme' | 'seasonEaster' | 'seasonEid' | 'clockLight', installed: boolean): boolean => {
     const value = options[key]
     if (value === undefined) return installed
     if (typeof value === 'boolean') return value
@@ -352,6 +354,7 @@ export function settingsFrom(options: Readonly<Record<string, unknown>>): { sett
       glass: oneOf<Glass>('glass', ['light', 'default', 'heavy'], ADDED.glass),
       seasonEaster: flag('seasonEaster', false),
       seasonEid: flag('seasonEid', false),
+      clockLight: flag('clockLight', ADDED.clockLight),
     },
     problems,
   }

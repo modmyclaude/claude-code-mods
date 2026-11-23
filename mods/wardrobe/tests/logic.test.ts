@@ -418,7 +418,7 @@ describe('the new looks by name', () => {
 describe('settingsFrom()', () => {
   test('good values are used as given', () => {
     const { settings, problems } = settingsFrom({ dayTheme: 'noir', nightTheme: 'dracula', dayStarts: '06:30', nightStarts: '21:15' })
-    // What this version added is as an older install left it: no team, no game day, full motion, no holiday in season mode.
+    // What this version added is as an older install left it: no team, no game day, full motion, no holiday in season mode; the clock light alone comes on.
     expect(settings).toEqual({
       dayTheme: 'noir',
       nightTheme: 'dracula',
@@ -433,6 +433,7 @@ describe('settingsFrom()', () => {
       glass: 'default',
       seasonEaster: false,
       seasonEid: false,
+      clockLight: true,
     })
     expect(settings).toMatchObject(ADDED)
     expect(problems).toEqual([])
@@ -465,13 +466,15 @@ describe('settingsFrom()', () => {
 
   test('motion, glass and the two holiday switches: what is asked, or as installed with the odd value named', () => {
     expect(settingsFrom({ ...good, motion: 'calm', glass: 'heavy', seasonEaster: true, seasonEid: true }).settings).toMatchObject({ motion: 'calm', glass: 'heavy', seasonEaster: true, seasonEid: true })
-    const odd = settingsFrom({ ...good, motion: 'fast', glass: 'none', seasonEaster: 'yes', seasonEid: 1 })
-    expect(odd.settings).toMatchObject({ motion: 'full', glass: 'default', seasonEaster: false, seasonEid: false })
+    const odd = settingsFrom({ ...good, motion: 'fast', glass: 'none', seasonEaster: 'yes', seasonEid: 1, clockLight: 'no' })
+    expect(odd.settings).toMatchObject({ motion: 'full', glass: 'default', seasonEaster: false, seasonEid: false, clockLight: true })
+    expect(settingsFrom({ ...good, clockLight: false }).settings.clockLight).toBe(false)
     expect(odd.problems).toEqual([
       'motion "fast" is not one of full, calm, still; using full',
       'glass "none" is not one of light, default, heavy; using default',
       'seasonEaster "yes" is not on or off; using off',
       'seasonEid "1" is not on or off; using off',
+      'clockLight "no" is not on or off; using on',
     ])
   })
 

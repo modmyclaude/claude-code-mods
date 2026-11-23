@@ -4,6 +4,7 @@ import { expect, mock } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { On, RenderPropsOf, RenderSurface } from 'claude-code'
 
+import { lightAt } from '../hooks/sky'
 import { THEMES } from '../hooks/themes'
 
 export const SURFACES = ['terminal', 'desktop'] as const
@@ -26,6 +27,9 @@ const DRAWN_BY_ENGINE = { type: 'engine', ref: 0 } as const
 export function at(hours: number, minutes: number, seconds = 0): number {
   return new Date(2026, 9, 8, hours, minutes, seconds).getTime()
 }
+
+/** The light of the hour the world starts in (noon, unless a test says), by the day and night hours as installed: what a scene is drawn in. */
+export const NOON = lightAt(12 * 60, 7 * 60, 19 * 60)
 
 /** What /wear showed the person: a toast, or a log line where nothing draws toasts. */
 export type Heard = { via: 'toast' | 'log'; text: string; timeoutMs?: number }

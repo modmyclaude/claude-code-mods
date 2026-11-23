@@ -1,6 +1,6 @@
 {
   "name": "wardrobe",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
   "homepage": "https://modmyclaude.com/mods/wardrobe",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
@@ -171,6 +171,12 @@
       "title": "Eid al-Fitr in season mode",
       "description": "/wear season wears the eid look on Eid al-Fitr and the two days after. The day follows the Umm al-Qura calendar; where you live it may fall a day either side.",
       "default": false
+    },
+    "clockLight": {
+      "type": "boolean",
+      "title": "Light by your clock",
+      "description": "The scene behind the chat takes the light of your local hour: a glow at dawn and dusk, dark at night. Dawn and dusk follow the day and night hours above. Off keeps every scene as painted.",
+      "default": true
     }
   }
 }
