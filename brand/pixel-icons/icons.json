@@ -637,6 +637,29 @@
       ]
     },
     {
+      "name": "scorebug",
+      "kind": "mod",
+      "meaning": "A broadcast score box over a strip of team names: live scores beside the chat.",
+      "rows": [
+        "................",
+        "................",
+        ".PLLLLLLLLLLLLS.",
+        ".LKKKLLLLLLKLLS.",
+        ".LLLKLLKLLKKLLS.",
+        ".LKKKLLLLLLKLLS.",
+        ".LKLLLLKLLLKLLS.",
+        ".LKKKLLLLLKKKLS.",
+        ".SSSSSSSSSSSSSS.",
+        "................",
+        ".PPPPPPPPPPPPPP.",
+        ".PDDDPPPPPPDDDP.",
+        ".PPPPPPPPPPPPPP.",
+        "................",
+        "................",
+        "................"
+      ]
+    },
+    {
       "name": "cat-safety",
       "kind": "category",
       "meaning": "A shield.",

@@ -530,6 +530,25 @@ icon("tape", "Price candles over a ticker strip: live market prices on a band ab
     "................",
 ])
 
+icon("scorebug", "A broadcast score box over a strip of team names: live scores beside the chat.", [
+    "................",
+    "................",
+    ".PLLLLLLLLLLLLS.",
+    ".LKKKLLLLLLKLLS.",
+    ".LLLKLLKLLKKLLS.",
+    ".LKKKLLLLLLKLLS.",
+    ".LKLLLLKLLLKLLS.",
+    ".LKKKLLLLLKKKLS.",
+    ".SSSSSSSSSSSSSS.",
+    "................",
+    ".PPPPPPPPPPPPPP.",
+    ".PDDDPPPPPPDDDP.",
+    ".PPPPPPPPPPPPPP.",
+    "................",
+    "................",
+    "................",
+])
+
 # ---------------------------------------------------------------- categories (simpler)
 
 icon("cat-safety", "A shield.", [
