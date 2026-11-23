@@ -1,0 +1,22 @@
+{
+  "name": "Synthwave (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ff5fd2",
+    "claudeShimmer": "#b893ff",
+    "text": "#f4e9ff",
+    "subtle": "#b9a8d9",
+    "inactive": "#b9a8d9",
+    "suggestion": "#5ce1ff",
+    "success": "#72f1b8",
+    "error": "#ff6b8b",
+    "warning": "#ffd166",
+    "permission": "#b893ff",
+    "promptBorder": "#ff5fd2",
+    "bashBorder": "#ff5fd2",
+    "userMessageBackground": "#1a1033",
+    "userMessageBackgroundHover": "#1a1033",
+    "diffAdded": "#143a33",
+    "diffRemoved": "#4a1a33"
+  }
+}

@@ -54,6 +54,8 @@ export type Theme = {
   mark: string
   /** Drawn after the spinner's word (the engine's own is one ellipsis). */
   spinnerSuffix: string
+  /** A sports look in a team's colours (tailor.ts): the two colours as given, for the scene's paint, where no word is drawn. */
+  team?: { primary: string; secondary: string }
 }
 
 /** Which palette colour each tool kind's icon takes. */
@@ -129,7 +131,13 @@ const NIGHT: Record<Kind, string> = { ...GEO, search: '◉', web: '☾' } // fis
 const FROST: Record<Kind, string> = { ...OUTLINE, search: '❅', web: '❄' } // tight trifoliate snowflake, snowflake
 const BLOOM: Record<Kind, string> = { ...OUTLINE, search: '✿', web: '❀' } // black florette, white florette
 const SHORE: Record<Kind, string> = { ...GEO, search: '≈', web: '☼' } // waves (almost equal to), white sun
-const LEAF: Record<Kind, string> = { ...OUTLINE, search: '✤', web: '❧' } // heavy four-balloon asterisk, rotated floral heart
+const LEAF: Record<Kind, string> = { ...OUTLINE, search: '❦', web: '❧' } // floral heart, rotated floral heart
+
+// The tech, sports and holiday looks' sets, on the same rule: a solid or an
+// outline set with the look's own glyph for search and the web.
+const PULSE: Record<Kind, string> = { ...GEO, search: '∿', web: '◉' } // sine wave (a trace), fisheye (a status light)
+const DAWN: Record<Kind, string> = { ...OUTLINE, search: '⚘', web: '☼' } // flower (a lily), white sun
+const CRESCENT: Record<Kind, string> = { ...GEO, search: '◈', web: '☽' } // diamond in a diamond (a lantern), first-quarter moon
 
 const MARKS: Record<Status, string> = {
   running: '…', // ellipsis
@@ -328,6 +336,176 @@ export const THEMES: readonly Theme[] = [
     mark: '▲',
     spinnerSuffix: '…',
   },
+  // The tech looks: the rooms and screens of people who build software.
+  {
+    id: 'phosphor',
+    tone: 'dark',
+    blurb: 'Green and amber phosphor on near-black, the old terminal',
+    palette: {
+      bg: '#0a0f0a',
+      text: '#b7f5c4',
+      muted: '#7fb58c',
+      accent: '#4dff7c',
+      info: '#7de8c5',
+      ok: '#9dff6a',
+      warn: '#ffc24d',
+      error: '#ff7a66',
+      special: '#ffd98a',
+    },
+    diff: { addFg: '#aaffbe', addBg: '#0f3a1c', removeFg: '#ffb199', removeBg: '#3d1a12' },
+    icons: ASCII,
+    status: MARKS,
+    mark: '▮',
+    spinnerSuffix: ' _',
+  },
+  {
+    id: 'graphite',
+    tone: 'dark',
+    blurb: 'Dimmed greys and one calm blue, for long days of reading code',
+    palette: {
+      bg: '#1c1e21',
+      text: '#d7dae0',
+      muted: '#9aa0aa',
+      accent: '#6cb6ff',
+      info: '#7fd1e0',
+      ok: '#8fcf9a',
+      warn: '#d9b56c',
+      error: '#f08f8f',
+      special: '#b8a9e6',
+    },
+    diff: { addFg: '#b4e3bd', addBg: '#22382a', removeFg: '#f2b3b3', removeBg: '#3f2527' },
+    icons: OUTLINE,
+    status: MARKS,
+    mark: '◦',
+    spinnerSuffix: '…',
+  },
+  {
+    id: 'clay',
+    tone: 'dark',
+    blurb: 'Terracotta, sand and sage on warm charcoal',
+    palette: {
+      bg: '#262321',
+      text: '#f0e9df',
+      muted: '#b8ad9f',
+      accent: '#e0825f',
+      info: '#8fb8c9',
+      ok: '#a3bf8a',
+      warn: '#e3b56b',
+      error: '#f08a80',
+      special: '#d7a6b8',
+    },
+    diff: { addFg: '#c5dba9', addBg: '#2f3a24', removeFg: '#f5b3a8', removeBg: '#472620' },
+    icons: GEO,
+    status: MARKS,
+    mark: '◒',
+    spinnerSuffix: '…',
+  },
+  {
+    id: 'synthwave',
+    tone: 'dark',
+    blurb: 'Magenta and cyan on indigo, a sunset over the grid',
+    palette: {
+      bg: '#1a1033',
+      text: '#f4e9ff',
+      muted: '#b9a8d9',
+      accent: '#ff5fd2',
+      info: '#5ce1ff',
+      ok: '#72f1b8',
+      warn: '#ffd166',
+      error: '#ff6b8b',
+      special: '#b893ff',
+    },
+    diff: { addFg: '#9af7cf', addBg: '#143a33', removeFg: '#ffa3b8', removeBg: '#4a1a33' },
+    icons: GEO,
+    status: MARKS,
+    mark: '◢',
+    spinnerSuffix: ' ~',
+  },
+  {
+    id: 'on-call',
+    tone: 'dark',
+    blurb: 'Pager amber and red on graphite, for the night shift',
+    palette: {
+      bg: '#17191d',
+      text: '#e6e8ec',
+      muted: '#a3a9b4',
+      accent: '#ffb347',
+      info: '#7cc4ff',
+      ok: '#5fe08a',
+      warn: '#ffd75f',
+      error: '#ff7a70',
+      special: '#ff9f6b',
+    },
+    diff: { addFg: '#a8f0bf', addBg: '#143524', removeFg: '#ffb0a8', removeBg: '#451c1c' },
+    icons: PULSE,
+    status: MARKS,
+    mark: '◉',
+    spinnerSuffix: '...',
+  },
+  // The sports looks: a sport each, never a league or a team. A team's two colours come from the settings (tailor.ts).
+  {
+    id: 'hardwood',
+    tone: 'dark',
+    blurb: 'Basketball: maple, orange and arena lights',
+    palette: {
+      bg: '#1f150d',
+      text: '#f6ead8',
+      muted: '#c4b199',
+      accent: '#ff8c3a',
+      info: '#8fc2e8',
+      ok: '#9ed67a',
+      warn: '#ffc857',
+      error: '#ff7b6b',
+      special: '#f2d2a0',
+    },
+    diff: { addFg: '#c3e6a0', addBg: '#2c3a1a', removeFg: '#ffb3a3', removeBg: '#4a2018' },
+    icons: GEO,
+    status: MARKS,
+    mark: '◐',
+    spinnerSuffix: '…',
+  },
+  {
+    id: 'gridiron',
+    tone: 'dark',
+    blurb: 'Football: night turf, chalk lines and goalpost yellow',
+    palette: {
+      bg: '#0f2318',
+      text: '#f2f7ee',
+      muted: '#b3c7b3',
+      accent: '#f5d547',
+      info: '#9fd3ff',
+      ok: '#8fe08a',
+      warn: '#ffb84d',
+      error: '#ff8a7a',
+      special: '#e8c9a0',
+    },
+    diff: { addFg: '#b4f0b4', addBg: '#17472a', removeFg: '#ffb5a8', removeBg: '#4a2120' },
+    icons: OUTLINE,
+    status: MARKS,
+    mark: '◊',
+    spinnerSuffix: '…',
+  },
+  {
+    id: 'rink',
+    tone: 'dark',
+    blurb: 'Hockey: ice blue and the red line under arena lights',
+    palette: {
+      bg: '#0e1b2c',
+      text: '#eaf4ff',
+      muted: '#a9bdd4',
+      accent: '#7cc7ff',
+      info: '#a5e8f0',
+      ok: '#7fe0b0',
+      warn: '#ffd166',
+      error: '#ff9d6b',
+      special: '#ff8585',
+    },
+    diff: { addFg: '#aef0cf', addBg: '#113a30', removeFg: '#ffb3b3', removeBg: '#481f29' },
+    icons: OUTLINE,
+    status: MARKS,
+    mark: '⊙',
+    spinnerSuffix: '…',
+  },
   // The seasonal packs. `/wear season` picks one by the date (look.ts SEASONS).
   {
     id: 'halloween',
@@ -434,7 +612,70 @@ export const THEMES: readonly Theme[] = [
     mark: '❧',
     spinnerSuffix: '…',
   },
+  // The two holiday looks, worn by name; `/wear season` wears one only where its setting asks (look.ts).
+  {
+    id: 'easter',
+    tone: 'dark',
+    blurb: 'Easter: dawn gold, lily white and blossom on a violet morning',
+    palette: {
+      bg: '#1d1530',
+      text: '#fbf3e4',
+      muted: '#c3b6cf',
+      accent: '#ffd27a',
+      info: '#a9c9ff',
+      ok: '#a8dba0',
+      warn: '#ffb37a',
+      error: '#ff8f9c',
+      special: '#f2b6d8',
+    },
+    diff: { addFg: '#bfe8b8', addBg: '#213a26', removeFg: '#ffb3bd', removeBg: '#4a1f33' },
+    icons: DAWN,
+    status: MARKS,
+    mark: '⚘',
+    spinnerSuffix: '…',
+  },
+  {
+    id: 'eid',
+    tone: 'dark',
+    blurb: 'Eid al-Fitr: lantern gold and a crescent over a teal night',
+    palette: {
+      bg: '#0c2a2a',
+      text: '#f7f1df',
+      muted: '#b5c9c0',
+      accent: '#f2c96b',
+      info: '#8fd9d1',
+      ok: '#8ee0a0',
+      warn: '#ffb866',
+      error: '#ff8f85',
+      special: '#f0a8c0',
+    },
+    diff: { addFg: '#b4f0c2', addBg: '#12402e', removeFg: '#ffb5ad', removeBg: '#4a2424' },
+    icons: CRESCENT,
+    status: MARKS,
+    mark: '☽',
+    spinnerSuffix: '…',
+  },
 ]
+
+/** The sports looks: the ones a team's two colours recolour, and the ones a game day may wear. */
+export const SPORTS: readonly string[] = ['hardwood', 'gridiron', 'rink']
+
+/**
+ * The looks in families, as the gallery shows them: one family at a time, so a
+ * gallery of many looks stays a short page. Every look is in exactly one.
+ */
+export const FAMILIES: readonly { name: string; what: string; ids: readonly string[] }[] = [
+  { name: 'everyday', what: 'the classics', ids: ['noir', 'paper', 'tokyo-night', 'dracula', 'catppuccin', 'solarized', 'nord'] },
+  { name: 'tech', what: 'rooms and screens', ids: ['phosphor', 'graphite', 'clay', 'synthwave', 'on-call'] },
+  { name: 'sports', what: 'a sport each, in your team colours', ids: SPORTS },
+  { name: 'seasons', what: 'the calendar and two holidays', ids: ['halloween', 'christmas', 'spring', 'summer', 'autumn', 'easter', 'eid'] },
+  { name: 'accessible', what: 'contrast and shape first', ids: ['high-contrast', 'colorblind'] },
+]
+
+/** The family a look is in; the first for a name that is no look (Claude Code's own drawing). */
+export function familyOf(id: string): string {
+  return (FAMILIES.find(family => family.ids.includes(id)) ?? FAMILIES[0]!).name
+}
 
 /** The theme with this id, or undefined (for `default`, too: no restyle). */
 export function themeById(id: string): Theme | undefined {
@@ -494,6 +735,16 @@ export const VERBS: Readonly<Record<string, readonly (readonly [string, string])
   spring: [['Blooming', 'Bloomed'], ['Sprouting', 'Sprouted'], ['Planting', 'Planted']],
   summer: [['Surfing', 'Surfed'], ['Sailing', 'Sailed'], ['Paddling', 'Paddled']],
   autumn: [['Raking', 'Raked'], ['Harvesting', 'Harvested'], ['Simmering', 'Simmered']],
+  phosphor: [['Booting', 'Booted'], ['Dialing', 'Dialed'], ['Scanning', 'Scanned']],
+  graphite: [['Parsing', 'Parsed'], ['Tracing', 'Traced'], ['Reviewing', 'Reviewed']],
+  clay: [['Shaping', 'Shaped'], ['Kneading', 'Kneaded'], ['Firing', 'Fired']],
+  synthwave: [['Cruising', 'Cruised'], ['Glowing', 'Glowed'], ['Looping', 'Looped']],
+  'on-call': [['Paging', 'Paged'], ['Triaging', 'Triaged'], ['Patching', 'Patched']],
+  hardwood: [['Dribbling', 'Dribbled'], ['Dunking', 'Dunked'], ['Rebounding', 'Rebounded']],
+  gridiron: [['Huddling', 'Huddled'], ['Rushing', 'Rushed'], ['Punting', 'Punted']],
+  rink: [['Skating', 'Skated'], ['Passing', 'Passed'], ['Forechecking', 'Forechecked']],
+  easter: [['Dawning', 'Dawned'], ['Gathering', 'Gathered'], ['Rejoicing', 'Rejoiced']],
+  eid: [['Gathering', 'Gathered'], ['Sharing', 'Shared'], ['Celebrating', 'Celebrated']],
 }
 
 /** The verb a theme lends a turn: the same answer for the same turn id, null for a theme with none. */

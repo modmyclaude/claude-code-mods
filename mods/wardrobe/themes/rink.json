@@ -1,0 +1,22 @@
+{
+  "name": "Rink (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#7cc7ff",
+    "claudeShimmer": "#ff8585",
+    "text": "#eaf4ff",
+    "subtle": "#a9bdd4",
+    "inactive": "#a9bdd4",
+    "suggestion": "#a5e8f0",
+    "success": "#7fe0b0",
+    "error": "#ff9d6b",
+    "warning": "#ffd166",
+    "permission": "#ff8585",
+    "promptBorder": "#7cc7ff",
+    "bashBorder": "#7cc7ff",
+    "userMessageBackground": "#0e1b2c",
+    "userMessageBackgroundHover": "#0e1b2c",
+    "diffAdded": "#113a30",
+    "diffRemoved": "#481f29"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "wardrobe",
-  "version": "0.1.1",
+  "version": "0.8.0",
   "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
   "homepage": "https://modmyclaude.com/mods/wardrobe",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
@@ -8,9 +8,21 @@
   "supportUrl": "https://github.com/modmyclaude/claude-code-mods/issues",
   "privacyPolicyUrl": "https://modmyclaude.com/privacy",
   "termsOfServiceUrl": "https://modmyclaude.com/terms",
-  "author": { "name": "modmyclaude" },
+  "author": {
+    "name": "modmyclaude"
+  },
   "license": "MIT",
-  "keywords": ["theme", "looks", "accessibility", "colorblind", "high-contrast", "diff", "display"],
+  "keywords": [
+    "theme",
+    "looks",
+    "accessibility",
+    "colorblind",
+    "high-contrast",
+    "diff",
+    "display",
+    "sports",
+    "wallpaper"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "dayTheme": {
@@ -18,14 +30,66 @@
       "title": "Day theme (auto mode)",
       "description": "The theme /wear auto wears by day.",
       "default": "paper",
-      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind", "halloween", "christmas", "spring", "summer", "autumn"]
+      "options": [
+        "default",
+        "noir",
+        "paper",
+        "tokyo-night",
+        "dracula",
+        "catppuccin",
+        "solarized",
+        "nord",
+        "high-contrast",
+        "colorblind",
+        "phosphor",
+        "graphite",
+        "clay",
+        "synthwave",
+        "on-call",
+        "hardwood",
+        "gridiron",
+        "rink",
+        "halloween",
+        "christmas",
+        "spring",
+        "summer",
+        "autumn",
+        "easter",
+        "eid"
+      ]
     },
     "nightTheme": {
       "type": "string",
       "title": "Night theme (auto mode)",
       "description": "The theme /wear auto wears by night.",
       "default": "tokyo-night",
-      "options": ["default", "noir", "paper", "tokyo-night", "dracula", "catppuccin", "solarized", "nord", "high-contrast", "colorblind", "halloween", "christmas", "spring", "summer", "autumn"]
+      "options": [
+        "default",
+        "noir",
+        "paper",
+        "tokyo-night",
+        "dracula",
+        "catppuccin",
+        "solarized",
+        "nord",
+        "high-contrast",
+        "colorblind",
+        "phosphor",
+        "graphite",
+        "clay",
+        "synthwave",
+        "on-call",
+        "hardwood",
+        "gridiron",
+        "rink",
+        "halloween",
+        "christmas",
+        "spring",
+        "summer",
+        "autumn",
+        "easter",
+        "eid"
+      ]
     },
     "dayStarts": {
       "type": "string",
@@ -38,6 +102,81 @@
       "title": "Night starts at",
       "description": "When auto mode switches to the night theme, 24-hour HH:MM local time.",
       "default": "19:00"
+    },
+    "matchTheme": {
+      "type": "boolean",
+      "title": "Match Claude Code's theme",
+      "description": "Wearing a look also sets Claude Code's own theme to match it; /wear default puts yours back. Off, only /wear <theme> --match does.",
+      "default": true
+    },
+    "teamPrimary": {
+      "type": "string",
+      "title": "Team colour, first",
+      "description": "Your team's main colour as a hex code like #1f4e9c. The sports looks (hardwood, gridiron, rink) wear it. Empty keeps each look's own.",
+      "default": ""
+    },
+    "teamSecondary": {
+      "type": "string",
+      "title": "Team colour, second",
+      "description": "Your team's second colour as a hex code like #f2b824. Empty keeps each look's own.",
+      "default": ""
+    },
+    "gameDay": {
+      "type": "string",
+      "title": "Game day",
+      "description": "The weekdays your team plays, like sunday or sat sun. On those days /wear auto and /wear season wear the game look. Empty for none.",
+      "default": ""
+    },
+    "gameLook": {
+      "type": "string",
+      "title": "Game look",
+      "description": "The sports look a game day wears.",
+      "default": "hardwood",
+      "options": [
+        "hardwood",
+        "gridiron",
+        "rink"
+      ]
+    },
+    "motion": {
+      "type": "string",
+      "title": "Scene motion",
+      "description": "How much the scene behind the chat moves: full, calm (half as much, half as fast) or still.",
+      "default": "full",
+      "options": [
+        "full",
+        "calm",
+        "still"
+      ]
+    },
+    "glass": {
+      "type": "string",
+      "title": "Glass over the scene",
+      "description": "How heavily the desktop app frosts its panels over the scene: light shows more of it, heavy less.",
+      "default": "default",
+      "options": [
+        "light",
+        "default",
+        "heavy"
+      ]
+    },
+    "seasonEaster": {
+      "type": "boolean",
+      "title": "Easter in season mode",
+      "description": "/wear season wears the easter look from Good Friday to Easter Monday (the Western date).",
+      "default": false
+    },
+    "seasonEid": {
+      "type": "boolean",
+      "title": "Eid al-Fitr in season mode",
+      "description": "/wear season wears the eid look on Eid al-Fitr and the two days after. The day follows the Umm al-Qura calendar; where you live it may fall a day either side.",
+      "default": false
+    },
+    "clockLight": {
+      "type": "boolean",
+      "title": "Light by your clock",
+      "description": "The scene behind the chat takes the light of your local hour: a glow at dawn and dusk, dark at night. Dawn and dusk follow the day and night hours above. Off keeps every scene as painted.",
+      "default": true
     }
   }
 }

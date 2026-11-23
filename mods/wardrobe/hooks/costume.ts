@@ -150,6 +150,68 @@ export const COSTUMES: Record<string, Costume> = {
     small: [...at('A', [0, 2], [0, 3], [0, 6], [0, 7]), ...at('A', [1, 1], [1, 2], [1, 3], [1, 6], [1, 7], [1, 8]), ...run('R', 2, 1, 8)],
     tiny: at('A', [0, 0], [0, 2]),
   },
+  // Bolt is green, so the terminal's visor is its amber.
+  phosphor: {
+    name: 'terminal visor',
+    paint: { V: 'warn', D: 'bg' },
+    small: [...run('V', 4, 1, 8), ...run('D', 5, 1, 3), ...run('D', 5, 6, 8)],
+    tiny: at('V', [1, 0], [1, 2]),
+  },
+  graphite: {
+    name: 'headphones',
+    paint: { H: 'muted', C: 'accent' },
+    small: [...run('H', 2, 1, 8), ...at('C', [3, 0], [4, 0], [5, 0], [3, 9], [4, 9], [5, 9])],
+    tiny: at('C', [1, 0], [1, 2]),
+  },
+  clay: {
+    name: 'sun hat',
+    paint: { S: 'warn', B: 'accent' },
+    small: [...at('S', [0, 3], [0, 6]), ...at('B', [1, 2], [1, 3], [1, 6], [1, 7]), ...run('S', 2, 0, 9)],
+    tiny: at('S', [0, 0], [0, 2]),
+  },
+  synthwave: {
+    name: 'shutter shades',
+    paint: { M: 'accent', C: 'info', D: 'bg' },
+    small: [...run('M', 4, 1, 3), ...run('M', 4, 6, 8), ...at('C', [4, 0], [4, 4], [4, 5], [4, 9]), ...run('D', 5, 1, 3), ...run('D', 5, 6, 8)],
+    tiny: at('M', [1, 0], [1, 2]),
+  },
+  'on-call': {
+    name: 'headset',
+    paint: { H: 'muted', C: 'error', M: 'accent' },
+    small: [...run('H', 2, 1, 8), ...at('C', [3, 0], [4, 0], [5, 0]), ...at('H', [3, 9], [4, 9]), ...at('M', [6, 1], [7, 2], [7, 3])],
+    tiny: at('C', [1, 0]).concat(at('M', [2, 0])),
+  },
+  // The sports looks dress Bolt in the look's accent and special: a team's two colours, where the settings give them.
+  hardwood: {
+    name: 'sweatband',
+    paint: { A: 'accent', S: 'special' },
+    small: [...run('A', 3, 1, 8), ...at('S', [3, 4], [3, 5])],
+    tiny: at('A', [1, 0], [1, 2]),
+  },
+  gridiron: {
+    name: 'helmet',
+    paint: { H: 'accent', S: 'special', G: 'muted' },
+    small: [...run('H', 2, 2, 7), ...run('H', 3, 1, 8), ...at('S', [2, 4], [2, 5], [3, 4], [3, 5]), ...at('H', [4, 0], [4, 9], [5, 0], [5, 9]), ...at('G', [6, 0], [6, 9], [7, 2], [7, 3], [7, 6], [7, 7])],
+    tiny: at('H', [0, 0], [0, 2]),
+  },
+  rink: {
+    name: 'helmet and stick',
+    paint: { H: 'accent', T: 'text', B: 'special' },
+    small: [...run('H', 2, 2, 7), ...run('H', 3, 1, 8), ...at('T', [4, 9], [5, 9], [6, 9], [7, 9], [8, 9]), ...at('B', [9, 8], [9, 9])],
+    tiny: at('H', [0, 0], [0, 2]),
+  },
+  easter: {
+    name: 'lily',
+    paint: { L: 'text', C: 'accent', G: 'ok' },
+    small: [...at('L', [0, 7], [1, 6], [1, 8]), ...at('C', [1, 7]), ...at('G', [2, 8])],
+    tiny: at('L', [0, 2]),
+  },
+  eid: {
+    name: 'lantern',
+    paint: { G: 'accent', W: 'warn' },
+    small: [...at('G', [8, 9]), ...at('W', [9, 8], [9, 9])],
+    tiny: at('W', [3, 1]),
+  },
 }
 
 /** The costume a theme wears, or undefined (Bolt plain). */

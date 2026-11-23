@@ -2,8 +2,21 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-11-22
+
+- wardrobe 0.8.0: every scene stands in the light of your local hour in the desktop app. Each scene is painted at an hour of its own, and your clock moves the light on from there: night comes down over a scene painted by day, day lifts the sky of one painted at night, and dawn and dusk each bring a warm glow low at one side. Dawn and dusk follow the `dayStarts` and `nightStarts` settings, and the light moves in steps of a quarter of an hour. It falls at the two sides of the picture only, so the chat column and its words are as they were; the two accessibility looks take none of it. The new `clockLight` setting turns it off.
+- wardrobe 0.7.0: five more scenes play on the graphics card in the desktop app, beside Christmas. `noir` has hard rain, a searchlight that turns to follow the pointer and sheet lightning on a press; `tokyo-night` has rain lit by the signs and a ring of light on a press; `nord` has flowing aurora and glittering ice crystals; `halloween` has embers that gather about the pointer, rolling fog and firelight; `summer` has glitter on the sea, rings on the water on a press, and fireflies. Each grows livelier while Claude works and lights the prompt box softly. The vector scene stays whole beneath each one and shows alone under reduced motion, with `motion` at `calm` or `still`, or where the app plays no shader.
+- wardrobe 0.6.0: the Christmas scene also plays on the graphics card in the desktop app. Snow falls over the scene in depth, parts around the pointer and blows outward from a press on the bare scene; while Claude works it falls faster and aslant and a warm light sits around the prompt box and on the tree. The vector scene stays whole beneath it and shows alone under reduced motion, with `motion` at `calm` or `still`, or where the app plays no shader.
+- wardrobe 0.5.0: every scene is composed around the chat column. The desktop app frosts the column over the middle of the window, so each look's subject (the moon, the castle, the terminal, the tree) now stands at a side, where it is seen sharp, and only soft light sits behind the words; Bolt stands clear of the column in every look. `/wardrobe` answers as `/wear` does. The Christmas sleigh flies forwards.
+
+## 2026-11-21
+
+- wardrobe 0.4.0: ten new looks, each with its own scene, costume and verbs. Five for people who build software (`phosphor`, `graphite`, `clay`, `synthwave`, `on-call`), three sports looks (`hardwood`, `gridiron`, `rink`) that wear your team's two colours and come out on game day, and two holiday looks (`easter`, `eid`) that `/wear season` wears where you ask. The gallery shows one family of looks at a time, and new settings set how much the scenes move and how heavy the glass over them is.
+
 ## 2026-11-20
 
+- wardrobe 0.3.0: the whole desktop app wears the look. Every look carries a palette for the app's own page, panels, text and accents, its scene is redrawn in depth with far more in it, and the gallery shows each scene. Putting a look on also matches Claude Code's own theme (a setting turns that off, and `/wear default` puts yours back), and `/wear <theme> everywhere` wears it in every project.
+- wardrobe 0.2.0: wallpapers. In the desktop app on Claude Code 2.1.325 or newer, every look puts an animated scene behind the chat, Bolt in costume in the corner; `/wear wallpaper off` keeps the look and drops the scene.
 - last-look 0.1.4: on Claude Code 2.1.325 and newer, where the engine stacks the band's rows itself, the band still draws alone while a hold waits: other mods' rows are left out until you decide, as before.
 
 ## 2026-10-23

@@ -1,0 +1,22 @@
+{
+  "name": "Easter (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ffd27a",
+    "claudeShimmer": "#f2b6d8",
+    "text": "#fbf3e4",
+    "subtle": "#c3b6cf",
+    "inactive": "#c3b6cf",
+    "suggestion": "#a9c9ff",
+    "success": "#a8dba0",
+    "error": "#ff8f9c",
+    "warning": "#ffb37a",
+    "permission": "#f2b6d8",
+    "promptBorder": "#ffd27a",
+    "bashBorder": "#ffd27a",
+    "userMessageBackground": "#1d1530",
+    "userMessageBackgroundHover": "#1d1530",
+    "diffAdded": "#213a26",
+    "diffRemoved": "#4a1f33"
+  }
+}

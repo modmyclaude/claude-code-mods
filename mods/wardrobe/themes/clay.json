@@ -1,0 +1,22 @@
+{
+  "name": "Clay (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#e0825f",
+    "claudeShimmer": "#d7a6b8",
+    "text": "#f0e9df",
+    "subtle": "#b8ad9f",
+    "inactive": "#b8ad9f",
+    "suggestion": "#8fb8c9",
+    "success": "#a3bf8a",
+    "error": "#f08a80",
+    "warning": "#e3b56b",
+    "permission": "#d7a6b8",
+    "promptBorder": "#e0825f",
+    "bashBorder": "#e0825f",
+    "userMessageBackground": "#262321",
+    "userMessageBackgroundHover": "#262321",
+    "diffAdded": "#2f3a24",
+    "diffRemoved": "#472620"
+  }
+}

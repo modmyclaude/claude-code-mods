@@ -1,0 +1,22 @@
+{
+  "name": "Gridiron (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#f5d547",
+    "claudeShimmer": "#e8c9a0",
+    "text": "#f2f7ee",
+    "subtle": "#b3c7b3",
+    "inactive": "#b3c7b3",
+    "suggestion": "#9fd3ff",
+    "success": "#8fe08a",
+    "error": "#ff8a7a",
+    "warning": "#ffb84d",
+    "permission": "#e8c9a0",
+    "promptBorder": "#f5d547",
+    "bashBorder": "#f5d547",
+    "userMessageBackground": "#0f2318",
+    "userMessageBackgroundHover": "#0f2318",
+    "diffAdded": "#17472a",
+    "diffRemoved": "#4a2120"
+  }
+}

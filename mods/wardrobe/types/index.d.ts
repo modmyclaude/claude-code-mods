@@ -8,8 +8,8 @@ export type WardrobeLook = {
   choice: string
   /** Where the choice came from: the global one, or this project's pin. */
   scope: 'global' | 'project'
-  /** In auto mode, which half of the day it is; null otherwise. */
-  phase: 'day' | 'night' | null
+  /** In auto mode, which half of the day it is; `game` where a game day chose the look (auto or season); null otherwise. */
+  phase: 'day' | 'night' | 'game' | null
   /** The project root the look was resolved for (pins are keyed by it). */
   root: string
 }
@@ -38,6 +38,34 @@ export type WardrobeSwitch = {
   at: number
 }
 
+/** The theme wardrobe set for the app: the look's palette, and the scene behind the chat. */
+export type WardrobeBackdrop = {
+  /** The look whose palette wardrobe set (a theme id), or null where no theme of its own stands. Absent in a value an older version kept. */
+  look?: string | null
+  /** The scene wardrobe set (a theme id), or null where none of its own stands. */
+  scene: string | null
+  /** Whether a window said it draws that scene when it was set. */
+  isDrawn: boolean
+}
+
+/** Which family of looks the `/wear` gallery shows: a family's name, or null for the worn look's own. */
+export type WardrobeGallery = {
+  family: string | null
+}
+
+/** What a scene on the GPU is told of the session. */
+export type WardrobeLive = {
+  /** Whether a turn of the session's own runs now. */
+  isWorking: boolean
+}
+
+/** The light of the hour a scene stands in: how dark it is (0 by day, 1 at night), and how much of dawn's and of dusk's glow shows (0 to 1). */
+export type WardrobeSky = {
+  dark: number
+  dawn: number
+  dusk: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     wardrobe: {
@@ -46,6 +74,11 @@ declare module 'claude-code' {
       switch: WardrobeSwitch | null
       verb: WardrobeVerb | null
       app: WardrobeApp
+      backdrop: WardrobeBackdrop
+      gallery: WardrobeGallery
+      live: WardrobeLive
+      /** The light of the hour, as the clock last gave it; null before the first reading and with the clock light off. */
+      sky: WardrobeSky | null
     }
   }
 }

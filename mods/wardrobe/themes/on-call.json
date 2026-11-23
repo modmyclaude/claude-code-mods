@@ -1,0 +1,22 @@
+{
+  "name": "On call (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ffb347",
+    "claudeShimmer": "#ff9f6b",
+    "text": "#e6e8ec",
+    "subtle": "#a3a9b4",
+    "inactive": "#a3a9b4",
+    "suggestion": "#7cc4ff",
+    "success": "#5fe08a",
+    "error": "#ff7a70",
+    "warning": "#ffd75f",
+    "permission": "#ff9f6b",
+    "promptBorder": "#ffb347",
+    "bashBorder": "#ffb347",
+    "userMessageBackground": "#17191d",
+    "userMessageBackgroundHover": "#17191d",
+    "diffAdded": "#143524",
+    "diffRemoved": "#451c1c"
+  }
+}

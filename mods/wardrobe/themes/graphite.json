@@ -1,0 +1,22 @@
+{
+  "name": "Graphite (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#6cb6ff",
+    "claudeShimmer": "#b8a9e6",
+    "text": "#d7dae0",
+    "subtle": "#9aa0aa",
+    "inactive": "#9aa0aa",
+    "suggestion": "#7fd1e0",
+    "success": "#8fcf9a",
+    "error": "#f08f8f",
+    "warning": "#d9b56c",
+    "permission": "#b8a9e6",
+    "promptBorder": "#6cb6ff",
+    "bashBorder": "#6cb6ff",
+    "userMessageBackground": "#1c1e21",
+    "userMessageBackgroundHover": "#1c1e21",
+    "diffAdded": "#22382a",
+    "diffRemoved": "#3f2527"
+  }
+}

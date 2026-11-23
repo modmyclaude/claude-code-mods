@@ -1,0 +1,22 @@
+{
+  "name": "Hardwood (wardrobe)",
+  "base": "dark",
+  "overrides": {
+    "claude": "#ff8c3a",
+    "claudeShimmer": "#f2d2a0",
+    "text": "#f6ead8",
+    "subtle": "#c4b199",
+    "inactive": "#c4b199",
+    "suggestion": "#8fc2e8",
+    "success": "#9ed67a",
+    "error": "#ff7b6b",
+    "warning": "#ffc857",
+    "permission": "#f2d2a0",
+    "promptBorder": "#ff8c3a",
+    "bashBorder": "#ff8c3a",
+    "userMessageBackground": "#1f150d",
+    "userMessageBackgroundHover": "#1f150d",
+    "diffAdded": "#2c3a1a",
+    "diffRemoved": "#4a2018"
+  }
+}

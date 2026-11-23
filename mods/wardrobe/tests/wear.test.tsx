@@ -27,14 +27,23 @@ describe('/wear', () => {
       const row = await ui.find({ key: 'theme-dracula' })
       expect(row?.text).toContain('dracula')
       expect(row?.text).toContain(dracula.blurb)
-      // The preview chips are painted in the theme's own diff colours (14 themes since the seasonal packs).
+      // The preview chips are painted in the theme's own diff colours: one per look of the family shown (the seven everyday looks first).
       const adds = await ui.findAll({ type: 'Text', text: ' + add ' })
-      expect(adds).toHaveLength(14)
+      expect(adds).toHaveLength(7)
       expect(adds.map(chip => chip.props.backgroundColor)).toContain(dracula.diff.addBg)
       expect((await ui.find({ key: 'theme-default' }))?.text).toContain('(wearing)')
       expect((await ui.find({ key: 'theme-dracula' }))?.text).not.toContain('(wearing)')
       await ui.unmount()
     }
+  })
+
+  test('/wardrobe, the name of the mod, answers as /wear does: the gallery alone, a look by name', async ($, on) => {
+    const w = world(on)
+    await start($)
+    expect(await wear($, '', 'wardrobe')).toBe('')
+    expect(w.panes).toEqual(['wardrobe'])
+    expect(await wear($, 'dracula', 'wardrobe')).toBe('Wearing dracula everywhere without a pin.')
+    expect(await wear($, 'nope', 'wardrobe')).toContain('No theme called "nope"')
   })
 
   test('<theme> restyles what is already drawn, live, and default hands it back', async ($, on) => {
@@ -158,6 +167,40 @@ describe('/wear pin', () => {
   })
 })
 
+describe('/wear everywhere', () => {
+  test('<theme> everywhere becomes every project\'s choice, lets every pin go and says how many', async ($, on) => {
+    const w = world(on, { root: '/work/alpha', store: { global: 'dracula', pins: { '/work/alpha': 'nord', '/work/beta': 'paper' } } })
+    await start($)
+    expect(await wear($, 'christmas everywhere')).toBe('Wearing christmas everywhere without a pin. 2 project pins were let go. Sessions already open follow within a minute.')
+    expect(w.store.get('global')).toBe('christmas')
+    expect(w.store.get('pins')).toEqual({})
+    // Another project, pinned a moment ago: the same look now.
+    w.cd('/work/beta')
+    await start($)
+    const ui = await $.ui.mount({ plugin: 'wardrobe', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 3000 } })
+    const christmas = themeById('christmas')!
+    expect((await ui.find({ key: 'turn' }))?.children).toEqual([expect.objectContaining({ props: { color: christmas.palette.muted, backgroundColor: christmas.palette.bg } })])
+    await ui.unmount()
+  })
+
+  test('alone, what this project wears now becomes every project\'s', async ($, on) => {
+    const w = world(on, { root: '/work/alpha', store: { global: 'dracula', pins: { '/work/alpha': 'nord' } } })
+    await start($)
+    expect(await wear($, 'everywhere')).toBe('Wearing nord everywhere without a pin. One project pin was let go. Sessions already open follow within a minute.')
+    expect(w.store.get('global')).toBe('nord')
+    expect(w.store.get('pins')).toEqual({})
+  })
+
+  test('with no pin anywhere it says only where the look is worn; a plain /wear still moves this project alone', async ($, on) => {
+    const w = world(on, { root: '/work/alpha', store: { pins: { '/work/beta': 'paper' } } })
+    await start($)
+    expect(await wear($, 'dracula')).toBe('Wearing dracula everywhere without a pin.')
+    expect(w.store.get('pins')).toEqual({ '/work/beta': 'paper' }) // another project's pin stands
+    expect(await wear($, 'dracula everywhere')).toBe('Wearing dracula everywhere without a pin. One project pin was let go. Sessions already open follow within a minute.')
+    expect(await wear($, 'everywhere')).toBe('Wearing dracula everywhere without a pin. Sessions already open follow within a minute.')
+  })
+})
+
 describe('/wear auto', () => {
   const options = { dayTheme: 'paper', nightTheme: 'nord', dayStarts: '08:30', nightStarts: '20:15' }
 
@@ -240,7 +283,7 @@ describe('Bolt in the /wear pane', () => {
       expect(under(tree, 'bolt')?.type).toBe(surface === 'terminal' ? 'Raster' : 'Box')
       expect(await ui.find({ type: 'Text', text: "Wearing Claude Code's own look everywhere without a pin." })).toBeDefined()
       expect((await ui.find({ key: 'theme-dracula' }))?.text).toContain(dracula.blurb)
-      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(14) // one chip per theme (14)
+      expect(await ui.findAll({ type: 'Text', text: ' + add ' })).toHaveLength(7) // one chip per look of the family shown
       await ui.unmount()
       const narrow = await pane($, surface, 39)
       expect(await narrow.find({ key: 'bolt' }), surface).toBeUndefined()
