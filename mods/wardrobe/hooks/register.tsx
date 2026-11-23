@@ -716,8 +716,10 @@ export const register: Register = (on, options) => {
   // The wallpaper: the desktop app asks every plugin to draw the backdrop that
   // `$.theme.set` named. Wardrobe draws its own scene for the look that is worn
   // and passes on any other plugin's, saying once, kindly, that the other
-  // plugin holds the backdrop now. The terminal never asks; mobile is left to
-  // Claude Code's own drawing, like the rest of wardrobe there.
+  // plugin holds the backdrop now. Over its own scene it lays what a plugin
+  // asked after it draws there, such as a card in a side column. The terminal
+  // never asks; mobile is left to Claude Code's own drawing, like the rest of
+  // wardrobe there.
   on('ui.render', { component: 'Backdrop' }, async ($, e, next) => {
     if (e.surface !== 'desktop') return next(e)
     if (e.props.plugin !== 'wardrobe') {
@@ -732,52 +734,66 @@ export const register: Register = (on, options) => {
     // The scene stands in the light of the local hour, where the clock light is on and the look takes it.
     const scene = theme === undefined ? undefined : sceneOf(theme, { motion: settings.motion, light: await read($, sky) })
     if (scene === undefined) return next(e)
-    const { Shader, Svg } = $.ui.resolve(e)
-    // A flagship scene also plays on the GPU, over the same picture: the app shows the picture alone under Reduce Motion,
-    // or where it plays no shader. Calm and still motion keep to the picture, and so does an app older than the Shader.
-    if (settings.motion !== 'full' || Shader === undefined) return <Svg source={scene.source} alt={scene.alt} isInteractive />
-    const values = gpuValues(await read($, live))
-    // Each names its file in the element itself, as the app asks: the engine reads the file from there.
-    switch (theme?.id) {
-      case 'christmas':
-        return (
-          <Shader module="./gpu/snow.ts" values={values}>
-            <Svg source={scene.source} alt={scene.alt} isInteractive />
-          </Shader>
-        )
-      case 'noir':
-        return (
-          <Shader module="./gpu/rain.ts" values={values}>
-            <Svg source={scene.source} alt={scene.alt} isInteractive />
-          </Shader>
-        )
-      case 'tokyo-night':
-        return (
-          <Shader module="./gpu/neon.ts" values={values}>
-            <Svg source={scene.source} alt={scene.alt} isInteractive />
-          </Shader>
-        )
-      case 'nord':
-        return (
-          <Shader module="./gpu/aurora.ts" values={values}>
-            <Svg source={scene.source} alt={scene.alt} isInteractive />
-          </Shader>
-        )
-      case 'halloween':
-        return (
-          <Shader module="./gpu/embers.ts" values={values}>
-            <Svg source={scene.source} alt={scene.alt} isInteractive />
-          </Shader>
-        )
-      case 'summer':
-        return (
-          <Shader module="./gpu/sea.ts" values={values}>
-            <Svg source={scene.source} alt={scene.alt} isInteractive />
-          </Shader>
-        )
-      default:
-        return <Svg source={scene.source} alt={scene.alt} isInteractive />
+    const { Box, Shader, Svg } = $.ui.resolve(e)
+    const picture = async (): Promise<RenderElement> => {
+      if (settings.motion !== 'full' || Shader === undefined) return <Svg source={scene.source} alt={scene.alt} isInteractive />
+      // A flagship scene also plays on the GPU, over the same picture: the app shows the picture alone under Reduce Motion,
+      // or where it plays no shader. Calm and still motion keep to the picture, and so does an app older than the Shader.
+      const values = gpuValues(await read($, live))
+      // Each names its file in the element itself, as the app asks: the engine reads the file from there.
+      switch (theme?.id) {
+        case 'christmas':
+          return (
+            <Shader module="./gpu/snow.ts" values={values}>
+              <Svg source={scene.source} alt={scene.alt} isInteractive />
+            </Shader>
+          )
+        case 'noir':
+          return (
+            <Shader module="./gpu/rain.ts" values={values}>
+              <Svg source={scene.source} alt={scene.alt} isInteractive />
+            </Shader>
+          )
+        case 'tokyo-night':
+          return (
+            <Shader module="./gpu/neon.ts" values={values}>
+              <Svg source={scene.source} alt={scene.alt} isInteractive />
+            </Shader>
+          )
+        case 'nord':
+          return (
+            <Shader module="./gpu/aurora.ts" values={values}>
+              <Svg source={scene.source} alt={scene.alt} isInteractive />
+            </Shader>
+          )
+        case 'halloween':
+          return (
+            <Shader module="./gpu/embers.ts" values={values}>
+              <Svg source={scene.source} alt={scene.alt} isInteractive />
+            </Shader>
+          )
+        case 'summer':
+          return (
+            <Shader module="./gpu/sea.ts" values={values}>
+              <Svg source={scene.source} alt={scene.alt} isInteractive />
+            </Shader>
+          )
+        default:
+          return <Svg source={scene.source} alt={scene.alt} isInteractive />
+      }
     }
+    // A mod asked after wardrobe may lay something over the scene, a card in a side column say: it is asked for that,
+    // and what it draws goes on top, so it shows whichever of the two the app asks first.
+    const over = await next(e)
+    if (!drewOwn(over)) return picture()
+    return (
+      <Box position="relative" width="100%" height="100%">
+        {await picture()}
+        <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+          {over}
+        </Box>
+      </Box>
+    )
   }).catch(($, e, next) => next(e))
 
   // The `/wear` gallery: a card per theme in its own colours with Bolt in its

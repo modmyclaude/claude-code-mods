@@ -43,6 +43,27 @@ const PROBE = {
   },
 }
 
+/** A mod asked after wardrobe that lays a card over whatever scene stands, as a live-scores mod does. */
+const CARD = {
+  name: 'card',
+  tier: 'append' as const,
+  register(on: On) {
+    on('ui.render', { component: 'Backdrop' }, async ($, e, next) => {
+      if (e.surface !== 'desktop') return next(e)
+      const below = await next(e)
+      const { Box, Text } = $.ui.resolve(e)
+      return (
+        <Box position="relative" width="100%" height="100%">
+          {below.type === 'engine' ? null : below}
+          <Box position="absolute" top={3} left={3}>
+            <Text>a card</Text>
+          </Box>
+        </Box>
+      )
+    })
+  },
+}
+
 // Set by the first test, read by the rest: tests in a file run in order, in one module.
 let engineHasTheme = false
 
@@ -352,6 +373,29 @@ describe('wallpapers', () => {
       await ui.unmount()
     })
   }
+
+  test('a mod asked after wardrobe lays its card over the scene: the scene plays whole beneath, the card on top', { plugins: [CARD] }, async ($, on) => {
+    if (!engineHasTheme) return
+    world(on, { surfaces: ['desktop'] })
+    themeWorld(on, true)
+    await start($)
+    await wear($, 'christmas')
+    const ui = await mountBackdrop($, 'christmas')
+    const scene = sceneOf(themeById('christmas')!, { light: NOON })!
+    expect(await ui.drawn()).toMatchObject({
+      type: 'Box',
+      props: { position: 'relative', width: '100%', height: '100%' },
+      children: [
+        { type: 'Shader', props: { module: 'hooks/gpu/snow.ts', values: { work: 0 } }, children: [{ type: 'Svg', props: { source: scene.source, alt: scene.alt } }] },
+        {
+          type: 'Box',
+          props: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+          children: [{ type: 'Box', children: [{ type: 'Box', props: { position: 'absolute', top: 3, left: 3 }, children: [{ type: 'Text', children: ['a card'] }] }] }],
+        },
+      ],
+    })
+    await ui.unmount()
+  })
 
   test('a look with no GPU scene draws its picture alone', async ($, on) => {
     if (!engineHasTheme) return
