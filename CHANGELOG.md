@@ -2,6 +2,10 @@
 
 One line per version. A mod reaches installed copies through `/plugin update` only when its version moves, so every change to what a mod ships comes with a bump in its `plugin.json` and a line here.
 
+## 2026-11-23
+
+- wardrobe 0.8.1: a mod that lays something over the scene in the desktop app, such as cards of live scores in a side column, now shows on top of wardrobe's scene whichever of the two the app asks first. The scene keeps playing beneath it, on the graphics card too.
+
 ## 2026-11-22
 
 - wardrobe 0.8.0: every scene stands in the light of your local hour in the desktop app. Each scene is painted at an hour of its own, and your clock moves the light on from there: night comes down over a scene painted by day, day lifts the sky of one painted at night, and dawn and dusk each bring a warm glow low at one side. Dawn and dusk follow the `dayStarts` and `nightStarts` settings, and the light moves in steps of a quarter of an hour. It falls at the two sides of the picture only, so the chat column and its words are as they were; the two accessibility looks take none of it. The new `clockLight` setting turns it off.
