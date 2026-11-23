@@ -1,0 +1,64 @@
+{
+  "name": "scorebug",
+  "version": "0.1.0",
+  "description": "Live scores beside the chat: a card for each game in a side column of the scene in the desktop app, one row above the prompt everywhere else.",
+  "homepage": "https://modmyclaude.com/mods/scorebug",
+  "repository": "https://github.com/modmyclaude/claude-code-mods",
+  "documentationUrl": "https://github.com/modmyclaude/claude-code-mods/tree/main/mods/scorebug#readme",
+  "supportUrl": "https://github.com/modmyclaude/claude-code-mods/issues",
+  "privacyPolicyUrl": "https://modmyclaude.com/privacy",
+  "termsOfServiceUrl": "https://modmyclaude.com/terms",
+  "author": { "name": "modmyclaude" },
+  "license": "MIT",
+  "keywords": ["scores", "sports", "live", "backdrop", "band"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "On",
+      "description": "Off draws nothing and runs no timer.",
+      "default": true
+    },
+    "teams": {
+      "type": "string",
+      "title": "Teams",
+      "description": "The teams to follow, comma-separated: a short code, a whole name or one word of it. Empty follows every game the feed has. Twenty at most.",
+      "default": ""
+    },
+    "source": {
+      "type": "string",
+      "title": "Feed",
+      "description": "Where the scores come from. demo: two pretend games that play on the clock, to see the cards before a real feed is chosen; it sends nothing anywhere.",
+      "default": "demo",
+      "options": ["demo"]
+    },
+    "refresh": {
+      "type": "number",
+      "title": "Refresh while a game is on (seconds)",
+      "description": "How often the feed is read while a followed game is on. With none on it is read before the next starts, at least every fifteen minutes; after a failure the wait doubles, up to five minutes.",
+      "default": 30,
+      "min": 10,
+      "max": 300
+    },
+    "side": {
+      "type": "string",
+      "title": "Column",
+      "description": "Which side column of the scene the cards stand in, in the desktop app.",
+      "default": "left",
+      "options": ["left", "right"]
+    },
+    "band": {
+      "type": "string",
+      "title": "Row above the prompt",
+      "description": "auto: shown where no card can be, in the terminal, on the phone and in the desktop app with no scene behind the chat. on: always. off: never.",
+      "default": "auto",
+      "options": ["auto", "on", "off"]
+    },
+    "alerts": {
+      "type": "boolean",
+      "title": "Toasts",
+      "description": "A toast when a followed team scores a goal or a run, and when a followed game ends.",
+      "default": true
+    }
+  }
+}
