@@ -128,7 +128,7 @@ A mod is active as soon as it installs, with no restart. Installs at user scope 
 
 | | Mod | What it does | Can reach |
 |---|---|---|---|
-| <img src="brand/pixel-icons/svg/wardrobe.svg" width="32" height="32" alt=""> | [**Wardrobe**](mods/wardrobe)<br>`wardrobe@modmyclaude` | Restyle Claude Code live, including colourblind-safe and high-contrast themes. [Prompt](prompts/wardrobe.md) | `hooks tool calls` |
+| <img src="brand/pixel-icons/svg/wardrobe.svg" width="32" height="32" alt=""> | [**Wardrobe**](mods/wardrobe)<br>`wardrobe@modmyclaude` | Restyle Claude Code live: twenty-four looks, a moving scene behind the chat in the desktop app, and colourblind-safe and high-contrast themes. [Prompt](prompts/wardrobe.md) | `hooks tool calls` |
 
 ### Fun
 
