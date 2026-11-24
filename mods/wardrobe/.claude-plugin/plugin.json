@@ -1,7 +1,7 @@
 {
   "name": "wardrobe",
-  "version": "0.8.0",
-  "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
+  "version": "0.8.1",
+  "description": "Restyle Claude Code live: twenty-four looks, a moving scene behind the chat in the desktop app, and colourblind-safe and high-contrast themes.",
   "homepage": "https://modmyclaude.com/mods/wardrobe",
   "repository": "https://github.com/modmyclaude/claude-code-mods",
   "documentationUrl": "https://github.com/modmyclaude/claude-code-mods/tree/main/mods/wardrobe#readme",

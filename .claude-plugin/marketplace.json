@@ -364,8 +364,8 @@
     {
       "name": "wardrobe",
       "source": "./mods/wardrobe",
-      "description": "Restyle Claude Code live, including colourblind-safe and high-contrast themes.",
-      "version": "0.8.0",
+      "description": "Restyle Claude Code live: twenty-four looks, a moving scene behind the chat in the desktop app, and colourblind-safe and high-contrast themes.",
+      "version": "0.8.1",
       "category": "looks",
       "keywords": [
         "theme",

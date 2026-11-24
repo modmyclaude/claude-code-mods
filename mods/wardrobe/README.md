@@ -2,7 +2,7 @@
 
 # Wardrobe
 
-Restyle Claude Code live, including colourblind-safe and high-contrast themes.
+Restyle Claude Code live: twenty-four looks, a moving scene behind the chat in the desktop app, and colourblind-safe and high-contrast themes.
 
 ## Install
 

@@ -1,7 +1,7 @@
 ---
 mod: wardrobe
 title: Wardrobe
-tagline: Restyle Claude Code live, including colourblind-safe and high-contrast themes.
+tagline: Restyle Claude Code live: twenty-four looks, a moving scene behind the chat in the desktop app, and colourblind-safe and high-contrast themes.
 category: looks
 surfaces: [terminal, desktop]
 model_calls: none
@@ -10,7 +10,7 @@ full_from: 2.1.325
 
 # Wardrobe
 
-Restyle Claude Code live, including colourblind-safe and high-contrast themes.
+Restyle Claude Code live: twenty-four looks, a moving scene behind the chat in the desktop app, and colourblind-safe and high-contrast themes.
 
 ## The prompt
 
